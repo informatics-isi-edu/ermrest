@@ -49,7 +49,6 @@ class connection (psycopg2.extensions.connection):
     def __init__(self, dsn):
         psycopg2.extensions.connection.__init__(self, dsn)
         self._curnumber  = 1
-        self._savepoints = None #TODO: Is None the right initial value?
 
     def execute(self, stmt, vars=None):
         """Name and create a server-side cursor with withhold=True and run statement in it.
