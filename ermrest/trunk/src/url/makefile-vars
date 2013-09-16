@@ -1,0 +1,21 @@
+
+ERMREST_URL_PYTHON_FILES= \
+	__init__.py \
+	lex.py \
+	parse.py
+
+ERMREST_URL_PYTHON_FILES_INSTALL=$(ERMREST_URL_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/url/%)
+
+INSTALL_FILES += $(ERMREST_URL_PYTHON_FILES_INSTALL)
+
+INSTALL_DIRS += $(PYLIBDIR)/ermrest/url
+
+CLEAN_FILES += \
+	$(ERMREST_URL_PYTHON_FILES:%=src/url/%c) \
+	$(ERMREST_URL_PYTHON_FILES:%=src/url/%o) \
+	src/url/url_lextab.py \
+	src/url/url_parsetab.py
+
+EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=ermrest/url/%) \
+	src/url/makefile-vars
+

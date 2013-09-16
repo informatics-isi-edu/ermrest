@@ -1,0 +1,19 @@
+
+# Recipes for CentOS 6.x
+
+$(PREDEPLOY):
+	yum -y --skip-broken install postgresql92{,-devel,-server} policycoreutils-python || true
+	yum -y --skip-broken install httpd mod_{ssl,wsgi} python{,-psycopg2,-webpy,-dateutil,-json,-simplejson,-setuptools} pytz || true
+	useradd -m -r $(DAEMONUSER) || true
+	semanage fcontext --add --ftype -d --type "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" "$(SVCHOMEDIR)" || true
+	restorecon -v $(SVCHOMEDIR) || true
+	service postgresql-9.2 initdb || true
+	service postgresql-9.2 start || true
+	chkconfig postgresql-9.2 on || true
+	chkconfig httpd on || true
+	setsebool -P httpd_enable_homedirs on || true
+	mkdir -p $(VARLIBDIR)
+	touch $(PREDEPLOY)
+
+httpd_restart: force
+	service httpd stop && service httpd start
