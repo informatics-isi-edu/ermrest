@@ -17,6 +17,12 @@
 
 """
 A database introspection layer.
+
+At present, the capabilities of this module are limited to introspection of an 
+existing database model. This module does not attempt to capture all of the 
+details that could be found in an entity-relationship model or in the standard 
+information_schema of a relational database. It represents the model as 
+needed by other modules of the ermrest project.
 """
 
 __all__ = ["introspect", "Model", "Catalog", "Schema", "Table", "Column"]
@@ -78,17 +84,27 @@ ORDER BY c.table_catalog, c.table_schema, c.table_name, c.ordinal_position;
         # Translate default_value
         default_value = __pg_default_value(base_type, default_value)
         
-        #TODO: turn this around and build bottom up, to avoid redundancy
-        catalog = catalogs.setdefault(dname, Catalog(dname))
-        schema = schemas.setdefault((dname, sname), Schema(catalog, sname))
-        table = tables.setdefault((dname, sname, tname), Table(schema, tname))
-        column = columns.setdefault((dname, sname, tname, cname), 
-            Column(table, cname, position, base_type, is_array, default_value))
-        print tup
+        # Build up the model as we go without redundancy
+        if (dname, sname, tname) not in tables:
+            if (dname, sname) not in schemas:
+                if dname not in catalogs:
+                    catalogs[dname] = Catalog(dname)
+                schemas[(dname, sname)] = Schema(catalogs[dname], sname)
+            tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname)
+            
+        # We shouldn't revisit Columns, so no need to check for them
+        columns.setdefault((dname, sname, tname, cname), 
+            Column(tables[(dname, sname, tname)], cname, position, base_type, 
+                   is_array, default_value))
         
     return Model(catalogs)
 
 def __pg_default_value(base_type, raw):
+    """Converts raw default value with base_type hints.
+    
+    This is at present sort of an ugly hack. It is definitely incomplete but 
+    handles what I've seen so far.
+    """
     if not raw:
         return raw
     elif raw.find('nextval') >= 0:
@@ -103,7 +119,11 @@ def __pg_default_value(base_type, raw):
         return 'unknown'
             
 class Model:
-    """A database model."""
+    """Represents a database model.
+    
+    At present, this amounts to a collection of 'catalogs' in the conventional
+    database sense of the term.
+    """
     
     def __init__(self, catalogs):
         self.catalogs = catalogs
@@ -115,7 +135,10 @@ class Model:
         return s
     
 class Catalog:
-    """A database catalog."""
+    """Represents a database catalog.
+    
+    At present, this has a 'name' and a collection of database 'schemas'.
+    """
     
     def __init__(self, name):
         self.name = name
@@ -129,7 +152,11 @@ class Catalog:
         return s
 
 class Schema:
-    """A database schema."""
+    """Represents a database schema.
+    
+    At present, this has a 'name' and a collection of database 'tables'. It 
+    also has a reference to its 'catalog'.
+    """
     
     def __init__(self, catalog, name):
         self.catalog = catalog
@@ -147,7 +174,11 @@ class Schema:
         return s
 
 class Table:
-    """A database table."""
+    """Represents a database table.
+    
+    At present, this has a 'name' and a collection of table 'columns'. It
+    also has a reference to its 'schema'.
+    """
     
     def __init__(self, schema, name):
         self.schema = schema
@@ -165,7 +196,18 @@ class Table:
         return s
 
 class Column:
-    """A database column."""
+    """Represents a table column.
+    
+    Its fields include:
+     -- name: the name of the columns
+     -- position: its ordinal position in the table
+     -- base_type: the elemental type
+     -- is_array: boolean flag indicating whether it is an array
+     -- default_value: a kludgy attempt at translating the raw default 
+                       value for this column
+    
+    It also has a reference to its 'table'.
+    """
     
     def __init__(self, table, name, position, base_type, is_array, default_value):
         self.table = table
@@ -179,7 +221,7 @@ class Column:
             self.table.columns[name] = self
     
     def __str__(self):
-        return "name: %s, position: %d, base_type: %s, is_array: %d, default_value: %s" \
+        return "name: %s, position: %d, base_type: %s, is_array: %s, default_value: %s" \
                 % (self.name, self.position, self.base_type, self.is_array, self.default_value)
 
 class Unique:
