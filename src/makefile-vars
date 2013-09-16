@@ -1,0 +1,31 @@
+
+ERMREST_SHARE_FILES= \
+	ermrest_config.json \
+	ermrest_schema.sql
+
+ERMREST_PYTHON_FILES= \
+	__init__.py \
+	ermrest_apis.py \
+	ermrest.wsgi \
+	model.py \
+	sanepg2.py
+
+ERMREST_PYTHON_FILES_INSTALL=$(ERMREST_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/%)
+
+INSTALL_FILES += $(ERMREST_PYTHON_FILES_INSTALL) \
+	$(ERMREST_SHARE_FILES:%=$(SHAREDIR)/%) \
+	$(SHAREDIR)/ermrest_config.json \
+	$(HTTPCONFDIR)/wsgi_ermrest.conf
+
+INSTALL_DIRS += $(PYLIBDIR)/ermrest
+
+CLEAN_FILES += \
+	$(ERMREST_PYTHON_FILES:%=src/%c) \
+	$(ERMREST_PYTHON_FILES:%=src/%o)
+
+EDIT_FILES += $(ERMREST_PYTHON_FILES:%=src/%) \
+	$(ERMREST_SHARE_FILES:%=src/%) \
+	src/wsgi_ermrest.conf.in \
+	src/makefile-rules \
+	src/makefile-vars
+
