@@ -17,7 +17,7 @@ CREATE TABLE microscopy.slide
 CREATE TABLE microscopy.scan
   (
     id bigserial PRIMARY KEY,
-    scan_id bigint,
+    slide_id bigint,
     uri text,
     FOREIGN KEY (slide_id) REFERENCES microscopy.slide (id)
   );
