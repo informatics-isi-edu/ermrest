@@ -19,7 +19,7 @@
 
 """
 
-import web
+import rest
 
 class LexicalError (ValueError):
     """Exception for lexical errors in URL parsing"""
@@ -33,7 +33,5 @@ class ParseError (ValueError):
 
     def __init__(self, t, message='URL parse error at token:'):
         ValueError.__init__(self)
-        if hasattr(web.ctx, 'env'):
-            web.debug(message, t)
         pass
 

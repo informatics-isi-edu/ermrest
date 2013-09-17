@@ -33,6 +33,7 @@ DEPLOYLOCK=$(VARLIBDIR)/deploy.lock
 # get sub-directory variables (e.g. modular file groups)
 include sbin/makefile-vars
 include src/makefile-vars
+include src/exception/makefile-vars
 include src/url/makefile-vars
 include src/url/ast/makefile-vars
 include src/url/ast/data/makefile-vars
