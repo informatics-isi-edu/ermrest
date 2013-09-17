@@ -14,7 +14,8 @@ CLEAN_FILES += \
 	$(ERMREST_URL_PYTHON_FILES:%=src/url/%c) \
 	$(ERMREST_URL_PYTHON_FILES:%=src/url/%o) \
 	src/url/url_lextab.py \
-	src/url/url_parsetab.py
+	src/url/url_parsetab.py \
+	src/url/parser.out
 
 EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=ermrest/url/%) \
 	src/url/makefile-vars
