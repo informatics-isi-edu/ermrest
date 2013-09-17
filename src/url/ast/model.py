@@ -19,12 +19,14 @@
 
 """
 
-class Schemas (object):
+from data import Api
+
+class Schemas (Api):
     """A schema set."""
     def __init__(self, catalog):
         self.catalog = catalog
 
-class Schema (object):
+class Schema (Api):
     """A specific schema by name."""
     def __init__(self, catalog, name):
         self.catalog = catalog
@@ -32,20 +34,20 @@ class Schema (object):
 
     def tables(self):
         """The table set for this schema."""
-        return table.Tables(self)
+        return Tables(self)
 
     def table(self, name):
         """A specific table for this schema."""
-        return table.Table(self, name)
+        return Table(self, name)
 
 
-class Tables (object):
+class Tables (Api):
     """A table set."""
     def __init__(self, schema):
         self.schema = schema
 
 
-class Table (object):
+class Table (Api):
     """A specific table by name."""
     def __init__(self, schema, name):
         self.schema = schema
@@ -53,56 +55,56 @@ class Table (object):
 
     def columns(self):
         """The column set for this table."""
-        return column.Columns(self)
+        return Columns(self)
 
     def column(self, name):
         """A specific column for this table."""
-        return column.Column(self, name)
+        return Column(self, name)
 
     def keys(self):
         """The key set for this table."""
-        return key.Keys(self)
+        return Keys(self)
 
     def key(self, column_set):
         """A specific key for this table."""
-        return key.Key(self, column_set)
+        return Key(self, column_set)
 
     def foreignkeys(self):
         """The foreign key set for this table."""
-        return key.Foreignkeys(self)
+        return Foreignkeys(self)
 
     def foreignkey(self, column_set):
         """A specific foreign key for this table."""
-        return key.Foreignkey(self, column_set)
+        return Foreignkey(self, column_set)
 
     def references(self):
         """A set of foreign key references from this table."""
-        return reference.ForeignkeyReferences(self.schema.catalog).with_from_table(self)
+        return ForeignkeyReferences(self.schema.catalog).with_from_table(self)
 
     def referencedbys(self):
         """A set of foreign key references to this table."""
-        return reference.ForeignkeyReferences(self.schema.catalog).with_to_table(self)
+        return ForeignkeyReferences(self.schema.catalog).with_to_table(self)
 
 
-class Columns (object):
+class Columns (Api):
     """A column set."""
     def __init__(self, table):
         self.table = table
 
 
-class Column (object):
+class Column (Api):
     """A specific column by name."""
     def __init__(self, table, name):
         self.table = table
         self.name = name
 
 
-class Keys (object):
+class Keys (Api):
     """A set of keys."""
     def __init__(self, table):
         self.table = table
 
-class Key (object):
+class Key (Api):
     """A specific key by column set."""
     def __init__(self, table, column_set):
         self.table = table
@@ -110,14 +112,14 @@ class Key (object):
 
     def referencedbys(self):
         """A set of foreign key references to this key."""
-        return reference.ForeignkeyReferences(self.table.schema.catalog).with_to_key(self)
+        return ForeignkeyReferences(self.table.schema.catalog).with_to_key(self)
 
-class Foreignkeys (object):
+class Foreignkeys (Api):
     """A set of foreign keys."""
     def __init__(self, table):
         self.table = table
 
-class Foreignkey (object):
+class Foreignkey (Api):
     """A specific foreign key by column set."""
     def __init__(self, table, column_set):
         self.table = table
@@ -125,10 +127,10 @@ class Foreignkey (object):
 
     def references(self):
         """A set of foreign key references from this foreign key."""
-        return reference.ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
+        return ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
 
 
-class ForeignkeyReferences (object):
+class ForeignkeyReferences (Api):
     """A set of foreign key references."""
     def __init__(self, catalog):
         self.catalog = catalog
@@ -140,6 +142,17 @@ class ForeignkeyReferences (object):
     def with_from_table(self, from_table):
         """Refine reference set with referencing table information."""
         self._from_table = from_table
+        return self
+
+    def with_from_table_name(self, from_table_name):
+        """Refine reference set with referencing table information."""
+        if len(from_table_name) == 2:
+            sname, tname = from_table_name
+        elif len(from_table_name) == 1:
+            sname, tname = None, from_table_name
+        else:
+            raise ValueError('Invalid qualified table name: %s' % ':'.join(from_table_name))
+        self._from_table = Table(sname, tname)
         return self
 
     def with_from_key(self, from_key):
@@ -155,6 +168,17 @@ class ForeignkeyReferences (object):
     def with_to_table(self, to_table):
         """Refine reference set with referenced table information."""
         self._to_table = to_table
+        return self
+
+    def with_to_table_name(self, to_table_name):
+        """Refine reference set with referenced table information."""
+        if len(to_table_name) == 2:
+            sname, tname = to_table_name
+        elif len(to_table_name) == 1:
+            sname, tname = None, to_table_name
+        else:
+            raise ValueError('Invalid qualified table name: %s' % ':'.join(to_table_name))
+        self._to_table = Table(sname, tname)
         return self
 
     def with_to_key(self, to_key):

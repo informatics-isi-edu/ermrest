@@ -20,21 +20,21 @@
 """
 
 import path
+from path import Api
 
-
-class Attribute (object):
+class Attribute (Api):
     """A specific attribute set by attributepath."""
     def __init__(self, catalog, path):
         self.catalog = catalog
         self.path = path
 
-class Entity (object):
+class Entity (Api):
     """A specific entity set by entitypath."""
     def __init__(self, catalog, path):
         self.catalog = catalog
         self.path = path
 
-class Query (object):
+class Query (Api):
     """A specific query set by querypath."""
     def __init__(self, catalog, path):
         self.catalog = catalog

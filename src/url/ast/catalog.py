@@ -22,12 +22,13 @@
 import model
 import data
 
-class Catalogs (object):
+from model import Api
+
+class Catalogs (Api):
     """A multi-tenant catalog set."""
     pass
 
-
-class Catalog (object):
+class Catalog (Api):
     """A specific catalog by ID."""
     def __init__(self, catalog_id):
         self.catalog_id = catalog_id
@@ -46,9 +47,9 @@ class Catalog (object):
 
     def attribute(self, apath):
         """An attribute set for this catalog."""
-        return data.Attribute(self, epath)
+        return data.Attribute(self, apath)
 
-    def query(self, apath):
+    def query(self, qpath):
         """An quer set for this catalog."""
         return data.Query(self, qpath)
 
