@@ -38,6 +38,8 @@ any request bearing escaped slashes meant to be user data.
 import urllib
 import ply.lex
 
+from ermrest.exception import *
+
 # except '%' which we do not want to recognize
 
 # RFC 3986 reserved characters
@@ -126,13 +128,6 @@ def t_STRING(t):
     r'[-*_.~A-Za-z]+'
     t.type = keywords.get(t.value, 'STRING')
     return t
-
-class LexicalError (ValueError):
-    """Exception for lexical errors"""
-
-    def __init__(self):
-        ValueError.__init__(self)
-        pass
 
 def t_error(t):
     raise LexicalError()

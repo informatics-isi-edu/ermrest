@@ -29,6 +29,8 @@ import threading
 import web
 import urllib
 
+from ermrest.exception import *
+
 from lex import make_lexer, tokens, keywords
 import ast
 
@@ -524,14 +526,6 @@ def p_string(p):
 def p_string_concat(p):
     """string : string stringpart"""
     p[0] = p[1] + p[2]
-
-class ParseError (ValueError):
-    """Exception for parse errors"""
-
-    def __init__(self, t, message='URL parse error at token:'):
-        ValueError.__init__(self)
-        web.debug(message, t)
-        pass
 
 def p_error(t):
     raise ParseError(t)

@@ -17,6 +17,7 @@
 
 import model
 import url
+import exception
 
 #from ermrest_apis import web_urls
 
