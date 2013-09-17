@@ -36,6 +36,7 @@ include src/makefile-vars
 include src/url/makefile-vars
 include src/url/ast/makefile-vars
 include src/url/ast/data/makefile-vars
+include test/makefile-vars
 
 # turn off annoying built-ins
 .SUFFIXES:
@@ -69,6 +70,7 @@ include sbin/makefile-rules
 include src/makefile-rules
 #include src/url/makefile-rules
 #include src/url/ast/makefile-rules
+include test/makefile-rules
 
 predeploy: $(PREDEPLOY)
 

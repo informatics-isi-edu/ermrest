@@ -1,0 +1,31 @@
+TEST_PYTHON_FILES = \
+	url-parse-tests.py
+
+TEST_EDIT_FILES= \
+	$(TEST_PYTHON_FILES) \
+	makefile-rules \
+	makefile-vars 
+
+TEST_FILES_INSTALL= \
+	$(TEST_PYTHON_FILES:%=$(SHAREDIR)/test/%)
+
+INSTALL_FILES += $(TEST_FILES_INSTALL)
+
+INSTALL_DIRS += \
+	$(SHAREDIR)/test
+
+TEST_PYTHON_GENERATED_FILES = \
+	url_lextab.py \
+	url_parsetab.py
+
+TEST_PYTHON_CLEAN_FILES = \
+	$(TEST_PYTHON_FILES) \
+	$(TEST_PYTHON_GENERATED_FILES)
+
+CLEAN_FILES += \
+	$(TEST_PYTHON_CLEAN_FILES:%=test/%c) \
+	$(TEST_PYTHON_CLEAN_FILES:%=test/%o) \
+	$(TEST_PYTHON_GENERATED_FILES:%=test/%)
+
+EDIT_FILES += $(TEST_EDIT_FILES:%=test/%)
+
