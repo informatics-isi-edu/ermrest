@@ -17,6 +17,6 @@ CLEAN_FILES += \
 	src/url/url_parsetab.py \
 	src/url/parser.out
 
-EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=ermrest/url/%) \
+EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=src/url/%) \
 	src/url/makefile-vars
 
