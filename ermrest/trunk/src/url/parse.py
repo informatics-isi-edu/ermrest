@@ -95,19 +95,23 @@ def p_catalog(p):
     """catalog : '/' CATALOG '/' NUMSTRING """ 
     p[0] = ast.Catalog(p[4])
 
+def p_catalogslash(p):
+    """catalogslash : catalog '/' """
+    p[0] = p[1]
+
 
 def p_entity(p):
-    """entity : catalog '/' ENTITY '/' entitypath """
+    """entity : catalogslash ENTITY '/' entitypath """
     p[0] = p[1].entity(p[4])
 
 def p_attribute(p):
-    """attribute : catalog '/' ATTRIBUTE '/' entitypath '/' attributeleaf """
+    """attribute : catalogslash ATTRIBUTE '/' entitypath '/' attributeleaf """
     path = p[4]
     path.append(p[5])
     p[0] = p[1].attribute(path)
 
 def p_query(p):
-    """query : catalog '/' QUERY '/' entitypath '/' attributeleaf """
+    """query : catalogslash QUERY '/' entitypath '/' attributeleaf """
     path = p[4]
     path.append(p[5])
     p[0] = p[1].query(path)
@@ -275,12 +279,12 @@ def p_oplabel(p):
     p[0] = p[1]
 
 def p_schemas(p):
-    """schemas : catalog '/' SCHEMA slashopt """
+    """schemas : catalogslash SCHEMA slashopt """
     p[0] = p[1].schemas()
 
 def p_schema(p):
-    """schema : catalog '/' SCHEMA '/' name """
-    p[0] = p[1].schema(p[5])
+    """schema : catalogslash SCHEMA '/' name """
+    p[0] = p[1].schema(p[4])
 
 
 def p_tables(p):
@@ -325,7 +329,7 @@ def p_foreignkey_reference(p):
 
 def p_foreignkey_reftable(p):
     """foreignkeyreftable : foreignkey '/' REFERENCE '/' name """
-    p[0] = p[1].references().with_to_table(p[5])
+    p[0] = p[1].references().with_to_table_name(p[5])
 
 def p_foreignkey_reftable_columns(p):
     """foreignkeyref : foreignkeyreftable '/' namelist1 """
@@ -338,7 +342,7 @@ def p_table_references(p):
 
 def p_table_reftable(p):
     """referencedtable : table '/' REFERENCE '/' name """
-    p[0] = p[1].references().with_to_table(p[5])
+    p[0] = p[1].references().with_to_table_name(p[5])
 
 def p_table_reftable_slash(p):
     """referencedtableslash : referencedtable '/' """
@@ -349,7 +353,7 @@ def p_table_reftable_columns(p):
     p[0] = p[1].with_to_columns(p[2])
 
 def p_table_reftable_columns_slash(p):
-    """referencedtablecolsslash : referencedtableslash '/' """
+    """referencedtablecolsslash : referencedtablecols '/' """
     p[0] = p[1]
 
 def p_table_reftable_columns_slash_key(p):
@@ -362,7 +366,7 @@ def p_table_reftable_columns_slash_key_slash(p):
 
 def p_table_reftable_columns_foreignkey(p):
     """foreignkeyref : referencedtablecolsslashkeyslash namelist1 """
-    p[0] = p[1].with_from_columns(p[5])
+    p[0] = p[1].with_from_columns(p[2])
 
 
 def p_t_refbys(p):
@@ -371,11 +375,11 @@ def p_t_refbys(p):
 
 def p_t_refby(p):
     """treferencedby : table '/' REFERENCEDBY """
-    p[0] = p[1].references()
+    p[0] = p[1].referencedbys()
 
 def p_t_refby_table(p):
     """treferencedbytable : treferencedby '/' name """
-    p[0] = p[1].with_from_table(p[3])
+    p[0] = p[1].with_from_table_name(p[3])
 
 def p_t_refby_table_slash(p):
     """treferencedbytableslash : treferencedbytable '/' """
@@ -383,14 +387,14 @@ def p_t_refby_table_slash(p):
 
 def p_t_refby_table_cols(p):
     """treferencedbytablecols : treferencedbytableslash namelist1 """
-    p[0] = p[1].with_from_cols(p[2])
+    p[0] = p[1].with_from_columns(p[2])
 
 def p_t_refby_table_cols_slash(p):
     """treferencedbytablecolsslash : treferencedbytablecols '/' """
     p[0] = p[1]
 
 def p_t_refby_table_cols_slash_key(p):
-    """treferencedbytablecolsslashkey : treferencedbytablecolsslash FOREIGNKEY """
+    """treferencedbytablecolsslashkey : treferencedbytablecolsslash KEY """
     p[0] = p[1]
 
 def p_t_refby_table_cols_slash_key_slash(p):
@@ -399,7 +403,7 @@ def p_t_refby_table_cols_slash_key_slash(p):
 
 def p_t_refby_table_cols_slash_key_slash_foreignkey(p):
     """foreignkeyref : treferencedbytablecolsslashkey '/' namelist1"""
-    p[0] = p[1].with_to_cols(p[3])
+    p[0] = p[1].with_to_columns(p[3])
 
 
 def p_k_refbys(p):
@@ -408,11 +412,11 @@ def p_k_refbys(p):
 
 def p_k_refby(p):
     """kreferencedby : key '/' REFERENCEDBY """
-    p[0] = p[1].references()
+    p[0] = p[1].referencedbys()
 
 def p_k_refby_table(p):
     """kreferencedbytable : kreferencedby '/' name """
-    p[0] = p[1].with_from_table(p[3])
+    p[0] = p[1].with_from_table_name(p[3])
 
 def p_k_refby_table_slash(p):
     """kreferencedbytableslash : kreferencedbytable '/' """
@@ -420,7 +424,7 @@ def p_k_refby_table_slash(p):
 
 def p_k_refby_table_foreignkey(p):
     """foreignkeyref : kreferencedbytableslash namelist1 """
-    p[0] = p[1].with_from_cols(p[2])
+    p[0] = p[1].with_from_columns(p[2])
 
 
 def p_queryopts(p):

@@ -19,34 +19,49 @@
 
 """
 
+class Api (object):
+    def with_queryopts(self, qopt):
+        self.queryopts = qopt
+        return self
+
 
 class Path (list):
-    pass
+    def with_queryopts(self, qopt):
+        self.queryopts = qopt
+        return self
 
-class SingleElem (object):
+class SingleElem (Api):
     """A path element with a single name may be a table or column."""
     def __init__(self, name):
         self.name = name
+        self.alias = None
 
-class MultiElem (object):
+    def set_alias(self, alias):
+        self.alias = alias
+
+class MultiElem (Api):
     """A path element with multiple names must be columns."""
     def __init__(self, names):
         self.names = names
+        self.alias = None
 
-class ReferenceLeft (object):
+    def set_alias(self, alias):
+        self.alias = alias
+
+class ReferenceLeft (Api):
     """A path element referencing left-hand columns."""
     def __init__(self, alias, cols):
         self.alias = alias
         self.cols = cols
 
-class ReferenceRight (object):
+class ReferenceRight (Api):
     """A path element referencing right-hand columns."""
     def __init__(self, table, cols):
         self.table = table
         self.cols = cols
         
 
-class ReferenceElem (object):
+class ReferenceElem (Api):
     """A path element with directional reference addressing syntax."""
     def __init__(self, left=None, direction=None, right=None):
         self.left = left
@@ -54,20 +69,20 @@ class ReferenceElem (object):
         self.right = right
     
 
-class FilterElem (object):
+class FilterElem (Api):
     """A path element that applies a filter."""
     def __init__(self, pred):
         self.pred = pred
 
 
-class Predicate (object):
+class Predicate (Api):
     def __init__(self, left_val, op, right_val=None):
         self.left_val = left_val
         self.op = op
         self.right_val = right_val
 
 
-class Negation (object):
+class Negation (Api):
     def __init__(self, predicate):
         self.predicate = predicate
 
