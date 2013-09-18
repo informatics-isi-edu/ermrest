@@ -26,9 +26,7 @@ class Api (object):
 
 
 class Path (list):
-    def with_queryopts(self, qopt):
-        self.queryopts = qopt
-        return self
+    pass
 
 class SingleElem (Api):
     """A path element with a single name may be a table or column."""
