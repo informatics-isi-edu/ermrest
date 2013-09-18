@@ -186,15 +186,15 @@ def p_entityelem_full(p):
 
 def p_name(p):
     """name : string"""
-    p[0] = (p[1], )
+    p[0] = ast.Name().with_suffix(p[1])
 
 def p_name_abs(p):
     """name : ':' string """
-    p[0] = (None, p[2])
+    p[0] = ast.Name(absolute=True).with_suffix(p[2])
 
 def p_name_grow(p):
     """name : name ':' string"""
-    p[0] = tuple( list(p[1]) + [ p[3] ] )
+    p[0] = p[1].with_suffix(p[3])
 
 
 def p_namelist1(p):
