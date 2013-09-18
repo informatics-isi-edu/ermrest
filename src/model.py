@@ -25,7 +25,7 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
-__all__ = ["introspect", "Model", "Catalog", "Schema", "Table", "Column"]
+__all__ = ["introspect", "Model", "Schema", "Table", "Column"]
 
 def introspect(conn):
     """Introspects a Catalog (i.e., a database).
@@ -55,13 +55,15 @@ ORDER BY c.table_catalog, c.table_schema, c.table_name, c.ordinal_position;
     ARRAY_TYPE = 'ARRAY'
     
     # Dicts for quick lookup
-    catalogs = dict()
     schemas  = dict()
     tables   = dict()
     columns  = dict()
     
     cur = conn.execute(SELECT_COLUMNS)
     tuples = cur.fetchall()
+
+    model = Model()
+
     for tup in tuples:
         # Qualified name from tuple
         dname = tup[0]
@@ -87,9 +89,7 @@ ORDER BY c.table_catalog, c.table_schema, c.table_name, c.ordinal_position;
         # Build up the model as we go without redundancy
         if (dname, sname, tname) not in tables:
             if (dname, sname) not in schemas:
-                if dname not in catalogs:
-                    catalogs[dname] = Catalog(dname)
-                schemas[(dname, sname)] = Schema(catalogs[dname], sname)
+                schemas[(dname, sname)] = Schema(model, sname)
             tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname)
             
         # We shouldn't revisit Columns, so no need to check for them
@@ -97,7 +97,7 @@ ORDER BY c.table_catalog, c.table_schema, c.table_name, c.ordinal_position;
             Column(tables[(dname, sname, tname)], cname, position, base_type, 
                    is_array, default_value))
         
-    return Model(catalogs)
+    return model
 
 def __pg_default_value(base_type, raw):
     """Converts raw default value with base_type hints.
@@ -117,59 +117,42 @@ def __pg_default_value(base_type, raw):
         return raw #TODO: not sure what def vals apply
     else:
         return 'unknown'
-            
+
 class Model:
     """Represents a database model.
     
-    At present, this amounts to a collection of 'catalogs' in the conventional
+    At present, this amounts to a collection of 'schemas' in the conventional
     database sense of the term.
     """
     
-    def __init__(self, catalogs):
-        self.catalogs = catalogs
+    def __init__(self, schemas=dict()):
+        self.schemas = schemas
     
-    def __str__(self):
+    def verbose(self):
         s = ''
-        for cat in self.catalogs.values():
-            s += "Catalog: " + str(cat)
-        return s
-    
-class Catalog:
-    """Represents a database catalog.
-    
-    At present, this has a 'name' and a collection of database 'schemas'.
-    """
-    
-    def __init__(self, name):
-        self.name = name
-        self.schemas = dict()
-
-    def __str__(self):
-        s = "name: %s, num_schemas: %d\n" % (self.name, len(self.schemas))
         for schema in self.schemas.values():
-            s += "Schema: " + str(schema)
-        s += "==============================================================\n"
+            s += "Schema:" + schema.verbose()
         return s
-
+    
 class Schema:
     """Represents a database schema.
     
     At present, this has a 'name' and a collection of database 'tables'. It 
-    also has a reference to its 'catalog'.
+    also has a reference to its 'model'.
     """
     
-    def __init__(self, catalog, name):
-        self.catalog = catalog
+    def __init__(self, model, name):
+        self.model = model
         self.name = name
         self.tables = dict()
         
-        if name not in self.catalog.schemas:
-            self.catalog.schemas[name] = self
+        if name not in self.model.schemas:
+            self.model.schemas[name] = self
 
-    def __str__(self):
+    def verbose(self):
         s =  "name: %s, num_tables: %d\n" % (self.name, len(self.tables))
         for tab in self.tables.values():
-            s += "Table: " + str(tab)
+            s += "Table: " + tab.verbose()
         s += "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
         return s
 
@@ -188,7 +171,7 @@ class Table:
         if name not in self.schema.tables:
             self.schema.tables[name] = self
 
-    def __str__(self):
+    def verbose(self):
         s = "name: %s, num_columns: %d\n" % (self.name, len(self.columns))
         for col in self.columns.values():
             s += "Column: " + str(col) + "\n"
