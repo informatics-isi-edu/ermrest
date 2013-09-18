@@ -53,6 +53,12 @@ class NotFound (WebException):
         desc = u'The requested %s could not be found.'
         WebException.__init__(self, status, headers=headers, data=data, desc=desc)
 
+class NoMethod (WebException):
+    def __init__(self, data=u'', headers={}):
+        status = '405 Method Not Allowed'
+        desc = (u'The requested method %s is not allowed: %%s.' % web.ctx.method)
+        WebException.__init__(self, status, headers=headers, data=data, desc=desc)
+
 class Conflict (WebException):
     def __init__(self, data=u'', headers={}):
         status = '409 Conflict'
@@ -76,4 +82,10 @@ class RuntimeError (WebException):
     def __init__(self, data=u'', headers={}):
         status = '500 Internal Server Error'
         desc = u'The request execution encountered a runtime error: %s.'
+        WebException.__init__(self, status, headers=headers, data=data, desc=desc)
+
+class ServiceUnavailable (WebException):
+    def __init__(self, data=u'', headers={}):
+        status = '503 Service Unavailable'
+        desc = u'The service is temporarily unavailable: %s.'
         WebException.__init__(self, status, headers=headers, data=data, desc=desc)
