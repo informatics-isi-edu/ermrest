@@ -22,11 +22,7 @@
 import path
 from path import Api
 
-class Attribute (Api):
-    """A specific attribute set by attributepath."""
-    def __init__(self, catalog, path):
-        self.catalog = catalog
-        self.path = path
+import ermrest.ermpath
 
 class Entity (Api):
     """A specific entity set by entitypath."""
@@ -34,9 +30,57 @@ class Entity (Api):
         self.catalog = catalog
         self.path = path
 
+    def resolve(self, model):
+        """Resolve self against a specific database model.
+
+           The path is validated against the model and any unqualified
+           names or implicit entity referencing patterns are resolved
+           to a canonical ermrest.ermpath.EntityPath instance that can
+           be used to perform entity-level data access.
+        """
+        epath = ermpath.EntityPath(model)
+        # TODO: resolve and translate path
+        return epath
+
+
+class Attribute (Api):
+    """A specific attribute set by attributepath."""
+    def __init__(self, catalog, path):
+        self.catalog = catalog
+        self.attributes = path[-1]
+        self.epath = Entity(catalog, path[0:-1])
+
+    def resolve(self, model):
+        """Resolve self against a specific database model.
+
+           The path is validated against the model and any unqualified
+           names or implicit entity referencing patterns are resolved
+           to a canonical ermrest.ermpath.AttributePath instance that
+           can be used to perform attribute-level data access.
+        """
+        epath = self.epath.resolve(model)
+        # TODO: validate attributes
+        attributes = self.attributes
+        return AttributePath(epath, attributes)
+    
+
 class Query (Api):
     """A specific query set by querypath."""
     def __init__(self, catalog, path):
         self.catalog = catalog
-        self.path = path
+        self.expressions = path[-1]
+        self.epath = Entity(catalog, path[0:-1])
 
+    def resolve(self, model):
+        """Resolve self against a specific database model.
+
+           The path is validated against the model and any unqualified
+           names or implicit entity referencing patterns are resolved
+           to a canonical ermrest.ermpath.AttributePath instance that
+           can be used to perform attribute-level data access.
+        """
+        epath = self.epath.resolve(model)
+        # TODO: validate expressions
+        expressions = self.expressions
+        return QueryPath(epath, expressions)
+    
