@@ -27,6 +27,13 @@ needed by other modules of the ermrest project.
 
 __all__ = ["introspect", "Model", "Schema", "Table", "Column"]
 
+def frozendict (d):
+    """Convert a dictionary to a canonical and immutable form."""
+    items = d.items()
+    items.sort() # sort by key, value pair
+    return tuple(items)
+        
+
 def introspect(conn):
     """Introspects a Catalog (i.e., a database).
     
@@ -40,15 +47,23 @@ def introspect(conn):
     
     # Select all column metadata from database, excluding system schemas
     SELECT_COLUMNS = '''
-SELECT c.table_catalog, c.table_schema, c.table_name, c.column_name, 
-       c.ordinal_position, c.column_default, c.data_type, 
-       e.data_type AS element_type
-FROM information_schema.columns c LEFT JOIN information_schema.element_types e
-     ON ((c.table_catalog, c.table_schema, c.table_name, 'TABLE', c.dtd_identifier)
-       = (e.object_catalog, e.object_schema, e.object_name, e.object_type, 
-          e.collection_type_identifier))
+SELECT 
+   c.table_catalog, 
+   c.table_schema, 
+   c.table_name, 
+   array_agg(c.column_name::text ORDER BY c.ordinal_position) AS column_names, 
+   array_agg(c.column_default::text ORDER BY c.ordinal_position) AS default_values, 
+   array_agg(c.data_type::text ORDER BY c.ordinal_position) AS data_types, 
+   array_agg(e.data_type::text ORDER BY c.ordinal_position) AS element_types
+FROM information_schema.columns c 
+LEFT JOIN information_schema.element_types e
+  ON ((c.table_catalog, c.table_schema, c.table_name, 'TABLE', c.dtd_identifier)
+       = (e.object_catalog, e.object_schema, e.object_name, e.object_type, e.collection_type_identifier))
 WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog')
-ORDER BY c.table_catalog, c.table_schema, c.table_name, c.ordinal_position;
+GROUP BY 
+   c.table_catalog, 
+   c.table_schema, 
+   c.table_name
     '''
     
     # Select the unique or primary key columns
@@ -58,18 +73,15 @@ SELECT
    k_c_u.constraint_name,
    k_c_u.table_schema,
    k_c_u.table_name,
-   k_c_u.column_name
-FROM information_schema.key_column_usage k_c_u
-JOIN information_schema.table_constraints t_c
-ON k_c_u.constraint_schema =
-   t_c.constraint_schema
-   AND
-   k_c_u.constraint_name =
-   t_c.constraint_name 
+   array_agg(k_c_u.column_name::text) AS column_names
+FROM information_schema.key_column_usage AS k_c_u
+JOIN information_schema.table_constraints AS t_c
+ON k_c_u.constraint_schema = t_c.constraint_schema
+   AND k_c_u.constraint_name = t_c.constraint_name 
 WHERE t_c.constraint_type IN ('UNIQUE', 'PRIMARY KEY')
-ORDER BY
-   k_c_u.constraint_name,
-   k_c_u.ordinal_position
+GROUP BY 
+   k_c_u.constraint_schema, k_c_u.constraint_name,
+   k_c_u.table_schema, k_c_u.table_name
 ;
     '''
 
@@ -79,33 +91,31 @@ ORDER BY
     # http://msdn.microsoft.com/en-us/library/aa175805%28SQL.80%29.aspx
     FKEY_COLUMNS = '''
 SELECT
-     KCU1.CONSTRAINT_SCHEMA AS FK_CONSTRAINT_SCHEMA
-   , KCU1.CONSTRAINT_NAME AS FK_CONSTRAINT_NAME
-   , KCU1.TABLE_SCHEMA AS FK_TABLE_SCHEMA
-   , KCU1.TABLE_NAME AS FK_TABLE_NAME
-   , KCU1.COLUMN_NAME AS FK_COLUMN_NAME
-   , KCU1.ORDINAL_POSITION AS FK_ORDINAL_POSITION
-   , KCU2.TABLE_SCHEMA AS UQ_TABLE_SCHEMA
-   , KCU2.TABLE_NAME AS UQ_TABLE_NAME
-   , KCU2.COLUMN_NAME AS UQ_COLUMN_NAME
-   , KCU2.ORDINAL_POSITION AS UQ_ORDINAL_POSITION
-   , RC.DELETE_RULE AS RC_DELETE_RULE
-   , RC.UPDATE_RULE AS RC_UPDATE_RULE
-FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU1
-ON KCU1.CONSTRAINT_CATALOG = RC.CONSTRAINT_CATALOG
-   AND KCU1.CONSTRAINT_SCHEMA = RC.CONSTRAINT_SCHEMA
-   AND KCU1.CONSTRAINT_NAME = RC.CONSTRAINT_NAME
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU2
-ON KCU2.CONSTRAINT_CATALOG =
-RC.UNIQUE_CONSTRAINT_CATALOG
-   AND KCU2.CONSTRAINT_SCHEMA =
-RC.UNIQUE_CONSTRAINT_SCHEMA
-   AND KCU2.CONSTRAINT_NAME =
-RC.UNIQUE_CONSTRAINT_NAME
-   AND KCU2.ORDINAL_POSITION = KCU1.ORDINAL_POSITION
-ORDER BY
-   KCU1.CONSTRAINT_NAME, KCU1.ORDINAL_POSITION
+   kcu1.constraint_schema AS fk_constraint_schema,
+   kcu1.constraint_name AS fk_constraint_name,
+   kcu1.table_schema AS fk_table_schema,
+   kcu1.table_name AS fk_table_name,
+   array_agg(kcu1.column_name::text ORDER BY kcu1.ordinal_position) AS fk_column_names,
+   kcu2.table_schema AS uq_table_schema,
+   kcu2.table_name AS uq_table_name,
+   array_agg(kcu2.column_name::text ORDER BY kcu1.ordinal_position) AS uq_column_names,
+   rc.delete_rule AS rc_delete_rule,
+   rc.update_rule AS rc_update_rule
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu1
+  ON kcu1.constraint_catalog = rc.constraint_catalog
+     AND kcu1.constraint_schema = rc.constraint_schema
+     AND kcu1.constraint_name = rc.constraint_name
+JOIN information_schema.key_column_usage AS kcu2
+  ON kcu2.constraint_catalog = rc.unique_constraint_catalog
+     AND kcu2.constraint_schema = rc.unique_constraint_schema
+     AND kcu2.constraint_name = rc.unique_constraint_name
+     AND kcu2.ordinal_position = kcu1.ordinal_position
+GROUP BY 
+   kcu1.constraint_schema, kcu1.constraint_name, 
+   kcu1.table_schema, kcu1.table_name, 
+   kcu2.table_schema, kcu2.table_name, 
+   rc.delete_rule, rc.update_rule
 ;
     '''
     
@@ -118,6 +128,7 @@ ORDER BY
     columns  = dict()
     pkeys    = dict()
     fkeys    = dict()
+    fkeyrefs = dict()
 
     model = Model()
     
@@ -125,111 +136,83 @@ ORDER BY
     # Introspect schemas, tables, columns
     #
     cur = conn.execute(SELECT_COLUMNS)
-    tuples = cur.fetchall()
-    for tup in tuples:
-        # Qualified name from tuple
-        dname = tup[0]
-        sname = tup[1]
-        tname = tup[2]
-        cname = tup[3]
-        # Column specifics from tuple
-        position      = tup[4]
-        default_value = tup[5]
-        data_type     = tup[6]
-        element_type  = tup[7]
+    for dname, sname, tname, cnames, default_values, data_types, element_types in cur:
+
+        cols = []
+        for i in range(0, len(cnames)):
+            # Determine base type
+            is_array = (data_types[i] == ARRAY_TYPE)
+            if is_array:
+                base_type = element_types[i]
+            else:
+                base_type = data_types[i]
         
-        # Determine base type
-        is_array = (data_type == ARRAY_TYPE)
-        if is_array:
-            base_type = element_type
-        else:
-            base_type = data_type
-            
-        # Translate default_value
-        default_value = __pg_default_value(base_type, default_value)
+            # Translate default_value
+            default_value = __pg_default_value(base_type, default_values[i])
+
+            col = Column(cnames[i], i, base_type, is_array, default_value)
+            cols.append( col )
+            columns[(dname, sname, tname, cnames[i])] = col
         
         # Build up the model as we go without redundancy
-        if (dname, sname, tname) not in tables:
-            if (dname, sname) not in schemas:
-                schemas[(dname, sname)] = Schema(model, sname)
-            tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname)
+        if (dname, sname) not in schemas:
+            schemas[(dname, sname)] = Schema(model, sname)
+        assert (dname, sname, tname) not in tables
+        tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols)
             
-        # We shouldn't revisit Columns, so no need to check for them
-        columns.setdefault((dname, sname, tname, cname), 
-            Column(tables[(dname, sname, tname)], cname, position, base_type, 
-                   is_array, default_value))
+    cur.close()
 
     #
-    # Introspect uniques / primary key references
+    # Introspect uniques / primary key references, aggregated by constraint
     #
     cur = conn.execute(PKEY_COLUMNS)
-    tuples = cur.fetchall()
-    for tup in tuples:
-        pk_constraint_key   = (tup[0], tup[1]),
-        pk_table_schema     = tup[2]
-        pk_table_name       = tup[3]
-        pk_column_name      = tup[4]
-        
-        # Get recorded objects
-        pk_table = tables[(dname, pk_table_schema, pk_table_name)]
-        pk_col = columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
-        
-        # Get or create pkey object
-        if pk_constraint_key not in pkeys:
-            pkeys[pk_constraint_key] = Unique(pk_table)
-        pkey = pkeys[pk_constraint_key]
-        
-        # Add pk column
-        pkey.columns[pk_column_name] = pk_col
-    
-    # Link tables to primary keys
-    for pkey in pkeys.values():
-        pkey.table.uniques[frozenset(pkey.columns.values())] = pkey
+    for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names in cur:
+
+        pk_constraint_key = (pk_schema, pk_name)
+
+        pk_cols = [ columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
+                    for pk_column_name in pk_column_names ]
+
+        pk_colset = frozenset(pk_cols)
+
+        # each constraint implies a pkey but might be duplicate
+        if pk_colset not in pkeys:
+            pkeys[pk_colset] = Unique(pk_colset)
+
+    cur.close()
 
     #
-    # Introspect foreign key references
+    # Introspect foreign keys references, aggregated by reference constraint
     #
     cur = conn.execute(FKEY_COLUMNS)
-    tuples = cur.fetchall()
-    for tup in tuples:
-        fk_constraint_key   = (tup[0], tup[1])
-        fk_table_schema     = tup[2]
-        fk_table_name       = tup[3]
-        fk_column_name      = tup[4]
-        fk_column_pos       = tup[5]
-        uq_table_schema     = tup[6]
-        uq_table_name       = tup[7]
-        uq_column_name      = tup[8]
-        uq_column_pos       = tup[9]
-        on_delete           = tup[10]
-        on_update           = tup[11]
-        
-        # Get recorded objects
-        fk_table = tables[(dname, fk_table_schema, fk_table_name)]
-        fk_col = columns[(dname, fk_table_schema, fk_table_name, fk_column_name)]
-        uq_table = tables[(dname, uq_table_schema, uq_table_name)]
-        uq_col = columns[(dname, uq_table_schema, uq_table_name, uq_column_name)]
-        
-        # Get or create fkey object
-        if fk_constraint_key not in fkeys:
-            fkeys[fk_constraint_key] = ForeignKey(fk_table)
-        fkey = fkeys[fk_constraint_key]
-        
-        # Add fk column
-        fkey.columns[fk_column_pos] = fk_col
-        
-        # Get or create key reference
-        if uq_table not in fkey.keyreferences:
-            fkey.keyreferences[uq_table] = KeyReference(fkey, uq_table, on_delete, on_update)
-        keyref = fkey.keyreferences[uq_table]
-        
-        # Add key ref column
-        keyref.columns[uq_column_pos] = uq_col
-    
-    # Link tables to foreign keys
-    for fkey in fkeys.values():
-        fkey.table.fkeys[frozenset(fkey.columns.values())] = fkey
-    
+    for fk_schema, fk_name, fk_table_schema, fk_table_name, fk_column_names, \
+            uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update \
+            in cur:
+
+        fk_constraint_key = (fk_schema, fk_name)
+
+        fk_cols = [ columns[(dname, fk_table_schema, fk_table_name, fk_column_names[i])]
+                    for i in range(0, len(fk_column_names)) ]
+        pk_cols = [ columns[(dname, uq_table_schema, uq_table_name, uq_column_names[i])]
+                    for i in range(0, len(uq_column_names)) ]
+
+        fk_colset = frozenset(fk_cols)
+        pk_colset = frozenset(pk_cols)
+        fk_ref_map = frozendict(dict([ (fk_cols[i], pk_cols[i]) for i in range(0, len(fk_cols)) ]))
+
+        # each reference constraint implies a foreign key but might be duplicate
+        if fk_colset not in fkeys:
+            fkeys[fk_colset] = ForeignKey(fk_colset)
+
+        fk = fkeys[fk_colset]
+        pk = pkeys[pk_colset]
+
+        # each reference constraint implies a foreign key reference but might be duplicate
+        if fk_ref_map not in fk.references:
+            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update)
+
+    cur.close()
+
     return model
 
 def __pg_default_value(base_type, raw):
@@ -296,13 +279,17 @@ class Table:
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name):
+    def __init__(self, schema, name, columns):
         self.schema = schema
         self.name = name
         self.columns = dict()
         self.uniques = dict()
         self.fkeys = dict()
-        
+
+        for c in columns:
+            self.columns[c.name] = c
+            c.table = self
+
         if name not in self.schema.tables:
             self.schema.tables[name] = self
 
@@ -335,16 +322,13 @@ class Column:
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, table, name, position, base_type, is_array, default_value):
-        self.table = table
+    def __init__(self, name, position, base_type, is_array, default_value):
+        self.table = None
         self.name = name
         self.position = position
         self.base_type = base_type
         self.is_array = is_array
         self.default_value = default_value
-        
-        if name not in self.table.columns:
-            self.table.columns[name] = self
     
     def verbose(self):
         return "name: %s, position: %d, base_type: %s, is_array: %s, default_value: %s" \
@@ -353,9 +337,15 @@ class Column:
 class Unique:
     """A unique constraint."""
     
-    def __init__(self, table):
-        self.table = table
-        self.columns = dict()
+    def __init__(self, cols):
+        tables = set([ c.table for c in cols ])
+        assert len(tables) == 1
+        self.table = tables.pop()
+        self.columns = cols
+        self.table_references = dict()
+
+        if cols not in self.table.uniques:
+            self.table.uniques[cols] = self
         
     def verbose(self):
         s = '('
@@ -367,35 +357,37 @@ class Unique:
 class ForeignKey:
     """A foreign key."""
 
-    def __init__(self, table):
-        self.table = table
-        self.columns = dict()
-        self.keyreferences = dict()
-        # We don't link into table's fkey dict yet, because we the
-        # fkey dict is to be keyed on a tuple of the columns in the fkey
+    def __init__(self, cols):
+        tables = set([ c.table for c in cols ])
+        assert len(tables) == 1
+        self.table = tables.pop()
+        self.columns = cols
+        self.references = dict()
+        self.table_references = dict()
         
+        if cols not in self.table.fkeys:
+            self.table.fkeys[cols] = self
+
     def verbose(self):
-        s = "FKEY COLS:\n"
-        for col in self.columns:
-            s += "Position: %s -- %s\n" % (col, self.columns[col].verbose())
-        
-        for kref in self.keyreferences.values():
-            s += "REFERENCES: table name: %s\n" % kref.table.name
-            for col in kref.columns:
-                s += "Position: %s -- %s\n" % (col, kref.columns[col].verbose())
+        s = 'FIXME'
         return s
 
 class KeyReference:
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, table, on_delete, on_update):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete, on_update):
         self.foreign_key = foreign_key
-        self.table = table
+        self.unique = unique
+        self.reference_map = dict(fk_ref_map)
         self.on_delete = on_delete
         self.on_update = on_update
-        self.columns = dict()
         # Link into foreign key's key reference list, by table ref
-        self.foreign_key.keyreferences[table] = self
+        if unique.table not in foreign_key.table_references:
+            foreign_key.table_references[unique.table] = set()
+        foreign_key.table_references[unique.table].add(self)
+        if foreign_key.table not in unique.table_references:
+            unique.table_references[foreign_key.table] = set()
+        unique.table_references[foreign_key.table].add(self)
 
 
 if __name__ == '__main__':
