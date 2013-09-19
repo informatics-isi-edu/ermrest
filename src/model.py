@@ -184,7 +184,7 @@ ORDER BY
     
     # Link tables to primary keys
     for pkey in pkeys.values():
-        pkey.table.uniques[tuple(pkey.columns.values())] = pkey
+        pkey.table.uniques[frozenset(pkey.columns.values())] = pkey
 
     #
     # Introspect foreign key references
@@ -228,7 +228,7 @@ ORDER BY
     
     # Link tables to foreign keys
     for fkey in fkeys.values():
-        fkey.table.fkeys[tuple(fkey.columns.values())] = fkey
+        fkey.table.fkeys[frozenset(fkey.columns.values())] = fkey
     
     return model
 
