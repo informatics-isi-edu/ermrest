@@ -379,6 +379,7 @@ class KeyReference:
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map = dict(fk_ref_map)
+        self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
         self.on_delete = on_delete
         self.on_update = on_update
         # Link into foreign key's key reference list, by table ref
