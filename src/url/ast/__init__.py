@@ -72,6 +72,38 @@ def _default_link_table2table(left, right):
     else:
         raise KeyError('Ambiguous links found between tables %s and %s' % (left, right))
 
+def _default_link_leftcol(leftcol):
+    """Find default reference link anchored at leftcol.
+
+       Returns (keyref, refop).
+
+       Raises KeyError if no default can be found.
+    """
+    left = leftcol.table
+    constraint_key = frozenset([leftcol])
+
+    links = []
+
+    # look for right-to-left references ending at leftcol
+    if constraint_key in left.uniques:
+        refs = set()
+        for rs in left.uniques[constraint_key].table_references.values():
+            refs.update(rs)
+        links.extend([ (ref, '@=') for ref in refs ])
+    
+    # look for left-to-right references starting at leftcol
+    if constraint_key in left.fkeys:
+        refs = set()
+        for rs in left.fkeys[constraint_key].table_references.values():
+            refs.update(rs)
+        links.extend([ (ref, '=@') for ref in refs ])
+    
+    if len(links) == 0:
+        raise KeyError('No link found involving left column %s' % leftcol)
+    elif len(links) == 1:
+        return links[0]
+    else:
+        raise KeyError('Ambiguous links found involving left column %s' % leftcol)
 
 class Name (object):
     """Represent a qualified or unqualified name in an ERMREST URL.
@@ -165,8 +197,8 @@ class Name (object):
             elif len(self.nameparts) == 2:
                 n0, n1 = self.nameparts
                 if n0 in epath.aliases \
-                        and n1 in epath.aliases[n0].columns:
-                    keyref, refop = _default_link_table2col(ptable, epath.aliases[n0].columns[n1])
+                        and n1 in epath[n0].table.columns:
+                    keyref, refop = _default_link_leftcol(epath[n0].table.columns[n1])
                     return keyref, refop, n0
 
                 table = model.lookup_table(n0, n1)

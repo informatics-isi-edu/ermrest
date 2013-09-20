@@ -85,6 +85,9 @@ class EntityPath (object):
     def __str__(self):
         return ' / '.join([ str(e) for e in self._path ])
 
+    def __getitem__(self, k):
+        return self._path[ self.aliases[k] ]
+
     def set_base_entity(self, table, alias=None):
         """Root this entity path in the specified table.
 
