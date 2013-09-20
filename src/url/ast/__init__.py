@@ -30,6 +30,8 @@ from catalog import Catalogs, Catalog
 import model
 import data
 
+from ermrest.model import sql_ident
+
 import urllib
 
 def _default_link_table2table(left, right):
@@ -361,12 +363,21 @@ class Name (object):
            TODO: generalize to ancestor references later.
         """
         table = epath.current_entity_table()
-
-        col, base = self.resolve_column(epath._model, epath, table)
+        col, base = self.resolve_column(epath._model, epath)
         if base != epath:
             raise NotImplementedError('Name ancestor column validation')
 
-        return col
+        return col, epath._path[-1]
+
+    def sql_column(self, epath, elem):
+        """Generate SQL column reference for name in epath elem context.
+
+           TODO: generalize to ancestor references later.
+        """
+        return 't%d.%s' % (
+            elem.pos,
+            sql_ident(self.nameparts[-1])
+            )
         
 class Value (object):
     """Represent a literal value in an ERMREST URL.
@@ -385,4 +396,19 @@ class Value (object):
         """
         pass
 
-   
+    def sql_literal(self, etype):
+        if etype.is_array:
+            raise NotImplementedError('Value serialization of arrays')
+
+        if etype.base_type in [ 'integer', 'int8', 'bigint' ]:
+            return '%d' % int(self._str)
+
+        elif etype.base_type in [ 'float', 'float8' ]:
+            return '%f' % float(self._str)
+
+        else:
+            return "'%s'::%s" % (
+                self._str,
+                etype.base_type
+                )
+

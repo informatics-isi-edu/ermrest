@@ -27,7 +27,7 @@ needed by other modules of the ermrest project.
 
 import urllib
 
-__all__ = ["introspect", "Model", "Schema", "Table", "Column"]
+__all__ = ["introspect", "Model", "Schema", "Table", "Column", "sql_ident"]
 
 def frozendict (d):
     """Convert a dictionary to a canonical and immutable form."""
@@ -236,6 +236,9 @@ def __pg_default_value(base_type, raw):
     else:
         return 'unknown'
 
+def sql_ident(s):
+    return '"' + s.replace('"', '""') + '"'
+
 class Model:
     """Represents a database model.
     
@@ -336,6 +339,12 @@ class Table:
         s += "--------------------------------------------------------------\n"
         return s
 
+    def sql_name(self):
+        return '.'.join([
+                sql_ident(self.schema.name),
+                sql_ident(self.name)
+                ])
+
 class Column:
     """Represents a table column.
     
@@ -371,6 +380,9 @@ class Column:
     def verbose(self):
         return "name: %s, position: %d, base_type: %s, is_array: %s, default_value: %s" \
                 % (self.name, self.position, self.base_type, self.is_array, self.default_value)
+
+    def sql_name(self):
+        return sql_ident(self.name)
 
 class Unique:
     """A unique constraint."""
