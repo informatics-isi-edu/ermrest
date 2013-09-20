@@ -30,6 +30,7 @@ from catalog import Catalogs, Catalog
 import model
 import data
 
+import urllib
 
 def _default_link_table2table(left, right):
     """Find default reference link between left and right tables.
@@ -352,5 +353,36 @@ class Name (object):
 
         raise TypeError('Name %s is not a valid syntax for a table name.' % self)
             
+    def validate(self, epath):
+        """Validate name in epath context, raising exception on problems.
+
+           Name must be a column of path's current entity type.
+
+           TODO: generalize to ancestor references later.
+        """
+        table = epath.current_entity_table()
+
+        col, base = self.resolve_column(epath._model, epath, table)
+        if base != epath:
+            raise NotImplementedError('Name ancestor column validation')
+
+        return col
         
-        
+class Value (object):
+    """Represent a literal value in an ERMREST URL.
+
+    """
+    def __init__(self, s):
+        self._str = s
+
+    def __str__(self):
+        return self._str
+
+    def validate(self, epath, etype):
+        """Validate value in typed context.
+
+           TODO: refactor a type object instead of using Column for etype
+        """
+        pass
+
+   
