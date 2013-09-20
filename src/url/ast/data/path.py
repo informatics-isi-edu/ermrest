@@ -20,6 +20,8 @@
 """
 
 class Api (object):
+    is_filter = False
+
     def with_queryopts(self, qopt):
         self.queryopts = qopt
         return self
@@ -37,6 +39,14 @@ class SingleElem (Api):
     def set_alias(self, alias):
         self.alias = alias
 
+    def resolve_table(self, model):
+        """Resolve self.name as a table in the model."""
+        return self.name.resolve_table(model)
+
+    def resolve_link(self, model, epath):
+        """Resolve self.name as a link in the model and epath context."""
+        return self.name.resolve_link(model, epath)
+
 class MultiElem (Api):
     """A path element with multiple names must be columns."""
     def __init__(self, names):
@@ -45,6 +55,7 @@ class MultiElem (Api):
 
     def set_alias(self, alias):
         self.alias = alias
+
 
 class ReferenceLeft (Api):
     """A path element referencing left-hand columns."""
@@ -69,6 +80,8 @@ class ReferenceElem (Api):
 
 class FilterElem (Api):
     """A path element that applies a filter."""
+    is_filter = True
+
     def __init__(self, pred):
         self.pred = pred
 

@@ -132,7 +132,7 @@ def p_entityroot_alias(p):
     """entitypath : string ASSIGN entityelem """
     p[0] = ast.data.path.Path()
     p[3].set_alias(p[1])
-    p[0] = ast.data.path.Path( p[3] )
+    p[0].append( p[3] )
 
 def p_entitypath(p):
     """entitypath : entitypath '/' entityelem """
@@ -199,7 +199,7 @@ def p_name_grow(p):
 
 def p_namelist1(p):
     """namelist1 : name """
-    p[0] = [ p[1] ]
+    p[0] = ast.NameList([ p[1] ])
 
 def p_namelist(p):
     """namelist1 : namelist2 """
@@ -207,7 +207,7 @@ def p_namelist(p):
 
 def p_namelist2(p):
     """namelist2 : name ',' name"""
-    p[0] = [ p[1], p[3] ]
+    p[0] = ast.NameList([ p[1], p[3] ])
 
 def p_namelist2_grow(p):
     """namelist2 : namelist2 ',' name"""

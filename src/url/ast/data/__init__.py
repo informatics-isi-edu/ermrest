@@ -21,8 +21,7 @@
 
 import path
 from path import Api
-
-import ermrest.ermpath
+from ermrest import ermpath
 
 class Entity (Api):
     """A specific entity set by entitypath."""
@@ -39,7 +38,22 @@ class Entity (Api):
            be used to perform entity-level data access.
         """
         epath = ermpath.EntityPath(model)
-        # TODO: resolve and translate path
+
+        if not hasattr(self.path[0], 'resolve_table'):
+            raise TypeError('Entity paths must start with table syntax.')
+
+        epath.set_base_entity( 
+            self.path[0].name.resolve_table(model),
+            self.path[0].alias
+            )
+
+        for elem in self.path[1:]:
+            if elem.is_filter:
+                epath.add_filter(elem)
+            else:
+                keyref, refop, lalias = elem.resolve_link(model, epath)
+                epath.add_link(keyref, refop, elem.alias, lalias)
+
         return epath
 
 
