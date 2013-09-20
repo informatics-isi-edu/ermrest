@@ -22,10 +22,28 @@
 class Api (object):
     is_filter = False
 
+    def __init__(self, catalog):
+        self.catalog = catalog
+
     def with_queryopts(self, qopt):
         self.queryopts = qopt
         return self
 
+    def get_conn(self):
+        # TODO: find catalog and open sanepg2 connection
+        raise NotImplementedError()
+
+    def perform(self, body, finish):
+        # TODO: implement backoff/retry on transient exceptions?
+        conn = self.get_conn()
+        try:
+            result = body(conn)
+            conn.commit()
+        except:
+            conn.rollback()
+            raise
+        return finish(result)
+    
 
 class Path (list):
     pass
