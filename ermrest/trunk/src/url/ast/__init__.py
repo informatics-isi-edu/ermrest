@@ -30,6 +30,49 @@ from catalog import Catalogs, Catalog
 import model
 import data
 
+
+class NameList (list):
+    """Represent a list of Name instances.
+
+    """
+    pass
+
+def _default_link_table2table(left, right):
+    """Find default reference link between left and right tables.
+
+       Returns (keyref, refop).
+
+       Raises KeyError if no default can be found.
+    """
+    if left == right:
+        raise KeyError('Ambiguous self-link for table %s' % left)
+
+    links = []
+
+    # look for right-to-left references
+    for pk in left.uniques.values():
+        if right in pk.table_references:
+            links.extend([
+                    (ref, '@=')
+                    for ref in pk.table_references[right]
+                    ])
+
+    # look for left-to-right references
+    for fk in left.fkeys.values():
+        if right in fk.table_references:
+            links.extend([
+                    (ref, '=@')
+                    for ref in fk.table_references[right]
+                    ])
+
+    if len(links) == 0:
+        raise KeyError('No link found between tables %s and %s' % (left, right))
+    elif len(links) == 1:
+        return links[0]
+    else:
+        raise KeyError('Ambiguous links found between tables %s and %s' % (left, right))
+
+
 class Name (object):
     """Represent a qualified or unqualified name in an ERMREST URL.
 
@@ -42,6 +85,15 @@ class Name (object):
         """
         self.absolute = absolute
         self.nameparts = []
+
+    def __str__(self):
+        return '%s%s' % (
+            self.absolute and ':' or '',
+            ':'.join(map(urllib.quote, self.nameparts))
+            )
+
+    def __repr__(self):
+        return '<ermrest.url.ast.Name %s>' % str(self)
 
     def __len__(self):
         return len(self.nameparts)
@@ -58,24 +110,89 @@ class Name (object):
         self.nameparts.append(namepart)
         return self
         
-    def resolve(self, model, path=None, elem=None):
-        """Resolve self against a specific database model and context.
+    def resolve_link(self, model, epath):
+        """Resolve self against a specific database model and epath context.
+
+           Returns (keyref, refop, lalias) as resolved key reference
+           configuration.
         
-           Absolute names :schema:table:column or :schema:table can
-           only be resolved from a model.
+           An absolute name ':n0:n1' must be:
 
-           Relative names are conditionally resolved in order:
+             1. a table in the model that can be linked to the path by
+                implicit reference.
 
-             1. For n0:n1 with path where n0 is alias in path, then n1
-                must be a column in the path element referenced by
-                alias n0.
+           A relative name 'n0' may be:
 
-             2. For n0 with elem, n0 must be a column in the elem.
+             1. a column of the current epath table type, which must
+                be a single-column key or foreign key unambiguously
+                identifying a specific reference.
 
-             3. Any n0:n1:n2 
+             2. an unambiguous table in the model, and also can be
+                linked to the path
+
+           A relative name 'n0:n1' may be:
+
+             1. a column of an aliased table in the epath context,
+                which must be a single-column key or foreign key
+                unambiguously identifying a specific reference.
+
+             2. a table in the model that can be linked to the path by
+                implicit reference.
+
+           TODO: add other column-based methods?
         
            Raises KeyError on failed resolution.
         """
+        ptable = epath.current_entity_table()
 
-        return model.name_lookup(self)
+        if self.absolute and len(self.nameparts) == 2:
+            table = self.resolve_table(model)
+            keyref, refop = _default_link_table2table(ptable, table)
+            return keyref, refop, None
 
+        elif not self.absolute:
+            if len(self.nameparts) == 1:
+                name = self.nameparts[0]
+                if name in ptable.columns:
+                    keyref, refop = _default_link_leftcol(ptable.columns[name])
+                    return keyref, refop, None
+
+                else:
+                    table = self.resolve_table(model)
+                    keyref, refop = _default_link_table2table(ptable, table)
+                    return keyref, refop, None
+
+            elif len(self.nameparts) == 2:
+                n0, n1 = self.nameparts
+                if n0 in epath.aliases \
+                        and n1 in epath.aliases[n0].columns:
+                    keyref, refop = _default_link_table2col(ptable, epath.aliases[n0].columns[n1])
+                    return keyref, refop, n0
+
+                table = model.lookup_table(n0, n1)
+                keyref, refop = _default_link_table2table(ptable, table)
+                return keyref, refop, None
+
+        raise TypeError('Name %s is not a valid syntax for table-linking.' % self)
+
+    def resolve_table(self, model):
+        """Resolve self as table name.
+        
+           Qualified names ':n0:n1' or 'n0:n1' can only be resolved
+           from the model as :schema:table.  Bare names 'n0' can be
+           resolved as table if that is unambiguous across all
+           schemas in the model.
+
+           Raises KeyError on failed resolution.
+        """
+        if len(self.nameparts) == 2:
+            sname, tname = self.nameparts
+            return model.lookup_table(sname, tname)
+        elif len(self.nameparts) == 1 and not self.absolute:
+            tname = self.nameparts[0]
+            return model.lookup_table(None, tname)
+
+        raise TypeError('Name %s is not a valid syntax for a table name.' % self)
+            
+        
+        

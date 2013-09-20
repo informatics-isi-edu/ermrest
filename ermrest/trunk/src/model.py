@@ -25,6 +25,8 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
+import urllib
+
 __all__ = ["introspect", "Model", "Schema", "Table", "Column"]
 
 def frozendict (d):
@@ -249,6 +251,23 @@ class Model:
         for schema in self.schemas.values():
             s += "Schema:" + schema.verbose()
         return s
+
+    def lookup_table(self, sname, tname):
+        if sname is not None:
+            return self.schemas[sname].tables[tname]
+        else:
+            tables = set()
+
+            for schema in self.schemas.values():
+                if tname in schema.tables:
+                    tables.add( schema.tables[tname] )
+
+            if len(tables) == 0:
+                raise KeyError('Table %s does not exist.' % tname)
+            elif len(tables) > 1:
+                raise KeyError('Table name %s is ambiguous.' % tname)
+            else:
+                return tables.pop()
     
 class Schema:
     """Represents a database schema.
@@ -293,6 +312,15 @@ class Table:
         if name not in self.schema.tables:
             self.schema.tables[name] = self
 
+    def __str__(self):
+        return ':%s:%s' % (
+            urllib.quote(self.schema.name),
+            urllib.quote(self.name)
+            )
+
+    def __repr__(self):
+        return '<ermrest.model.Table %s>' % str(self)
+
     def verbose(self):
         s = "name: %s, num_columns: %d\n" % (self.name, len(self.columns))
         for col in self.columns.values():
@@ -330,6 +358,16 @@ class Column:
         self.is_array = is_array
         self.default_value = default_value
     
+    def __str__(self):
+        return ':%s:%s:%s' % (
+            urllib.quote(self.table.schema.name),
+            urllib.quote(self.table.name),
+            urllib.quote(self.name)
+            )
+
+    def __repr__(self):
+        return '<ermrest.model.Column %s>' % str(self)
+
     def verbose(self):
         return "name: %s, position: %d, base_type: %s, is_array: %s, default_value: %s" \
                 % (self.name, self.position, self.base_type, self.is_array, self.default_value)
@@ -347,6 +385,12 @@ class Unique:
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
         
+    def __str__(self):
+        return ','.join([ str(c) for c in self.columns ])
+
+    def __repr__(self):
+        return '<ermrest.model.Unique %s>' % str(self)
+
     def verbose(self):
         s = '('
         for col in self.columns.values():
@@ -367,6 +411,12 @@ class ForeignKey:
         
         if cols not in self.table.fkeys:
             self.table.fkeys[cols] = self
+
+    def __str__(self):
+        return ','.join([ str(c) for c in self.columns ])
+
+    def __repr__(self):
+        return '<ermrest.model.ForeignKey %s>' % str(self)
 
     def verbose(self):
         s = 'FIXME'
@@ -389,6 +439,15 @@ class KeyReference:
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         unique.table_references[foreign_key.table].add(self)
+
+    def __str__(self):
+        return '%s refs %s' % (
+            ','.join([ str(i[0]) for i in fd ]),
+            ','.join([ str(i[1]) for i in fd ]) 
+            )
+
+    def __repr__(self):
+        return '<ermrest.model.KeyReference %s>' % str(self)
 
 
 if __name__ == '__main__':
