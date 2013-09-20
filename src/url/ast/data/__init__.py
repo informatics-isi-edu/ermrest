@@ -53,6 +53,8 @@ class Entity (Api):
             else:
                 keyref, refop, lalias = elem.resolve_link(model, epath)
                 epath.add_link(keyref, refop, elem.alias, lalias)
+                # TODO: consider two-hop resolution via implied association table?
+                #   will add intermediate link to epath...
 
         return epath
 

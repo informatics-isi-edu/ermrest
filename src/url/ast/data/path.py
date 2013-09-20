@@ -88,12 +88,41 @@ class FilterElem (Api):
     def __init__(self, pred):
         self.pred = pred
 
+    def __str__(self):
+        return str(self.pred)
+
+    def validate(self, epath):
+        return self.pred.validate(epath)
+
 
 class Predicate (Api):
-    def __init__(self, left_val, op, right_val=None):
-        self.left_val = left_val
+    def __init__(self, left_name, op, right_expr=None):
+        self.left_name = left_name
+        self.left_col = None
         self.op = op
-        self.right_val = right_val
+        self.right_expr = right_expr
+
+    def __str__(self):
+        s = '%s %s' % (
+            str(self.left_name),
+            str(self.op)
+            )
+        if self.right_expr is not None:
+            s += ' %s' % str(self.right_expr)
+
+        return s
+
+    def validate(self, epath):
+        self.left_col = self.left_name.validate(epath)
+
+        # TODO: generalize operators later
+        if self.op == '=':
+            if self.right_expr is None:
+                raise TypeError('Operator = requires right-hand value')
+
+            self.right_expr.validate(epath, self.left_col)
+        else:
+            raise NotImplementedError('Predicate operator %s' % self.op)
 
 
 class Negation (Api):

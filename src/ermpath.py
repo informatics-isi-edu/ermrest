@@ -35,6 +35,7 @@ class EntityElem (object):
         self.keyref = keyref
         self.refop = refop
         self.keyref_alias = keyref_alias
+        self.filters = []
 
     def __str__(self):
         s = str(self.table)
@@ -68,10 +69,19 @@ class EntityElem (object):
 
             s += ' ON (%s %s %s)' % (lcols, refop, rcols)
 
+        if self.filters:
+            s += ' WHERE ' + ' AND '.join([ str(f) for f in self.filters ])
+
         return s
 
     def __repr__(self):
         return '<ermrest.ermpath.EntityElem %s>' % str(self)
+
+    def add_filter(self, filt):
+        """Add a filter condition to this path element.
+        """
+        filt.validate(self.epath)
+        self.filters.append(filt)
 
 class EntityPath (object):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
@@ -111,7 +121,7 @@ class EntityPath (object):
 
            Filters restrict the matched rows of the right-most table.
         """
-        pass
+        return self._path[-1].add_filter(filt)
 
     def add_link(self, keyref, refop, ralias=None, lalias=None):
         """Extend the path by linking in another table.
