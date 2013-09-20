@@ -21,12 +21,12 @@
 
 import path
 from path import Api
-from ermrest import ermpath
+from ermrest import ermpath, model
 
 class Entity (Api):
     """A specific entity set by entitypath."""
     def __init__(self, catalog, path):
-        self.catalog = catalog
+        Api.__init__(self, catalog)
         self.path = path
 
     def resolve(self, model):
@@ -58,11 +58,29 @@ class Entity (Api):
 
         return epath
 
+    def GET(self, uri):
+        """Perform HTTP GET of entities.
+        """
+        def body(conn):
+            # TODO: map exceptions into web errors
+            model = model.introspect(conn)
+            epath = self.resolve(model)
+            sql = epath.sql_get()
+            return conn.execute(sql)
+
+        def post_commit(cur):
+            # TODO: content-type negotiation?
+            # TODO: set web.py response headers/status
+            serialize(cur)
+            cur.close()
+
+        return self.perform(body, post_commit)
+
 
 class Attribute (Api):
     """A specific attribute set by attributepath."""
     def __init__(self, catalog, path):
-        self.catalog = catalog
+        Api.__init__(self, catalog)
         self.attributes = path[-1]
         self.epath = Entity(catalog, path[0:-1])
 
@@ -83,7 +101,7 @@ class Attribute (Api):
 class Query (Api):
     """A specific query set by querypath."""
     def __init__(self, catalog, path):
-        self.catalog = catalog
+        Api.__init__(self, catalog)
         self.expressions = path[-1]
         self.epath = Entity(catalog, path[0:-1])
 
