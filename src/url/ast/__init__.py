@@ -72,38 +72,44 @@ def _default_link_table2table(left, right):
     else:
         raise KeyError('Ambiguous links found between tables %s and %s' % (left, right))
 
-def _default_link_leftcol(leftcol):
-    """Find default reference link anchored at leftcol.
+def _default_link_col(col, left=True, reftable=None):
+    """Find default reference link anchored at col.
 
        Returns (keyref, refop).
 
        Raises KeyError if no default can be found.
     """
-    left = leftcol.table
-    constraint_key = frozenset([leftcol])
+    constraint_key = frozenset([col])
 
     links = []
 
-    # look for right-to-left references ending at leftcol
-    if constraint_key in left.uniques:
+    # look for references ending at leftcol
+    if constraint_key in col.table.uniques:
         refs = set()
-        for rs in left.uniques[constraint_key].table_references.values():
-            refs.update(rs)
-        links.extend([ (ref, '@=') for ref in refs ])
+        if reftable:
+            refs.update( col.table.uniques[constraint_key].table_references[reftable] )
+        else:
+            for rs in col.table.uniques[constraint_key].table_references.values():
+                refs.update(rs)
+        links.extend([ (ref, left and '@=' or '=@') for ref in refs ])
     
-    # look for left-to-right references starting at leftcol
-    if constraint_key in left.fkeys:
+    # look for references starting at leftcol
+    if constraint_key in col.table.fkeys:
         refs = set()
-        for rs in left.fkeys[constraint_key].table_references.values():
-            refs.update(rs)
-        links.extend([ (ref, '=@') for ref in refs ])
+        if reftable:
+            refs.update( col.table.fkeys[constraint_key].table_references[reftable] )
+        else:
+            for rs in col.table.fkeys[constraint_key].table_references.values():
+                refs.update(rs)
+        links.extend([ (ref, left and '=@' or '@=') for ref in refs ])
     
     if len(links) == 0:
-        raise KeyError('No link found involving left column %s' % leftcol)
+        raise KeyError('No link found involving column %s' % col)
     elif len(links) == 1:
         return links[0]
     else:
-        raise KeyError('Ambiguous links found involving left column %s' % leftcol)
+        raise KeyError('Ambiguous links found involving column %s' % col)
+
 
 class Name (object):
     """Represent a qualified or unqualified name in an ERMREST URL.
@@ -148,6 +154,11 @@ class Name (object):
            Returns (keyref, refop, lalias) as resolved key reference
            configuration.
         
+           An absolute or relative name :?'n0:n1:n2' must be:
+
+             1. a column in the model to link its containing entity to
+                the path by involved reference
+
            An absolute name ':n0:n1' must be:
 
              1. a table in the model that can be linked to the path by
@@ -155,9 +166,8 @@ class Name (object):
 
            A relative name 'n0' may be:
 
-             1. a column of the current epath table type, which must
-                be a single-column key or foreign key unambiguously
-                identifying a specific reference.
+             1. a column of the current epath table type involved in
+                exactly one reference.
 
              2. an unambiguous table in the model, and also can be
                 linked to the path
@@ -165,18 +175,27 @@ class Name (object):
            A relative name 'n0:n1' may be:
 
              1. a column of an aliased table in the epath context,
-                which must be a single-column key or foreign key
-                unambiguously identifying a specific reference.
+                involved in exactly one reference.
 
              2. a table in the model that can be linked to the path by
                 implicit reference.
 
+             3. a column in the model involved in exactly one
+                reference back to the current epath table type.
+
            TODO: add other column-based methods?
+           TODO: review resolution policy for sanity?
         
            Raises KeyError on failed resolution.
         """
         ptable = epath.current_entity_table()
-
+        
+        if len(self.nameparts) == 3:
+            n0, n1, n2 = self.nameparts
+            table = model.lookup_table(n0, n1)
+            keyref, refop = _default_link_col(table.columns[n2], left=False, reftable=ptable)
+            return keyref, refop, None
+        
         if self.absolute and len(self.nameparts) == 2:
             table = self.resolve_table(model)
             keyref, refop = _default_link_table2table(ptable, table)
@@ -186,7 +205,7 @@ class Name (object):
             if len(self.nameparts) == 1:
                 name = self.nameparts[0]
                 if name in ptable.columns:
-                    keyref, refop = _default_link_leftcol(ptable.columns[name])
+                    keyref, refop = _default_link_col(ptable.columns[name])
                     return keyref, refop, None
 
                 else:
@@ -198,13 +217,22 @@ class Name (object):
                 n0, n1 = self.nameparts
                 if n0 in epath.aliases \
                         and n1 in epath[n0].table.columns:
-                    keyref, refop = _default_link_leftcol(epath[n0].table.columns[n1])
+                    keyref, refop = _default_link_col(epath[n0].table.columns[n1])
                     return keyref, refop, n0
 
-                table = model.lookup_table(n0, n1)
-                keyref, refop = _default_link_table2table(ptable, table)
-                return keyref, refop, None
+                try:
+                    table = model.lookup_table(n0, n1)
+                except KeyError:
+                    table = None
 
+                if table:
+                    keyref, refop = _default_link_table2table(ptable, table)
+                    return keyref, refop, None
+                
+                table = model.lookup_table(None, n0)
+                keyref, refop = _default_link_col(table.columns[n1], left=False, reftable=ptable)
+                return keyref, refop, None
+            
         raise TypeError('Name %s is not a valid syntax for table-linking.' % self)
 
     def resolve_table(self, model):
