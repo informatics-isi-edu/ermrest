@@ -94,11 +94,15 @@ class FilterElem (Api):
     def validate(self, epath):
         return self.pred.validate(epath)
 
+    def sql_where(self, epath, elem):
+        return self.pred.sql_where(epath, elem)
+
 
 class Predicate (Api):
     def __init__(self, left_name, op, right_expr=None):
         self.left_name = left_name
         self.left_col = None
+        self.left_elem = None
         self.op = op
         self.right_expr = right_expr
 
@@ -113,7 +117,7 @@ class Predicate (Api):
         return s
 
     def validate(self, epath):
-        self.left_col = self.left_name.validate(epath)
+        self.left_col, self.left_elem = self.left_name.validate(epath)
 
         # TODO: generalize operators later
         if self.op == '=':
@@ -123,6 +127,14 @@ class Predicate (Api):
             self.right_expr.validate(epath, self.left_col)
         else:
             raise NotImplementedError('Predicate operator %s' % self.op)
+
+    def sql_where(self, epath, elem):
+        return 't%d.%s %s %s' % (
+            self.left_elem.pos,
+            self.left_col.sql_name(),
+            self.op,
+            self.right_expr.sql_literal(self.left_col)
+            )
 
 
 class Negation (Api):

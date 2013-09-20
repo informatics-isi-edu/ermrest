@@ -22,6 +22,7 @@ navigating, and manipulating data in an ERMREST catalog.
 
 """
 import urllib
+from model import sql_ident
 
 class EntityElem (object):
     """Wrapper for instance of entity table in path.
@@ -37,6 +38,23 @@ class EntityElem (object):
         self.keyref_alias = keyref_alias
         self.filters = []
 
+    def _link_parts(self):
+        fkcols = [ urllib.quote(c.name) for c in self.keyref.foreign_key.columns ]
+        pkcols = [ urllib.quote(c.name) for c in self.keyref.unique.columns ]
+
+        if self.refop == '=@':
+            # left to right reference
+            ltable = self.keyref.foreign_key.table
+            lcnames, rcnames = fkcols, pkcols
+            refop = 'refs'
+        else:
+            # right to left reference
+            ltable = self.keyref.unique.table
+            lcnames, rcnames = pkcols, fkcols
+            refop = 'refby'
+
+        return ltable, lcnames, rcnames, refop
+
     def __str__(self):
         s = str(self.table)
 
@@ -44,21 +62,8 @@ class EntityElem (object):
             s += ' AS %s' % self.alias
 
         if self.keyref:
-
-            fkcols = [ urllib.quote(c.name) for c in self.keyref.foreign_key.columns ]
-            pkcols = [ urllib.quote(c.name) for c in self.keyref.unique.columns ]
-
-            if self.refop == '=@':
-                # left to right reference
-                ltable = self.keyref.foreign_key.table
-                lcnames, rcnames = fkcols, pkcols
-                refop = 'refs'
-            else:
-                # right to left reference
-                ltable = self.keyref.unique.table
-                lcnames, rcnames = pkcols, fkcols
-                refop = 'refby'
-
+            ltable, lcnames, rcnames, refop = self._link_parts()
+        
             if self.keyref_alias:
                 ltname = self.keyref_alias
             else:
@@ -82,6 +87,49 @@ class EntityElem (object):
         """
         filt.validate(self.epath)
         self.filters.append(filt)
+
+    def sql_join_condition(self):
+        """Generate SQL condition for joining this element to the epath.
+
+        """
+        assert self.keyref
+
+        ltable, lcnames, rcnames, refop = self._link_parts()
+
+        if self.keyref_alias:
+            ltnum = self.epath.aliases[self.keyref_alias]
+        else:
+            ltnum = self.pos - 1
+        
+        return ' AND '.join([
+                't%d.%s = t%d.%s' % (
+                    ltnum, 
+                    sql_ident(lcnames[i]),
+                    self.pos, 
+                    sql_ident(rcnames[i])
+                    )
+                for i in range(0, len(lcnames))
+                ])
+
+    def sql_wheres(self):
+        """Generate SQL row conditions for filtering this element in the epath.
+           
+        """
+        return [ f.sql_where(self.epath, self) for f in self.filters ]
+
+    def sql_table_elem(self):
+        """Generate SQL table element representing this entity as part of the epath JOIN.
+
+        """
+        if self.pos == 0:
+            return '%s AS t0' % self.table.sql_name()
+
+        else:
+            return '%s AS t%d ON (%s)' % (
+                self.table.sql_name(),
+                self.pos,
+                self.sql_join_condition()
+                )
 
 class EntityPath (object):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
@@ -157,7 +205,50 @@ class EntityPath (object):
             if ralias in self.aliases:
                 raise ValueError('Alias %s bound more than once.' % ralias)
             self.aliases[ralias] = rpos
-        
+
+
+    def sql_get(self):
+        """Generate SQL query to get the entities described by this epath.
+
+           The query will be of the form:
+
+              SELECT 
+                DISTINCT ON (...)
+                tK.* 
+              FROM "x" AS t0 
+                ... 
+              JOIN "z" AS tK ON (...)
+              WHERE ...
+           
+           encoding path references and filter conditions.
+
+        """
+        pkeys = self._path[-1].table.uniques.keys()
+        pkeys.sort(key=lambda k: len(k))
+        shortest_pkey = self._path[-1].table.uniques[pkeys[0]]
+        distinct_on_cols = [ 
+            't%d.%s' % (len(self._path) - 1, sql_ident(c.name))
+             for c in shortest_pkey.columns
+            ]
+
+        tables = [ elem.sql_table_elem() for elem in self._path ]
+
+        wheres = []
+        for elem in self._path:
+            wheres.extend( elem.sql_wheres() )
+
+        return """
+SELECT 
+  DISTINCT ON (%(distinct_on)s)
+  t%(len)d.*
+FROM %(tables)s
+%(where)s
+""" % dict(distinct_on = ', '.join(distinct_on_cols),
+           len         = len(self._path) - 1,
+           tables      = ' JOIN '.join(tables),
+           where       = wheres and ('WHERE ' + ' AND '.join(wheres)) or ''
+           )
+    
 
 class AttributePath (object):
     """Hierarchical ERM data access to entity attributes, i.e. table cells.
