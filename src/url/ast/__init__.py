@@ -31,12 +31,6 @@ import model
 import data
 
 
-class NameList (list):
-    """Represent a list of Name instances.
-
-    """
-    pass
-
 def _default_link_table2table(left, right):
     """Find default reference link between left and right tables.
 
@@ -72,6 +66,46 @@ def _default_link_table2table(left, right):
     else:
         raise KeyError('Ambiguous links found between tables %s and %s' % (left, right))
 
+def _default_link_cols(cols, left=True, reftable=None):
+    """Find default reference link anchored at cols list.
+
+       Returns (keyref, refop).
+
+       Raises KeyError if no default can be found.
+    """
+    constraint_key = frozenset(cols)
+    table = cols[0].table # any column will do for this
+
+    links = []
+
+    # look for references ending at leftcol
+    if constraint_key in table.uniques:
+        refs = set()
+        if reftable:
+            refs.update( table.uniques[constraint_key].table_references[reftable] )
+        else:
+            for rs in table.uniques[constraint_key].table_references.values():
+                refs.update(rs)
+        links.extend([ (ref, left and '@=' or '=@') for ref in refs ])
+    
+    # look for references starting at leftcol
+    if constraint_key in table.fkeys:
+        refs = set()
+        if reftable:
+            refs.update( table.fkeys[constraint_key].table_references[reftable] )
+        else:
+            for rs in table.fkeys[constraint_key].table_references.values():
+                refs.update(rs)
+        links.extend([ (ref, left and '=@' or '@=') for ref in refs ])
+    
+    if len(links) == 0:
+        raise KeyError('No link found involving columns %s' % cols)
+    elif len(links) == 1:
+        return links[0]
+    else:
+        raise KeyError('Ambiguous links found involving columns %s' % cols)
+
+
 def _default_link_col(col, left=True, reftable=None):
     """Find default reference link anchored at col.
 
@@ -79,37 +113,54 @@ def _default_link_col(col, left=True, reftable=None):
 
        Raises KeyError if no default can be found.
     """
-    constraint_key = frozenset([col])
+    return _default_link_cols([col], left, reftable)
 
-    links = []
 
-    # look for references ending at leftcol
-    if constraint_key in col.table.uniques:
-        refs = set()
-        if reftable:
-            refs.update( col.table.uniques[constraint_key].table_references[reftable] )
-        else:
-            for rs in col.table.uniques[constraint_key].table_references.values():
-                refs.update(rs)
-        links.extend([ (ref, left and '@=' or '=@') for ref in refs ])
+class NameList (list):
+    """Represent a list of Name instances.
+
+    """
     
-    # look for references starting at leftcol
-    if constraint_key in col.table.fkeys:
-        refs = set()
-        if reftable:
-            refs.update( col.table.fkeys[constraint_key].table_references[reftable] )
-        else:
-            for rs in col.table.fkeys[constraint_key].table_references.values():
-                refs.update(rs)
-        links.extend([ (ref, left and '=@' or '@=') for ref in refs ])
-    
-    if len(links) == 0:
-        raise KeyError('No link found involving column %s' % col)
-    elif len(links) == 1:
-        return links[0]
-    else:
-        raise KeyError('Ambiguous links found involving column %s' % col)
+    def resolve_link(self, model, epath):
+        """Resolve self against a specific database model and epath context.
 
+           Returns (keyref, refop, lalias) as resolved key reference
+           configuration.
+        
+           The first name must be resolved as a normal column name.
+
+           All remaining columns must either be relative 'n0' and must
+           be in the same table resolved for the first name.
+
+           The identified column set must be involved in one reference
+           as either foreign key or primary key.
+        
+           Raises KeyError on failed resolution.
+        """
+        lalias = None
+        left = True
+        reftable = None
+
+        c0, base = self[0].resolve_column(model, epath)
+        if base in epath.aliases:
+            lalias = base
+        elif base == epath:
+            pass
+        else:
+            left = False
+            reftable = epath.current_entity_table()
+
+        cols = [ c0 ]
+
+        for n in self[1:]:
+            c, b = n.resolve_column(model, epath, c0.table)
+            if c.table != c0.table or base != b and not lalias:
+                raise ValueError('Linking columns must belong to the same table.')
+            cols.append( c )
+
+        keyref, refop = _default_link_cols(cols, left, reftable)
+
+        return keyref, refop, lalias
 
 class Name (object):
     """Represent a qualified or unqualified name in an ERMREST URL.
@@ -148,6 +199,53 @@ class Name (object):
         self.nameparts.append(namepart)
         return self
         
+    def resolve_column(self, model, epath, table=None):
+        """Resolve self against a specific database model and epath context.
+
+           Returns (column, base) where base is one of:
+
+            -- a left table alias string if column is relative to alias
+            -- epath if column is relative to epath or table arg
+            -- None if column is relative to model
+        
+           The name must be resolved in this preferred order:
+
+             1. a relative 'n0' must be a column in the current epath
+                table type or the provided table arg if not None
+
+             2. a relative 'n0:n1' may be a column in alias n0 of
+                current epath
+
+             3. a relative 'n0:n1' may be a column in a table in the
+                model
+
+             4. any 'n0:n1:n2' must be a column in the model
+
+           Raises KeyError on failed resolution.
+        """
+        ptable = epath.current_entity_table()
+
+        if table is None:
+            table = ptable
+        
+        if len(self.nameparts) == 3:
+            n0, n1, n2 = self.nameparts
+            return (model.lookup_table(n0, n1).columns[n2], None)
+        
+        elif not self.absolute:
+            if len(self.nameparts) == 1:
+                return (table.columns[self.nameparts[0]], epath)
+
+            elif len(self.nameparts) == 2:
+                n0, n1 = self.nameparts
+                if n0 in epath.aliases \
+                        and n1 in epath[n0].table.columns:
+                    return (epath[n0].table.columns[n1], n0)
+
+                return (model.lookup_table(None, n0).columns[n1], None)
+
+        raise TypeError('Name %s is not a valid syntax for columns.' % self)
+
     def resolve_link(self, model, epath):
         """Resolve self against a specific database model and epath context.
 

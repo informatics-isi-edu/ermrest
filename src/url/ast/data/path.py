@@ -56,6 +56,9 @@ class MultiElem (Api):
     def set_alias(self, alias):
         self.alias = alias
 
+    def resolve_link(self, model, epath):
+        """Resolve self.name as a link in the model and epath context."""
+        return self.names.resolve_link(model, epath)
 
 class ReferenceLeft (Api):
     """A path element referencing left-hand columns."""
