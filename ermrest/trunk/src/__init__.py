@@ -19,7 +19,7 @@ import model
 import url
 import exception
 
-#from ermrest_apis import web_urls
+from ermrest_apis import webauthn2_manager, web_urls
 
 def deploy_webauthn2():
     """

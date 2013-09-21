@@ -87,7 +87,7 @@ webauthn2_config.update(dict(web_cookie_path='/ermrest'))
 
 ## setup webauthn2 handler
 webauthn2_manager = webauthn2.Manager(overrides=webauthn2_config)
-webauthn2_handler_factory = RestHandlerFactory(manager=webauthn2_manager)
+webauthn2_handler_factory = webauthn2.RestHandlerFactory(manager=webauthn2_manager)
 UserSession = webauthn2_handler_factory.UserSession
 UserPassword = webauthn2_handler_factory.UserPassword
 UserManage = webauthn2_handler_factory.UserManage
@@ -114,7 +114,7 @@ def log_parts():
     elapsed = (now - web.ctx.ermrest_start_time)
     parts = dict(
         elapsed_s = ermrest.seconds, 
-        elapsed_ms = elapsed.microseconds/1000
+        elapsed_ms = elapsed.microseconds/1000,
         client_ip = web.ctx.ip,
         client_identity = urllib.quote(web.ctx.webauthn2_context.client or ''),
         reqid = web.ctx.ermmrest_request_guid
