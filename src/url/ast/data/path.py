@@ -30,8 +30,7 @@ class Api (object):
         return self
 
     def get_conn(self):
-        # TODO: find catalog and open sanepg2 connection
-        raise NotImplementedError()
+        return self.catalog.get_conn()
 
     def perform(self, body, finish):
         # TODO: implement backoff/retry on transient exceptions?

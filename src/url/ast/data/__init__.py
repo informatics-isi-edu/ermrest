@@ -21,7 +21,8 @@
 
 import path
 from path import Api
-from ermrest import ermpath, model
+from ermrest import ermpath
+import ermrest.model
 
 class Entity (Api):
     """A specific entity set by entitypath."""
@@ -63,7 +64,7 @@ class Entity (Api):
         """
         def body(conn):
             # TODO: map exceptions into web errors
-            model = model.introspect(conn)
+            model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
             # TODO: content-type negotiation?
             return epath.get_iter(conn, content_type='application/json')

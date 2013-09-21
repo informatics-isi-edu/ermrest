@@ -18,6 +18,8 @@
 """ERMREST URL abstract syntax tree (AST) classes for catalog resources.
 
 """
+import psycopg2
+from ermrest import sanepg2
 
 import model
 import data
@@ -52,4 +54,12 @@ class Catalog (Api):
     def query(self, qpath):
         """An quer set for this catalog."""
         return data.Query(self, qpath)
+
+    def get_conn(self):
+        # TODO: make this smarter and safer
+        return psycopg2.connect(
+            database='ermrest_%d' % int(self.catalog_id),
+            connection_factory=sanepg2.connection
+            )
+
 

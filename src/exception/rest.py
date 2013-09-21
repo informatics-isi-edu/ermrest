@@ -20,6 +20,9 @@
 """
 
 import web
+import urllib
+
+urlquote = urllib.quote
 
 class WebException (web.HTTPError):
     def __init__(self, status, data=u'', headers={}, desc=u'%s'):
