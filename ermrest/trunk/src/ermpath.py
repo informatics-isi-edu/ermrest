@@ -249,6 +249,86 @@ FROM %(tables)s
            where       = wheres and ('WHERE ' + ' AND '.join(wheres)) or ''
            )
     
+    def get_to_file(self, conn, fp, content_type='text/csv'):
+        """Write entities to file.
+
+           fp: the file pointer with a write() method
+
+           content_type:
+              'text/csv'         --> CSV row stream
+              'application/json' --> JSON row object stream
+
+           TODO: fix JSON output to have array syntax around row objects
+        """
+        sql = self.sql_get()
+
+        if content_type == 'text/csv':
+            sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
+        elif content_type == 'application/json':
+            sql = "SELECT row_to_json(q) FROM (%s) q" % sql
+            sql = "COPY (%s) TO STDOUT" % sql
+        else:
+            raise NotImplementedError()
+        
+        cur = conn.cursor()
+        cur.copy_expert(sql, fp)
+
+    def get_iter(self, conn, content_type='text/csv', row_type=tuple):
+        """Yield entities.
+
+           content_type: 
+              'text/csv'         --> CSV table with header row
+              'application/json' --> JSON array of row objects
+              None --> raw Python rows (see row_type)
+
+           row_type:  (when content_type is None)
+              tuple --> tuple of values per row
+              dict  --> dict of column name: value per row
+
+        """
+        sql = self.sql_get()
+
+        if content_type == 'text/csv':
+            # TODO implement and use row_to_csv() stored procedure?
+            pass
+        elif content_type == 'application/json':
+            sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
+        elif content_type is None:
+            pass
+        else:
+            raise NotImplementedError()
+
+        cur = conn.execute(sql)
+        
+        if content_type == 'text/csv':
+            hdr = True
+            for row in cur:
+                if hdr:
+                    # need to defer accessing cur.description until after fetching 1st row
+                    yield row_to_csv([ col[0] for col in cur.description ]) + '\n'
+                    hdr = False
+                yield row_to_csv(row) + '\n'
+
+        elif content_type == 'application/json':
+            pre = '['
+            for row in cur:
+                yield pre + row[0] + '\n'
+                pre = ','
+            yield ']\n'
+
+        elif content_type is None:
+            if row_type is tuple:
+                for row in cur:
+                    yield row
+
+            elif row_type is dict:
+                for row in cur:
+                    yield row_to_dict(cur, row)
+
+            else:
+                raise NotImplementedError('row_type %s' % str(row_type))
+            
+        cur.close()
 
 class AttributePath (object):
     """Hierarchical ERM data access to entity attributes, i.e. table cells.
@@ -266,3 +346,24 @@ class QueryPath (object):
         self.epath = epath
         self.expressions = expressions
 
+def row_to_dict(cur, row):
+    return dict([
+            (cur.description[i][0], row[i])
+            for i in range(0, len(row))
+            ])
+
+def val_to_csv(v):
+    if type(v) in [ int, float, long ]:
+        return '%s' % v
+
+    else:
+        v = str(v)
+        if v.find(',') > 0 or v.find('"') > 0:
+            return '"%s"' % (v.replace('"', '""'))
+        else:
+            return v
+
+def row_to_csv(row):
+    return ','.join([ val_to_csv(v) for v in row ])
+
+       
