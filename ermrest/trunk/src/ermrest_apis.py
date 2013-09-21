@@ -60,6 +60,13 @@ from logging.handlers import SysLogHandler
 import web
 import random
 import base64
+import datetime
+import pytz
+import struct
+import urllib
+import sys
+import traceback
+import itertools
 
 import webauthn2
 
@@ -113,12 +120,13 @@ def log_parts():
     now = datetime.datetime.now(pytz.timezone('UTC'))
     elapsed = (now - web.ctx.ermrest_start_time)
     parts = dict(
-        elapsed_s = ermrest.seconds, 
+        elapsed_s = elapsed.seconds, 
         elapsed_ms = elapsed.microseconds/1000,
         client_ip = web.ctx.ip,
-        client_identity = urllib.quote(web.ctx.webauthn2_context.client or ''),
-        reqid = web.ctx.ermmrest_request_guid
+        client_identity = web.ctx.webauthn2_context and urllib.quote(web.ctx.webauthn2_context.client or '') or '',
+        reqid = web.ctx.ermrest_request_guid
         )
+    return parts
     
 def request_trace(tracedata):
     """Log one tracedata event as part of a request's audit trail.
@@ -127,7 +135,7 @@ def request_trace(tracedata):
     """
     parts = log_parts()
     parts['tracedata'] = tracedata
-    logger.info( log_trace_template % parts )
+    logger.info( (log_trace_template % parts).encode('utf-8') )
 
 def request_init():
     """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
@@ -136,7 +144,10 @@ def request_init():
     web.ctx.ermrest_request_content_range = '-/-'
     web.ctx.ermrest_content_type = 'unknown'
     web.ctx.webauthn2_manager = webauthn2_manager
-    web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
+    try:
+        web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
+    except:
+        web.ctx.webauthn2_context = None
     web.ctx.ermrest_request_trace = request_trace
 
 def request_final():
@@ -151,7 +162,7 @@ def request_final():
             range = web.ctx.ermrest_request_content_range,
             type = web.ctx.ermrest_content_type
             ))
-    logger.info( log_final_template % parts )
+    logger.info( (log_final_template % parts).encode('utf-8') )
 
 class Dispatcher:
     """Helper class to handle parser-based URL dispatch
@@ -169,7 +180,7 @@ class Dispatcher:
         uri = web.ctx.env['REQUEST_URI']
 
         try:
-            return url_parse_func(uri)
+            return uri, url_parse_func(uri)
         except (LexicalError, ParseError), te:
             raise rest.BadRequest(str(te))
         except:
@@ -209,7 +220,6 @@ class Dispatcher:
 
         finally:
             # log after we force iterator, to flush any deferred transaction log messages
-            end_time = datetime.datetime.now(pytz.timezone('UTC'))
             request_final()
 
     def HEAD(self):

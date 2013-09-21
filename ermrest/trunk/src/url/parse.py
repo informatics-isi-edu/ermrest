@@ -90,12 +90,12 @@ def p_slashopt(p):
     p[0] = None
 
 def p_catalogs(p):
-    """catalogs : '/' CATALOG slashopt """
+    """catalogs : '/' string '/' CATALOG slashopt """
     p[0] = ast.Catalogs()
 
 def p_catalog(p):
-    """catalog : '/' CATALOG '/' NUMSTRING """ 
-    p[0] = ast.Catalog(p[4])
+    """catalog : '/' string '/' CATALOG '/' NUMSTRING """ 
+    p[0] = ast.Catalog(p[6])
 
 def p_catalogslash(p):
     """catalogslash : catalog '/' """
