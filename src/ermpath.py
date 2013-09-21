@@ -256,22 +256,29 @@ FROM %(tables)s
 
            content_type:
               'text/csv'         --> CSV row stream
-              'application/json' --> JSON row object stream
-
-           TODO: fix JSON output to have array syntax around row objects
+              'application/json' --> JSON array
+              
         """
         sql = self.sql_get()
 
         if content_type == 'text/csv':
             sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
         elif content_type == 'application/json':
-            sql = "SELECT row_to_json(q) FROM (%s) q" % sql
+            sql = """
+SELECT 
+  CASE WHEN row_number() OVER () = 1 THEN '' ELSE ',' END || (row_to_json(q)::text)
+FROM (%s) q
+""" % sql
             sql = "COPY (%s) TO STDOUT" % sql
+            fp.write('[')
         else:
             raise NotImplementedError()
         
         cur = conn.cursor()
         cur.copy_expert(sql, fp)
+
+        if content_type == 'application/json':
+            fp.write(']\n')
 
     def get_iter(self, conn, content_type='text/csv', row_type=tuple):
         """Yield entities.
