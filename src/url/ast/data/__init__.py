@@ -65,14 +65,13 @@ class Entity (Api):
             # TODO: map exceptions into web errors
             model = model.introspect(conn)
             epath = self.resolve(model)
-            sql = epath.sql_get()
-            return conn.execute(sql)
-
-        def post_commit(cur):
             # TODO: content-type negotiation?
+            return epath.get_iter(conn, content_type='application/json')
+
+        def post_commit(lines):
             # TODO: set web.py response headers/status
-            serialize(cur)
-            cur.close()
+            for line in lines:
+                yield line
 
         return self.perform(body, post_commit)
 
