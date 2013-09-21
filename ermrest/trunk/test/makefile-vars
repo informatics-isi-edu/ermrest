@@ -1,4 +1,5 @@
 TEST_PYTHON_FILES = \
+	ermpath-microscopy-test.py \
 	url-parse-tests.py
 
 TEST_EDIT_FILES= \
