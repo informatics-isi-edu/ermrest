@@ -23,6 +23,7 @@ then
 fi
 
 # paths set for installation
+VARLIBDIR=/var/lib/ermrest
 LIBEXECDIR=/usr/libexec/ermrest
 SBINDIR=/usr/sbin
 
@@ -50,7 +51,7 @@ export DAEMONUSER
 [[ "$CREATEDB" = "true" ]] && {
     runuser -c "createdb -O \"$DAEMONUSER\" \"$DAEMONUSER\"" - "${PGADMIN}"
     runuser -c "createlang -d $DAEMONUSER plpgsql" - "${PGADMIN}"
-    runuser -c "${LIBEXECDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
+    runuser -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
     # add deploy tasks here...
     [[ -n "$DEPLOYLOCK" ]] && cat > "$DEPLOYLOCK" <<EOF
 DATE="$(date)"
@@ -61,5 +62,6 @@ DAEMONUSER="$DAEMONUSER"
 #DROPDB="$DROPDB"
 #CREATEDB="$CREATEDB"
 EOF
+    true
 }
 
