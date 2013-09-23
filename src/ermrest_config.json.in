@@ -10,8 +10,8 @@
       "def_passwd_len": 10, 
       "hash_passwd_reps": 1000,
             
-      "sessionids_provider": "ermrest", 
-      "sessionstates_provider": "ermrest", 
+      "sessionids_provider": "webcookie", 
+      "sessionstates_provider": "database", 
       "clients_provider": "database", 
       "attributes_provider": "database", 
             
