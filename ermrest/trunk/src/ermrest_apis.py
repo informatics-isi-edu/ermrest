@@ -81,7 +81,7 @@ __all__ = [
 
 ## setup web service configuration data
 global_env = webauthn2.merge_config(
-    jsonFileName='ermrest-config.json', 
+    jsonFileName='ermrest_config.json', 
     built_ins={
         "db": "ermrest", 
         "dbn": "postgres", 
@@ -144,11 +144,13 @@ def request_init():
     web.ctx.ermrest_request_content_range = '-/-'
     web.ctx.ermrest_content_type = 'unknown'
     web.ctx.webauthn2_manager = webauthn2_manager
-    try:
-        web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
-    except:
-        web.ctx.webauthn2_context = None
+    web.ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
     web.ctx.ermrest_request_trace = request_trace
+    try:
+        # get client authentication context
+        web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
+    except (ValueError, IndexError):
+        raise rest.Unauthorized('service access')
 
 def request_final():
     """Log final request handler state to finalize a request's audit trail."""
