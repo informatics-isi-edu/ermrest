@@ -28,11 +28,13 @@ from model import Api
 
 class Catalogs (Api):
     """A multi-tenant catalog set."""
-    pass
+    def __init__(self):
+        Api.__init__(self, None)
 
 class Catalog (Api):
     """A specific catalog by ID."""
     def __init__(self, catalog_id):
+        Api.__init__(self, self)
         self.catalog_id = catalog_id
 
     def schemas(self):
