@@ -51,9 +51,9 @@ for url in [
     print url
     print str(epath)
     print epath.sql_get()
-    content_type = ['application/json', 'text/csv'][0]
-    epath.get_to_file(conn, sys.stdout, content_type)
-    #print ''.join(epath.get_iter(conn, content_type))
-    #print ''.join([ str(r) + '\n' for r in epath.get_iter(conn, None, dict) ])
+    content_type = ['application/json', 'text/csv', dict, tuple][0]
+    output_file = [None, sys.stdout][0]
+    #epath.get_to_file(conn, sys.stdout, content_type)
+    print ''.join([ str(r) + '\n' for r in epath.get(conn, content_type, output_file) ])
     print ''
 

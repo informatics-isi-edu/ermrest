@@ -67,7 +67,7 @@ class Entity (Api):
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
             # TODO: content-type negotiation?
-            return epath.get_iter(conn, content_type='application/json')
+            return epath.get(conn, content_type='application/json')
 
         def post_commit(lines):
             # TODO: set web.py response headers/status
