@@ -255,14 +255,20 @@ FROM %(tables)s
            conn: sanepg2 database connection to catalog
 
            content_type: 
-              'text/csv' --> CSV table with header row
-              'application/json' --> JSON array of row objects
-              dict  --> dict of column:value per row
-              tuple --> tuple of values per row
+              text names of MIME types control serialization:
+                'text/csv' --> CSV table with header row
+                'application/json' --> JSON array of row objects
+
+              Python types select native Python result formats
+                dict  --> dict of column:value per row
+                tuple --> tuple of values per row
+
+                for tuples, values will be ordered according to column
+                ordering in the catalog model.
 
            output_file: 
-              None --> generate result chunks/rows
-              x --> x.write() for each result chunks/rows
+              None --> generate iterable results
+              x --> x.write() the serialized output
 
            Note: only text content types are supported with
            output_file writing.
@@ -329,6 +335,138 @@ FROM (%s) q
                     yield row_to_dict(cur, row)
 
             cur.close()
+
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, update_existing=True, insert_missing=True):
+        """Put or update entities depending on allow_existing, allow_missing modes.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+ 
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+           update_existing: when input rows match existing keys
+              True --> update existing row with input (default)
+              None --> skip input row
+              False --> raise exception
+
+           insert_missing: when input rows do not match existing keys
+              True --> insert input rows (default)
+              None --> skip input row
+              False --> raise exception
+
+           Special cases:
+
+           NOTE: these cases can be transitive if keys can ever be
+           mutated!
+           
+           Writing entity type with foreign-key reference to parent
+           entity-path context.
+
+           A. Zero parent entities are matched: disallow non-NULL
+              user-provided values.
+
+           B. Exactly one parent entity is matched: disallow
+              user-provided values other than NULL or the matched
+              parent key, rewrite NULL to the matched parent.
+
+           C. More than one parent entities are matched: disallow
+              user-provided values other than NULL or a matching
+              parent key.
+
+           Writing entity type with primary key referenced by
+           foreign_key in parent entity-path context that is not a
+           simple association.
+
+           A. Zero parent entities are matched: write entity as if
+              there were no parent context.
+
+           B. One or more parent entities are matched: after writing
+              entity, update parent entities' foreign keys to
+              reference written entity.
+
+           Writing entity type with primary key referenced by
+           foreign_key in parent entity-path context that is a simple
+           association to another entity in grandparent context:
+
+           A. Zero grandparent entities are matched: write entity as
+              if there were no parent context.
+
+           B. One or more grandparent entities are matched: after
+              writing entity, update parent association table to
+              associate ALL matched grandparents with written entity.
+
+        """
+        # TODO:
+        # 1. load input_data into temporary table in DB
+        # 2. check for exception conditions
+        #    A. duplicate keys in input
+        #    B. insert_missing == False and row missing
+        #    C. update_existing == False and row exists
+        # 3. perform update (honor whole_row_key setting)
+        #    A. insert_missing == True and row missing
+        #    B. update_existing == True and row exists
+        # 4. update metadata overlay... table/cols modified
+        # 5. return modified+inserted rows
+
+        raise NotImplementedError()
+
+    def delete(self, conn, content_type='text/csv', output_file=None):
+        """Delete entities.
+
+           conn: sanepg2 connection to catalog
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              deleted row.
+        
+           Special cases:
+
+           NOTE: these cases can be transitive on delete!
+           
+           Deleting entity type with primary key referenced by
+           foreign-key in any other entity type.
+
+           -- Cascade according to foreign key references, e.g. delete
+              referencing rows or set references to NULL as
+              appropriate.
+
+        """
+        # TODO:
+        # 1. delete rows
+        # 2. update metadata overlay... table modified
+        # 3. ...returning deleted rows
+
+        raise NotImplementedError()
 
 class AttributePath (object):
     """Hierarchical ERM data access to entity attributes, i.e. table cells.
