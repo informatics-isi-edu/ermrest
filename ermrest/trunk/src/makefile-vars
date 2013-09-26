@@ -8,7 +8,6 @@ ERMREST_PYTHON_FILES= \
 	ermpath.py \
 	ermrest_apis.py \
 	ermrest.wsgi \
-	exception.py \
 	model.py \
 	sanepg2.py
 
