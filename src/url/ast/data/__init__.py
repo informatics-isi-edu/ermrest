@@ -69,9 +69,9 @@ class Entity (Api):
             # TODO: content-type negotiation?
             return epath.get(conn, content_type='application/json')
 
-        def post_commit(lines):
+        def post_commit(line_thunk):
             # TODO: set web.py response headers/status
-            for line in lines:
+            for line in line_thunk():
                 yield line
 
         return self.perform(body, post_commit)
