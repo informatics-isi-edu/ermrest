@@ -267,7 +267,7 @@ FROM %(tables)s
                 ordering in the catalog model.
 
            output_file: 
-              None --> generate iterable results
+              None --> thunk result, when invoked generates iterable results
               x --> x.write() the serialized output
 
            Note: only text content types are supported with
@@ -291,10 +291,10 @@ FROM (%s) q
                 raise NotImplementedError('content_type %s with output_file.write()' % content_type)
 
             cur = conn.cursor()
-            cur.copy_expert(sql, fp)
+            cur.copy_expert(sql, output_file)
 
             if content_type == 'application/json':
-                fp.write(']\n')
+                output_file.write(']\n')
 
         else:
             # generate rows to caller
@@ -309,33 +309,38 @@ FROM (%s) q
                 raise NotImplementedError('content_type %s' % content_type)
 
             cur = conn.execute(sql)
+            
+            def row_thunk():
+                """Allow caller to lazily expand cursor after commit."""
+                
+                if content_type == 'text/csv':
+                    hdr = True
+                    for row in cur:
+                        if hdr:
+                            # need to defer accessing cur.description until after fetching 1st row
+                            yield row_to_csv([ col[0] for col in cur.description ]) + '\n'
+                            hdr = False
+                        yield row_to_csv(row) + '\n'
+    
+                elif content_type == 'application/json':
+                    pre = '['
+                    for row in cur:
+                        yield pre + row[0] + '\n'
+                        pre = ','
+                    yield ']\n'
+    
+                elif content_type is tuple:
+                    for row in cur:
+                        yield row
+    
+                elif content_type is dict:
+                    for row in cur:
+                        yield row_to_dict(cur, row)
+    
+                cur.close()
+
+            return row_thunk
         
-            if content_type == 'text/csv':
-                hdr = True
-                for row in cur:
-                    if hdr:
-                        # need to defer accessing cur.description until after fetching 1st row
-                        yield row_to_csv([ col[0] for col in cur.description ]) + '\n'
-                        hdr = False
-                    yield row_to_csv(row) + '\n'
-
-            elif content_type == 'application/json':
-                pre = '['
-                for row in cur:
-                    yield pre + row[0] + '\n'
-                    pre = ','
-                yield ']\n'
-
-            elif content_type is tuple:
-                for row in cur:
-                    yield row
-
-            elif content_type is dict:
-                for row in cur:
-                    yield row_to_dict(cur, row)
-
-            cur.close()
-
     def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, update_existing=True, insert_missing=True):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
