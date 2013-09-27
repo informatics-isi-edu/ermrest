@@ -24,6 +24,40 @@ navigating, and manipulating data in an ERMREST catalog.
 import urllib
 from model import sql_ident
 
+
+def make_row_thunk(cur, content_type):
+    def row_thunk():
+        """Allow caller to lazily expand cursor after commit."""
+        
+        if content_type == 'text/csv':
+            hdr = True
+            for row in cur:
+                if hdr:
+                    # need to defer accessing cur.description until after fetching 1st row
+                    yield row_to_csv([ col[0] for col in cur.description ]) + '\n'
+                    hdr = False
+                yield row_to_csv(row) + '\n'
+
+        elif content_type == 'application/json':
+            pre = '['
+            for row in cur:
+                yield pre + row[0] + '\n'
+                pre = ','
+            yield ']\n'
+
+        elif content_type is tuple:
+            for row in cur:
+                yield row
+
+        elif content_type is dict:
+            for row in cur:
+                yield row_to_dict(cur, row)
+
+        cur.close()
+        
+    return row_thunk
+
+
 class EntityElem (object):
     """Wrapper for instance of entity table in path.
 
@@ -83,7 +117,7 @@ class EntityElem (object):
         return '<ermrest.ermpath.EntityElem %s>' % str(self)
 
     def add_filter(self, filt):
-        """Add a filter condition to this path element.
+        """Add a filtersql_name condition to this path element.
         """
         filt.validate(self.epath)
         self.filters.append(filt)
@@ -130,6 +164,186 @@ class EntityElem (object):
                 self.pos,
                 self.sql_join_condition()
                 )
+    
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True):
+        """Put or update entities depending on allow_existing, allow_missing modes.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+ 
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+           allow_existing: when input rows match existing keys
+              True --> update existing row with input (default)
+              None --> skip input row
+              False --> raise exception
+
+           allow_missing: when input rows do not match existing keys
+              True --> insert input rows (default)
+              None --> skip input row
+              False --> raise exception
+
+        """
+        
+        # create temporary table
+        cur = conn.cursor()
+        cur.execute(
+            "CREATE TEMPORARY TABLE input_data (%s)" % (
+                ','.join([ c.ddl() for c in self.table.columns_in_order() ])
+                )
+            )
+        cur.close()
+        
+        # copy input data to temp table
+        cur = conn.cursor()
+        cur.copy_expert(
+            """
+COPY input_data (%s) 
+FROM STDIN WITH (
+    FORMAT csv, 
+    HEADER true, 
+    DELIMITER ',', 
+    QUOTE '"'
+)""" % (
+                ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
+                ),
+            input_data
+            )
+        cur.close()
+
+        # TODO: validate input_data
+        #  -- check for duplicate keys
+        #  -- check for missing keys and allow_missing == false
+        #  -- check for existing keys and allow_existing == false
+        
+        # find the "meta-key" for this table
+        #  -- the union of all columns of all keys
+        mkcols = set()
+        for key in self.table.uniques:
+            for col in key:
+                mkcols.add(col)
+                
+
+        allcols = set(self.table.columns_in_order())
+        nmkcols = allcols - mkcols
+        mkcols = [ c.sql_name() for c in mkcols ]
+        nmkcols = [ c.sql_name() for c in nmkcols ]
+        
+        correlating_sql = """
+SELECT count(*) AS count
+FROM input_data AS i
+LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
+""" % dict(table = self.table.sql_name(), mkcols = ','.join(mkcols))
+        
+        update_sql = """
+UPDATE %(table)s AS t SET %(assigns)s
+FROM input_data AS i
+WHERE %(keymatches)s AND %(allow_existing)s::boolean
+RETURNING t.*
+""" % dict(
+            table = self.table.sql_name(),
+            cols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
+            assigns = ','.join([ "%s = i.%s " % (c, c) for c in nmkcols ]),
+            keymatches = ' AND '.join([ "t.%s = i.%s " % (c, c) for c in mkcols ]),
+            allow_existing = str(bool(allow_existing))
+            )
+        
+        insert_sql = """
+INSERT INTO %(table)s (%(cols)s)
+SELECT %(icols)s
+FROM input_data AS i
+LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
+WHERE t.%(mkcol0)s IS NULL AND %(allow_missing)s::boolean
+RETURNING *
+""" % dict(
+            table = self.table.sql_name(),
+            cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
+            icols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
+            mkcols = ','.join(mkcols),
+            mkcol0 = mkcols[0],
+            allow_missing = str(bool(allow_missing))
+        )
+        
+        updated_sql = "SELECT * FROM updated_rows"
+        inserted_sql = "SELECT * FROM inserted_rows"
+        
+        # generate rows to caller
+        if content_type == 'text/csv':
+            # TODO implement and use row_to_csv() stored procedure?
+            pass
+        elif content_type == 'application/json':
+            updated_sql = "SELECT row_to_json(q)::text FROM updated_rows AS q"
+            inserted_sql = "SELECT row_to_json(q)::text FROM inserted_rows AS q"
+        elif content_type in [ dict, tuple ]:
+            pass
+        else:
+            raise NotImplementedError('content_type %s' % content_type)
+        
+        upsert_ctes = []
+        upsert_queries = []
+        
+        if allow_existing:
+            upsert_ctes.append("updated_rows AS (%s)" % update_sql)
+            upsert_queries.append(updated_sql)
+
+        if allow_missing:
+            upsert_ctes.append("inserted_rows AS (%s)" % insert_sql)
+            upsert_queries.append(inserted_sql)
+    
+        upsert_sql = "WITH %s %s" % (
+            ',\n'.join(upsert_ctes),
+            '\nUNION ALL\n'.join(upsert_queries)
+            )
+
+        if allow_existing is None and allow_missing is None:
+            return lambda : []
+
+        else:
+            cur = conn.cursor()
+            
+            if allow_existing is False:
+                cur.execute(correlating_sql + "\nWHERE t.%s IS NOT NULL" % mkcols[0])
+                if cur.fetchone()[0] > 0:
+                    raise KeyError('input row exists while allow_existing is False')
+            
+            if allow_missing is False:
+                cur.execute(correlating_sql + "\nWHERE t.%s IS NULL" % mkcols[0])
+                if cur.fetchone()[0] > 0:
+                    raise KeyError('input row does not exist while allow_missing is False')
+            
+            cur = conn.cursor()
+            cur.execute(upsert_sql)
+            return make_row_thunk(cur, content_type)
+    
 
 class EntityPath (object):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
@@ -292,6 +506,7 @@ FROM (%s) q
 
             cur = conn.cursor()
             cur.copy_expert(sql, output_file)
+            cur.close()
 
             if content_type == 'application/json':
                 output_file.write(']\n')
@@ -310,38 +525,9 @@ FROM (%s) q
 
             cur = conn.execute(sql)
             
-            def row_thunk():
-                """Allow caller to lazily expand cursor after commit."""
-                
-                if content_type == 'text/csv':
-                    hdr = True
-                    for row in cur:
-                        if hdr:
-                            # need to defer accessing cur.description until after fetching 1st row
-                            yield row_to_csv([ col[0] for col in cur.description ]) + '\n'
-                            hdr = False
-                        yield row_to_csv(row) + '\n'
-    
-                elif content_type == 'application/json':
-                    pre = '['
-                    for row in cur:
-                        yield pre + row[0] + '\n'
-                        pre = ','
-                    yield ']\n'
-    
-                elif content_type is tuple:
-                    for row in cur:
-                        yield row
-    
-                elif content_type is dict:
-                    for row in cur:
-                        yield row_to_dict(cur, row)
-    
-                cur.close()
-
-            return row_thunk
+            return make_row_thunk(cur, content_type)
         
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, update_existing=True, insert_missing=True):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -378,71 +564,23 @@ FROM (%s) q
               inserted or modified row, including any default values
               which might have been absent from the input.
 
-           update_existing: when input rows match existing keys
+           allow_existing: when input rows match existing keys
               True --> update existing row with input (default)
               None --> skip input row
               False --> raise exception
 
-           insert_missing: when input rows do not match existing keys
+           allow_missing: when input rows do not match existing keys
               True --> insert input rows (default)
               None --> skip input row
               False --> raise exception
 
-           Special cases:
-
-           NOTE: these cases can be transitive if keys can ever be
-           mutated!
-           
-           Writing entity type with foreign-key reference to parent
-           entity-path context.
-
-           A. Zero parent entities are matched: disallow non-NULL
-              user-provided values.
-
-           B. Exactly one parent entity is matched: disallow
-              user-provided values other than NULL or the matched
-              parent key, rewrite NULL to the matched parent.
-
-           C. More than one parent entities are matched: disallow
-              user-provided values other than NULL or a matching
-              parent key.
-
-           Writing entity type with primary key referenced by
-           foreign_key in parent entity-path context that is not a
-           simple association.
-
-           A. Zero parent entities are matched: write entity as if
-              there were no parent context.
-
-           B. One or more parent entities are matched: after writing
-              entity, update parent entities' foreign keys to
-              reference written entity.
-
-           Writing entity type with primary key referenced by
-           foreign_key in parent entity-path context that is a simple
-           association to another entity in grandparent context:
-
-           A. Zero grandparent entities are matched: write entity as
-              if there were no parent context.
-
-           B. One or more grandparent entities are matched: after
-              writing entity, update parent association table to
-              associate ALL matched grandparents with written entity.
-
         """
-        # TODO:
-        # 1. load input_data into temporary table in DB
-        # 2. check for exception conditions
-        #    A. duplicate keys in input
-        #    B. insert_missing == False and row missing
-        #    C. update_existing == False and row exists
-        # 3. perform update (honor whole_row_key setting)
-        #    A. insert_missing == True and row missing
-        #    B. update_existing == True and row exists
-        # 4. update metadata overlay... table/cols modified
-        # 5. return modified+inserted rows
-
-        raise NotImplementedError()
+        
+        if len(self._path) != 1:
+            raise NotImplementedError("unsupported path length for put")
+        
+        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing)
+        
 
     def delete(self, conn, content_type='text/csv', output_file=None):
         """Delete entities.

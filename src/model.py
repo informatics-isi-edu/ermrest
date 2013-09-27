@@ -145,14 +145,14 @@ GROUP BY
             # Determine base type
             is_array = (data_types[i] == ARRAY_TYPE)
             if is_array:
-                base_type = element_types[i]
+                base_type = ArrayType(Type(element_types[i]))
             else:
-                base_type = data_types[i]
+                base_type = Type(data_types[i])
         
             # Translate default_value
             default_value = __pg_default_value(base_type, default_values[i])
 
-            col = Column(cnames[i], i, base_type, is_array, default_value)
+            col = Column(cnames[i], i, base_type, default_value)
             cols.append( col )
             columns[(dname, sname, tname, cnames[i])] = col
         
@@ -324,6 +324,11 @@ class Table:
     def __repr__(self):
         return '<ermrest.model.Table %s>' % str(self)
 
+    def columns_in_order(self):
+        cols = self.columns.values()
+        cols.sort(key=lambda c: c.position)
+        return cols
+
     def verbose(self):
         s = "name: %s, num_columns: %d\n" % (self.name, len(self.columns))
         for col in self.columns.values():
@@ -345,26 +350,53 @@ class Table:
                 sql_ident(self.name)
                 ])
 
+
+class Type:
+    """Represents a column type."""
+    is_array = False
+    
+    def __init__(self, name):
+        self.name = name
+    
+    def __str__(self):
+        return str(self.name)
+    
+    def sql(self):
+        return self.name
+
+
+class ArrayType(Type):
+    """Represents a column array type."""
+    is_array = True
+    
+    def __init__(self, base_type):
+        self.base_type = base_type
+    
+    def __str__(self):
+        return "%s[]" % self.base_type
+        
+    def sql(self):
+        return "%s[]" % self.base_type.sql()
+
+
 class Column:
     """Represents a table column.
     
     Its fields include:
      -- name: the name of the columns
      -- position: its ordinal position in the table
-     -- base_type: the elemental type
-     -- is_array: boolean flag indicating whether it is an array
+     -- type: the type
      -- default_value: a kludgy attempt at translating the raw default 
                        value for this column
     
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, base_type, is_array, default_value):
+    def __init__(self, name, position, type, default_value):
         self.table = None
         self.name = name
         self.position = position
-        self.base_type = base_type
-        self.is_array = is_array
+        self.type = type
         self.default_value = default_value
     
     def __str__(self):
@@ -378,11 +410,17 @@ class Column:
         return '<ermrest.model.Column %s>' % str(self)
 
     def verbose(self):
-        return "name: %s, position: %d, base_type: %s, is_array: %s, default_value: %s" \
-                % (self.name, self.position, self.base_type, self.is_array, self.default_value)
+        return "name: %s, position: %d, type: %s, default_value: %s" \
+                % (self.name, self.position, self.type, self.default_value)
 
     def sql_name(self):
         return sql_ident(self.name)
+    
+    def ddl(self):
+        return "%s %s" % (
+            sql_ident(self.name),
+            self.type.sql()
+            )
 
 class Unique:
     """A unique constraint."""

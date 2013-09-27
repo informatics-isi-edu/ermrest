@@ -19,6 +19,9 @@
 
 """
 
+import cStringIO
+import web
+
 import path
 from path import Api
 from ermrest import ermpath
@@ -75,6 +78,37 @@ class Entity (Api):
                 yield line
 
         return self.perform(body, post_commit)
+
+    def PUT(self, uri, post_method=False):
+        """Perform HTTP PUT of entities.
+        """
+        
+        input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
+        
+        def body(conn):
+            input_data.seek(0) # rewinds buffer, in case of retry
+            # TODO: map exceptions into web errors
+            model = ermrest.model.introspect(conn)
+            epath = self.resolve(model)
+            # TODO: content-type negotiation?
+            return list(epath.put(conn, 
+                                  input_data, 
+                                  in_content_type='text/csv',
+                                  content_type='application/json', 
+                                  allow_existing = not post_method)())
+
+        def post_commit(lines):
+            # TODO: set web.py response headers/status
+            for line in lines:
+                yield line
+
+        return self.perform(body, post_commit)
+
+    def POST(self, uri):
+        """Perform HTTP POST of entities.
+        """
+        
+        return self.PUT(uri, post_method=True)
 
 
 class Attribute (Api):
