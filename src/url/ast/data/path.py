@@ -150,7 +150,7 @@ class Predicate (Api):
             self.left_elem.pos,
             self.left_col.sql_name(),
             self.op,
-            self.right_expr.sql_literal(self.left_col)
+            self.right_expr.sql_literal(self.left_col.type)
             )
 
 
