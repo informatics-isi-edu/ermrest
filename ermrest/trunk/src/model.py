@@ -370,6 +370,7 @@ class ArrayType(Type):
     is_array = True
     
     def __init__(self, base_type):
+        Type.__init__(self, base_type.name + "[]")
         self.base_type = base_type
     
     def __str__(self):

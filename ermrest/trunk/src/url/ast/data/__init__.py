@@ -110,6 +110,22 @@ class Entity (Api):
         
         return self.PUT(uri, post_method=True)
 
+    def DELETE(self, uri):
+        """Perform HTTP DELETE of entities.
+        """
+        
+        def body(conn):
+            # TODO: map exceptions into web errors
+            model = ermrest.model.introspect(conn)
+            epath = self.resolve(model)
+            epath.delete(conn)
+
+        def post_commit(ignore):
+            # TODO: set web.py response headers/status
+            return ''
+
+        return self.perform(body, post_commit)
+
 
 class Attribute (Api):
     """A specific attribute set by attributepath."""

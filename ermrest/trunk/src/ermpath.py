@@ -461,6 +461,37 @@ FROM %(tables)s
            where       = wheres and ('WHERE ' + ' AND '.join(wheres)) or ''
            )
     
+    def sql_delete(self):
+        """Generate SQL statement to delete the entities described by this epath.
+        """
+        table = self._path[-1].table
+        # find the "meta-key" for this table
+        #  -- the union of all columns of all keys
+        mkcols = set()
+        for key in table.uniques:
+            for col in key:
+                mkcols.add(col)
+        mkcols = [ c.sql_name() for c in mkcols ]
+        
+        return """
+DELETE FROM %(table)s AS t
+USING (%(getqry)s) AS i
+WHERE %(keymatches)s
+""" % dict(
+            table = table.sql_name(),
+            getqry = self.sql_get(),
+            keymatches = ' AND '.join([ "t.%s = i.%s " % (c, c) for c in mkcols ])
+            )
+    
+    def delete(self, conn):
+        """Delete entities.
+
+           conn: sanepg2 database connection to catalog
+        """
+        cur = conn.cursor()
+        cur.execute(self.sql_delete())
+        cur.close()
+        
     def get(self, conn, content_type='text/csv', output_file=None):
         """Fetch entities.
 
@@ -579,35 +610,6 @@ FROM (%s) q
         
         return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing)
         
-
-    def delete(self, conn, content_type='text/csv', output_file=None):
-        """Delete entities.
-
-           conn: sanepg2 connection to catalog
-
-           content_type and output_file: see documentation for
-              identical feature in get() method of this class. The
-              result being controlled is a representation of each
-              deleted row.
-        
-           Special cases:
-
-           NOTE: these cases can be transitive on delete!
-           
-           Deleting entity type with primary key referenced by
-           foreign-key in any other entity type.
-
-           -- Cascade according to foreign key references, e.g. delete
-              referencing rows or set references to NULL as
-              appropriate.
-
-        """
-        # TODO:
-        # 1. delete rows
-        # 2. update metadata overlay... table modified
-        # 3. ...returning deleted rows
-
-        raise NotImplementedError()
 
 class AttributePath (object):
     """Hierarchical ERM data access to entity attributes, i.e. table cells.

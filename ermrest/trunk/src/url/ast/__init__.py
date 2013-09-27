@@ -400,15 +400,15 @@ class Value (object):
         if etype.is_array:
             raise NotImplementedError('Value serialization of arrays')
 
-        if etype.base_type in [ 'integer', 'int8', 'bigint' ]:
+        if etype.name in [ 'integer', 'int8', 'bigint' ]:
             return '%d' % int(self._str)
 
-        elif etype.base_type in [ 'float', 'float8' ]:
+        elif etype.name in [ 'float', 'float8' ]:
             return '%f' % float(self._str)
 
         else:
             return "'%s'::%s" % (
                 self._str,
-                etype.base_type
+                etype.name
                 )
 
