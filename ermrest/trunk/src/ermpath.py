@@ -39,11 +39,8 @@ def make_row_thunk(cur, content_type):
                 yield row_to_csv(row) + '\n'
 
         elif content_type == 'application/json':
-            pre = '['
             for row in cur:
-                yield pre + row[0] + '\n'
-                pre = ','
-            yield ']\n'
+                yield row[0] + '\n'
 
         elif content_type is tuple:
             for row in cur:
@@ -293,14 +290,14 @@ RETURNING *
         
         updated_sql = "SELECT * FROM updated_rows"
         inserted_sql = "SELECT * FROM inserted_rows"
+        upsert_sql = "WITH %s %s"
         
         # generate rows to caller
         if content_type == 'text/csv':
             # TODO implement and use row_to_csv() stored procedure?
             pass
         elif content_type == 'application/json':
-            updated_sql = "SELECT row_to_json(q)::text FROM updated_rows AS q"
-            inserted_sql = "SELECT row_to_json(q)::text FROM inserted_rows AS q"
+            upsert_sql = "WITH %s SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q"
         elif content_type in [ dict, tuple ]:
             pass
         else:
@@ -317,7 +314,7 @@ RETURNING *
             upsert_ctes.append("inserted_rows AS (%s)" % insert_sql)
             upsert_queries.append(inserted_sql)
     
-        upsert_sql = "WITH %s %s" % (
+        upsert_sql = upsert_sql % (
             ',\n'.join(upsert_ctes),
             '\nUNION ALL\n'.join(upsert_queries)
             )
@@ -525,7 +522,7 @@ WHERE %(keymatches)s
             elif content_type == 'application/json':
                 sql = """
 SELECT 
-  CASE WHEN row_number() OVER () = 1 THEN '' ELSE ',' END || (row_to_json(q)::text)
+  array_to_json(array_agg(row_to_json(q)), True)::text
 FROM (%s) q
 """ % sql
                 sql = "COPY (%s) TO STDOUT" % sql
@@ -546,7 +543,7 @@ FROM (%s) q
                 # TODO implement and use row_to_csv() stored procedure?
                 pass
             elif content_type == 'application/json':
-                sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
+                sql = "SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q" % sql
             elif content_type in [ dict, tuple ]:
                 pass
             else:
