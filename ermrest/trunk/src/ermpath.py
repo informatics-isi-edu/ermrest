@@ -267,14 +267,13 @@ LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
         update_sql = """
 UPDATE %(table)s AS t SET %(assigns)s
 FROM input_data AS i
-WHERE %(keymatches)s AND %(allow_existing)s::boolean
+WHERE %(keymatches)s
 RETURNING t.*
 """ % dict(
             table = self.table.sql_name(),
             cols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
             assigns = ','.join([ "%s = i.%s " % (c, c) for c in nmkcols ]),
-            keymatches = ' AND '.join([ "t.%s = i.%s " % (c, c) for c in mkcols ]),
-            allow_existing = str(bool(allow_existing))
+            keymatches = ' AND '.join([ "t.%s = i.%s " % (c, c) for c in mkcols ])
             )
         
         insert_sql = """
@@ -282,15 +281,14 @@ INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s
 FROM input_data AS i
 LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
-WHERE t.%(mkcol0)s IS NULL AND %(allow_missing)s::boolean
+WHERE t.%(mkcol0)s IS NULL
 RETURNING *
 """ % dict(
             table = self.table.sql_name(),
             cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
             icols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
             mkcols = ','.join(mkcols),
-            mkcol0 = mkcols[0],
-            allow_missing = str(bool(allow_missing))
+            mkcol0 = mkcols[0]
         )
         
         updated_sql = "SELECT * FROM updated_rows"
