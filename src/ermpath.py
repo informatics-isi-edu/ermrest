@@ -175,6 +175,7 @@ class EntityElem (object):
               text names of MIME types control deserialization:
                 'text/csv' --> CSV table
                 'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
 
                 for MIME types, iterable input will be concatenated to
                 form input byte stream, or read() will be called to
@@ -298,6 +299,8 @@ RETURNING *
             pass
         elif content_type == 'application/json':
             upsert_sql = "WITH %s SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q"
+        elif content_type == 'application/x-json-stream':
+            upsert_sql = "WITH %s SELECT row_to_json(q)::text FROM (%s) q"
         elif content_type in [ dict, tuple ]:
             pass
         else:
@@ -498,6 +501,7 @@ WHERE %(keymatches)s
               text names of MIME types control serialization:
                 'text/csv' --> CSV table with header row
                 'application/json' --> JSON array of row objects
+                'application/x-json-stream' --> stream of JSON objects
 
               Python types select native Python result formats
                 dict  --> dict of column:value per row
@@ -520,22 +524,15 @@ WHERE %(keymatches)s
             if content_type == 'text/csv':
                 sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
             elif content_type == 'application/json':
-                sql = """
-SELECT 
-  array_to_json(array_agg(row_to_json(q)), True)::text
-FROM (%s) q
-""" % sql
-                sql = "COPY (%s) TO STDOUT" % sql
-                output_file.write('[')
+                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q) TO STDOUT" % sql
+            elif content_type == 'application/x-json-stream':
+                sql = "COPY (SELECT row_to_json(q)::text FROM (%s) q) TO STDOUT" % sql
             else:
                 raise NotImplementedError('content_type %s with output_file.write()' % content_type)
 
             cur = conn.cursor()
             cur.copy_expert(sql, output_file)
             cur.close()
-
-            if content_type == 'application/json':
-                output_file.write(']\n')
 
         else:
             # generate rows to caller
@@ -544,6 +541,8 @@ FROM (%s) q
                 pass
             elif content_type == 'application/json':
                 sql = "SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q" % sql
+            elif content_type == 'application/x-json-stream':
+                sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
             elif content_type in [ dict, tuple ]:
                 pass
             else:
@@ -566,6 +565,7 @@ FROM (%s) q
               text names of MIME types control deserialization:
                 'text/csv' --> CSV table
                 'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
 
                 for MIME types, iterable input will be concatenated to
                 form input byte stream, or read() will be called to
