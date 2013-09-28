@@ -397,18 +397,5 @@ class Value (object):
         pass
 
     def sql_literal(self, etype):
-        if etype.is_array:
-            raise NotImplementedError('Value serialization of arrays')
-
-        if etype.name in [ 'integer', 'int8', 'bigint' ]:
-            return '%d' % int(self._str)
-
-        elif etype.name in [ 'float', 'float8' ]:
-            return '%f' % float(self._str)
-
-        else:
-            return "'%s'::%s" % (
-                self._str,
-                etype.name
-                )
+        return etype.sql_literal(self._str)
 

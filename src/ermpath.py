@@ -22,7 +22,7 @@ navigating, and manipulating data in an ERMREST catalog.
 
 """
 import urllib
-from model import sql_ident
+from model import sql_ident, Type
 
 
 def make_row_thunk(cur, content_type):
@@ -38,7 +38,7 @@ def make_row_thunk(cur, content_type):
                     hdr = False
                 yield row_to_csv(row) + '\n'
 
-        elif content_type == 'application/json':
+        elif content_type in [ 'application/json', 'application/x-json-stream' ]:
             for row in cur:
                 yield row[0] + '\n'
 
@@ -219,12 +219,15 @@ class EntityElem (object):
                 ','.join([ c.ddl() for c in self.table.columns_in_order() ])
                 )
             )
+        if in_content_type in [ 'application/x-json-stream' ]:
+            cur.execute( "CREATE TEMPORARY TABLE input_json (j json)" )
         cur.close()
         
         # copy input data to temp table
         cur = conn.cursor()
-        cur.copy_expert(
-            """
+        if in_content_type == 'text/csv':
+            cur.copy_expert(
+                """
 COPY input_data (%s) 
 FROM STDIN WITH (
     FORMAT csv, 
@@ -232,10 +235,47 @@ FROM STDIN WITH (
     DELIMITER ',', 
     QUOTE '"'
 )""" % (
-                ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
-                ),
-            input_data
-            )
+                    ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
+                    ),
+                input_data
+                )
+        elif in_content_type == 'application/json':
+            buf = input_data.read()
+            cur.execute( 
+                """
+INSERT INTO input_data (%(cols)s)
+SELECT %(cols)s 
+FROM (
+  SELECT (rs.r).*
+  FROM (
+    SELECT json_populate_recordset( NULL::input_data, %(input)s::json ) AS r
+  ) rs
+) s
+""" % dict( 
+                    cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
+                    input = Type('text').sql_literal(buf)
+                    )
+                )
+        elif in_content_type == 'application/x-json-stream':
+            cur.copy_expert( "COPY input_json (j) FROM STDIN", input_data )
+            cur.execute(
+                """
+INSERT INTO input_data (%(cols)s)
+SELECT %(cols)s
+FROM (
+  SELECT (rs.r).*
+  FROM (
+    SELECT json_populate_record( NULL::input_data, i.j ) AS r
+    FROM input_json i
+  ) rs
+) s
+""" % dict(
+                    cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
+                    )
+                )
+        else:
+            raise NotImplementedError('in_content_type %s' % in_content_type)
+
         cur.close()
 
         # TODO: validate input_data
