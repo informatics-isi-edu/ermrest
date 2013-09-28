@@ -25,6 +25,7 @@ import web
 import path
 from path import Api
 from ermrest import ermpath
+from ermrest.exception import rest, BadData
 import ermrest.model
 
 
@@ -93,7 +94,7 @@ class Entity (Api):
         epath = ermpath.EntityPath(model)
 
         if not hasattr(self.path[0], 'resolve_table'):
-            raise TypeError('Entity paths must start with table syntax.')
+            raise BadData('Entity paths must start with table syntax.')
 
         epath.set_base_entity( 
             self.path[0].name.resolve_table(model),
@@ -117,7 +118,6 @@ class Entity (Api):
         content_type = negotiated_content_type(default=self.default_content_type)
 
         def body(conn):
-            # TODO: map exceptions into web errors
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
             return epath.get(conn, content_type=content_type)
@@ -144,7 +144,6 @@ class Entity (Api):
         
         def body(conn):
             input_data.seek(0) # rewinds buffer, in case of retry
-            # TODO: map exceptions into web errors
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
             return list(epath.put(conn, 
@@ -172,13 +171,12 @@ class Entity (Api):
         """
         
         def body(conn):
-            # TODO: map exceptions into web errors
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
             epath.delete(conn)
 
         def post_commit(ignore):
-            # TODO: set web.py response headers/status
+            web.ctx.status = '204 No Content'
             return ''
 
         return self.perform(body, post_commit)

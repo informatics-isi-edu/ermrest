@@ -32,6 +32,27 @@ class ParseError (ValueError):
     """Exception for grammatical errors in URL parsing"""
 
     def __init__(self, t, message='URL parse error at token:'):
-        ValueError.__init__(self)
-        pass
+        ValueError.__init__(self, message + t)
+        self.message = message
 
+class UnsupportedMediaType (ValueError):
+    """Exception for unsupported in_content_type."""
+
+    def __init__(self, message=None):
+        ValueError.__init__(self, message)
+        self.message = message
+    
+class BadData (ValueError):
+    """Exception for formatting errors in data inputs"""
+
+    def __init__(self, message=None):
+        ValueError.__init__(self, message)
+        self.message = message
+
+class ConflictData (ValueError):
+    """Exception for data conflicts"""
+
+    def __init__(self, message=None):
+        ValueError.__init__(self, message)
+        self.message = message
+        

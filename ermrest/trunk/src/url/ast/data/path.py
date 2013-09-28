@@ -19,6 +19,8 @@
 
 """
 
+from ermrest.exception import *
+
 class Api (object):
     is_filter = False
 
@@ -38,6 +40,12 @@ class Api (object):
         try:
             result = body(conn)
             conn.commit()
+        except BadData, e:
+            raise rest.BadRequest(e.message)
+        except ConflictData, e:
+            raise rest.Conflict(e.message)
+        except UnsupportedmediaType, e:
+            raise rest.UnsupportedMediaType
         except:
             conn.rollback()
             raise

@@ -71,14 +71,7 @@ class Conflict (WebException):
 class UnsupportedMediaType (WebException):
     def __init__(self, data=u'', headers={}):
         status = '415 Unsupported Media Type'
-        desc = u'The request input type is not supported. Resubmit with%s.'
-        if type(data) is list:
-            if len(data) > 1:
-                data = " one of: " + ', '.join(data)
-            elif len(data) > 0:
-                data = " " + data[0]
-            else:
-                data = "out input entity."
+        desc = u'The request input type is not supported. %s'
         WebException.__init__(self, status, headers=headers, data=data, desc=desc)
 
 class RuntimeError (WebException):
