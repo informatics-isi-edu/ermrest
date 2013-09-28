@@ -27,7 +27,7 @@ needed by other modules of the ermrest project.
 
 import urllib
 
-__all__ = ["introspect", "Model", "Schema", "Table", "Column", "sql_ident"]
+__all__ = ["introspect", "Model", "Schema", "Table", "Column", "Type", "sql_ident"]
 
 def frozendict (d):
     """Convert a dictionary to a canonical and immutable form."""
@@ -351,7 +351,7 @@ class Table:
                 ])
 
 
-class Type:
+class Type (object):
     """Represents a column type."""
     is_array = False
     
@@ -363,6 +363,15 @@ class Type:
     
     def sql(self):
         return self.name
+
+    def sql_literal(self, v):
+        if self.name in [ 'integer', 'int8', 'bigint' ]:
+            return "%s" % int(v)
+        elif self.name in [ 'float', 'float8' ]:
+            return "%s" % float(v)
+        else:
+            # text and text-like...
+            return "'" + str(v).replace("'", "''") + "'::%s" % self.sql()
 
 
 class ArrayType(Type):

@@ -27,8 +27,57 @@ from path import Api
 from ermrest import ermpath
 import ermrest.model
 
+
+def negotiated_content_type(supported_types=['text/csv', 'application/json', 'application/x-json-stream'], default=None):
+    """Determine negotiated response content-type from Accept header.
+
+       supported_types: a list of MIME types the caller would be able
+         to implement if the client has requested one.
+
+       default: a MIME type or None to return if none of the
+         supported_types were requested by the client.
+
+       This function considers the preference qfactors encoded in the
+       client request to choose the preferred type when there is more
+       than one supported type that the client would accept.
+
+    """
+    def accept_pair(s):
+        """parse one Accept header pair into (qfactor, type)."""
+        parts = s.split(';')
+        q = 1.0
+        t = parts[0].strip()
+        for p in parts[1:]:
+            fields = p.split('=')
+            if len(fields) == 2 and fields[0] == 'q':
+                q = fields[1]
+        return (q, t)
+
+    try:
+        accept = web.ctx.env['HTTP_ACCEPT']
+    except:
+        accept = ""
+            
+    accept_types = [ 
+        pair[1]
+        for pair in sorted(
+            [ accept_pair(s) for s in accept.lower().split(',') ],
+            key=lambda pair: pair[0]
+            ) 
+        ]
+
+    if accept_types:
+        for accept_type in accept_types:
+            if accept_type in supported_types:
+                return accept_type
+
+    return default
+
 class Entity (Api):
     """A specific entity set by entitypath."""
+
+    default_content_type = 'application/x-json-stream'
+
     def __init__(self, catalog, path):
         Api.__init__(self, catalog)
         self.path = path
@@ -65,15 +114,17 @@ class Entity (Api):
     def GET(self, uri):
         """Perform HTTP GET of entities.
         """
+        content_type = negotiated_content_type(default=self.default_content_type)
+
         def body(conn):
             # TODO: map exceptions into web errors
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
-            # TODO: content-type negotiation?
-            return epath.get(conn, content_type='application/json')
+            return epath.get(conn, content_type=content_type)
 
         def post_commit(line_thunk):
-            # TODO: set web.py response headers/status
+            web.header('Content-Type', content_type)
+            web.ctx.ermrest_request_content_type = content_type
             for line in line_thunk():
                 yield line
 
@@ -82,7 +133,13 @@ class Entity (Api):
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of entities.
         """
-        
+        try:
+            in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
+        except:
+            in_content_type = self.default_content_type
+
+        content_type = negotiated_content_type(default=in_content_type)
+
         input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
         
         def body(conn):
@@ -90,15 +147,15 @@ class Entity (Api):
             # TODO: map exceptions into web errors
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
-            # TODO: content-type negotiation?
             return list(epath.put(conn, 
                                   input_data, 
-                                  in_content_type='text/csv',
-                                  content_type='application/json', 
+                                  in_content_type=in_content_type,
+                                  content_type=content_type, 
                                   allow_existing = not post_method)())
 
         def post_commit(lines):
-            # TODO: set web.py response headers/status
+            web.header('Content-Type', content_type)
+            web.ctx.ermrest_request_content_type = content_type
             for line in lines:
                 yield line
 
