@@ -23,7 +23,7 @@ navigating, and manipulating data in an ERMREST catalog.
 """
 import urllib
 from model import sql_ident, Type
-
+import psycopg2
 
 def make_row_thunk(cur, content_type):
     def row_thunk():
@@ -226,7 +226,8 @@ class EntityElem (object):
         # copy input data to temp table
         cur = conn.cursor()
         if in_content_type == 'text/csv':
-            cur.copy_expert(
+            try:
+                cur.copy_expert(
                 """
 COPY input_data (%s) 
 FROM STDIN WITH (
@@ -235,13 +236,17 @@ FROM STDIN WITH (
     DELIMITER ',', 
     QUOTE '"'
 )""" % (
-                    ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
-                    ),
+                        ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
+                        ),
                 input_data
                 )
+            except psycopg2.DataError, e:
+                raise ValueError('Bad CSV input.' + pg.error)
+
         elif in_content_type == 'application/json':
             buf = input_data.read()
-            cur.execute( 
+            try:
+                cur.execute( 
                 """
 INSERT INTO input_data (%(cols)s)
 SELECT %(cols)s 
@@ -252,13 +257,18 @@ FROM (
   ) rs
 ) s
 """ % dict( 
-                    cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
-                    input = Type('text').sql_literal(buf)
-                    )
+                        cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
+                        input = Type('text').sql_literal(buf)
+                        )
                 )
+            except psycopg2.DataError, e:
+                raise ValueError('Bad JSON array input.' + e.pgerror)
+
         elif in_content_type == 'application/x-json-stream':
-            cur.copy_expert( "COPY input_json (j) FROM STDIN", input_data )
-            cur.execute(
+            try:
+                cur.copy_expert( "COPY input_json (j) FROM STDIN", input_data )
+
+                cur.execute(
                 """
 INSERT INTO input_data (%(cols)s)
 SELECT %(cols)s
@@ -270,9 +280,12 @@ FROM (
   ) rs
 ) s
 """ % dict(
-                    cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
-                    )
+                        cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
+                        )
                 )
+            except psycopg2.DataError, e:
+                raise ValueError('Bad JSON stream input.' + e.pgerror)
+
         else:
             raise NotImplementedError('in_content_type %s' % in_content_type)
 
