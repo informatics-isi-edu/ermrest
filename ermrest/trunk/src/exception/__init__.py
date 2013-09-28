@@ -56,3 +56,10 @@ class ConflictData (ValueError):
         ValueError.__init__(self, message)
         self.message = message
         
+class NotFound (ValueError):
+    """Exception for data not found"""
+
+    def __init__(self, message=None):
+        ValueError.__init__(self, message)
+        self.message = message
+

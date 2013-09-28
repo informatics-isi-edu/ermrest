@@ -25,7 +25,7 @@ import psycopg2
 import urllib
 
 from model import sql_ident, Type
-from ermrest.exception import BadData, ConflictData, UnsupportedMediaType
+from ermrest.exception import *
 
 def make_row_thunk(cur, content_type):
     def row_thunk():
@@ -544,6 +544,9 @@ WHERE %(keymatches)s
            conn: sanepg2 database connection to catalog
         """
         cur = conn.cursor()
+        cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
+        if cur.fetchone()[0] == 0:
+            raise NotFound('rows matching request path')
         cur.execute(self.sql_delete())
         cur.close()
         
