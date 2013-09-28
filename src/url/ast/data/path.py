@@ -40,11 +40,13 @@ class Api (object):
         try:
             result = body(conn)
             conn.commit()
+        except NotFound, e:
+            raise rest.NotFound(e.message)
         except BadData, e:
             raise rest.BadRequest(e.message)
         except ConflictData, e:
             raise rest.Conflict(e.message)
-        except UnsupportedmediaType, e:
+        except UnsupportedMediaType, e:
             raise rest.UnsupportedMediaType
         except:
             conn.rollback()
