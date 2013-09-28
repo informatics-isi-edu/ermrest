@@ -21,9 +21,11 @@ The data path is the core ERM-aware mechanism for searching,
 navigating, and manipulating data in an ERMREST catalog.
 
 """
-import urllib
-from model import sql_ident, Type
 import psycopg2
+import urllib
+
+from model import sql_ident, Type
+from ermrest.exception import BadData, ConflictData, UnsupportedMediaType
 
 def make_row_thunk(cur, content_type):
     def row_thunk():
@@ -241,7 +243,7 @@ FROM STDIN WITH (
                 input_data
                 )
             except psycopg2.DataError, e:
-                raise ValueError('Bad CSV input.' + pg.error)
+                raise BadData('Bad CSV input. ' + pg.error)
 
         elif in_content_type == 'application/json':
             buf = input_data.read()
@@ -262,7 +264,7 @@ FROM (
                         )
                 )
             except psycopg2.DataError, e:
-                raise ValueError('Bad JSON array input.' + e.pgerror)
+                raise BadData('Bad JSON array input. ' + e.pgerror)
 
         elif in_content_type == 'application/x-json-stream':
             try:
@@ -284,10 +286,10 @@ FROM (
                         )
                 )
             except psycopg2.DataError, e:
-                raise ValueError('Bad JSON stream input.' + e.pgerror)
+                raise BadData('Bad JSON stream input. ' + e.pgerror)
 
         else:
-            raise NotImplementedError('in_content_type %s' % in_content_type)
+            raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
         cur.close()
 
@@ -384,12 +386,12 @@ RETURNING *
             if allow_existing is False:
                 cur.execute(correlating_sql + "\nWHERE t.%s IS NOT NULL" % mkcols[0])
                 if cur.fetchone()[0] > 0:
-                    raise KeyError('input row exists while allow_existing is False')
+                    raise ConflictData('input row exists while allow_existing is False')
             
             if allow_missing is False:
                 cur.execute(correlating_sql + "\nWHERE t.%s IS NULL" % mkcols[0])
                 if cur.fetchone()[0] > 0:
-                    raise KeyError('input row does not exist while allow_missing is False')
+                    raise ConflictData('input row does not exist while allow_missing is False')
             
             cur = conn.cursor()
             cur.execute(upsert_sql)
@@ -468,7 +470,7 @@ class EntityPath (object):
 
         if ralias is not None:
             if ralias in self.aliases:
-                raise ValueError('Alias %s bound more than once.' % ralias)
+                raise BadData('Alias %s bound more than once.' % ralias)
             self.aliases[ralias] = rpos
 
 
@@ -656,7 +658,7 @@ WHERE %(keymatches)s
         """
         
         if len(self._path) != 1:
-            raise NotImplementedError("unsupported path length for put")
+            raise BadData("unsupported path length for put")
         
         return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing)
         
