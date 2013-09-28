@@ -23,6 +23,7 @@ navigating, and manipulating data in an ERMREST catalog.
 """
 import psycopg2
 import urllib
+import csv
 
 from model import sql_ident, Type
 from ermrest.exception import *
@@ -228,17 +229,31 @@ class EntityElem (object):
         # copy input data to temp table
         cur = conn.cursor()
         if in_content_type == 'text/csv':
+            hdr = csv.reader([ input_data.readline() ]).next()
+
+            csvcols = []
+            for cn in hdr:
+                if cn not in self.table.columns:
+                    raise BadData('CSV column %s not recognized.' % cn)
+                else:
+                    csvcols.append(cn)
+
+            numcols = len(self.table.columns.keys())
+            if len(set(csvcols)) != numcols or len(csvcols) != numcols:
+                raise BadData('CSV input must have all entity columns exactly once: %s' 
+                              % ', '.join([ c.sql_name() for c in self.table.columns_in_order() ]))
+
             try:
                 cur.copy_expert(
                 """
 COPY input_data (%s) 
 FROM STDIN WITH (
     FORMAT csv, 
-    HEADER true, 
+    HEADER false, 
     DELIMITER ',', 
     QUOTE '"'
 )""" % (
-                        ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
+                        ','.join(csvcols)
                         ),
                 input_data
                 )
