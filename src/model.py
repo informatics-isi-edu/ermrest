@@ -25,6 +25,8 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
+from ermrest import exception
+
 import urllib
 
 __all__ = ["introspect", "Model", "Schema", "Table", "Column", "Type", "sql_ident"]
@@ -266,9 +268,9 @@ class Model:
                     tables.add( schema.tables[tname] )
 
             if len(tables) == 0:
-                raise KeyError('Table %s does not exist.' % tname)
+                raise exception.ConflictModel('Table %s does not exist.' % tname)
             elif len(tables) > 1:
-                raise KeyError('Table name %s is ambiguous.' % tname)
+                raise exception.ConflictModel('Table name %s is ambiguous.' % tname)
             else:
                 return tables.pop()
     
@@ -349,6 +351,9 @@ class Table:
                 sql_ident(self.schema.name),
                 sql_ident(self.name)
                 ])
+
+    def freetext_column(self):
+        return FreetextColumn(self)
 
 
 class Type (object):
@@ -431,6 +436,26 @@ class Column:
             sql_ident(self.name),
             self.type.sql()
             )
+
+class FreetextColumn (Column):
+    """Represents virtual table column for free text search.
+
+       This is a tsvector computed by appending all text-type columns
+       as a document, sorted by column order.
+    """
+    
+    def __init__(self, table):
+        self.table = table
+        self.srccols = [ c for c in table.columns.itervalues() if str(c.type) == 'text' ]
+        self.srccols.sort(key=lambda c: c.position)
+        self.type = Type('tsvector')
+
+    def sql_name_with_talias(self, talias):
+        colnames = [ '%s.%s' % (talias, c.sql_name()) for c in self.srccols ]
+        if colnames:
+            return "to_tsvector('english'::regconfig, %s::text)" % (' || '.join(colnames))
+        else:
+            return "to_tsvector('english'::regconfig, ''::text)"
 
 class Unique:
     """A unique constraint."""
