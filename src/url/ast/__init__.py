@@ -31,6 +31,7 @@ import model
 import data
 
 from ermrest.model import sql_ident
+from ermrest import exception
 
 import urllib
 
@@ -39,10 +40,10 @@ def _default_link_table2table(left, right):
 
        Returns (keyref, refop).
 
-       Raises KeyError if no default can be found.
+       Raises exception.ConflictModel if no default can be found.
     """
     if left == right:
-        raise KeyError('Ambiguous self-link for table %s' % left)
+        raise exception.ConflictModel('Ambiguous self-link for table %s' % left)
 
     links = []
 
@@ -63,18 +64,18 @@ def _default_link_table2table(left, right):
                     ])
 
     if len(links) == 0:
-        raise KeyError('No link found between tables %s and %s' % (left, right))
+        raise exception.ConflictModel('No link found between tables %s and %s' % (left, right))
     elif len(links) == 1:
         return links[0]
     else:
-        raise KeyError('Ambiguous links found between tables %s and %s' % (left, right))
+        raise exception.ConflictModel('Ambiguous links found between tables %s and %s' % (left, right))
 
 def _default_link_cols(cols, left=True, reftable=None):
     """Find default reference link anchored at cols list.
 
        Returns (keyref, refop).
 
-       Raises KeyError if no default can be found.
+       Raises exception.ConflictModel if no default can be found.
     """
     constraint_key = frozenset(cols)
     table = cols[0].table # any column will do for this
@@ -102,11 +103,11 @@ def _default_link_cols(cols, left=True, reftable=None):
         links.extend([ (ref, left and '=@' or '@=') for ref in refs ])
     
     if len(links) == 0:
-        raise KeyError('No link found involving columns %s' % cols)
+        raise exception.ConflictModel('No link found involving columns %s' % cols)
     elif len(links) == 1:
         return links[0]
     else:
-        raise KeyError('Ambiguous links found involving columns %s' % cols)
+        raise exception.ConflictModel('Ambiguous links found involving columns %s' % cols)
 
 
 def _default_link_col(col, left=True, reftable=None):
@@ -114,7 +115,7 @@ def _default_link_col(col, left=True, reftable=None):
 
        Returns (keyref, refop).
 
-       Raises KeyError if no default can be found.
+       Raises exception.ConflictModel if no default can be found.
     """
     return _default_link_cols([col], left, reftable)
 
@@ -138,7 +139,7 @@ class NameList (list):
            The identified column set must be involved in one reference
            as either foreign key or primary key.
         
-           Raises KeyError on failed resolution.
+           Raises exception.ConflictModel on failed resolution.
         """
         lalias = None
         left = True
@@ -158,7 +159,7 @@ class NameList (list):
         for n in self[1:]:
             c, b = n.resolve_column(model, epath, c0.table)
             if c.table != c0.table or base != b and not lalias:
-                raise ValueError('Linking columns must belong to the same table.')
+                raise exception.ConflictModel('Linking columns must belong to the same table.')
             cols.append( c )
 
         keyref, refop = _default_link_cols(cols, left, reftable)
@@ -216,15 +217,18 @@ class Name (object):
              1. a relative 'n0' must be a column in the current epath
                 table type or the provided table arg if not None
 
-             2. a relative 'n0:n1' may be a column in alias n0 of
+             2. a relative '*' may be a freetext virtual column
+                on the current epath table
+
+             3. a relative 'n0:n1' may be a column in alias n0 of
                 current epath
 
-             3. a relative 'n0:n1' may be a column in a table in the
+             4. a relative 'n0:n1' may be a column in a table in the
                 model
 
-             4. any 'n0:n1:n2' must be a column in the model
+             5. any 'n0:n1:n2' must be a column in the model
 
-           Raises KeyError on failed resolution.
+           Raises exception.ConflictModel on failed resolution.
         """
         ptable = epath.current_entity_table()
 
@@ -237,7 +241,12 @@ class Name (object):
         
         elif not self.absolute:
             if len(self.nameparts) == 1:
-                return (table.columns[self.nameparts[0]], epath)
+                if self.nameparts[0] in table.columns:
+                    return (table.columns[self.nameparts[0]], epath)
+                elif self.nameparts[0] == '*':
+                    return (ptable.freetext_column(), epath)
+                else:
+                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(table)))
 
             elif len(self.nameparts) == 2:
                 n0, n1 = self.nameparts
@@ -247,7 +256,7 @@ class Name (object):
 
                 return (model.lookup_table(None, n0).columns[n1], None)
 
-        raise TypeError('Name %s is not a valid syntax for columns.' % self)
+        raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
 
     def resolve_link(self, model, epath):
         """Resolve self against a specific database model and epath context.
@@ -287,7 +296,7 @@ class Name (object):
            TODO: add other column-based methods?
            TODO: review resolution policy for sanity?
         
-           Raises KeyError on failed resolution.
+           Raises exception.ConflictModel on failed resolution.
         """
         ptable = epath.current_entity_table()
         
@@ -323,7 +332,7 @@ class Name (object):
 
                 try:
                     table = model.lookup_table(n0, n1)
-                except KeyError:
+                except exception.ConflictModel:
                     table = None
 
                 if table:
@@ -334,7 +343,7 @@ class Name (object):
                 keyref, refop = _default_link_col(table.columns[n1], left=False, reftable=ptable)
                 return keyref, refop, None
             
-        raise TypeError('Name %s is not a valid syntax for table-linking.' % self)
+        raise exception.BadSyntax('Name %s is not a valid syntax for table-linking.' % self)
 
     def resolve_table(self, model):
         """Resolve self as table name.
@@ -344,7 +353,7 @@ class Name (object):
            resolved as table if that is unambiguous across all
            schemas in the model.
 
-           Raises KeyError on failed resolution.
+           Raises exception.ConflictModel on failed resolution.
         """
         if len(self.nameparts) == 2:
             sname, tname = self.nameparts
@@ -353,7 +362,7 @@ class Name (object):
             tname = self.nameparts[0]
             return model.lookup_table(None, tname)
 
-        raise TypeError('Name %s is not a valid syntax for a table name.' % self)
+        raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
             
     def validate(self, epath):
         """Validate name in epath context, raising exception on problems.
