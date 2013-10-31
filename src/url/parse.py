@@ -234,11 +234,11 @@ def p_filter(p):
 
 def p_predicate2(p):
     """predicate : name op expr """
-    p[0] = ast.data.path.Predicate(p[1], p[2], p[3])
+    p[0] = ast.data.path.predicatecls(p[2])(p[1], p[3])
 
 def p_predicate1(p):
     """predicate : name op """
-    p[0] = ast.data.path.Predicate(p[1], p[2])
+    p[0] = ast.data.path.predicatecls(p[2])(p[1])
 
 def p_neg_predicate(p):
     """predicate : '!' predicate """
@@ -277,6 +277,7 @@ def p_oplabel(p):
                | LT
                | REGEXP 
                | CIREGEXP
+               | TS
                | NULL """
     p[0] = p[1]
 
