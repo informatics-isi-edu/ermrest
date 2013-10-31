@@ -6,6 +6,8 @@ CREATE TABLE microscopy.study
     comment text
   );
 
+CREATE INDEX ON microscopy.study USING gin ( (to_tsvector('english', comment)) );
+
 CREATE TABLE microscopy.slide
   (
     id bigserial PRIMARY KEY,
@@ -14,6 +16,8 @@ CREATE TABLE microscopy.slide
     FOREIGN KEY (study_id) REFERENCES microscopy.study (id)
   );
 
+CREATE INDEX ON microscopy.slide USING gin ( (to_tsvector('english', label)) );
+
 CREATE TABLE microscopy.scan
   (
     id bigserial PRIMARY KEY,
@@ -21,4 +25,7 @@ CREATE TABLE microscopy.scan
     uri text,
     FOREIGN KEY (slide_id) REFERENCES microscopy.slide (id)
   );
+
+-- Note: english config doesn't seem to parse URIs very well...
+CREATE INDEX ON microscopy.scan USING gin ( (to_tsvector('english', uri)) );
 
