@@ -74,7 +74,8 @@ keywords = [
     'referencedby',
     'regexp',
     'schema',
-    'table'
+    'table',
+    'ts'
 ]
 keywords = dict([
         (kw.lower(), kw.upper())
@@ -126,7 +127,7 @@ def t_NUMSTRING(t):
 # plus ASTERISK because mozilla doesn't quote it properly
 def t_STRING(t):
     r'[-*_.~A-Za-z]+'
-    t.type = keywords.get(t.value, 'STRING')
+    t.type = keywords.get(t.value.lower(), 'STRING')
     return t
 
 def t_error(t):
