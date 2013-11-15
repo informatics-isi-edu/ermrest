@@ -3,7 +3,7 @@
 
 $(PREDEPLOY):
 	yum -y --skip-broken install postgresql92{,-devel,-server} policycoreutils-python || true
-	yum -y --skip-broken install httpd mod_{ssl,wsgi} python{,-psycopg2,-webpy,-dateutil,-json,-simplejson,-setuptools} pytz || true
+	yum -y --skip-broken install httpd mod_{ssl,wsgi} python{,-psycopg2,-webpy,-dateutil,-json,-simplejson,-setuptools,-ply} pytz || true
 	useradd -m -r $(DAEMONUSER) || true
 	semanage fcontext --add --ftype -d --type "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" "$(SVCHOMEDIR)" || true
 	restorecon -v $(SVCHOMEDIR) || true
