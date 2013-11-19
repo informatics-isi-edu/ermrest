@@ -613,7 +613,7 @@ WHERE %(keymatches)s
                 # TODO implement and use row_to_csv() stored procedure?
                 pass
             elif content_type == 'application/json':
-                sql = "SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q" % sql
+                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
             elif content_type == 'application/x-json-stream':
                 sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
             elif content_type in [ dict, tuple ]:
