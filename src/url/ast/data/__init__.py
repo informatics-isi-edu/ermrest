@@ -135,6 +135,7 @@ class Entity (Api):
         """
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
+            in_content_type = in_content_type.split(";", 1)[0].strip()
         except:
             in_content_type = self.default_content_type
 
