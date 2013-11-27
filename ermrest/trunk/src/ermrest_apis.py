@@ -73,6 +73,8 @@ import webauthn2
 from url import url_parse_func
 from ermrest.exception import *
 
+from ermrest.registry import RegistryFactory
+
 __all__ = [
     'web_urls',
     'webauthn2_manager',
@@ -101,6 +103,11 @@ UserManage = webauthn2_handler_factory.UserManage
 AttrManage = webauthn2_handler_factory.AttrManage
 AttrAssign = webauthn2_handler_factory.AttrAssign
 AttrNest = webauthn2_handler_factory.AttrNest
+
+## setup registry
+registry_config = global_env.get('registry')
+registry_factory = RegistryFactory(registry_config)
+registry = registry_factory.get_registry()
 
 ## setup logger and web request log helpers
 logger = logging.getLogger('ermrest')

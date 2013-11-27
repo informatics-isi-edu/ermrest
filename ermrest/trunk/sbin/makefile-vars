@@ -2,7 +2,9 @@ SBIN_FILES= \
 	ermrest-deploy \
 	ermrest-undeploy \
 	ermrest-webauthn2-deploy \
-	ermrest-webauthn2-manage
+	ermrest-webauthn2-manage \
+	ermrest-registry-deploy \
+	ermrest-registry-manage
 
 SBIN_EDIT_FILES= \
 	$(SBIN_FILES) \
