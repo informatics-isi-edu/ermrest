@@ -54,6 +54,7 @@ export DAEMONUSER
     runuser -c "createlang -d $DAEMONUSER plpgsql" - "${PGADMIN}"
     runuser -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
     runuser -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
+    runuser -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
     # add deploy tasks here...
     [[ -n "$DEPLOYLOCK" ]] && cat > "$DEPLOYLOCK" <<EOF
 DATE="$(date)"

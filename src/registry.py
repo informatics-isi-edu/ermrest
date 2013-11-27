@@ -29,9 +29,42 @@ distribute cache) but we will begin with a simple implementation using a
 database backend.
 """
 
-import exceptions
+from exceptions import NotImplementedError, ValueError, KeyError
 
-class Registry:
+import psycopg2
+
+__all__ = ["RegistryFactory", "Registry"]
+
+
+class RegistryFactory (object):
+    """A factory of ERMREST registries.
+    """
+    
+    def __init__(self, config):
+        """Initialize the registry factory.
+        """
+        self.registry = None
+        
+        ## Should validate the configuration here
+        if config.get("type") != "database":
+            raise NotImplementedError()
+        else:
+            self._dbname = config.get("database_name")
+            self._db_schema = config.get("database_schema")
+            self._dsn = "dbname=" + self._dbname
+        
+    def get_registry(self):
+        """Returns an instance of the registry.
+        """
+        if not self.registry:
+            ## Create singleton instance
+            self.registry = SimpleRegistry(
+                                psycopg2.connect(self._dsn),
+                                self._db_schema)
+        return self.registry
+
+
+class Registry (object):
     """A registry of ERMREST catalogs.
     
        Supports the registration (or un-registration) and lookup of ERMREST 
@@ -42,44 +75,39 @@ class Registry:
        one creates the catalog then registers it. The registration effectively
        amounts to a binding between an 'id' and a 'connstr' (connection 
        string) that specifies where to find the catalog and how to connect to
-       it. The details of 'connstr' are yet TBD.
+       it. The details of 'connstr' are yet TBD. For now it should be assumed 
+       to follow the format of the postgres connection string as supported by
+       libpq: 
+       
+       http://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING
     """
     
-    def lookup(self, id):
+    def lookup(self, id=None):
         """Lookup a registry and retrieve its description.
         
            'id' : an identifier (not sure we have defined it precisely,
                   at present an integer)
            
-           returns : a catalog connection string.
+           returns : a collection of mappings in the form (id, connstr)
         """
-        raise exceptions.NotImplementedError()
+        raise NotImplementedError()
     
-    def all(self, id):
-        """Lookup all catalogs.
-        
-           returns : not sure whether this should return an iterator over
-                     catalog 'id's or 'connstr's or ('id', 'connstr') pairs.
-                     Probably should be the latter.
-        """
-        raise exceptions.NotImplementedError()
-    
-    def register(self, id, connstr):
+    def register(self, connstr, id=None):
         """Register a catalog description.
         
            This does not create the catalog.
            
-           'id' : the id of the catalog to register.
            'connstr' : the connection string.
+           'id' : the id of the catalog to register.
         """
-        raise exceptions.NotImplementedError()
+        raise NotImplementedError()
     
     def unregister(self, id):
         """Unregister a catalog description.
         
            'id' : the id of the catalog to unregister.
         """
-        raise exceptions.NotImplementedError()
+        raise NotImplementedError()
     
 
 class SimpleRegistry (Registry):
@@ -90,6 +118,189 @@ class SimpleRegistry (Registry):
        should be upgraded with at least local caching of registries.
     """
     
-    def __init__(self):
-        super(self, SimpleRegistry).__init__()
+    TABLE_NAME = "simple_registry"
+    
+    def __init__(self, conn, schema_name):
+        """Initialized the SimpleRegistry.
         
+        The 'conn' parameter must be an open connection to the registry 
+        database.
+        """
+        super(SimpleRegistry, self).__init__()
+        self._conn = conn
+        self._schema_name = schema_name
+        
+        
+    def deploy(self):
+        """Deploy the SimpleRegistry.
+        
+        Creates the database schema for the SimpleRegistry implementation.
+        """
+        try:
+            cur = self._conn.cursor()
+            
+            # create registry schema, if it doesn't exist
+            if not _schema_exists(self._conn, self._schema_name):
+                cur.execute("""
+CREATE SCHEMA %(schema)s;"""
+                    % dict(schema=self._schema_name))
+                self._conn.commit()
+            
+            # create registry table, if it doesn't exist
+            if not _table_exists(self._conn, self._schema_name, self.TABLE_NAME):
+                cur.execute("""
+CREATE TABLE %(schema)s.%(table)s (
+    id bigserial PRIMARY KEY,
+    connstr text
+);"""
+                    % dict(schema=self._schema_name,
+                           table=self.TABLE_NAME))
+                self._conn.commit()
+                
+        finally:
+            if cur is not None:
+                cur.close()
+    
+    
+    def lookup(self, id=None):
+        if id:
+            where = "WHERE id = %s" % _sql_literal(id)
+        else:
+            where = ""
+            
+        cur = self._conn.cursor()
+        cur.execute("""
+SELECT id, connstr
+FROM %(schema)s.%(table)s
+%(where)s;
+"""         % dict(schema=self._schema_name,
+                   table=self.TABLE_NAME,
+                   where=where
+                   ) );
+
+        # return results as a list of dictionaries
+        entries = list()
+        for id, connstr in cur:
+            entries.append(dict(id=id, connstr=connstr))
+        return entries
+    
+    
+    def register(self, connstr, id=None):
+        entries = dict(connstr=connstr)
+        if id:
+            entries['id'] = id
+        
+        try:
+            cur = self._conn.cursor()
+            cur.execute("""
+INSERT INTO %(schema)s.%(table)s (%(cols)s) values (%(values)s);
+"""
+                % dict(schema=self._schema_name,
+                       table=self.TABLE_NAME,
+                       cols=','.join([_sql_identifier(c) for c in entries.keys()]),
+                       values=','.join([_sql_literal(v) for v in entries.values()])
+                       ) );
+            
+        except psycopg2.IntegrityError:
+            self._conn.rollback()
+            if id:
+                raise ValueError("catalog identifier ("+id+") already exists")
+            else:
+                # this happens when the serial number collides with a manually
+                # specified id. we may want to prevent this from happening
+                # simply by always autogenerating the id.
+                raise ValueError("transient catalog identifier collision, please retry")
+        
+        # do reverse lookup if autogenerated id
+        if not id:
+            cur.execute("""
+SELECT max(id) as id
+FROM %(schema)s.%(table)s
+WHERE connstr = %(connstr)s;
+"""
+                % dict(schema=self._schema_name,
+                       table=self.TABLE_NAME,
+                       connstr=_sql_literal(connstr)
+                       ) );
+            id = cur.fetchone()[0]
+            cur.close()
+        
+        self._conn.commit()
+        return dict(id=id, connstr=connstr)
+    
+    
+    def unregister(self, id):
+        """Unregister a catalog description.
+        
+           'id' : the id of the catalog to unregister.
+        """
+        cur = self._conn.cursor()
+        cur.execute("""
+DELETE FROM %(schema)s.%(table)s
+WHERE id = %(id)s;
+"""
+            % dict(schema=self._schema_name,
+                   table=self.TABLE_NAME,
+                   id=_sql_literal(id)
+                   ) );
+        
+        self._conn.commit()
+        if not cur.rowcount:
+            raise KeyError("catalog identifier ("+id+") does not exist")
+    
+
+## These helper functions should be coded in ONE PLACE and resued... ##
+def _table_exists(conn, schemaname, tablename):
+    """Return True or False depending on whether (schema.)tablename exists in our database."""
+    
+    cur = conn.cursor()
+    cur.execute("""
+SELECT * FROM information_schema.tables
+WHERE table_schema = %(schema)s
+AND table_name = %(table)s
+"""
+                     % dict(schema=_sql_literal(schemaname),
+                            table=_sql_literal(tablename))
+                     )
+    exists = cur.rowcount > 0
+    cur.close()
+    return exists
+
+    
+def _schema_exists(conn, schemaname):
+    """Return True or False depending on whether schema exists in our database."""
+
+    cur = conn.cursor()
+    cur.execute("""
+SELECT * FROM information_schema.schemata
+WHERE schema_name = %(schema)s
+"""
+                       % dict(schema=_sql_literal(schemaname))
+                       )
+    exists = cur.rowcount > 0
+    cur.close()
+    return exists
+
+
+## These wrapper functions should be coded in ONE PLACE and reused... ##
+def _string_wrap(s, escape='\\', protect=[]):
+    s = s.replace(escape, escape + escape)
+    for c in set(protect):
+        s = s.replace(c, escape + c)
+    return s
+
+def _sql_identifier(s):
+    # double " to protect from SQL
+    # double % to protect from web.db
+    return '"%s"' % _string_wrap(_string_wrap(s, '%'), '"') 
+
+def _sql_literal(v):
+    if v != None:
+        # double ' to protect from SQL
+        # double % to protect from web.db
+        s = '%s' % v
+        return "'%s'" % _string_wrap(_string_wrap(s, '%'), "'")
+    else:
+        return 'NULL'
+####
+    

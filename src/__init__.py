@@ -19,7 +19,7 @@ import model
 import url
 import exception
 
-from ermrest_apis import webauthn2_manager, web_urls
+from ermrest_apis import webauthn2_manager, web_urls, registry
 
 def deploy_webauthn2():
     """
@@ -130,3 +130,35 @@ def webauthn2_unnest_attribute(child, parent):
         webauthn2_manager.attributes.nest.delete_noauthz(webauthn2_manager, None, parent, child)
     else:
         raise NotImplementedError()
+
+def deploy_registry():
+    """
+    Deploy registry.
+
+    Uses a fully configured registry.Registry instance created using
+    the config in '~/ermrest_config.json' of the invoking user.
+
+    """
+    registry.deploy()
+    
+def registry_lookup(id=None):
+    """
+    Lookup a catalog in the ERMREST registry.
+    """
+    return registry.lookup(id)
+
+def registry_register(connstr, id=None):
+    """
+    Register a catalog connection string in the ERMREST registry.
+    
+    Optionally, map the connection string to a specified identifier.
+    
+    Return the catalog identifier.
+    """
+    return registry.register(connstr, id)
+    
+def registry_unregister(id):
+    """
+    Unregister a catalog from the ERMRESET registry.
+    """
+    registry.unregister(id)

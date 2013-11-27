@@ -33,5 +33,11 @@
       "crowd_max_retries": 5, 
       "crowd_listusers_scope": ["YOUR APP GROUP"],
       "crowd_listgroups_scope": []
+    },
+    
+    "registry" : {
+      "type" : "database",
+      "database_name": "ermrest",
+      "database_schema": "ermrest"
     }
 }
