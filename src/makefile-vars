@@ -10,7 +10,8 @@ ERMREST_PYTHON_FILES= \
 	ermrest.wsgi \
 	model.py \
 	sanepg2.py \
-	registry.py
+	registry.py \
+	util.py
 
 ERMREST_PYTHON_FILES_INSTALL=$(ERMREST_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/%)
 
