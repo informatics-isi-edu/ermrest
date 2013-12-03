@@ -1,4 +1,3 @@
-
 # 
 # Copyright 2012-2013 University of Southern California
 # 
@@ -29,7 +28,7 @@ distribute cache) but we will begin with a simple implementation using a
 database backend.
 """
 
-from exceptions import NotImplementedError, ValueError, KeyError
+from util import *
 
 import psycopg2
 
@@ -140,14 +139,14 @@ class SimpleRegistry (Registry):
             cur = self._conn.cursor()
             
             # create registry schema, if it doesn't exist
-            if not _schema_exists(self._conn, self._schema_name):
+            if not schema_exists(self._conn, self._schema_name):
                 cur.execute("""
 CREATE SCHEMA %(schema)s;"""
                     % dict(schema=self._schema_name))
                 self._conn.commit()
             
             # create registry table, if it doesn't exist
-            if not _table_exists(self._conn, self._schema_name, self.TABLE_NAME):
+            if not table_exists(self._conn, self._schema_name, self.TABLE_NAME):
                 cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     id bigserial PRIMARY KEY,
@@ -164,7 +163,7 @@ CREATE TABLE %(schema)s.%(table)s (
     
     def lookup(self, id=None):
         if id:
-            where = "WHERE id = %s" % _sql_literal(id)
+            where = "WHERE id = %s" % sql_literal(id)
         else:
             where = ""
             
@@ -186,9 +185,9 @@ FROM %(schema)s.%(table)s
     
     
     def register(self, connstr, id=None):
-        entries = dict(connstr=connstr)
+        entry = dict(connstr=connstr)
         if id:
-            entries['id'] = id
+            entry['id'] = id
         
         try:
             cur = self._conn.cursor()
@@ -197,8 +196,8 @@ INSERT INTO %(schema)s.%(table)s (%(cols)s) values (%(values)s);
 """
                 % dict(schema=self._schema_name,
                        table=self.TABLE_NAME,
-                       cols=','.join([_sql_identifier(c) for c in entries.keys()]),
-                       values=','.join([_sql_literal(v) for v in entries.values()])
+                       cols=','.join([sql_identifier(c) for c in entry.keys()]),
+                       values=','.join([sql_literal(v) for v in entry.values()])
                        ) );
             
         except psycopg2.IntegrityError:
@@ -220,7 +219,7 @@ WHERE connstr = %(connstr)s;
 """
                 % dict(schema=self._schema_name,
                        table=self.TABLE_NAME,
-                       connstr=_sql_literal(connstr)
+                       connstr=sql_literal(connstr)
                        ) );
             id = cur.fetchone()[0]
             cur.close()
@@ -241,66 +240,9 @@ WHERE id = %(id)s;
 """
             % dict(schema=self._schema_name,
                    table=self.TABLE_NAME,
-                   id=_sql_literal(id)
+                   id=sql_literal(id)
                    ) );
         
         self._conn.commit()
         if not cur.rowcount:
             raise KeyError("catalog identifier ("+id+") does not exist")
-    
-
-## These helper functions should be coded in ONE PLACE and resued... ##
-def _table_exists(conn, schemaname, tablename):
-    """Return True or False depending on whether (schema.)tablename exists in our database."""
-    
-    cur = conn.cursor()
-    cur.execute("""
-SELECT * FROM information_schema.tables
-WHERE table_schema = %(schema)s
-AND table_name = %(table)s
-"""
-                     % dict(schema=_sql_literal(schemaname),
-                            table=_sql_literal(tablename))
-                     )
-    exists = cur.rowcount > 0
-    cur.close()
-    return exists
-
-    
-def _schema_exists(conn, schemaname):
-    """Return True or False depending on whether schema exists in our database."""
-
-    cur = conn.cursor()
-    cur.execute("""
-SELECT * FROM information_schema.schemata
-WHERE schema_name = %(schema)s
-"""
-                       % dict(schema=_sql_literal(schemaname))
-                       )
-    exists = cur.rowcount > 0
-    cur.close()
-    return exists
-
-
-## These wrapper functions should be coded in ONE PLACE and reused... ##
-def _string_wrap(s, escape='\\', protect=[]):
-    s = s.replace(escape, escape + escape)
-    for c in set(protect):
-        s = s.replace(c, escape + c)
-    return s
-
-def _sql_identifier(s):
-    # double " to protect from SQL
-    # double % to protect from web.db
-    return '"%s"' % _string_wrap(_string_wrap(s, '%'), '"') 
-
-def _sql_literal(v):
-    if v != None:
-        # double ' to protect from SQL
-        # double % to protect from web.db
-        s = '%s' % v
-        return "'%s'" % _string_wrap(_string_wrap(s, '%'), "'")
-    else:
-        return 'NULL'
-####
-    
