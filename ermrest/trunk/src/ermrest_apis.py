@@ -153,6 +153,7 @@ def request_init():
     web.ctx.webauthn2_manager = webauthn2_manager
     web.ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
     web.ctx.ermrest_request_trace = request_trace
+    web.ctx.ermrest_registry = registry
     try:
         # get client authentication context
         web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
