@@ -19,7 +19,7 @@ import model
 import url
 import exception
 
-from ermrest_apis import webauthn2_manager, web_urls, registry
+from ermrest_apis import webauthn2_manager, web_urls, registry, catalog_factory
 
 def deploy_webauthn2():
     """
@@ -162,3 +162,10 @@ def registry_unregister(id):
     Unregister a catalog from the ERMRESET registry.
     """
     registry.unregister(id)
+
+def catalog_factory_create():
+    """
+    Creates a new catalog.
+    """
+    catalog = catalog_factory.create()
+    return catalog.descriptor

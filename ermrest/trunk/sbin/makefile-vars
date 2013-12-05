@@ -4,7 +4,8 @@ SBIN_FILES= \
 	ermrest-webauthn2-deploy \
 	ermrest-webauthn2-manage \
 	ermrest-registry-deploy \
-	ermrest-registry-manage
+	ermrest-registry-manage \
+	ermrest-catalog-manage
 
 SBIN_EDIT_FILES= \
 	$(SBIN_FILES) \
