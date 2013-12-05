@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import json
 import ermrest
 
 
@@ -10,8 +11,8 @@ usage: ermrest-catalog-manage <cmd>...
 
 Run this utility to perform catalog management operations.
 
-  cmd: create                       (create catalog)
-   or: destroy <catalog id>         (destroy catalog)
+  cmd: create                          (create catalog)
+   or: destroy <catalog descriptor>    (destroy catalog)
 
 Exit status:
 
@@ -25,15 +26,17 @@ Exit status:
 def main(args):
     try:
         if len(args) == 1 and args[0] == 'create':
-            print ermrest.catalog_factory_create()
+            print "created: " + json.dumps(ermrest.catalog_create())
             
         elif len(args) == 2 and args[0] == 'destroy':
-            mappings = ermrest.registry_lookup(args[1])
-            print "destroying " + mappings 
+            descriptor = json.loads(args[1])
+            ermrest.catalog_destroy(descriptor)
+            print "destroyed: " + args[1] 
             
         else:
             usage()
             return 1
+        
         return 0
 
     except ValueError, ev:

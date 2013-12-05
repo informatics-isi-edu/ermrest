@@ -163,9 +163,18 @@ def registry_unregister(id):
     """
     registry.unregister(id)
 
-def catalog_factory_create():
+def catalog_create():
     """
     Creates a new catalog.
     """
     catalog = catalog_factory.create()
     return catalog.descriptor
+
+def catalog_destroy(descriptor):
+    """
+    Destroys a catalog.
+    """
+    from catalog import Catalog
+    catalog = Catalog(catalog_factory, descriptor)
+    catalog.destroy()
+    

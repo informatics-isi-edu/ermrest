@@ -33,6 +33,8 @@ import base64
 import psycopg2
 import sanepg2
 
+from util import sql_identifier
+
 __all__ = ['CatalogFactory', 'Catalog']
 
 class CatalogFactory (object):
@@ -79,7 +81,7 @@ class CatalogFactory (object):
         self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         try:
             cur = self._dbc.cursor()
-            cur.execute("CREATE DATABASE " + dbname)
+            cur.execute("CREATE DATABASE " + sql_identifier(dbname))
             self._dbc.commit()
         except psycopg2.Error, ev:
             msg = str(ev)
@@ -101,7 +103,8 @@ class CatalogFactory (object):
         self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         try:
             cur = self._dbc.cursor()
-            cur.execute("DROP DATABASE " + catalog.descriptor['dbname'])
+            cur.execute("DROP DATABASE " + 
+                        sql_identifier(catalog.descriptor['dbname']))
         except psycopg2.Error, ev:
             msg = str(ev)
             idx = msg.find("\n") # DETAIL starts after the first line feed
