@@ -39,5 +39,10 @@
       "type" : "database",
       "database_name": "ermrest",
       "database_schema": "ermrest"
+    },
+    
+    "catalog_factory" : {
+      "type" : "database",
+      "database_name": "ermrest"
     }
 }

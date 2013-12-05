@@ -47,7 +47,7 @@ export DAEMONUSER
     exit 1
 }
 
-[[ "$CREATEUSER" = "true" ]] && runuser -c "createuser -D -R -S \"$DAEMONUSER\"" - "${PGADMIN}"
+[[ "$CREATEUSER" = "true" ]] && runuser -c "createuser -d -R -S \"$DAEMONUSER\"" - "${PGADMIN}"
 [[ "$DROPDB" = "true" ]] && runuser -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
 [[ "$CREATEDB" = "true" ]] && {
     runuser -c "createdb -O \"$DAEMONUSER\" \"$DAEMONUSER\"" - "${PGADMIN}"

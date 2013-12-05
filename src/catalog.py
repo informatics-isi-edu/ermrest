@@ -28,6 +28,13 @@ This module provides catalog management features including:
 ##  Then the rest of the operations could be based on "Catalogs" as more 
 ##  opaque encapsulations of the database details.
 
+import uuid
+import base64
+import psycopg2
+import sanepg2
+
+__all__ = ['CatalogFactory', 'Catalog']
+
 class CatalogFactory (object):
     """The catalog factory.
     
@@ -45,68 +52,108 @@ class CatalogFactory (object):
        policies. Those should be checked before invoking factory methods.
     """
     
-    def __init__(self, dbc):
+    def __init__(self, config=None):
         """Initialize the Catalog Factory.
         
-           dbc : a postgres database connection. The db user must be a 
-                 super user or have CREATEDB permissions.
+           config : configuration parameters for the factory.
+           
+           The database (config['database_name']) dbuser must be a 
+           super user or have CREATEDB permissions.
         """
-        ## TBD: is there something besides a dbc that this factory could use
-        ##      in order to initialize itself, something more opaque to the
-        ##      caller like a configuration object?
-        pass
-    
-    def create(self, dbname):
+        # Yes, this will fail here if not configured correctly
+        self._dbc = psycopg2.connect(dbname=config['database_name'],
+                             connection_factory=sanepg2.connection)        
+        
+        
+    def create(self):
         """Create a Catalog.
         
-           dbname : the database name for the catalog to be created.
+           This operation creates a catalog (i.e., it creates a database) on 
+           the same host as the catalog factory. It does not initialize or 
+           register the catalog.
            
-           Returns : a catalog object.
+           Returns the new catalog object representing the catalog.
         """
-        ## TBD: should it create a "catalog" without taking a database name?
-        pass
+        # create database
+        dbname = _random_name(prefix='_ermrest_')
+        self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        try:
+            cur = self._dbc.cursor()
+            cur.execute("CREATE DATABASE " + dbname)
+            self._dbc.commit()
+        except psycopg2.Error, ev:
+            msg = str(ev)
+            idx = msg.find("\n") # DETAIL starts after the first line feed
+            if idx > -1:
+                msg = msg[0:idx]
+            raise RuntimeError(msg)
+        finally:
+            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
+        
+        return Catalog(self, dict(dbname=dbname))
     
-    def initialize(self, catalog):
-        """Initializes a Catalog.
-        
-           Initialization adds the ERMREST specific schema to an existing 
-           database.
-        """
-        pass
     
-    def delete(self, dbname):
-        """Delete a Catalog.
+    def _destroy_catalog(self, catalog):
+        """Destroys a catalog.
         
-           Important: This operation is permanent.
-           
-           dbname : the database name of the catalog to be deleted.
+           Do not call this method directly.
         """
-        ## TBD: should it take a Catalog instance instead of the dbname?
-        pass
+        self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        try:
+            cur = self._dbc.cursor()
+            cur.execute("DROP DATABASE " + catalog.descriptor['dbname'])
+        except psycopg2.Error, ev:
+            msg = str(ev)
+            idx = msg.find("\n") # DETAIL starts after the first line feed
+            if idx > -1:
+                msg = msg[0:idx]
+            raise RuntimeError(msg)
+        finally:
+            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
     
-    def load(self, dsn):
-        """Load a Catalog.
-        
-           dsn : the database connection string for the catalog.
-           
-           Returns : a catalog object.
-        """
-        ## TBD: should it take a catalog id instead?
-        
-        # create pg conn
-        # initial Catalog with pg conn
-        # return catalog instance
-        pass
-
     
 class Catalog (object):
-    """The catalog management interface.
-    
-       This object should be instantiated via the CatalogFactory only.
+    """Provides basic catalog management.
     """
     
-    def __init__(self, dbc):
-        pass
+    def __init__(self, factory, descriptor):
+        """Initializes the catalog.
+           
+           The 'factory' is the factory used to create this catalog.
+           
+           The 'descriptor' is a dictionary containing the connection 
+           parameters needed to connect to the backend database.
+           
+           Right now, this class uses lazy initialization. Thus it does not
+           open a connection until required.
+        """
+        self.descriptor = descriptor
+        self._factory = factory
+        self._dbc = None
+        
+    def get_connection(self):
+        if not self._dbc:
+            self._dbc = psycopg2.connect(dbname=self.descriptor['dbname'],
+                                         connection_factory=sanepg2.connection)
+        return self._dbc
+    
+    
+    def destroy(self):
+        """Destroys the catalog (i.e., drops the database).
+        
+           This operation will fail if there are any other open connections to
+           the database.
+           
+           Important: THIS OPERATION IS PERMANENT... unless you have backups ;)
+        """
+        # the database connection must be closed
+        if self._dbc:
+            self._dbc.close()
+            
+        # drop db cannot be called by a connection to the db, so the factory
+        # must do it
+        self._factory._destroy_catalog(self)
+    
     
     def is_initialized(self):
         """Tests whether the catalog's database has been initialized.
@@ -117,27 +164,39 @@ class Catalog (object):
         """
         pass
     
+    
     def get_meta(self, key=None):
         """Gets metadata fields, optionally filtered by attribute key.
         """
         pass
+    
     
     def add_meta(self, key, value):
         """Adds a metadata (key, value) pair.
         """
         pass
     
+    
     def remove_meta(self, key, value):
         """Removes a metadata (key, value) pair.
         """
         pass
+    
     
     def has_read(self, role):
         """Tests whether the user role has read permission.
         """
         pass
     
+    
     def has_write(self, role):
         """Tests whether the user role has write permission.
         """
         pass
+    
+
+def _random_name(prefix=''):
+    """Generates and returns a random name safe for use in the database.
+    """
+    ## This might be useful as a general utility
+    return prefix + base64.urlsafe_b64encode(uuid.uuid4().bytes).replace('=','')

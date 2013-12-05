@@ -74,6 +74,7 @@ from url import url_parse_func
 from ermrest.exception import *
 
 from ermrest.registry import RegistryFactory
+from ermrest.catalog import CatalogFactory
 
 __all__ = [
     'web_urls',
@@ -108,6 +109,10 @@ AttrNest = webauthn2_handler_factory.AttrNest
 registry_config = global_env.get('registry')
 registry_factory = RegistryFactory(registry_config)
 registry = registry_factory.get_registry()
+
+## setup catalog factory
+catalog_factory_config = global_env.get('catalog_factory')
+catalog_factory = CatalogFactory(catalog_factory_config)
 
 ## setup logger and web request log helpers
 logger = logging.getLogger('ermrest')
