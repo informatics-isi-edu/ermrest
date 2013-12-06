@@ -252,6 +252,15 @@ class Dispatcher:
     def POST(self):
         return self.METHOD('POST')
 
+
+## setup print handlers
+##
+## this is a hack... we do not want to force this stuff in at the ermrest
+## layer.
+import cirm
+PrintJob = cirm.printjob.PrintJob
+PrintControl = cirm.printcontrol.PrintControl
+
 web_urls = (
     # user authentication via webauthn2
     '/authn/session(/[^/]+)', UserSession,
@@ -269,7 +278,12 @@ web_urls = (
     '/authn/attribute/([^/]+)/implies(/[^/]+)', AttrNest,
     '/authn/attribute/([^/]+)/implies/?()', AttrNest,
 
+    # more hackery to be removed...
+    # print job and print control
+    '/printer/([^/]+)/job', PrintJob,
+    '/printer/([^/]+)/job/([^/]+)/', PrintJob,
+    '/printer/([^/]+)/control/([^/]+)/', PrintControl,
+
     # core parser-based REST dispatcher
     '.*', Dispatcher
 )
-
