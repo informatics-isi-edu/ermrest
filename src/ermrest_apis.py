@@ -284,19 +284,13 @@ def web_urls():
     #       at least this keeps ermrest from being br0k3n without the cirm
     #       package installed
     if global_env.get('deploy_cirm'):
-        # do a little hackery here
         import cirm
-        PrintJob = cirm.printjob.PrintJob
-        PrintControl = cirm.printcontrol.PrintControl
-        Zoomify = cirm.zoomify.Zoomify
         cirm_urls = (
-            # more hackery to be removed...
-            # print job and print control
-            '/printer/([^/]+)/job', PrintJob,
-            '/printer/([^/]+)/job/([^/]+)/', PrintJob,
-            '/printer/([^/]+)/control/([^/]+)/', PrintControl,
-            # zoomify
-            '/zoomify/(.*)', Zoomify
+            # print job and print control, and zoomify
+            '/printer/([^/]+)/job', cirm.printjob.PrintJob,
+            '/printer/([^/]+)/job/([^/]+)/', cirm.printjob.PrintJob,
+            '/printer/([^/]+)/control/([^/]+)/', cirm.printcontrol.PrintControl,
+            '/zoomify/(.*)', cirm.zoomify.Zoomify
         )
         urls.extend(cirm_urls)
     
