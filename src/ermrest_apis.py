@@ -260,6 +260,7 @@ class Dispatcher:
 import cirm
 PrintJob = cirm.printjob.PrintJob
 PrintControl = cirm.printcontrol.PrintControl
+Zoomify = cirm.zoomify.Zoomify
 
 web_urls = (
     # user authentication via webauthn2
@@ -283,6 +284,8 @@ web_urls = (
     '/printer/([^/]+)/job', PrintJob,
     '/printer/([^/]+)/job/([^/]+)/', PrintJob,
     '/printer/([^/]+)/control/([^/]+)/', PrintControl,
+    # zoomify
+    '/zoomify/(.*)', Zoomify,
 
     # core parser-based REST dispatcher
     '.*', Dispatcher
