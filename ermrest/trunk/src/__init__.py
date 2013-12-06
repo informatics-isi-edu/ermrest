@@ -147,7 +147,7 @@ def registry_lookup(id=None):
     """
     return registry.lookup(id)
 
-def registry_register(connstr, id=None):
+def registry_register(descriptor, id=None):
     """
     Register a catalog connection string in the ERMREST registry.
     
@@ -155,7 +155,7 @@ def registry_register(connstr, id=None):
     
     Return the catalog identifier.
     """
-    return registry.register(connstr, id)
+    return registry.register(descriptor, id)
     
 def registry_unregister(id):
     """

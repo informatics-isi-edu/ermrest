@@ -26,12 +26,11 @@ Exit status:
 def main(args):
     try:
         if len(args) == 1 and args[0] == 'create':
-            print "created: " + json.dumps(ermrest.catalog_create())
+            print json.dumps(ermrest.catalog_create())
             
         elif len(args) == 2 and args[0] == 'destroy':
             descriptor = json.loads(args[1])
             ermrest.catalog_destroy(descriptor)
-            print "destroyed: " + args[1] 
             
         else:
             usage()
