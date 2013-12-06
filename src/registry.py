@@ -30,6 +30,7 @@ database backend.
 
 from util import *
 
+import json
 import psycopg2
 
 __all__ = ["RegistryFactory", "Registry"]
@@ -72,11 +73,15 @@ class Registry (object):
        
        Creating a registering a catalog therefore is a two-step process. First,
        one creates the catalog then registers it. The registration effectively
-       amounts to a binding between an 'id' and a 'connstr' (connection 
-       string) that specifies where to find the catalog and how to connect to
-       it. The details of 'connstr' are yet TBD. For now it should be assumed 
-       to follow the format of the postgres connection string as supported by
-       libpq: 
+       amounts to a binding between an 'id' and a 'descriptor' (connection 
+       descriptor) that specifies where to find the catalog and how to connect 
+       to it. 
+       
+       An example descriptor: { "dbname" : "DATABASE_NAME" }
+
+       
+       The full details of 'descriptor' are based on the parameters of the 
+       postgres connection string supported by libpq:
        
        http://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING
     """
@@ -87,16 +92,16 @@ class Registry (object):
            'id' : an identifier (not sure we have defined it precisely,
                   at present an integer)
            
-           returns : a collection of mappings in the form (id, connstr)
+           returns : a collection of mappings in the form (id, descriptor)
         """
         raise NotImplementedError()
     
-    def register(self, connstr, id=None):
+    def register(self, descriptor, id=None):
         """Register a catalog description.
         
            This does not create the catalog.
            
-           'connstr' : the connection string.
+           'descriptor' : the catalog connection descriptor.
            'id' : the id of the catalog to register.
         """
         raise NotImplementedError()
@@ -150,7 +155,7 @@ CREATE SCHEMA %(schema)s;"""
                 cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     id bigserial PRIMARY KEY,
-    connstr text
+    descriptor text
 );"""
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
@@ -169,7 +174,7 @@ CREATE TABLE %(schema)s.%(table)s (
             
         cur = self._conn.cursor()
         cur.execute("""
-SELECT id, connstr
+SELECT id, descriptor
 FROM %(schema)s.%(table)s
 %(where)s;
 """         % dict(schema=self._schema_name,
@@ -179,13 +184,14 @@ FROM %(schema)s.%(table)s
 
         # return results as a list of dictionaries
         entries = list()
-        for id, connstr in cur:
-            entries.append(dict(id=id, connstr=connstr))
+        for id, descriptor in cur:
+            entries.append(dict(id=id, descriptor=json.loads(descriptor)))
         return entries
     
     
-    def register(self, connstr, id=None):
-        entry = dict(connstr=connstr)
+    def register(self, descriptor, id=None):
+        assert isinstance(descriptor, dict)
+        entry = dict(descriptor=json.dumps(descriptor))
         if id:
             entry['id'] = id
         
@@ -215,17 +221,17 @@ INSERT INTO %(schema)s.%(table)s (%(cols)s) values (%(values)s);
             cur.execute("""
 SELECT max(id) as id
 FROM %(schema)s.%(table)s
-WHERE connstr = %(connstr)s;
+WHERE descriptor = %(descriptor)s;
 """
                 % dict(schema=self._schema_name,
                        table=self.TABLE_NAME,
-                       connstr=sql_literal(connstr)
+                       descriptor=sql_literal(entry['descriptor'])
                        ) );
             id = cur.fetchone()[0]
             cur.close()
         
         self._conn.commit()
-        return dict(id=id, connstr=connstr)
+        return dict(id=id, descriptor=descriptor)
     
     
     def unregister(self, id):

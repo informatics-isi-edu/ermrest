@@ -68,6 +68,6 @@ class Catalog (Api):
             ## TODO: we also don't want to throw REST exceptions here
             raise exception.rest.NotFound("catalog not found in registry")
         return psycopg2.connect(
-            dsn=entries[0]['connstr'],
+            dbname=entries[0]['descriptor']['dbname'],
             connection_factory=sanepg2.connection
             )
