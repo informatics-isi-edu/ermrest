@@ -19,5 +19,5 @@ import web
 import ermrest
 
 # this creates the WSGI app using the web_urls map and the web.py framework
-application = web.application(ermrest.web_urls, globals()).wsgifunc()
+application = web.application(ermrest.web_urls(), globals()).wsgifunc()
 
