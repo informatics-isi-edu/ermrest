@@ -258,7 +258,7 @@ FROM STDIN WITH (
                 input_data
                 )
             except psycopg2.DataError, e:
-                raise BadData('Bad CSV input. ' + pg.error)
+                raise BadData('Bad CSV input. ' + e.pgerror)
 
         elif in_content_type == 'application/json':
             buf = input_data.read()
