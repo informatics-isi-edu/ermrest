@@ -253,40 +253,57 @@ class Dispatcher:
         return self.METHOD('POST')
 
 
-## setup print handlers
-##
-## this is a hack... we do not want to force this stuff in at the ermrest
-## layer.
-import cirm
-PrintJob = cirm.printjob.PrintJob
-PrintControl = cirm.printcontrol.PrintControl
-Zoomify = cirm.zoomify.Zoomify
-
-web_urls = (
-    # user authentication via webauthn2
-    '/authn/session(/[^/]+)', UserSession,
-    '/authn/session/?()', UserSession,
-    '/authn/password(/[^/]+)', UserPassword,
-    '/authn/password/?()', UserPassword,
-
-    # user account management via webauthn2
-    '/authn/user(/[^/]+)', UserManage,
-    '/authn/user/?()', UserManage,
-    '/authn/attribute(/[^/]+)', AttrManage,
-    '/authn/attribute/?()', AttrManage,
-    '/authn/user/([^/]+)/attribute(/[^/]+)', AttrAssign,
-    '/authn/user/([^/]+)/attribute/?()', AttrAssign,
-    '/authn/attribute/([^/]+)/implies(/[^/]+)', AttrNest,
-    '/authn/attribute/([^/]+)/implies/?()', AttrNest,
-
-    # more hackery to be removed...
-    # print job and print control
-    '/printer/([^/]+)/job', PrintJob,
-    '/printer/([^/]+)/job/([^/]+)/', PrintJob,
-    '/printer/([^/]+)/control/([^/]+)/', PrintControl,
-    # zoomify
-    '/zoomify/(.*)', Zoomify,
-
-    # core parser-based REST dispatcher
-    '.*', Dispatcher
-)
+def web_urls():
+    """Builds and returns the web_urls for web.py.
+    """
+    urls = list()
+    
+    # add the webauthn urls, first
+    webauthn_urls = (
+        # user authentication via webauthn2
+        '/authn/session(/[^/]+)', UserSession,
+        '/authn/session/?()', UserSession,
+        '/authn/password(/[^/]+)', UserPassword,
+        '/authn/password/?()', UserPassword,
+    
+        # user account management via webauthn2
+        '/authn/user(/[^/]+)', UserManage,
+        '/authn/user/?()', UserManage,
+        '/authn/attribute(/[^/]+)', AttrManage,
+        '/authn/attribute/?()', AttrManage,
+        '/authn/user/([^/]+)/attribute(/[^/]+)', AttrAssign,
+        '/authn/user/([^/]+)/attribute/?()', AttrAssign,
+        '/authn/attribute/([^/]+)/implies(/[^/]+)', AttrNest,
+        '/authn/attribute/([^/]+)/implies/?()', AttrNest
+    )
+    urls.extend(webauthn_urls)
+    
+    # TODO: we can turn this into a dynamically loaded set of URLs from
+    #       the configuration file.
+    #
+    #       at least this keeps ermrest from being br0k3n without the cirm
+    #       package installed
+    if global_env.get('deploy_cirm'):
+        # do a little hackery here
+        import cirm
+        PrintJob = cirm.printjob.PrintJob
+        PrintControl = cirm.printcontrol.PrintControl
+        Zoomify = cirm.zoomify.Zoomify
+        cirm_urls = (
+            # more hackery to be removed...
+            # print job and print control
+            '/printer/([^/]+)/job', PrintJob,
+            '/printer/([^/]+)/job/([^/]+)/', PrintJob,
+            '/printer/([^/]+)/control/([^/]+)/', PrintControl,
+            # zoomify
+            '/zoomify/(.*)', Zoomify
+        )
+        urls.extend(cirm_urls)
+    
+    # add the "core" urls, e.g., the Dispatcher, last
+    core_urls = (
+        # core parser-based REST dispatcher
+        '.*', Dispatcher
+    )
+    urls.extend(core_urls)
+    return tuple(urls)

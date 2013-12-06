@@ -44,5 +44,7 @@
     "catalog_factory" : {
       "type" : "database",
       "database_name": "ermrest"
-    }
+    },
+    
+    "deploy_cirm" : false
 }
