@@ -526,9 +526,9 @@ class KeyReference:
         unique.table_references[foreign_key.table].add(self)
 
     def __str__(self):
-        return '%s refs %s' % (
-            ','.join([ str(i[0]) for i in fd ]),
-            ','.join([ str(i[1]) for i in fd ]) 
+        return '(%s) refs (%s)' % (
+            ','.join([ str(fk) for fk in self.reference_map.keys() ]),
+            ','.join([ str(pk) for pk in self.reference_map.values() ]) 
             )
 
     def __repr__(self):
