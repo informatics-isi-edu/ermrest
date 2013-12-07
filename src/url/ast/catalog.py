@@ -18,17 +18,11 @@
 """ERMREST URL abstract syntax tree (AST) classes for catalog resources.
 
 """
-import psycopg2
-from ermrest import sanepg2
-from ermrest import exception
 
 import model
 import data
 
 from model import Api
-
-## TODO: we should not use web here
-import web
 
 class Catalogs (Api):
     """A multi-tenant catalog set."""
@@ -58,16 +52,9 @@ class Catalog (Api):
         return data.Attribute(self, apath)
 
     def query(self, qpath):
-        """An quer set for this catalog."""
+        """A query set for this catalog."""
         return data.Query(self, qpath)
 
     def get_conn(self):
-        ## TODO: don't want web.ctx lookups
-        entries = web.ctx.ermrest_registry.lookup(self.catalog_id)
-        if not entries or len(entries) == 0:
-            ## TODO: we also don't want to throw REST exceptions here
-            raise exception.rest.NotFound("catalog not found in registry")
-        return psycopg2.connect(
-            dbname=entries[0]['descriptor']['dbname'],
-            connection_factory=sanepg2.connection
-            )
+        """get db conn to this catalog."""
+        return data.create_connection(self.catalog_id)
