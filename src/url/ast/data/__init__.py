@@ -20,25 +20,25 @@
 """
 
 import cStringIO
-import psycopg2
 import web
 
 import path
 from path import Api
-from ermrest import ermpath, sanepg2
+from ermrest import ermpath, catalog
 from ermrest.exception import rest, BadData
 import ermrest.model
 
 
-def create_connection(catalog_id):
-    """Creates a database connection to the specified catalog.
+def find_catalog(catalog_id):
+    """Find instance of catalog manager.
     """
+    # This may be a good place to hook in a cache of catalog objects
+    # ...for now, lookup descriptor in registry and instantiate a new one
     entries = web.ctx.ermrest_registry.lookup(catalog_id)
     if not entries or len(entries) == 0:
-        raise rest.NotFound("catalog not found in registry")
-    return psycopg2.connect(
-        dbname=entries[0]['descriptor']['dbname'],
-        connection_factory=sanepg2.connection )
+        raise rest.NotFound("catalog " + str(catalog_id))
+    return catalog.Catalog(web.ctx.ermrest_catalog_factory, 
+                           entries[0]['descriptor'])
 
 
 def negotiated_content_type(supported_types=['text/csv', 'application/json', 'application/x-json-stream'], default=None):

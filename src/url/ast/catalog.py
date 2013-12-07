@@ -34,6 +34,7 @@ class Catalog (Api):
     def __init__(self, catalog_id):
         Api.__init__(self, self)
         self.catalog_id = catalog_id
+        self.manager = data.find_catalog(catalog_id)
 
     def schemas(self):
         """The schema set for this catalog."""
@@ -57,4 +58,4 @@ class Catalog (Api):
 
     def get_conn(self):
         """get db conn to this catalog."""
-        return data.create_connection(self.catalog_id)
+        return self.manager.get_connection()
