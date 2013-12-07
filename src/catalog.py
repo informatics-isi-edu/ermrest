@@ -33,9 +33,10 @@ import base64
 import psycopg2
 import sanepg2
 
-from util import sql_identifier
+from util import sql_identifier, sql_literal, schema_exists, table_exists
 
 __all__ = ['CatalogFactory', 'Catalog']
+
 
 class CatalogFactory (object):
     """The catalog factory.
@@ -119,6 +120,13 @@ class Catalog (object):
     """Provides basic catalog management.
     """
     
+    SCHEMA_NAME = '_ermrest'
+    TABLE_NAME = 'meta'
+    DBNAME = 'dbname'
+    META_READ_USER = 'read_user'
+    META_WRITE_USER = 'write_user'
+    META_OWNER = 'owner'
+    
     def __init__(self, factory, descriptor):
         """Initializes the catalog.
            
@@ -130,13 +138,14 @@ class Catalog (object):
            Right now, this class uses lazy initialization. Thus it does not
            open a connection until required.
         """
+        assert descriptor.get(self.DBNAME) is not None
         self.descriptor = descriptor
         self._factory = factory
         self._dbc = None
         
     def get_connection(self):
         if not self._dbc:
-            self._dbc = psycopg2.connect(dbname=self.descriptor['dbname'],
+            self._dbc = psycopg2.connect(dbname=self.descriptor[self.DBNAME],
                                          connection_factory=sanepg2.connection)
         return self._dbc
     
@@ -165,38 +174,142 @@ class Catalog (object):
            initialized, the catalog does not have metadata and other policy
            fields defined.
         """
-        pass
+        return table_exists(self._dbc, self.SCHEMA_NAME, self.TABLE_NAME)
     
     
-    def get_meta(self, key=None):
-        """Gets metadata fields, optionally filtered by attribute key.
+    def init_meta(self):
+        """Initializes the Catalog metadata.
         """
-        pass
+        
+        # first, deploy the metadata schema
+        cur = None
+        try:
+            cur = self.get_connection().cursor()
+            
+            # create schema, if it doesn't exist
+            if not schema_exists(self._dbc, self.SCHEMA_NAME):
+                cur.execute("""
+CREATE SCHEMA %(schema)s;"""
+                    % dict(schema=self.SCHEMA_NAME))
+                self._dbc.commit()
+            
+            # create meta table, if it doesn't exist
+            if not table_exists(self._dbc, self.SCHEMA_NAME, self.TABLE_NAME):
+                cur.execute("""
+CREATE TABLE %(schema)s.%(table)s (
+    key text NOT NULL,
+    value text NOT NULL,
+    UNIQUE (key, value)
+);"""
+                    % dict(schema=self.SCHEMA_NAME,
+                           table=self.TABLE_NAME))
+                self._dbc.commit()
+                
+        finally:
+            if cur is not None:
+                cur.close()
+                
+        ## initial meta values
+        self.add_meta(self.META_READ_USER, '*')
+        self.add_meta(self.META_WRITE_USER, '*')
+        
     
+    def get_meta(self, key=None, value=None):
+        """Gets metadata fields, optionally filtered by attribute key or by 
+           key and value pair, to test existence of specific pair.
+        """
+        where = ''
+        if key:
+            where = "WHERE key = %s" % sql_literal(key)
+            if value:
+                where += " AND value = %s" % sql_literal(value)
+            
+        cur = None
+        try:
+            cur = self.get_connection().cursor()
+            cur.execute("""
+SELECT * FROM %(schema)s.%(table)s
+%(where)s
+;"""
+                % dict(schema=self.SCHEMA_NAME,
+                       table=self.TABLE_NAME,
+                       where=where) )
+            
+            meta = list()
+            for k, v in cur:
+                meta.append(dict(key=k, value=v))
+            return meta
+        finally:
+            if cur is not None:
+                cur.close()
     
     def add_meta(self, key, value):
         """Adds a metadata (key, value) pair.
         """
-        pass
+        cur = None
+        try:
+            cur = self.get_connection().cursor()
+            cur.execute("""
+INSERT INTO %(schema)s.%(table)s
+  (key, value)
+VALUES
+  (%(key)s, %(value)s)
+;"""
+                % dict(schema=self.SCHEMA_NAME,
+                       table=self.TABLE_NAME,
+                       key=sql_literal(key),
+                       value=sql_literal(value)) )
+            
+            self._dbc.commit()
+        finally:
+            if cur is not None:
+                cur.close()
     
     
-    def remove_meta(self, key, value):
-        """Removes a metadata (key, value) pair.
+    def remove_meta(self, key, value=None):
+        """Removes a metadata (key, value) pair or all pairs that match on the
+           key alone.
         """
-        pass
+        where = "WHERE key = %s" % sql_literal(key)
+        if value:
+            where += " AND value = %s" % sql_literal(value)
+            
+        cur = None
+        try:
+            cur = self.get_connection().cursor()
+            cur.execute("""
+DELETE FROM %(schema)s.%(table)s
+%(where)s
+;"""
+                % dict(schema=self.SCHEMA_NAME,
+                       table=self.TABLE_NAME,
+                       where=where) )
+            
+            self._dbc.commit()
+        finally:
+            if cur is not None:
+                cur.close()
     
     
     def has_read(self, role):
         """Tests whether the user role has read permission.
         """
-        pass
+        # Might be useful to include a test of the OWNER, implicitly
+        return len(self.get_meta(self.META_READ_USER, role))>0
     
     
     def has_write(self, role):
         """Tests whether the user role has write permission.
         """
-        pass
+        # Might be useful to include a test of the OWNER, implicitly
+        return len(self.get_meta(self.META_WRITE_USER, role))>0
     
+    
+    def is_owner(self, role):
+        """Tests whether the user role is owner.
+        """
+        return len(self.get_meta(self.META_OWNER, role))>0
+
 
 def _random_name(prefix=''):
     """Generates and returns a random name safe for use in the database.

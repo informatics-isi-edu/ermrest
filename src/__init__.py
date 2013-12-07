@@ -18,6 +18,7 @@
 import model
 import url
 import exception
+from catalog import Catalog
 
 from ermrest_apis import webauthn2_manager, web_urls, registry, catalog_factory
 
@@ -170,11 +171,42 @@ def catalog_create():
     catalog = catalog_factory.create()
     return catalog.descriptor
 
-def catalog_destroy(descriptor):
+def catalog_destroy(catalog_id):
     """
     Destroys a catalog.
     """
-    from catalog import Catalog
+    descriptor = registry_lookup(catalog_id)[0]['descriptor']
     catalog = Catalog(catalog_factory, descriptor)
     catalog.destroy()
     
+def catalog_init_meta(catalog_id):
+    """
+    Initialize catalog metadata.
+    """
+    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    catalog = Catalog(catalog_factory, descriptor)
+    catalog.init_meta()
+
+def catalog_get_meta(catalog_id, key=None):
+    """
+    Initialize catalog metadata.
+    """
+    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    catalog = Catalog(catalog_factory, descriptor)
+    return catalog.get_meta(key)
+
+def catalog_add_meta(catalog_id, key, value):
+    """
+    Initialize catalog metadata.
+    """
+    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    catalog = Catalog(catalog_factory, descriptor)
+    catalog.add_meta(key, value)
+
+def catalog_remove_meta(catalog_id, key, value=None):
+    """
+    Initialize catalog metadata.
+    """
+    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    catalog = Catalog(catalog_factory, descriptor)
+    catalog.remove_meta(key, value)

@@ -11,8 +11,12 @@ usage: ermrest-catalog-manage <cmd>...
 
 Run this utility to perform catalog management operations.
 
-  cmd: create                          (create catalog)
-   or: destroy <catalog descriptor>    (destroy catalog)
+  cmd: create                                     (create catalog)
+   or: destroy <catalog id>                       (destroy catalog)
+   or: init <catalog id>                          (init catalog)
+   or: getmeta <catalog id> [<key>]               (get metadata)
+   or: addmeta <catalog id> <key> <value>         (add metadata)
+   or: removemeta <catalog id> <key> [<value>]    (remove metadata)
 
 Exit status:
 
@@ -29,8 +33,25 @@ def main(args):
             print json.dumps(ermrest.catalog_create())
             
         elif len(args) == 2 and args[0] == 'destroy':
-            descriptor = json.loads(args[1])
-            ermrest.catalog_destroy(descriptor)
+            ermrest.catalog_destroy(args[1])
+            
+        elif len(args) == 2 and args[0] == 'init':
+            ermrest.catalog_init_meta(args[1])
+            
+        elif len(args) == 2 and args[0] == 'getmeta':
+            print json.dumps(ermrest.catalog_get_meta(args[1]))
+            
+        elif len(args) == 3 and args[0] == 'getmeta':
+            print json.dumps(ermrest.catalog_get_meta(args[1], args[2]))
+            
+        elif len(args) == 4 and args[0] == 'addmeta':
+            ermrest.catalog_add_meta(args[1], args[2], args[3])
+            
+        elif len(args) == 3 and args[0] == 'removemeta':
+            ermrest.catalog_remove_meta(args[1], args[2])
+            
+        elif len(args) == 4 and args[0] == 'removemeta':
+            ermrest.catalog_remove_meta(args[1], args[2], args[3])
             
         else:
             usage()
