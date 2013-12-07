@@ -20,13 +20,25 @@
 """
 
 import cStringIO
+import psycopg2
 import web
 
 import path
 from path import Api
-from ermrest import ermpath
+from ermrest import ermpath, sanepg2
 from ermrest.exception import rest, BadData
 import ermrest.model
+
+
+def create_connection(catalog_id):
+    """Creates a database connection to the specified catalog.
+    """
+    entries = web.ctx.ermrest_registry.lookup(catalog_id)
+    if not entries or len(entries) == 0:
+        raise rest.NotFound("catalog not found in registry")
+    return psycopg2.connect(
+        dbname=entries[0]['descriptor']['dbname'],
+        connection_factory=sanepg2.connection )
 
 
 def negotiated_content_type(supported_types=['text/csv', 'application/json', 'application/x-json-stream'], default=None):
@@ -73,6 +85,7 @@ def negotiated_content_type(supported_types=['text/csv', 'application/json', 'ap
                 return accept_type
 
     return default
+
 
 class Entity (Api):
     """A specific entity set by entitypath."""
