@@ -128,8 +128,12 @@ class Entity (Api):
     def GET(self, uri):
         """Perform HTTP GET of entities.
         """
-        content_type = negotiated_content_type(default=self.default_content_type)
+        if not self.catalog.manager.has_content_read(
+                                web.ctx.webauthn2_context.attributes):
+            raise rest.Unauthorized(uri)
 
+        content_type = negotiated_content_type(default=self.default_content_type)
+        
         def body(conn):
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
@@ -146,6 +150,10 @@ class Entity (Api):
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of entities.
         """
+        if not self.catalog.manager.has_content_write(
+                                web.ctx.webauthn2_context.attributes):
+            raise rest.Unauthorized(uri)
+        
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
             in_content_type = in_content_type.split(";", 1)[0].strip()
@@ -183,6 +191,9 @@ class Entity (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
         """
+        if not self.catalog.manager.has_content_write(
+                                web.ctx.webauthn2_context.attributes):
+            raise rest.Unauthorized(uri)
         
         def body(conn):
             model = ermrest.model.introspect(conn)

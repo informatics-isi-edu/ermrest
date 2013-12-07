@@ -305,7 +305,7 @@ DELETE FROM %(schema)s.%(table)s
     def _test_perm(self, perm, roles):
         """Tests whether the user roles have a permission.
         """
-        return len(self.get_meta(perm, (self.ANONYMOUS | roles))) > 0
+        return len(self.get_meta(perm, roles.union(self.ANONYMOUS))) > 0
                                   
     def has_read(self, roles):
         """Tests whether the user roles have read permission.
