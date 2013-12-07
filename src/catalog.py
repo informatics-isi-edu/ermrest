@@ -120,12 +120,15 @@ class Catalog (object):
     """Provides basic catalog management.
     """
     
-    SCHEMA_NAME = '_ermrest'
-    TABLE_NAME = 'meta'
-    DBNAME = 'dbname'
+    _SCHEMA_NAME = '_ermrest'
+    _TABLE_NAME = 'meta'
+    _DBNAME = 'dbname'
+    META_OWNER = 'owner'
     META_READ_USER = 'read_user'
     META_WRITE_USER = 'write_user'
-    META_OWNER = 'owner'
+    META_CONTENT_READ_USER = 'content_read_user'
+    META_CONTENT_WRITE_USER = 'content_write_user'
+    ANONYMOUS = '*'
     
     def __init__(self, factory, descriptor):
         """Initializes the catalog.
@@ -138,14 +141,14 @@ class Catalog (object):
            Right now, this class uses lazy initialization. Thus it does not
            open a connection until required.
         """
-        assert descriptor.get(self.DBNAME) is not None
+        assert descriptor.get(self._DBNAME) is not None
         self.descriptor = descriptor
         self._factory = factory
         self._dbc = None
         
     def get_connection(self):
         if not self._dbc:
-            self._dbc = psycopg2.connect(dbname=self.descriptor[self.DBNAME],
+            self._dbc = psycopg2.connect(dbname=self.descriptor[self._DBNAME],
                                          connection_factory=sanepg2.connection)
         return self._dbc
     
@@ -174,7 +177,7 @@ class Catalog (object):
            initialized, the catalog does not have metadata and other policy
            fields defined.
         """
-        return table_exists(self._dbc, self.SCHEMA_NAME, self.TABLE_NAME)
+        return table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME)
     
     
     def init_meta(self):
@@ -187,22 +190,22 @@ class Catalog (object):
             cur = self.get_connection().cursor()
             
             # create schema, if it doesn't exist
-            if not schema_exists(self._dbc, self.SCHEMA_NAME):
+            if not schema_exists(self._dbc, self._SCHEMA_NAME):
                 cur.execute("""
 CREATE SCHEMA %(schema)s;"""
-                    % dict(schema=self.SCHEMA_NAME))
+                    % dict(schema=self._SCHEMA_NAME))
                 self._dbc.commit()
             
             # create meta table, if it doesn't exist
-            if not table_exists(self._dbc, self.SCHEMA_NAME, self.TABLE_NAME):
+            if not table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME):
                 cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     key text NOT NULL,
     value text NOT NULL,
     UNIQUE (key, value)
 );"""
-                    % dict(schema=self.SCHEMA_NAME,
-                           table=self.TABLE_NAME))
+                    % dict(schema=self._SCHEMA_NAME,
+                           table=self._TABLE_NAME))
                 self._dbc.commit()
                 
         finally:
@@ -210,8 +213,9 @@ CREATE TABLE %(schema)s.%(table)s (
                 cur.close()
                 
         ## initial meta values
-        self.add_meta(self.META_READ_USER, '*')
-        self.add_meta(self.META_WRITE_USER, '*')
+        self.add_meta(self.META_READ_USER, self.ANONYMOUS)
+        self.add_meta(self.META_CONTENT_READ_USER, self.ANONYMOUS)
+        self.add_meta(self.META_CONTENT_WRITE_USER, self.ANONYMOUS)
         
     
     def get_meta(self, key=None, value=None):
@@ -221,8 +225,11 @@ CREATE TABLE %(schema)s.%(table)s (
         where = ''
         if key:
             where = "WHERE key = %s" % sql_literal(key)
-            if value:
+            if value and isinstance(value, str):
                 where += " AND value = %s" % sql_literal(value)
+            elif value and isinstance(value, set):
+                where += " AND value IN (%s)" % (
+                                ','.join([sql_literal(v) for v in value]) )
             
         cur = None
         try:
@@ -231,8 +238,8 @@ CREATE TABLE %(schema)s.%(table)s (
 SELECT * FROM %(schema)s.%(table)s
 %(where)s
 ;"""
-                % dict(schema=self.SCHEMA_NAME,
-                       table=self.TABLE_NAME,
+                % dict(schema=self._SCHEMA_NAME,
+                       table=self._TABLE_NAME,
                        where=where) )
             
             meta = list()
@@ -255,12 +262,16 @@ INSERT INTO %(schema)s.%(table)s
 VALUES
   (%(key)s, %(value)s)
 ;"""
-                % dict(schema=self.SCHEMA_NAME,
-                       table=self.TABLE_NAME,
+                % dict(schema=self._SCHEMA_NAME,
+                       table=self._TABLE_NAME,
                        key=sql_literal(key),
                        value=sql_literal(value)) )
             
             self._dbc.commit()
+            
+        except psycopg2.IntegrityError:
+            # Ignore attempt to add a duplicate entry
+            self._dbc.rollback()
         finally:
             if cur is not None:
                 cur.close()
@@ -281,8 +292,8 @@ VALUES
 DELETE FROM %(schema)s.%(table)s
 %(where)s
 ;"""
-                % dict(schema=self.SCHEMA_NAME,
-                       table=self.TABLE_NAME,
+                % dict(schema=self._SCHEMA_NAME,
+                       table=self._TABLE_NAME,
                        where=where) )
             
             self._dbc.commit()
@@ -291,24 +302,39 @@ DELETE FROM %(schema)s.%(table)s
                 cur.close()
     
     
-    def has_read(self, role):
-        """Tests whether the user role has read permission.
+    def _test_perm(self, perm, roles):
+        """Tests whether the user roles have a permission.
+        """
+        return len(self.get_meta(perm, (self.ANONYMOUS | roles))) > 0
+                                  
+    def has_read(self, roles):
+        """Tests whether the user roles have read permission.
         """
         # Might be useful to include a test of the OWNER, implicitly
-        return len(self.get_meta(self.META_READ_USER, role))>0
+        return self._test_perm(self.META_READ_USER, roles)
     
-    
-    def has_write(self, role):
-        """Tests whether the user role has write permission.
+    def has_write(self, roles):
+        """Tests whether the user roles have write permission.
         """
         # Might be useful to include a test of the OWNER, implicitly
-        return len(self.get_meta(self.META_WRITE_USER, role))>0
+        return self._test_perm(self.META_WRITE_USER, roles)
+                                  
+    def has_content_read(self, roles):
+        """Tests whether the user roles have content read permission.
+        """
+        # Might be useful to include a test of the OWNER, implicitly
+        return self._test_perm(self.META_CONTENT_READ_USER, roles)
     
+    def has_content_write(self, roles):
+        """Tests whether the user roles have content write permission.
+        """
+        # Might be useful to include a test of the OWNER, implicitly
+        return self._test_perm(self.META_CONTENT_WRITE_USER, roles)
     
-    def is_owner(self, role):
+    def is_owner(self, roles):
         """Tests whether the user role is owner.
         """
-        return len(self.get_meta(self.META_OWNER, role))>0
+        return len(self.get_meta(self.META_OWNER, roles))>0
 
 
 def _random_name(prefix=''):
