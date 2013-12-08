@@ -24,21 +24,9 @@ import web
 
 import path
 from path import Api
-from ermrest import ermpath, catalog
+from ermrest import ermpath
 from ermrest.exception import rest, BadData
 import ermrest.model
-
-
-def find_catalog(catalog_id):
-    """Find instance of catalog manager.
-    """
-    # This may be a good place to hook in a cache of catalog objects
-    # ...for now, lookup descriptor in registry and instantiate a new one
-    entries = web.ctx.ermrest_registry.lookup(catalog_id)
-    if not entries or len(entries) == 0:
-        raise rest.NotFound("catalog " + str(catalog_id))
-    return catalog.Catalog(web.ctx.ermrest_catalog_factory, 
-                           entries[0]['descriptor'])
 
 
 def negotiated_content_type(supported_types=['text/csv', 'application/json', 'application/x-json-stream'], default=None):
