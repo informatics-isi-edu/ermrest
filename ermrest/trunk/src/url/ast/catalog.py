@@ -19,6 +19,7 @@
 
 """
 
+import json
 import model
 import data
 
@@ -29,6 +30,18 @@ class Catalogs (Api):
     """A multi-tenant catalog set."""
     def __init__(self):
         Api.__init__(self, None)
+    
+    def POST(self, uri):
+        """Perform HTTP POST of catalogs.
+        """
+        ctx = util.initial_context()
+        registry = ctx['ermrest_registry']
+        factory = ctx['ermrest_catalog_factory']
+        
+        # create and register catalog, return only its id
+        catalog = factory.create()
+        entry=registry.register(catalog.descriptor)
+        return json.dumps(dict(id=entry['id']))
 
 class Catalog (Api):
     """A specific catalog by ID."""
@@ -68,3 +81,9 @@ class Catalog (Api):
     def get_conn(self):
         """get db conn to this catalog."""
         return self.manager.get_connection()
+    
+    def GET(self, uri):
+        resource = dict(id=self.catalog_id,
+                        #descriptor=self.manager.descriptor,
+                        meta=self.manager.get_meta())
+        return json.dumps(resource)

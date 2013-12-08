@@ -246,6 +246,8 @@ SELECT * FROM %(schema)s.%(table)s
             for k, v in cur:
                 meta.append(dict(key=k, value=v))
             return meta
+        except psycopg2.ProgrammingError:
+            return list()
         finally:
             if cur is not None:
                 cur.close()
