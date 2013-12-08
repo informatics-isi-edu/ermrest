@@ -20,9 +20,10 @@
 """
 
 import json
+import web
+
 import model
 import data
-
 from model import Api
 from ermrest import util, exception, catalog
 
@@ -34,13 +35,21 @@ class Catalogs (Api):
     def POST(self, uri):
         """Perform HTTP POST of catalogs.
         """
+        #TODO: content negotiation
+        #TODO: exception handling
         ctx = util.initial_context()
         registry = ctx['ermrest_registry']
         factory = ctx['ermrest_catalog_factory']
         
         # create and register catalog, return only its id
         catalog = factory.create()
+        catalog.init_meta()
         entry=registry.register(catalog.descriptor)
+        
+        # set status and headers
+        web.ctx.status = '201 Created'
+        #TODO: set headers
+        #TODO: set location
         return json.dumps(dict(id=entry['id']))
 
 class Catalog (Api):
@@ -51,8 +60,8 @@ class Catalog (Api):
         
         # lookup the catalog manager
         ctx = util.initial_context()
-        registry = ctx['ermrest_registry']
-        entries = registry.lookup(catalog_id)
+        self.registry = ctx['ermrest_registry']
+        entries = self.registry.lookup(catalog_id)
         if not entries or len(entries) == 0:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
         self.manager = catalog.Catalog(ctx['ermrest_catalog_factory'], 
@@ -83,7 +92,24 @@ class Catalog (Api):
         return self.manager.get_connection()
     
     def GET(self, uri):
+        #TODO: content negotiation
+        #TODO: exception handling
         resource = dict(id=self.catalog_id,
                         #descriptor=self.manager.descriptor,
                         meta=self.manager.get_meta())
         return json.dumps(resource)
+    
+    def DELETE(self, uri):
+        #TODO: exception handling
+        ######
+        # TODO: needs to be done in two steps
+        #  1. in registry, flag the catalog to-be-destroyed
+        #  2. in manager, attempt to destroy catalog
+        #  3.a. in registry, unregister the catalog
+        #  3.b. if 2 fails, either rollback the registry
+        #       --or-- run a sweeper that finishes the job
+        ######
+        self.manager.destroy()
+        self.registry.unregister(self.catalog_id)
+        web.ctx.status = '204 No Content'
+        return ''
