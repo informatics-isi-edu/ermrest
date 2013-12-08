@@ -23,6 +23,7 @@ import model
 import data
 
 from model import Api
+from ermrest import util, exception, catalog
 
 class Catalogs (Api):
     """A multi-tenant catalog set."""
@@ -34,7 +35,15 @@ class Catalog (Api):
     def __init__(self, catalog_id):
         Api.__init__(self, self)
         self.catalog_id = catalog_id
-        self.manager = data.find_catalog(catalog_id)
+        
+        # lookup the catalog manager
+        ctx = util.initial_context()
+        registry = ctx['ermrest_registry']
+        entries = registry.lookup(catalog_id)
+        if not entries or len(entries) == 0:
+            raise exception.rest.NotFound('catalog ' + str(catalog_id))
+        self.manager = catalog.Catalog(ctx['ermrest_catalog_factory'], 
+                                       entries[0]['descriptor'])
 
     def schemas(self):
         """The schema set for this catalog."""
