@@ -75,6 +75,10 @@ class Catalog (Api):
         """A specific schema for this catalog."""
         return model.Schema(self, name)
 
+    def meta(self, key=None, value=None):
+        """A metadata set for this catalog."""
+        return Meta(self, key, value)
+    
     def entity(self, epath):
         """An entity set for this catalog."""
         return data.Entity(self, epath)
@@ -92,14 +96,21 @@ class Catalog (Api):
         return self.manager.get_connection()
     
     def GET(self, uri):
+        """Perform HTTP GET of catalog.
+        """
         #TODO: content negotiation
         #TODO: exception handling
+        
+        # note that the 'descriptor' includes private system information such 
+        # as the dbname (and potentially connection credentials) which should
+        # not ever be shared.
         resource = dict(id=self.catalog_id,
-                        #descriptor=self.manager.descriptor,
                         meta=self.manager.get_meta())
         return json.dumps(resource)
     
     def DELETE(self, uri):
+        """Perform HTTP DELETE of catalog.
+        """
         #TODO: exception handling
         ######
         # TODO: needs to be done in two steps
@@ -111,5 +122,57 @@ class Catalog (Api):
         ######
         self.manager.destroy()
         self.registry.unregister(self.catalog_id)
+        web.ctx.status = '204 No Content'
+        return ''
+
+
+class Meta (Api):
+    """A metadata set of the catalog."""
+
+    default_content_type = 'application/x-json-stream'
+
+    def __init__(self, catalog, key=None, value=None):
+        Api.__init__(self, catalog)
+        self.key = key
+        self.value = value
+    
+    def GET(self, uri):
+        """Perform HTTP GET of catalog metadata.
+        """
+        if not self.catalog.manager.has_read(
+                                web.ctx.webauthn2_context.attributes):
+            raise exception.rest.Unauthorized(uri)
+        
+        return json.dumps(self.catalog.manager.get_meta(self.key, self.value))
+    
+    def PUT(self, uri):
+        """Perform HTTP PUT of catalog metadata.
+        """
+        if not self.catalog.manager.has_write(
+                                web.ctx.webauthn2_context.attributes):
+            raise exception.rest.Unauthorized(uri)
+        
+        # disallow PUT on ...catalog/<i>/meta
+        if not self.key:
+            raise exception.rest.NoMethod(uri)
+        
+        self.catalog.manager.add_meta(self.key, self.value)
+        web.ctx.status = '204 No Content'
+        return ''
+    
+    def DELETE(self, uri):
+        """Perform HTTP DELETE of catalog metadata.
+        """
+        if not self.catalog.manager.has_write(
+                                web.ctx.webauthn2_context.attributes):
+            raise exception.rest.Unauthorized(uri)
+        
+        # disallow DELETE on ...catalog/<i>/meta
+        if not self.key:
+            raise exception.rest.NoMethod(uri)
+        
+        # note: this does not throw exception if value is specified but does 
+        #       not exist
+        self.catalog.manager.remove_meta(self.key, self.value)
         web.ctx.status = '204 No Content'
         return ''

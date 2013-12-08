@@ -75,6 +75,7 @@ def p_apis(p):
              | kreferencedbys 
              | kreferencedbytable 
              | kreferencedbytableslash
+             | meta
              | entity
              | attribute
              | query"""
@@ -101,6 +102,17 @@ def p_catalogslash(p):
     """catalogslash : catalog '/' """
     p[0] = p[1]
 
+def p_meta(p):
+    """meta : catalogslash META slashopt """
+    p[0] = p[1].meta()
+
+def p_meta_key(p):
+    """meta : catalogslash META '/' STRING slashopt """
+    p[0] = p[1].meta(p[4])
+
+def p_meta_key_value(p):
+    """meta : catalogslash META '/' STRING '/' STRING slashopt """
+    p[0] = p[1].meta(p[4], p[6])
 
 def p_entity(p):
     """entity : catalogslash ENTITY '/' entitypath """

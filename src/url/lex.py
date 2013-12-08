@@ -68,6 +68,7 @@ keywords = [
     'key',
     'leq',
     'lt',
+    'meta',
     'null',
     'query',
     'reference',
