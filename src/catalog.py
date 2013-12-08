@@ -101,17 +101,32 @@ class CatalogFactory (object):
         
            Do not call this method directly.
         """
-        self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         try:
+            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+            
+            # first, attempt to disconnect clients
             cur = self._dbc.cursor()
+            cur.execute("""
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname = %(dbname)s
+  AND pid <> pg_backend_pid()
+;"""
+                % dict(dbname=sql_literal(catalog.descriptor['dbname'])))
+            
+            #TODO: note that a client could reconnect ...now... and prevent the drop
+            
+            # then, drop database
             cur.execute("DROP DATABASE " + 
                         sql_identifier(catalog.descriptor['dbname']))
+            
         except psycopg2.Error, ev:
             msg = str(ev)
             idx = msg.find("\n") # DETAIL starts after the first line feed
             if idx > -1:
                 msg = msg[0:idx]
             raise RuntimeError(msg)
+        
         finally:
             self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
     
