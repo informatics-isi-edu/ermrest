@@ -195,7 +195,7 @@ class Catalog (object):
         return table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME)
     
     
-    def init_meta(self):
+    def init_meta(self, owner=None):
         """Initializes the Catalog metadata.
         """
         
@@ -228,6 +228,9 @@ CREATE TABLE %(schema)s.%(table)s (
                 cur.close()
                 
         ## initial meta values
+        if owner:
+            self.add_meta(self.META_OWNER, owner)
+            self.add_meta(self.META_WRITE_USER, owner)
         self.add_meta(self.META_READ_USER, self.ANONYMOUS)
         self.add_meta(self.META_CONTENT_READ_USER, self.ANONYMOUS)
         self.add_meta(self.META_CONTENT_WRITE_USER, self.ANONYMOUS)
@@ -240,12 +243,13 @@ CREATE TABLE %(schema)s.%(table)s (
         where = ''
         if key:
             where = "WHERE key = %s" % sql_literal(key)
-            if value and isinstance(value, str):
-                where += " AND value = %s" % sql_literal(value)
-            elif value and isinstance(value, set):
-                where += " AND value IN (%s)" % (
-                                ','.join([sql_literal(v) for v in value]) )
-            
+            if value:
+                if hasattr(value, '__iter__'):
+                    where += " AND value IN (%s)" % (
+                                    ','.join([sql_literal(v) for v in value]))
+                else:
+                    where += " AND value = %s" % sql_literal(value)
+        
         cur = None
         try:
             cur = self.get_connection().cursor()
@@ -293,6 +297,31 @@ VALUES
             if cur is not None:
                 cur.close()
     
+    def set_meta(self, key, value):
+        """Sets a metadata (key, value) pair.
+        """
+        cur = None
+        try:
+            cur = self.get_connection().cursor()
+            cur.execute("""
+DELETE FROM %(schema)s.%(table)s
+WHERE key=%(key)s
+;
+INSERT INTO %(schema)s.%(table)s
+  (key, value)
+VALUES
+  (%(key)s, %(value)s)
+;"""
+                % dict(schema=self._SCHEMA_NAME,
+                       table=self._TABLE_NAME,
+                       key=sql_literal(key),
+                       value=sql_literal(value)) )
+            
+            self._dbc.commit()
+            
+        finally:
+            if cur is not None:
+                cur.close()
     
     def remove_meta(self, key, value=None):
         """Removes a metadata (key, value) pair or all pairs that match on the
@@ -327,25 +356,21 @@ DELETE FROM %(schema)s.%(table)s
     def has_read(self, roles):
         """Tests whether the user roles have read permission.
         """
-        # Might be useful to include a test of the OWNER, implicitly
         return self._test_perm(self.META_READ_USER, roles)
     
     def has_write(self, roles):
         """Tests whether the user roles have write permission.
         """
-        # Might be useful to include a test of the OWNER, implicitly
         return self._test_perm(self.META_WRITE_USER, roles)
                                   
     def has_content_read(self, roles):
         """Tests whether the user roles have content read permission.
         """
-        # Might be useful to include a test of the OWNER, implicitly
         return self._test_perm(self.META_CONTENT_READ_USER, roles)
     
     def has_content_write(self, roles):
         """Tests whether the user roles have content write permission.
         """
-        # Might be useful to include a test of the OWNER, implicitly
         return self._test_perm(self.META_CONTENT_WRITE_USER, roles)
     
     def is_owner(self, roles):
