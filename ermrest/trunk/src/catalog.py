@@ -183,7 +183,17 @@ class Catalog (object):
             
         # drop db cannot be called by a connection to the db, so the factory
         # must do it
-        self._factory._destroy_catalog(self)
+        #
+        # Note: factory's destroy method is not robust, so for a quick and 
+        #       dirty imperfect workaround we retry 3 times here
+        for i in range(3):
+            try:
+                self._factory._destroy_catalog(self)
+                return
+            except RuntimeError, ev:
+                msg = str(ev)
+                continue
+        raise RuntimeError(msg)
     
     
     def is_initialized(self):
