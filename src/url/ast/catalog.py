@@ -27,7 +27,14 @@ import data
 from model import Api
 from ermrest import util, exception, catalog
 
+_application_json = 'application/json'
+_text_plain = 'text/plain'
+
 class Catalogs (Api):
+
+    default_content_type = _application_json
+    supported_types = [default_content_type, _text_plain]
+    
     """A multi-tenant catalog set."""
     def __init__(self):
         Api.__init__(self, None)
@@ -35,36 +42,49 @@ class Catalogs (Api):
     def POST(self, uri):
         """Perform HTTP POST of catalogs.
         """
-        #TODO: content negotiation
-        #TODO: exception handling
-        ctx = util.initial_context()
-        registry = ctx['ermrest_registry']
-        factory = ctx['ermrest_catalog_factory']
+        # content negotiation
+        content_type = data.negotiated_content_type(self.supported_types, 
+                                                    self.default_content_type)
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_request_content_type = content_type
         
         # create and register catalog, return only its id
-        catalog = factory.create()
+        catalog = web.ctx.ermrest_catalog_factory.create()
         catalog.init_meta(web.ctx.webauthn2_context.client)
-        entry=registry.register(catalog.descriptor)
+        entry=web.ctx.ermrest_registry.register(catalog.descriptor)
+        catalog_id = entry['id']
         
-        # set status and headers
+        # set location header and status
+        if uri[-1:] == '/':
+            location = uri + str(catalog_id)
+        else:
+            location = uri + '/' + str(catalog_id)
+        web.header('Location', location)
         web.ctx.status = '201 Created'
-        #TODO: set headers
-        #TODO: set location
-        return json.dumps(dict(id=entry['id']))
+        
+        if content_type == _text_plain:
+            return str(catalog_id)
+        else:
+            assert content_type == _application_json
+            return json.dumps(dict(id=catalog_id))
+        
 
 class Catalog (Api):
+
+    default_content_type = _application_json
+    supported_types = [default_content_type]
+
     """A specific catalog by ID."""
     def __init__(self, catalog_id):
         Api.__init__(self, self)
         self.catalog_id = catalog_id
         
         # lookup the catalog manager
-        ctx = util.initial_context()
-        self.registry = ctx['ermrest_registry']
+        self.registry = web.ctx.ermrest_registry
         entries = self.registry.lookup(catalog_id)
         if not entries or len(entries) == 0:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
-        self.manager = catalog.Catalog(ctx['ermrest_catalog_factory'], 
+        self.manager = catalog.Catalog(web.ctx.ermrest_catalog_factory, 
                                        entries[0]['descriptor'])
 
     def schemas(self):
@@ -98,14 +118,23 @@ class Catalog (Api):
     def GET(self, uri):
         """Perform HTTP GET of catalog.
         """
-        #TODO: content negotiation
-        #TODO: exception handling
+        # content negotiation
+        content_type = data.negotiated_content_type(self.supported_types, 
+                                                    self.default_content_type)
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_request_content_type = content_type
         
+        # meta can be none, if catalog is not initialized
+        try:
+            meta = self.manager.get_meta()
+        except:
+            meta = None
+            
         # note that the 'descriptor' includes private system information such 
         # as the dbname (and potentially connection credentials) which should
         # not ever be shared.
         resource = dict(id=self.catalog_id,
-                        meta=self.manager.get_meta())
+                        meta=meta)
         return json.dumps(resource)
     
     def DELETE(self, uri):
@@ -114,7 +143,6 @@ class Catalog (Api):
         if not self.manager.is_owner(web.ctx.webauthn2_context.client):
             raise exception.rest.Unauthorized(uri)
         
-        #TODO: exception handling
         ######
         # TODO: needs to be done in two steps
         #  1. in registry, flag the catalog to-be-destroyed
@@ -132,7 +160,8 @@ class Catalog (Api):
 class Meta (Api):
     """A metadata set of the catalog."""
 
-    default_content_type = 'application/x-json-stream'
+    default_content_type = _application_json
+    supported_types = [default_content_type]
 
     def __init__(self, catalog, key=None, value=None):
         Api.__init__(self, catalog)
@@ -147,6 +176,10 @@ class Meta (Api):
                                 web.ctx.webauthn2_context.attributes):
             raise exception.rest.Unauthorized(uri)
         
+        content_type = data.negotiated_content_type(self.supported_types, 
+                                                    self.default_content_type)
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_request_content_type = content_type
         return json.dumps(self.catalog.manager.get_meta(self.key, self.value))
     
     

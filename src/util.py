@@ -86,20 +86,3 @@ def sql_literal(v):
         return "'%s'" % _string_wrap(_string_wrap(s, '%'), "'")
     else:
         return 'NULL'
-
-
-####################################################
-
-def initial_context():
-    """Returns the initial context for named objects.
-    
-       TODO: really needs reconsideration. This is sort of a Java rip off. The
-             point is we somehow want to hide the fact that the context comes
-             from web.py, for those modules that should not directly depend on
-             web.py (i.e., non-web modules).
-             
-       The context object returned by this function should be treated like a
-       dict.
-    """
-    import web
-    return web.ctx
