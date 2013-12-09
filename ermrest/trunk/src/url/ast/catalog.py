@@ -150,11 +150,18 @@ class Catalog (Api):
         #  3.a. in registry, unregister the catalog
         #  3.b. if 2 fails, either rollback the registry
         #       --or-- run a sweeper that finishes the job
+        # 
+        #  quick and dirty solution = retry 3 times
         ######
-        self.manager.destroy()
-        self.registry.unregister(self.catalog_id)
-        web.ctx.status = '204 No Content'
-        return ''
+        for i in range(3):
+            try:
+                self.manager.destroy()
+                self.registry.unregister(self.catalog_id)
+                web.ctx.status = '204 No Content'
+                return ''
+            except RuntimeError:
+                continue
+        raise exception.rest.RuntimeError("failed to delete catalog resource " + uri)
 
 
 class Meta (Api):
