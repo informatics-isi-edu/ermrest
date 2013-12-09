@@ -179,6 +179,7 @@ class Catalog (object):
         # the database connection must be closed
         if self._dbc:
             self._dbc.close()
+            self._dbc = None
             
         # drop db cannot be called by a connection to the db, so the factory
         # must do it
