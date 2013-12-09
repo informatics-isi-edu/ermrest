@@ -43,7 +43,7 @@ class Catalogs (Api):
         
         # create and register catalog, return only its id
         catalog = factory.create()
-        catalog.init_meta()
+        catalog.init_meta(web.ctx.webauthn2_context.client)
         entry=registry.register(catalog.descriptor)
         
         # set status and headers
@@ -111,6 +111,9 @@ class Catalog (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of catalog.
         """
+        if not self.manager.is_owner(web.ctx.webauthn2_context.client):
+            raise exception.rest.Unauthorized(uri)
+        
         #TODO: exception handling
         ######
         # TODO: needs to be done in two steps
@@ -136,6 +139,7 @@ class Meta (Api):
         self.key = key
         self.value = value
     
+    
     def GET(self, uri):
         """Perform HTTP GET of catalog metadata.
         """
@@ -145,32 +149,54 @@ class Meta (Api):
         
         return json.dumps(self.catalog.manager.get_meta(self.key, self.value))
     
+    
     def PUT(self, uri):
         """Perform HTTP PUT of catalog metadata.
         """
-        if not self.catalog.manager.has_write(
-                                web.ctx.webauthn2_context.attributes):
+        if not (self.catalog.manager.has_write(
+                        web.ctx.webauthn2_context.attributes)
+                or self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client) ):
             raise exception.rest.Unauthorized(uri)
         
-        # disallow PUT on ...catalog/<i>/meta
+        # disallow PUT of META
         if not self.key:
             raise exception.rest.NoMethod(uri)
         
-        self.catalog.manager.add_meta(self.key, self.value)
+        if self.key == self.catalog.manager.META_OWNER:
+            # must be owner to change owner
+            if not self.catalog.manager.is_owner(
+                            web.ctx.webauthn2_context.client):
+                raise exception.rest.Unauthorized(uri)
+            # must set owner to a rolename (TODO: better validation)
+            if not self.value or self.value == '':
+                raise exception.rest.Forbidden(uri)
+            # if all passed, SET the new owner
+            self.catalog.manager.set_meta(self.key, self.value)
+        else:
+            self.catalog.manager.add_meta(self.key, self.value)
+            
         web.ctx.status = '204 No Content'
         return ''
+    
     
     def DELETE(self, uri):
         """Perform HTTP DELETE of catalog metadata.
         """
-        if not self.catalog.manager.has_write(
-                                web.ctx.webauthn2_context.attributes):
+        if not (self.catalog.manager.has_write(
+                        web.ctx.webauthn2_context.attributes)
+                or self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client) ):
             raise exception.rest.Unauthorized(uri)
         
-        # disallow DELETE on ...catalog/<i>/meta
+        # disallow DELETE of META
         if not self.key:
             raise exception.rest.NoMethod(uri)
         
+        # disallow DELETE of OWNER
+        if self.key == self.catalog.manager.META_OWNER:
+            raise exception.rest.Forbidden(uri)
+            
         # note: this does not throw exception if value is specified but does 
         #       not exist
         self.catalog.manager.remove_meta(self.key, self.value)
