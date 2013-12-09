@@ -19,12 +19,21 @@
 
 """
 
+import json
+
+from ermrest import exception
 from data import Api
 
 class Schemas (Api):
     """A schema set."""
     def __init__(self, catalog):
         self.catalog = catalog
+        
+    def GET(self, uri):
+        """HTTP GET for Schemas of a Catalog."""
+        model = self.catalog.manager.get_model()
+        schema_names = model.schemas.keys()
+        return json.dumps(schema_names)
 
 class Schema (Api):
     """A specific schema by name."""
@@ -40,6 +49,16 @@ class Schema (Api):
         """A specific table for this schema."""
         return Table(self, name)
 
+    def GET(self, uri):
+        """HTTP GET for Schemas of a Catalog."""
+        try:
+            model = self.catalog.manager.get_model()
+            schema = model.schemas[str(self.name)]
+        except KeyError:
+            raise exception.rest.NotFound(uri)
+        
+        table_names = schema.tables.keys()
+        return json.dumps(table_names)
 
 class Tables (Api):
     """A table set."""

@@ -160,6 +160,7 @@ class Catalog (object):
         self.descriptor = descriptor
         self._factory = factory
         self._dbc = None
+        self._model = None
         
     def get_connection(self):
         if not self._dbc:
@@ -167,6 +168,11 @@ class Catalog (object):
                                          connection_factory=sanepg2.connection)
         return self._dbc
     
+    def get_model(self):
+        if not self._model:
+            from ermrest.model import introspect
+            self._model = introspect(self.get_connection())
+        return self._model
     
     def destroy(self):
         """Destroys the catalog (i.e., drops the database).
