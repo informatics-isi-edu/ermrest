@@ -162,13 +162,20 @@ class Catalog (object):
         self._dbc = None
         self._model = None
         
+    def __del__(self):
+        if self._dbc:
+            self._dbc.close()
+            self._dbc = None
+        
     def get_connection(self):
+        # TODO: turn this into a @property
         if not self._dbc:
             self._dbc = psycopg2.connect(dbname=self.descriptor[self._DBNAME],
                                          connection_factory=sanepg2.connection)
         return self._dbc
     
     def get_model(self):
+        # TODO: turn this into a @property
         if not self._model:
             from ermrest.model import introspect
             self._model = introspect(self.get_connection())
@@ -209,6 +216,7 @@ class Catalog (object):
            initialized, the catalog does not have metadata and other policy
            fields defined.
         """
+        # TODO: turn this into a @property
         return table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME)
     
     
