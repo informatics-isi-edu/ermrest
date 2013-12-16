@@ -56,3 +56,6 @@ CREATE TABLE cirm.scan
 
 CREATE INDEX ON cirm.scan USING gin ( (to_tsvector('english', comment)) );
 
+SET client_min_messages=ERROR;
+VACUUM ANALYZE;
+

@@ -25,3 +25,6 @@ COPY cirm.scan (id, slide_id, scan_num, filename, thumbnail, tilesdir, comment) 
 20131108-wnt1creZEGG-RES-0-12-000-001,20131108-wnt1creZEGG-RES-0-12-000,0,20131204-wnt1creZEGG-RES-0-27-000.czi,20131108-wnt1creZEGG-RES-0-12-000.jpeg,20131108-wnt1creZEGG-RES-0-12-000/,"This is a scan"
 \.
 
+SET client_min_messages=ERROR;
+VACUUM ANALYZE;
+
