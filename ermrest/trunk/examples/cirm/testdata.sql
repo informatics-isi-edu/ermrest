@@ -47,7 +47,6 @@ COPY cirm.scan (id, slide_id, scan_num, filename, thumbnail, tilesdir, comment) 
 20131108-wnt1creZEGG-RES-0-12-000-001,20131108-wnt1creZEGG-RES-0-12-000,0,sample3.czi,sample3.jpeg,sample3/,"should use this one"
 20131108-wnt1creZEGG-RES-0-38-000-000,20131108-wnt1creZEGG-RES-0-38-000,0,sample1.czi,sample1.jpeg,sample1/,"some ROIs"
 20131108-wnt1creZEGG-RES-0-38-000-001,20131108-wnt1creZEGG-RES-0-38-000,1,sample1.czi,sample1.jpeg,sample1/,"another scan of 38"
-20131108-wnt1creZEGG-RES-0-38-001-000,20131108-wnt1creZEGG-RES-0-38-001,0,sample1.czi,sample1.jpeg,sample1/,"some ROIs"
 20131108-wnt1creZEGG-RES-0-39-000-000,20131108-wnt1creZEGG-RES-0-39-000,0,sample1.czi,sample1.jpeg,sample1/,"more ROIs"
 20131108-wnt1creZEGG-RES-0-55-000-000,20131108-wnt1creZEGG-RES-0-55-000,0,sample3.czi,sample3.jpeg,sample3/,"still working on this"
 \.
