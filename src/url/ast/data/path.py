@@ -285,10 +285,12 @@ class Negation (Api):
     def __init__(self, predicate):
         self.predicate = predicate
 
-class Conjunction (list):
-    pass
-
 class Disjunction (list):
-    pass
+    def validate(self, epath):
+        return [ f.validate(epath) for f in self ]
+
+    def sql_where(self, epath, elem):
+        preds_sql = [ "(%s)" % f.sql_where(epath, elem) for f in self ]
+        return " OR ".join(preds_sql)
 
 

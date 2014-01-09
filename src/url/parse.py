@@ -254,7 +254,7 @@ def p_predicate1(p):
 
 def p_neg_predicate(p):
     """predicate : '!' predicate """
-    p[0] = ast.data.Negation( p[2] )
+    p[0] = ast.data.path.Negation( p[2] )
 
 def p_paren_predicate(p):
     """predicate : '(' filter ')' """
@@ -262,7 +262,7 @@ def p_paren_predicate(p):
 
 def p_disjunction_base(p):
     """disjunction : predicate ';' predicate"""
-    p[0] = ast.data.Disjunction([p[1], p[3]])
+    p[0] = ast.data.path.Disjunction([p[1], p[3]])
 
 def p_disjunction_grow(p):
     """disjunction : disjunction ';' predicate"""
