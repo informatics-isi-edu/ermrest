@@ -285,6 +285,13 @@ class Negation (Api):
     def __init__(self, predicate):
         self.predicate = predicate
 
+    def validate(self, epath):
+        return self.predicate.validate(epath)
+
+    def sql_where(self, epath, elem):
+        return 'NOT (%s)' % self.predicate.sql_where(epath, elem)
+
+
 class Disjunction (list):
     def validate(self, epath):
         return [ f.validate(epath) for f in self ]
