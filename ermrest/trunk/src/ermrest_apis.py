@@ -291,6 +291,7 @@ def web_urls():
             '/printer/([^/]+)/job', cirm.printjob.PrintJob,
             '/printer/([^/]+)/job/([^/]+)/', cirm.printjob.PrintJob,
             '/printer/([^/]+)/control/([^/]+)/', cirm.printcontrol.PrintControl,
+            '/transfer', cirm.transfer.GlobusClient,
             '/zoomify/(.*)', cirm.zoomify.Zoomify
         )
         urls.extend(cirm_urls)
