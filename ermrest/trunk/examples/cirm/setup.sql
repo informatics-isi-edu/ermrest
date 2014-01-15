@@ -7,7 +7,8 @@ CREATE TABLE cirm.box
     sample_name varchar(15) NOT NULL,
     initials varchar(3) NOT NULL,
     disambiguator char(1) NOT NULL,
-    comment text
+    comment text,
+    tags text
   );
 
 CREATE INDEX ON cirm.box USING gin ( (to_tsvector('english', sample_name)) );
@@ -21,7 +22,8 @@ CREATE TABLE cirm.experiment
     experiment_description varchar(15) NOT NULL,
     initials varchar(3) NOT NULL,
     disambiguator char(1) NOT NULL,
-    comment text
+    comment text,
+    tags text
   );
 
 CREATE INDEX ON cirm.experiment USING gin ( (to_tsvector('english', experiment_description)) );
@@ -36,6 +38,7 @@ CREATE TABLE cirm.slide
     box_of_origin_id varchar(30) NOT NULL,
     experiment_id varchar(30),
     comment text,
+    tags text,
     FOREIGN KEY (box_of_origin_id) REFERENCES cirm.box (id),
     FOREIGN KEY (experiment_id) REFERENCES cirm.experiment (id)
   );
@@ -51,6 +54,7 @@ CREATE TABLE cirm.scan
     thumbnail text,
     tilesdir text,
     comment text,
+    tags text,
     FOREIGN KEY (slide_id) REFERENCES cirm.slide (id)
   );
 
