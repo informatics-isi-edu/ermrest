@@ -112,48 +112,17 @@ class Table (Api):
             model = self.schema.catalog.manager.get_model()
             schema = model.schemas[str(self.schema.name)]
             table = schema.tables[str(self.name)]
+            columns = table.columns.values()
+            columns.sort(key=lambda c: c.position)
         except KeyError:
             raise exception.rest.NotFound(uri)
 
         response = dict()
         response['schema_name'] = str(schema.name)
         response['table_name'] = str(table.name)
-        columns = table.columns.values()
-        columns.sort(key=lambda c: c.position)
-        response['column_definitions'] = [
-            dict(name=str(c.name), type=str(c.type))
-            for c in columns
-            ]
-        response['uniques'] = [
-            dict(
-                unique_columns=[ str(c.name) for c in ucs ],
-                referenced_bys=[
-                    dict( referring_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
-                          unique_to_referring_maps=[
-                            dict([ (str(p.name), str(f.name)) for p, f in kr.referenceby_map.items() ])
-                            for kr in u.table_references[rt]
-                            ]
-                          )
-                    for rt in u.table_references.keys()
-                    ]
-                )
-            for ucs, u in table.uniques.items()
-            ]
-        response['foreign_keys'] = [
-            dict(
-                ref_columns=[ str(c.name) for c in fkcs ],
-                references=[
-                    dict( referred_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
-                          referring_to_unique_maps=[
-                            dict([ (str(f.name), str(p.name)) for f, p in kr.reference_map.items() ])
-                            for kr in fk.table_references[rt]
-                            ]
-                          )
-                    for rt in fk.table_references.keys()
-                    ]
-                )
-            for fkcs, fk in table.fkeys.items()
-            ]
+        response['column_definitions'] = Columns.prejson(columns)
+        response['uniques'] = Keys.prejson(table.uniques)
+        response['foreign_keys'] = Foreignkeys.prejson(table.fkeys)
         
         return json.dumps(response) + '\n'
 
@@ -163,6 +132,21 @@ class Columns (Api):
     def __init__(self, table):
         self.table = table
 
+    def GET(self, uri):
+        try:
+            model = self.table.schema.catalog.manager.get_model()
+            schema = model.schemas[str(self.table.schema.name)]
+            table = schema.tables[str(self.table.name)]
+            columns = table.columns.values()
+            columns.sort(key=lambda c: c.position)
+        except KeyError:
+            raise exception.rest.NotFound(uri)
+
+        return json.dumps(Columns.prejson(columns)) + '\n'
+
+    @staticmethod
+    def prejson(columns):
+        return [ Column.prejson(c) for c in columns ]
 
 class Column (Api):
     """A specific column by name."""
@@ -170,11 +154,41 @@ class Column (Api):
         self.table = table
         self.name = name
 
+    def GET(self, uri):
+        try:
+            model = self.table.schema.catalog.manager.get_model()
+            schema = model.schemas[str(self.table.schema.name)]
+            table = schema.tables[str(self.table.name)]
+            column = table.columns[str(self.name)]
+        except KeyError:
+            raise exception.rest.NotFound(uri)
+
+        return json.dumps(Column.prejson(column)) + '\n'
+
+    @staticmethod
+    def prejson(c):
+        return dict(name=str(c.name), type=str(c.type))
+
 
 class Keys (Api):
     """A set of keys."""
     def __init__(self, table):
         self.table = table
+
+    def GET(self, uri):
+        try:
+            model = self.table.schema.catalog.manager.get_model()
+            schema = model.schemas[str(self.table.schema.name)]
+            table = schema.tables[str(self.table.name)]
+            keys = table.uniques
+        except KeyError:
+            raise exception.rest.NotFound(uri)
+
+        return json.dumps(Keys.prejson(keys)) + '\n'
+
+    @staticmethod
+    def prejson(uniques):
+        return [ Key.prejson(u) for u in uniques.values() ]
 
 class Key (Api):
     """A specific key by column set."""
@@ -186,10 +200,51 @@ class Key (Api):
         """A set of foreign key references to this key."""
         return ForeignkeyReferences(self.table.schema.catalog).with_to_key(self)
 
+    def GET(self, uri):
+        try:
+            model = self.table.schema.catalog.manager.get_model()
+            schema = model.schemas[str(self.table.schema.name)]
+            table = schema.tables[str(self.table.name)]
+            key = table.uniques[frozenset([ table.columns[str(c)] for c in self.columns ])]
+        except KeyError:
+            raise exception.rest.NotFound(uri)
+
+        return json.dumps(Key.prejson(key)) + '\n'
+
+    @staticmethod
+    def prejson(u):
+        return dict(
+            unique_columns=[ str(c.name) for c in u.columns ],
+            referenced_bys=[
+                dict( referring_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
+                      unique_to_referring_maps=[
+                        dict([ (str(p.name), str(f.name)) for p, f in kr.referenceby_map.items() ])
+                        for kr in u.table_references[rt]
+                        ]
+                      )
+                for rt in u.table_references.keys()
+                ]
+            )
+
 class Foreignkeys (Api):
     """A set of foreign keys."""
     def __init__(self, table):
         self.table = table
+
+    def GET(self, uri):
+        try:
+            model = self.table.schema.catalog.manager.get_model()
+            schema = model.schemas[str(self.table.schema.name)]
+            table = schema.tables[str(self.table.name)]
+            fkeys = table.fkeys
+        except KeyError:
+            raise exception.rest.NotFound(uri)
+
+        return json.dumps(Foreignkeys.prejson(fkeys)) + '\n'
+
+    @staticmethod
+    def prejson(fkeys):
+        return [ Foreignkey.prejson(fk) for fk in fkeys.values() ]
 
 class Foreignkey (Api):
     """A specific foreign key by column set."""
@@ -200,7 +255,32 @@ class Foreignkey (Api):
     def references(self):
         """A set of foreign key references from this foreign key."""
         return ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
+    
+    def GET(self, uri):
+        try:
+            model = self.table.schema.catalog.manager.get_model()
+            schema = model.schemas[str(self.table.schema.name)]
+            table = schema.tables[str(self.table.name)]
+            fkey = table.fkeys[frozenset([ table.columns[str(c)] for c in self.columns ])]
+        except KeyError:
+            raise exception.rest.NotFound(uri)
 
+        return json.dumps(Foreignkey.prejson(fkey)) + '\n'
+
+    @staticmethod
+    def prejson(fk):
+        return dict(
+            ref_columns=[ str(c.name) for c in fk.columns ],
+            references=[
+                dict( referred_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
+                      referring_to_unique_maps=[
+                        dict([ (str(f.name), str(p.name)) for f, p in kr.reference_map.items() ])
+                        for kr in fk.table_references[rt]
+                        ]
+                      )
+                for rt in fk.table_references.keys()
+                ]
+            )
 
 class ForeignkeyReferences (Api):
     """A set of foreign key references."""
