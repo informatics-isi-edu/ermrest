@@ -20,6 +20,7 @@
 """
 
 import json
+import web
 
 from ermrest import exception
 from data import Api
@@ -33,7 +34,7 @@ class Schemas (Api):
         """HTTP GET for Schemas of a Catalog."""
         model = self.catalog.manager.get_model()
         schema_names = model.schemas.keys()
-        return json.dumps(schema_names)
+        return json.dumps(schema_names) + '\n'
 
 class Schema (Api):
     """A specific schema by name."""
@@ -58,13 +59,15 @@ class Schema (Api):
             raise exception.rest.NotFound(uri)
         
         table_names = schema.tables.keys()
-        return json.dumps(table_names)
+        return json.dumps(table_names) + '\n'
 
 class Tables (Api):
     """A table set."""
     def __init__(self, schema):
         self.schema = schema
 
+    def GET(self, uri):
+        return self.schema.GET(uri)
 
 class Table (Api):
     """A specific table by name."""
@@ -103,6 +106,56 @@ class Table (Api):
     def referencedbys(self):
         """A set of foreign key references to this table."""
         return ForeignkeyReferences(self.schema.catalog).with_to_table(self)
+
+    def GET(self, uri):
+        try:
+            model = self.schema.catalog.manager.get_model()
+            schema = model.schemas[str(self.schema.name)]
+            table = schema.tables[str(self.name)]
+        except KeyError:
+            raise exception.rest.NotFound(uri)
+
+        response = dict()
+        response['schema_name'] = str(schema.name)
+        response['table_name'] = str(table.name)
+        columns = table.columns.values()
+        columns.sort(key=lambda c: c.position)
+        response['column_definitions'] = [
+            dict(name=str(c.name), type=str(c.type))
+            for c in columns
+            ]
+        response['uniques'] = [
+            dict(
+                unique_columns=[ str(c.name) for c in ucs ],
+                referenced_bys=[
+                    dict( referring_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
+                          unique_to_referring_maps=[
+                            dict([ (str(p.name), str(f.name)) for p, f in kr.referenceby_map.items() ])
+                            for kr in u.table_references[rt]
+                            ]
+                          )
+                    for rt in u.table_references.keys()
+                    ]
+                )
+            for ucs, u in table.uniques.items()
+            ]
+        response['foreign_keys'] = [
+            dict(
+                ref_columns=[ str(c.name) for c in fkcs ],
+                references=[
+                    dict( referred_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
+                          referring_to_unique_maps=[
+                            dict([ (str(f.name), str(p.name)) for f, p in kr.reference_map.items() ])
+                            for kr in fk.table_references[rt]
+                            ]
+                          )
+                    for rt in fk.table_references.keys()
+                    ]
+                )
+            for fkcs, fk in table.fkeys.items()
+            ]
+        
+        return json.dumps(response) + '\n'
 
 
 class Columns (Api):
