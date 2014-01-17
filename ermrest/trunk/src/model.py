@@ -28,6 +28,7 @@ needed by other modules of the ermrest project.
 from ermrest import exception
 
 import urllib
+import json
 
 __all__ = ["introspect", "Model", "Schema", "Table", "Column", "Type", "sql_ident"]
 
@@ -252,10 +253,15 @@ class Model:
         self.schemas = schemas
     
     def verbose(self):
-        s = ''
-        for schema in self.schemas.values():
-            s += "Schema:" + schema.verbose()
-        return s
+        return json.dumps(self.prejson(), indent=2)
+
+    def prejson(self):
+        return dict(
+            schemas=dict([ 
+                    (str(s), self.schemas[s].prejson()) for s in self.schemas 
+                    ])
+            )
+        
 
     def lookup_table(self, sname, tname):
         if sname is not None:
@@ -290,11 +296,15 @@ class Schema:
             self.model.schemas[name] = self
 
     def verbose(self):
-        s =  "name: %s, num_tables: %d\n" % (self.name, len(self.tables))
-        for tab in self.tables.values():
-            s += "Table: " + tab.verbose()
-        s += "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
-        return s
+        return json.dumps(self.prejson(), indent=2)
+
+    def prejson(self):
+        return dict(
+            schema_name=str(self.name),
+            tables=dict([
+                    (str(t), self.tables[t].prejson()) for t in self.tables
+                    ])
+            )
 
 class Table:
     """Represents a database table.
@@ -332,19 +342,21 @@ class Table:
         return cols
 
     def verbose(self):
-        s = "name: %s, num_columns: %d\n" % (self.name, len(self.columns))
-        for col in self.columns.values():
-            s += "Column: " + col.verbose() + "\n"
-        s += "--------------------------------------------------------------\n"
-        s += "num_uniques: %d\n" % len(self.uniques)
-        for uq in self.uniques.values():
-            s += uq.verbose() + "\n"
-        s += "--------------------------------------------------------------\n"
-        s += "num_fkeys: %d\n" % len(self.fkeys)
-        for fkey in self.fkeys.values():
-            s += fkey.verbose()
-        s += "--------------------------------------------------------------\n"
-        return s
+        return json.dumps(self.prejson(), indent=2)
+
+    def prejson(self):
+        return dict(
+            table_name=str(self.name),
+            columns=[
+                c.prejson() for c in self.columns_in_order()
+                ],
+            uniques=[
+                u.prejson() for u in self.uniques.values()
+                ],
+            fkeys=[
+                fk.prejson() for fk in self.fkeys.values()
+                ]
+            )
 
     def sql_name(self):
         return '.'.join([
@@ -425,8 +437,15 @@ class Column:
         return '<ermrest.model.Column %s>' % str(self)
 
     def verbose(self):
-        return "name: %s, position: %d, type: %s, default_value: %s" \
-                % (self.name, self.position, self.type, self.default_value)
+        return json.dumps(self.prejson(), indent=2)
+
+    def prejson(self):
+        return dict(
+            column_name=str(self.name),
+            position=self.position,
+            type=str(self.type),
+            default_value=self.default_value
+            )
 
     def sql_name(self):
         return sql_ident(self.name)
@@ -477,11 +496,14 @@ class Unique:
         return '<ermrest.model.Unique %s>' % str(self)
 
     def verbose(self):
-        s = '('
-        for col in self.columns.values():
-            s += col.name + ','
-        s += ')'
-        return s
+        return json.dumps(self.prejson(), indent=2)
+
+    def prejson(self):
+        return dict(
+            unique_columns=[
+                str(c.name) for c in self.columns
+                ]
+            )
 
 class ForeignKey:
     """A foreign key."""
@@ -504,8 +526,18 @@ class ForeignKey:
         return '<ermrest.model.ForeignKey %s>' % str(self)
 
     def verbose(self):
-        s = 'FIXME'
-        return s
+        return json.dumps(self.prejson(), indent=2)
+
+    def prejson(self):
+        return dict(
+            fkey_columns=[
+                str(c.name) for c in self.columns
+                ],
+            references=[
+                fkr.prejson() for fkr in self.references.values()
+                ]
+            )
+            
 
 class KeyReference:
     """A reference from a foreign key to a primary key."""
@@ -526,9 +558,20 @@ class KeyReference:
         unique.table_references[foreign_key.table].add(self)
 
     def __str__(self):
-        return '(%s) refs (%s)' % (
-            ','.join([ str(fk) for fk in self.reference_map.keys() ]),
-            ','.join([ str(pk) for pk in self.reference_map.values() ]) 
+        return self.verbose()
+
+    def verbose(self):
+        return json.dumps(self.prejson(), indent=2)
+
+    def prejson(self):
+        fks = []
+        pks = []
+        for fk in self.reference_map.keys():
+            fks.append( str(fk) )
+            pks.append( str(self.reference_map[fk]) )
+        return dict(
+            foreign_key_columns=fks,
+            referenced_columns=pks
             )
 
     def __repr__(self):
