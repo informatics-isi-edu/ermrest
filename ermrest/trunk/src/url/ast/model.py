@@ -23,23 +23,36 @@ import json
 import web
 
 from ermrest import exception
+import ermrest.model
 from data import Api
+
+def model_body(conn):
+    return ermrest.model.introspect(conn)
 
 class Schemas (Api):
     """A schema set."""
     def __init__(self, catalog):
-        self.catalog = catalog
+        Api.__init__(self, catalog)
         
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
-        model = self.catalog.manager.get_model()
-        schema_names = model.schemas.keys()
-        return json.dumps(schema_names) + '\n'
+        def post_commit(model):
+            schema_names = model.schemas.keys()
+            return json.dumps(schema_names) + '\n'
+
+        return self.perform(model_body, post_commit)
+
+def schema_body(conn, schema_name):
+    model = model_body(conn)
+    if schema_name not in model.schemas:
+        raise exception.NotFound('schema "%s"' % schema_name)
+    else:
+        return model.schemas[schema_name]
 
 class Schema (Api):
     """A specific schema by name."""
     def __init__(self, catalog, name):
-        self.catalog = catalog
+        Api.__init__(self, catalog)
         self.name = name
 
     def tables(self):
@@ -52,26 +65,35 @@ class Schema (Api):
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
-        try:
-            model = self.catalog.manager.get_model()
-            schema = model.schemas[str(self.name)]
-        except KeyError:
-            raise exception.rest.NotFound(uri)
-        
-        table_names = schema.tables.keys()
-        return json.dumps(table_names) + '\n'
+        def post_commit(schema):
+            table_names = schema.tables.keys()
+            return json.dumps(table_names) + '\n'
+
+        return self.perform(
+            lambda conn: schema_body(conn, str(self.name)), 
+            post_commit
+            )
 
 class Tables (Api):
     """A table set."""
     def __init__(self, schema):
+        Api.__init__(self, schema.catalog)
         self.schema = schema
 
     def GET(self, uri):
         return self.schema.GET(uri)
 
+def schema_table_body(conn, schema_name, table_name):
+    schema = schema_body(conn, schema_name)
+    if table_name not in schema.tables:
+        raise exception.NotFound('table "%s"' % table_name)
+    else:
+        return (schema, schema.tables[table_name])
+
 class Table (Api):
     """A specific table by name."""
     def __init__(self, schema, name):
+        Api.__init__(self, schema.catalog)
         self.schema = schema
         self.name = name
 
@@ -108,41 +130,49 @@ class Table (Api):
         return ForeignkeyReferences(self.schema.catalog).with_to_table(self)
 
     def GET(self, uri):
-        try:
-            model = self.schema.catalog.manager.get_model()
-            schema = model.schemas[str(self.schema.name)]
-            table = schema.tables[str(self.name)]
-            columns = table.columns.values()
-            columns.sort(key=lambda c: c.position)
-        except KeyError:
-            raise exception.rest.NotFound(uri)
+        def post_commit(tup):
+            schema, table = tup
+            columns = table.columns_in_order()
 
-        response = dict()
-        response['schema_name'] = str(schema.name)
-        response['table_name'] = str(table.name)
-        response['column_definitions'] = Columns.prejson(columns)
-        response['uniques'] = Keys.prejson(table.uniques)
-        response['foreign_keys'] = Foreignkeys.prejson(table.fkeys)
+            response = dict()
+            response['schema_name'] = str(schema.name)
+            response['table_name'] = str(table.name)
+            response['column_definitions'] = Columns.prejson(columns)
+            response['uniques'] = Keys.prejson(table.uniques)
+            response['foreign_keys'] = Foreignkeys.prejson(table.fkeys)
         
-        return json.dumps(response) + '\n'
+            return json.dumps(response) + '\n'
 
+        return self.perform(
+            lambda conn: schema_table_body(
+                conn, 
+                str(self.schema.name), 
+                str(self.name)
+                ),
+            post_commit
+            )
 
 class Columns (Api):
     """A column set."""
     def __init__(self, table):
+        Api.__init__(self, table.schema.catalog)
         self.table = table
 
     def GET(self, uri):
-        try:
-            model = self.table.schema.catalog.manager.get_model()
-            schema = model.schemas[str(self.table.schema.name)]
-            table = schema.tables[str(self.table.name)]
+        def post_commit(tup):
+            schema, table = tup
             columns = table.columns.values()
             columns.sort(key=lambda c: c.position)
-        except KeyError:
-            raise exception.rest.NotFound(uri)
+            return json.dumps(Columns.prejson(columns)) + '\n'
 
-        return json.dumps(Columns.prejson(columns)) + '\n'
+        return self.perform(
+            lambda conn: schema_table_body(
+                conn, 
+                str(self.table.schema.name), 
+                str(self.table.name)
+                ),
+            post_commit
+            )
 
     @staticmethod
     def prejson(columns):
@@ -151,19 +181,28 @@ class Columns (Api):
 class Column (Api):
     """A specific column by name."""
     def __init__(self, table, name):
+        Api.__init__(self, table.schema.catalog)
         self.table = table
         self.name = name
 
     def GET(self, uri):
-        try:
-            model = self.table.schema.catalog.manager.get_model()
-            schema = model.schemas[str(self.table.schema.name)]
-            table = schema.tables[str(self.table.name)]
-            column = table.columns[str(self.name)]
-        except KeyError:
-            raise exception.rest.NotFound(uri)
+        def post_commit(tup):
+            schema, table = tup
+            column_name = str(self.name)
+            if column_name not in table.columns:
+                raise exception.NotFound('column "%s"' % column_name)
+            else:
+                column = table.columns[column_name]
+            return json.dumps(Column.prejson(column)) + '\n'
 
-        return json.dumps(Column.prejson(column)) + '\n'
+        return self.perform(
+            lambda conn: schema_table_body(
+                conn, 
+                str(self.table.schema.name), 
+                str(self.table.name)
+                ),
+            post_commit
+            )
 
     @staticmethod
     def prejson(c):
@@ -173,18 +212,23 @@ class Column (Api):
 class Keys (Api):
     """A set of keys."""
     def __init__(self, table):
+        Api.__init__(self, table.schema.catalog)
         self.table = table
 
     def GET(self, uri):
-        try:
-            model = self.table.schema.catalog.manager.get_model()
-            schema = model.schemas[str(self.table.schema.name)]
-            table = schema.tables[str(self.table.name)]
+        def post_commit(tup):
+            schema, table = tup
             keys = table.uniques
-        except KeyError:
-            raise exception.rest.NotFound(uri)
+            return json.dumps(Keys.prejson(keys)) + '\n'
 
-        return json.dumps(Keys.prejson(keys)) + '\n'
+        return self.perform(
+            lambda conn: schema_table_body(
+                conn, 
+                str(self.table.schema.name), 
+                str(self.table.name)
+                ),
+            post_commit
+            )
 
     @staticmethod
     def prejson(uniques):
@@ -193,6 +237,7 @@ class Keys (Api):
 class Key (Api):
     """A specific key by column set."""
     def __init__(self, table, column_set):
+        Api.__init__(self, table.schema.catalog)
         self.table = table
         self.columns = column_set
 
@@ -201,15 +246,26 @@ class Key (Api):
         return ForeignkeyReferences(self.table.schema.catalog).with_to_key(self)
 
     def GET(self, uri):
-        try:
-            model = self.table.schema.catalog.manager.get_model()
-            schema = model.schemas[str(self.table.schema.name)]
-            table = schema.tables[str(self.table.name)]
-            key = table.uniques[frozenset([ table.columns[str(c)] for c in self.columns ])]
-        except KeyError:
-            raise exception.rest.NotFound(uri)
+        def body(conn):
+            schema, table = schema_table_body(
+                conn, 
+                str(self.table.schema.name), 
+                str(self.table.name)
+                )
+            try:
+                cols = [ table.columns[str(c)] for c in self.columns ]
+            except (KeyError), te:
+                raise exception.NotFound('column "%s"' % str(te))
+            fs = frozenset(cols)
+            if fs not in table.uniques:
+                raise exception.NotFound('key (%s)' % (','.join([ str(c) for c in cols])))
+            return table.uniques[fs]
 
-        return json.dumps(Key.prejson(key)) + '\n'
+        def post_commit(key):
+            return json.dumps(Key.prejson(key)) + '\n'
+
+        return self.perform(body, post_commit)
+
 
     @staticmethod
     def prejson(u):
@@ -229,18 +285,23 @@ class Key (Api):
 class Foreignkeys (Api):
     """A set of foreign keys."""
     def __init__(self, table):
+        Api.__init__(self, table.schema.catalog)
         self.table = table
 
     def GET(self, uri):
-        try:
-            model = self.table.schema.catalog.manager.get_model()
-            schema = model.schemas[str(self.table.schema.name)]
-            table = schema.tables[str(self.table.name)]
+        def post_commit(tup):
+            schema, table = tup
             fkeys = table.fkeys
-        except KeyError:
-            raise exception.rest.NotFound(uri)
+            return json.dumps(Foreignkeys.prejson(fkeys)) + '\n'
 
-        return json.dumps(Foreignkeys.prejson(fkeys)) + '\n'
+        return self.perform(
+            lambda conn: schema_table_body(
+                conn, 
+                str(self.table.schema.name), 
+                str(self.table.name)
+                ),
+            post_commit
+            )
 
     @staticmethod
     def prejson(fkeys):
@@ -249,6 +310,7 @@ class Foreignkeys (Api):
 class Foreignkey (Api):
     """A specific foreign key by column set."""
     def __init__(self, table, column_set):
+        Api.__init__(self, table.schema.catalog)
         self.table = table
         self.columns = column_set
 
@@ -257,15 +319,26 @@ class Foreignkey (Api):
         return ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
     
     def GET(self, uri):
-        try:
-            model = self.table.schema.catalog.manager.get_model()
-            schema = model.schemas[str(self.table.schema.name)]
-            table = schema.tables[str(self.table.name)]
-            fkey = table.fkeys[frozenset([ table.columns[str(c)] for c in self.columns ])]
-        except KeyError:
-            raise exception.rest.NotFound(uri)
+        def body(conn):
+            schema, table = schema_table_body(
+                conn, 
+                str(self.table.schema.name), 
+                str(self.table.name)
+                )
+            try:
+                cols = [ table.columns[str(c)] for c in self.columns ]
+            except (KeyError), te:
+                raise exception.NotFound('column "%s"' % str(te))
+            fs = frozenset(cols)
+            if fs not in table.fkeys:
+                raise exception.NotFound('foreign key (%s)' % (','.join([ str(c) for c in cols])))
+            return table.fkeys[fs]
 
-        return json.dumps(Foreignkey.prejson(fkey)) + '\n'
+
+        def post_commit(fkey):
+            return json.dumps(Foreignkey.prejson(fkey)) + '\n'
+
+        return self.perform(body, post_commit)
 
     @staticmethod
     def prejson(fk):
