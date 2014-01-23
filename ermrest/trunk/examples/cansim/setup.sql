@@ -44,6 +44,7 @@ CREATE TABLE cansim."data_source"
     "created" text NOT NULL,
     "notes" text NOT NULL,
     "ProgramInformation_id" integer NOT NULL,
+    "thumbnail" text NOT NULL,
     "filename" text NOT NULL,
     "UserInformation_id" integer NOT NULL,
     "last_modified" text NOT NULL,
@@ -91,21 +92,21 @@ CREATE TABLE cansim."phenotype_parameter_vector"
     "fluid_fraction" text NOT NULL
   );
   
-CREATE TABLE cansim."cell_line"
-  (
-    "id" integer PRIMARY KEY,
-    "data_source" text NOT NULL
-  );
-
 CREATE TABLE cansim."microenvironment_phenotype_pair"
   (
     "id" integer PRIMARY KEY,
-    "cell_line_id" integer NOT NULL,
     "microenvironment_vector_id" integer NOT NULL,
     "phenotype_parameter_vector_id" integer NOT NULL,
-    FOREIGN KEY ("cell_line_id") REFERENCES cansim."cell_line" (id),
     FOREIGN KEY ("microenvironment_vector_id") REFERENCES cansim."microenvironment_vector" (id),
     FOREIGN KEY ("phenotype_parameter_vector_id") REFERENCES cansim."phenotype_parameter_vector" (id)
+  );
+
+CREATE TABLE cansim."cell_line"
+  (
+    "id" integer PRIMARY KEY,
+    "data_source" text NOT NULL,
+    "microenvironment_phenotype_pair_id" integer NOT NULL,
+    FOREIGN KEY ("microenvironment_phenotype_pair_id") REFERENCES cansim."microenvironment_phenotype_pair" (id)
   );
 
 CREATE TABLE cansim."MultiCell"
