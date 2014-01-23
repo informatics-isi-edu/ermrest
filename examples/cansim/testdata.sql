@@ -14,8 +14,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "1","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"1","3D agent-based model","1","insert code","none","1","sample_hypoxia/output_000000.xml","1","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"1","3D agent-based model","1","insert code","none","1","sample_hypoxia/output_000000.png","sample_hypoxia/output_000000.xml","1","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -26,10 +26,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "1","0","1","1"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"1","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "1","1"
 \.
@@ -38,7 +34,15 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "1","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"1","1","1"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"1","unknown","1"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
 "1","1","1","1"
 \.
 
@@ -50,12 +54,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "2","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"2","1","2","2"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"2","2","2"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"2","unknown","2"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"1","1","1","1"
+"2","1","2","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -70,8 +78,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "2","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"2","3D agent-based model","2","insert code","none","2","sample_hypoxia/output_000001.xml","2","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"2","3D agent-based model","2","insert code","none","2","sample_hypoxia/output_000001.png","sample_hypoxia/output_000001.xml","2","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -82,10 +90,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "2","0","2","2"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"2","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "3","1"
 \.
@@ -94,8 +98,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "3","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"3","2","3","3"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"3","3","3"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"3","unknown","3"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"3","2","3","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -106,12 +118,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "4","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"4","2","4","4"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"4","4","4"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"4","unknown","4"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"2","2","2","1"
+"4","2","4","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -126,8 +142,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "3","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"3","3D agent-based model","3","insert code","none","3","sample_hypoxia/output_000002.xml","3","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"3","3D agent-based model","3","insert code","none","3","sample_hypoxia/output_000002.png","sample_hypoxia/output_000002.xml","3","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -138,10 +154,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "3","0","3","3"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"3","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "5","1"
 \.
@@ -150,8 +162,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "5","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"5","3","5","5"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"5","5","5"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"5","unknown","5"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"5","3","5","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -162,12 +182,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "6","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"6","3","6","6"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"6","6","6"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"6","unknown","6"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"3","3","3","1"
+"6","3","6","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -182,8 +206,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "4","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"4","3D agent-based model","4","insert code","none","4","sample_hypoxia/output_000003.xml","4","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"4","3D agent-based model","4","insert code","none","4","sample_hypoxia/output_000003.png","sample_hypoxia/output_000003.xml","4","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -194,10 +218,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "4","0","4","4"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"4","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "7","1"
 \.
@@ -206,8 +226,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "7","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"7","4","7","7"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"7","7","7"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"7","unknown","7"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"7","4","7","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -218,12 +246,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "8","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"8","4","8","8"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"8","8","8"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"8","unknown","8"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"4","4","4","1"
+"8","4","8","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -238,8 +270,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "5","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"5","3D agent-based model","5","insert code","none","5","sample_hypoxia/output_000004.xml","5","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"5","3D agent-based model","5","insert code","none","5","sample_hypoxia/output_000004.png","sample_hypoxia/output_000004.xml","5","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -250,10 +282,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "5","0","5","5"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"5","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "9","1"
 \.
@@ -262,8 +290,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "9","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"9","5","9","9"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"9","9","9"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"9","unknown","9"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"9","5","9","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -274,12 +310,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "10","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"10","5","10","10"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"10","10","10"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"10","unknown","10"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"5","5","5","1"
+"10","5","10","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -294,8 +334,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "6","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"6","3D agent-based model","6","insert code","none","6","sample_hypoxia/output_000005.xml","6","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"6","3D agent-based model","6","insert code","none","6","sample_hypoxia/output_000005.png","sample_hypoxia/output_000005.xml","6","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -306,10 +346,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "6","0","6","6"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"6","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "11","1"
 \.
@@ -318,8 +354,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "11","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"11","6","11","11"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"11","11","11"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"11","unknown","11"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"11","6","11","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -330,12 +374,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "12","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"12","6","12","12"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"12","12","12"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"12","unknown","12"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"6","6","6","1"
+"12","6","12","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -350,8 +398,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "7","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"7","3D agent-based model","7","insert code","none","7","sample_hypoxia/output_000006.xml","7","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"7","3D agent-based model","7","insert code","none","7","sample_hypoxia/output_000006.png","sample_hypoxia/output_000006.xml","7","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -362,10 +410,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "7","0","7","7"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"7","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "13","1"
 \.
@@ -374,8 +418,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "13","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"13","7","13","13"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"13","13","13"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"13","unknown","13"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"13","7","13","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -386,12 +438,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "14","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"14","7","14","14"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"14","14","14"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"14","unknown","14"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"7","7","7","1"
+"14","7","14","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -406,8 +462,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "8","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"8","3D agent-based model","8","insert code","none","8","sample_hypoxia/output_000007.xml","8","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"8","3D agent-based model","8","insert code","none","8","sample_hypoxia/output_000007.png","sample_hypoxia/output_000007.xml","8","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -418,10 +474,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "8","0","8","8"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"8","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "15","1"
 \.
@@ -430,8 +482,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "15","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"15","8","15","15"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"15","15","15"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"15","unknown","15"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"15","8","15","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -442,12 +502,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "16","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"16","8","16","16"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"16","16","16"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"16","unknown","16"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"8","8","8","1"
+"16","8","16","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -462,8 +526,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "9","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"9","3D agent-based model","9","insert code","none","9","sample_hypoxia/output_000008.xml","9","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"9","3D agent-based model","9","insert code","none","9","sample_hypoxia/output_000008.png","sample_hypoxia/output_000008.xml","9","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -474,10 +538,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "9","0","9","9"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"9","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "17","1"
 \.
@@ -486,8 +546,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "17","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"17","9","17","17"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"17","17","17"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"17","unknown","17"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"17","9","17","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -498,12 +566,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "18","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"18","9","18","18"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"18","18","18"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"18","unknown","18"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"9","9","9","1"
+"18","9","18","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -518,8 +590,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "10","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"10","3D agent-based model","10","insert code","none","10","sample_hypoxia/output_000009.xml","10","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"10","3D agent-based model","10","insert code","none","10","sample_hypoxia/output_000009.png","sample_hypoxia/output_000009.xml","10","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -530,10 +602,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "10","0","10","10"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"10","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "19","1"
 \.
@@ -542,8 +610,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "19","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"19","10","19","19"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"19","19","19"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"19","unknown","19"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"19","10","19","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -554,12 +630,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "20","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"20","10","20","20"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"20","20","20"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"20","unknown","20"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"10","10","10","1"
+"20","10","20","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -574,8 +654,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "11","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"11","3D agent-based model","11","insert code","none","11","sample_hypoxia/output_000010.xml","11","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"11","3D agent-based model","11","insert code","none","11","sample_hypoxia/output_000010.png","sample_hypoxia/output_000010.xml","11","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -586,10 +666,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "11","0","11","11"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"11","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "21","1"
 \.
@@ -598,8 +674,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "21","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"21","11","21","21"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"21","21","21"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"21","unknown","21"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"21","11","21","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -610,12 +694,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "22","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"22","11","22","22"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"22","22","22"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"22","unknown","22"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"11","11","11","1"
+"22","11","22","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -630,8 +718,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "12","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"12","3D agent-based model","12","insert code","none","12","sample_hypoxia/output_000011.xml","12","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"12","3D agent-based model","12","insert code","none","12","sample_hypoxia/output_000011.png","sample_hypoxia/output_000011.xml","12","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -642,10 +730,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "12","0","12","12"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"12","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "23","1"
 \.
@@ -654,8 +738,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "23","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"23","12","23","23"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"23","23","23"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"23","unknown","23"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"23","12","23","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -666,12 +758,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "24","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"24","12","24","24"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"24","24","24"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"24","unknown","24"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"12","12","12","1"
+"24","12","24","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -686,8 +782,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "13","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"13","3D agent-based model","13","insert code","none","13","sample_hypoxia/output_000012.xml","13","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"13","3D agent-based model","13","insert code","none","13","sample_hypoxia/output_000012.png","sample_hypoxia/output_000012.xml","13","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -698,10 +794,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "13","0","13","13"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"13","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "25","1"
 \.
@@ -710,8 +802,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "25","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"25","13","25","25"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"25","25","25"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"25","unknown","25"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"25","13","25","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -722,12 +822,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "26","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"26","13","26","26"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"26","26","26"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"26","unknown","26"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"13","13","13","1"
+"26","13","26","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -742,8 +846,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "14","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"14","3D agent-based model","14","insert code","none","14","sample_hypoxia/output_000013.xml","14","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"14","3D agent-based model","14","insert code","none","14","sample_hypoxia/output_000013.png","sample_hypoxia/output_000013.xml","14","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -754,10 +858,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "14","0","14","14"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"14","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "27","1"
 \.
@@ -766,8 +866,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "27","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"27","14","27","27"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"27","27","27"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"27","unknown","27"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"27","14","27","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -778,12 +886,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "28","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"28","14","28","28"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"28","28","28"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"28","unknown","28"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"14","14","14","1"
+"28","14","28","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -798,8 +910,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "15","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"15","3D agent-based model","15","insert code","none","15","sample_hypoxia/output_000014.xml","15","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"15","3D agent-based model","15","insert code","none","15","sample_hypoxia/output_000014.png","sample_hypoxia/output_000014.xml","15","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -810,10 +922,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "15","0","15","15"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"15","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "29","1"
 \.
@@ -822,8 +930,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "29","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"29","15","29","29"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"29","29","29"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"29","unknown","29"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"29","15","29","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -834,12 +950,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "30","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"30","15","30","30"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"30","30","30"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"30","unknown","30"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"15","15","15","1"
+"30","15","30","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -854,8 +974,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "16","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"16","3D agent-based model","16","insert code","none","16","sample_hypoxia/output_000015.xml","16","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"16","3D agent-based model","16","insert code","none","16","sample_hypoxia/output_000015.png","sample_hypoxia/output_000015.xml","16","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -866,10 +986,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "16","0","16","16"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"16","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "31","1"
 \.
@@ -878,8 +994,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "31","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"31","16","31","31"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"31","31","31"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"31","unknown","31"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"31","16","31","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -890,12 +1014,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "32","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"32","16","32","32"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"32","32","32"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"32","unknown","32"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"16","16","16","1"
+"32","16","32","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -910,8 +1038,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "17","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"17","3D agent-based model","17","insert code","none","17","sample_hypoxia/output_000016.xml","17","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"17","3D agent-based model","17","insert code","none","17","sample_hypoxia/output_000016.png","sample_hypoxia/output_000016.xml","17","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -922,10 +1050,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "17","0","17","17"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"17","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "33","1"
 \.
@@ -934,8 +1058,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "33","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"33","17","33","33"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"33","33","33"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"33","unknown","33"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"33","17","33","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -946,12 +1078,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "34","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"34","17","34","34"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"34","34","34"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"34","unknown","34"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"17","17","17","1"
+"34","17","34","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -966,8 +1102,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "18","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"18","3D agent-based model","18","insert code","none","18","sample_hypoxia/output_000017.xml","18","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"18","3D agent-based model","18","insert code","none","18","sample_hypoxia/output_000017.png","sample_hypoxia/output_000017.xml","18","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -978,10 +1114,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "18","0","18","18"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"18","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "35","1"
 \.
@@ -990,8 +1122,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "35","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"35","18","35","35"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"35","35","35"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"35","unknown","35"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"35","18","35","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1002,12 +1142,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "36","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"36","18","36","36"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"36","36","36"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"36","unknown","36"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"18","18","18","1"
+"36","18","36","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1022,8 +1166,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "19","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"19","3D agent-based model","19","insert code","none","19","sample_hypoxia/output_000018.xml","19","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"19","3D agent-based model","19","insert code","none","19","sample_hypoxia/output_000018.png","sample_hypoxia/output_000018.xml","19","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1034,10 +1178,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "19","0","19","19"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"19","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "37","1"
 \.
@@ -1046,8 +1186,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "37","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"37","19","37","37"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"37","37","37"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"37","unknown","37"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"37","19","37","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1058,12 +1206,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "38","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"38","19","38","38"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"38","38","38"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"38","unknown","38"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"19","19","19","1"
+"38","19","38","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1078,8 +1230,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "20","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"20","3D agent-based model","20","insert code","none","20","sample_hypoxia/output_000019.xml","20","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"20","3D agent-based model","20","insert code","none","20","sample_hypoxia/output_000019.png","sample_hypoxia/output_000019.xml","20","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1090,10 +1242,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "20","0","20","20"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"20","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "39","1"
 \.
@@ -1102,8 +1250,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "39","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"39","20","39","39"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"39","39","39"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"39","unknown","39"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"39","20","39","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1114,12 +1270,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "40","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"40","20","40","40"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"40","40","40"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"40","unknown","40"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"20","20","20","1"
+"40","20","40","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1134,8 +1294,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "21","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"21","3D agent-based model","21","insert code","none","21","sample_hypoxia/output_000020.xml","21","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"21","3D agent-based model","21","insert code","none","21","sample_hypoxia/output_000020.png","sample_hypoxia/output_000020.xml","21","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1146,10 +1306,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "21","0","21","21"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"21","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "41","1"
 \.
@@ -1158,8 +1314,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "41","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"41","21","41","41"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"41","41","41"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"41","unknown","41"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"41","21","41","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1170,12 +1334,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "42","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"42","21","42","42"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"42","42","42"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"42","unknown","42"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"21","21","21","1"
+"42","21","42","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1190,8 +1358,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "22","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"22","3D agent-based model","22","insert code","none","22","sample_hypoxia/output_000021.xml","22","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"22","3D agent-based model","22","insert code","none","22","sample_hypoxia/output_000021.png","sample_hypoxia/output_000021.xml","22","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1202,10 +1370,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "22","0","22","22"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"22","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "43","1"
 \.
@@ -1214,8 +1378,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "43","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"43","22","43","43"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"43","43","43"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"43","unknown","43"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"43","22","43","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1226,12 +1398,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "44","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"44","22","44","44"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"44","44","44"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"44","unknown","44"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"22","22","22","1"
+"44","22","44","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1246,8 +1422,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "23","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"23","3D agent-based model","23","insert code","none","23","sample_hypoxia/output_000022.xml","23","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"23","3D agent-based model","23","insert code","none","23","sample_hypoxia/output_000022.png","sample_hypoxia/output_000022.xml","23","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1258,10 +1434,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "23","0","23","23"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"23","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "45","1"
 \.
@@ -1270,8 +1442,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "45","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"45","23","45","45"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"45","45","45"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"45","unknown","45"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"45","23","45","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1282,12 +1462,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "46","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"46","23","46","46"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"46","46","46"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"46","unknown","46"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"23","23","23","1"
+"46","23","46","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1302,8 +1486,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "24","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"24","3D agent-based model","24","insert code","none","24","sample_hypoxia/output_000023.xml","24","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"24","3D agent-based model","24","insert code","none","24","sample_hypoxia/output_000023.png","sample_hypoxia/output_000023.xml","24","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1314,10 +1498,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "24","0","24","24"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"24","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "47","1"
 \.
@@ -1326,8 +1506,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "47","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"47","24","47","47"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"47","47","47"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"47","unknown","47"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"47","24","47","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1338,12 +1526,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "48","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"48","24","48","48"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"48","48","48"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"48","unknown","48"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"24","24","24","1"
+"48","24","48","1"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1358,8 +1550,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "25","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"25","3D agent-based model","25","insert code","none","25","sample_hypoxia/output_000024.xml","25","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"25","3D agent-based model","25","insert code","none","25","sample_hypoxia/output_000024.png","sample_hypoxia/output_000024.xml","25","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1370,10 +1562,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "25","0","25","25"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"25","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "49","1"
 \.
@@ -1382,8 +1570,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "49","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"49","25","49","49"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"49","49","49"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"49","unknown","49"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"49","25","49","1"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1394,12 +1590,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "50","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"50","25","50","50"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"50","50","50"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"50","unknown","50"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"25","25","25","1"
+"50","25","50","1"
 \.
 
 COPY cansim."simulation" ("id", "name") from stdin with csv delimiter ',' quote '"';
@@ -1418,8 +1618,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "26","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"26","3D agent-based model","26","insert code","none","26","sample_output1/output_000000.xml","26","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"26","3D agent-based model","26","insert code","none","26","sample_output1/output_000000.png","sample_output1/output_000000.xml","26","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1430,10 +1630,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "26","0","26","26"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"26","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "51","1"
 \.
@@ -1442,8 +1638,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "51","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"51","26","51","51"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"51","51","51"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"51","unknown","51"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"51","26","51","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1454,12 +1658,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "52","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"52","26","52","52"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"52","52","52"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"52","unknown","52"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"26","26","26","2"
+"52","26","52","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1474,8 +1682,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "27","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"27","3D agent-based model","27","insert code","none","27","sample_output1/output_000001.xml","27","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"27","3D agent-based model","27","insert code","none","27","sample_output1/output_000001.png","sample_output1/output_000001.xml","27","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1486,10 +1694,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "27","0","27","27"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"27","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "53","1"
 \.
@@ -1498,8 +1702,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "53","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"53","27","53","53"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"53","53","53"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"53","unknown","53"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"53","27","53","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1510,12 +1722,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "54","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"54","27","54","54"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"54","54","54"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"54","unknown","54"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"27","27","27","2"
+"54","27","54","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1530,8 +1746,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "28","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"28","3D agent-based model","28","insert code","none","28","sample_output1/output_000002.xml","28","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"28","3D agent-based model","28","insert code","none","28","sample_output1/output_000002.png","sample_output1/output_000002.xml","28","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1542,10 +1758,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "28","0","28","28"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"28","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "55","1"
 \.
@@ -1554,8 +1766,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "55","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"55","28","55","55"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"55","55","55"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"55","unknown","55"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"55","28","55","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1566,12 +1786,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "56","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"56","28","56","56"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"56","56","56"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"56","unknown","56"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"28","28","28","2"
+"56","28","56","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1586,8 +1810,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "29","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"29","3D agent-based model","29","insert code","none","29","sample_output1/output_000003.xml","29","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"29","3D agent-based model","29","insert code","none","29","sample_output1/output_000003.png","sample_output1/output_000003.xml","29","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1598,10 +1822,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "29","0","29","29"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"29","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "57","1"
 \.
@@ -1610,8 +1830,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "57","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"57","29","57","57"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"57","57","57"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"57","unknown","57"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"57","29","57","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1622,12 +1850,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "58","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"58","29","58","58"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"58","58","58"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"58","unknown","58"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"29","29","29","2"
+"58","29","58","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1642,8 +1874,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "30","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"30","3D agent-based model","30","insert code","none","30","sample_output1/output_000004.xml","30","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"30","3D agent-based model","30","insert code","none","30","sample_output1/output_000004.png","sample_output1/output_000004.xml","30","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1654,10 +1886,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "30","0","30","30"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"30","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "59","1"
 \.
@@ -1666,8 +1894,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "59","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"59","30","59","59"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"59","59","59"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"59","unknown","59"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"59","30","59","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1678,12 +1914,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "60","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"60","30","60","60"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"60","60","60"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"60","unknown","60"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"30","30","30","2"
+"60","30","60","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1698,8 +1938,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "31","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"31","3D agent-based model","31","insert code","none","31","sample_output1/output_000005.xml","31","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"31","3D agent-based model","31","insert code","none","31","sample_output1/output_000005.png","sample_output1/output_000005.xml","31","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1710,10 +1950,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "31","0","31","31"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"31","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "61","1"
 \.
@@ -1722,8 +1958,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "61","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"61","31","61","61"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"61","61","61"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"61","unknown","61"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"61","31","61","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1734,12 +1978,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "62","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"62","31","62","62"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"62","62","62"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"62","unknown","62"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"31","31","31","2"
+"62","31","62","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1754,8 +2002,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "32","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"32","3D agent-based model","32","insert code","none","32","sample_output1/output_000006.xml","32","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"32","3D agent-based model","32","insert code","none","32","sample_output1/output_000006.png","sample_output1/output_000006.xml","32","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1766,10 +2014,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "32","0","32","32"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"32","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "63","1"
 \.
@@ -1778,8 +2022,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "63","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"63","32","63","63"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"63","63","63"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"63","unknown","63"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"63","32","63","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1790,12 +2042,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "64","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"64","32","64","64"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"64","64","64"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"64","unknown","64"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"32","32","32","2"
+"64","32","64","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1810,8 +2066,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "33","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"33","3D agent-based model","33","insert code","none","33","sample_output1/output_000007.xml","33","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"33","3D agent-based model","33","insert code","none","33","sample_output1/output_000007.png","sample_output1/output_000007.xml","33","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1822,10 +2078,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "33","0","33","33"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"33","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "65","1"
 \.
@@ -1834,8 +2086,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "65","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"65","33","65","65"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"65","65","65"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"65","unknown","65"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"65","33","65","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1846,12 +2106,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "66","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"66","33","66","66"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"66","66","66"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"66","unknown","66"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"33","33","33","2"
+"66","33","66","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1866,8 +2130,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "34","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"34","3D agent-based model","34","insert code","none","34","sample_output1/output_000008.xml","34","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"34","3D agent-based model","34","insert code","none","34","sample_output1/output_000008.png","sample_output1/output_000008.xml","34","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1878,10 +2142,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "34","0","34","34"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"34","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "67","1"
 \.
@@ -1890,8 +2150,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "67","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"67","34","67","67"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"67","67","67"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"67","unknown","67"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"67","34","67","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1902,12 +2170,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "68","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"68","34","68","68"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"68","68","68"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"68","unknown","68"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"34","34","34","2"
+"68","34","68","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1922,8 +2194,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "35","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"35","3D agent-based model","35","insert code","none","35","sample_output1/output_000009.xml","35","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"35","3D agent-based model","35","insert code","none","35","sample_output1/output_000009.png","sample_output1/output_000009.xml","35","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1934,10 +2206,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "35","0","35","35"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"35","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "69","1"
 \.
@@ -1946,8 +2214,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "69","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"69","35","69","69"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"69","69","69"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"69","unknown","69"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"69","35","69","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -1958,12 +2234,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "70","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"70","35","70","70"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"70","70","70"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"70","unknown","70"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"35","35","35","2"
+"70","35","70","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -1978,8 +2258,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "36","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"36","3D agent-based model","36","insert code","none","36","sample_output1/output_000010.xml","36","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"36","3D agent-based model","36","insert code","none","36","sample_output1/output_000010.png","sample_output1/output_000010.xml","36","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -1990,10 +2270,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "36","0","36","36"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"36","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "71","1"
 \.
@@ -2002,8 +2278,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "71","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"71","36","71","71"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"71","71","71"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"71","unknown","71"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"71","36","71","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2014,12 +2298,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "72","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"72","36","72","72"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"72","72","72"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"72","unknown","72"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"36","36","36","2"
+"72","36","72","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2034,8 +2322,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "37","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"37","3D agent-based model","37","insert code","none","37","sample_output1/output_000011.xml","37","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"37","3D agent-based model","37","insert code","none","37","sample_output1/output_000011.png","sample_output1/output_000011.xml","37","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2046,10 +2334,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "37","0","37","37"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"37","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "73","1"
 \.
@@ -2058,8 +2342,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "73","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"73","37","73","73"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"73","73","73"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"73","unknown","73"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"73","37","73","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2070,12 +2362,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "74","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"74","37","74","74"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"74","74","74"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"74","unknown","74"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"37","37","37","2"
+"74","37","74","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2090,8 +2386,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "38","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"38","3D agent-based model","38","insert code","none","38","sample_output1/output_000012.xml","38","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"38","3D agent-based model","38","insert code","none","38","sample_output1/output_000012.png","sample_output1/output_000012.xml","38","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2102,10 +2398,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "38","0","38","38"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"38","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "75","1"
 \.
@@ -2114,8 +2406,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "75","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"75","38","75","75"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"75","75","75"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"75","unknown","75"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"75","38","75","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2126,12 +2426,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "76","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"76","38","76","76"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"76","76","76"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"76","unknown","76"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"38","38","38","2"
+"76","38","76","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2146,8 +2450,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "39","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"39","3D agent-based model","39","insert code","none","39","sample_output1/output_000013.xml","39","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"39","3D agent-based model","39","insert code","none","39","sample_output1/output_000013.png","sample_output1/output_000013.xml","39","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2158,10 +2462,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "39","0","39","39"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"39","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "77","1"
 \.
@@ -2170,8 +2470,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "77","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"77","39","77","77"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"77","77","77"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"77","unknown","77"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"77","39","77","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2182,12 +2490,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "78","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"78","39","78","78"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"78","78","78"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"78","unknown","78"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"39","39","39","2"
+"78","39","78","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2202,8 +2514,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "40","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"40","3D agent-based model","40","insert code","none","40","sample_output1/output_000014.xml","40","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"40","3D agent-based model","40","insert code","none","40","sample_output1/output_000014.png","sample_output1/output_000014.xml","40","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2214,10 +2526,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "40","0","40","40"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"40","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "79","1"
 \.
@@ -2226,8 +2534,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "79","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"79","40","79","79"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"79","79","79"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"79","unknown","79"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"79","40","79","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2238,12 +2554,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "80","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"80","40","80","80"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"80","80","80"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"80","unknown","80"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"40","40","40","2"
+"80","40","80","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2258,8 +2578,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "41","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"41","3D agent-based model","41","insert code","none","41","sample_output1/output_000015.xml","41","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"41","3D agent-based model","41","insert code","none","41","sample_output1/output_000015.png","sample_output1/output_000015.xml","41","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2270,10 +2590,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "41","0","41","41"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"41","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "81","1"
 \.
@@ -2282,8 +2598,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "81","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"81","41","81","81"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"81","81","81"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"81","unknown","81"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"81","41","81","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2294,12 +2618,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "82","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"82","41","82","82"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"82","82","82"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"82","unknown","82"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"41","41","41","2"
+"82","41","82","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2314,8 +2642,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "42","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"42","3D agent-based model","42","insert code","none","42","sample_output1/output_000016.xml","42","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"42","3D agent-based model","42","insert code","none","42","sample_output1/output_000016.png","sample_output1/output_000016.xml","42","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2326,10 +2654,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "42","0","42","42"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"42","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "83","1"
 \.
@@ -2338,8 +2662,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "83","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"83","42","83","83"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"83","83","83"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"83","unknown","83"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"83","42","83","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2350,12 +2682,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "84","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"84","42","84","84"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"84","84","84"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"84","unknown","84"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"42","42","42","2"
+"84","42","84","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2370,8 +2706,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "43","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"43","3D agent-based model","43","insert code","none","43","sample_output1/output_000017.xml","43","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"43","3D agent-based model","43","insert code","none","43","sample_output1/output_000017.png","sample_output1/output_000017.xml","43","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2382,10 +2718,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "43","0","43","43"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"43","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "85","1"
 \.
@@ -2394,8 +2726,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "85","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"85","43","85","85"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"85","85","85"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"85","unknown","85"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"85","43","85","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2406,12 +2746,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "86","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"86","43","86","86"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"86","86","86"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"86","unknown","86"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"43","43","43","2"
+"86","43","86","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2426,8 +2770,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "44","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"44","3D agent-based model","44","insert code","none","44","sample_output1/output_000018.xml","44","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"44","3D agent-based model","44","insert code","none","44","sample_output1/output_000018.png","sample_output1/output_000018.xml","44","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2438,10 +2782,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "44","0","44","44"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"44","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "87","1"
 \.
@@ -2450,8 +2790,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "87","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"87","44","87","87"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"87","87","87"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"87","unknown","87"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"87","44","87","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2462,12 +2810,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "88","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"88","44","88","88"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"88","88","88"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"88","unknown","88"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"44","44","44","2"
+"88","44","88","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2482,8 +2834,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "45","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"45","3D agent-based model","45","insert code","none","45","sample_output1/output_000019.xml","45","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"45","3D agent-based model","45","insert code","none","45","sample_output1/output_000019.png","sample_output1/output_000019.xml","45","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2494,10 +2846,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "45","0","45","45"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"45","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "89","1"
 \.
@@ -2506,8 +2854,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "89","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"89","45","89","89"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"89","89","89"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"89","unknown","89"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"89","45","89","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2518,12 +2874,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "90","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"90","45","90","90"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"90","90","90"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"90","unknown","90"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"45","45","45","2"
+"90","45","90","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2538,8 +2898,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "46","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"46","3D agent-based model","46","insert code","none","46","sample_output1/output_000020.xml","46","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"46","3D agent-based model","46","insert code","none","46","sample_output1/output_000020.png","sample_output1/output_000020.xml","46","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2550,10 +2910,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "46","0","46","46"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"46","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "91","1"
 \.
@@ -2562,8 +2918,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "91","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"91","46","91","91"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"91","91","91"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"91","unknown","91"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"91","46","91","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2574,12 +2938,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "92","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"92","46","92","92"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"92","92","92"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"92","unknown","92"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"46","46","46","2"
+"92","46","92","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2594,8 +2962,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "47","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"47","3D agent-based model","47","insert code","none","47","sample_output1/output_000021.xml","47","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"47","3D agent-based model","47","insert code","none","47","sample_output1/output_000021.png","sample_output1/output_000021.xml","47","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2606,10 +2974,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "47","0","47","47"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"47","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "93","1"
 \.
@@ -2618,8 +2982,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "93","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"93","47","93","93"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"93","93","93"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"93","unknown","93"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"93","47","93","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2630,12 +3002,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "94","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"94","47","94","94"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"94","94","94"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"94","unknown","94"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"47","47","47","2"
+"94","47","94","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2650,8 +3026,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "48","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"48","3D agent-based model","48","insert code","none","48","sample_output1/output_000022.xml","48","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"48","3D agent-based model","48","insert code","none","48","sample_output1/output_000022.png","sample_output1/output_000022.xml","48","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2662,10 +3038,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "48","0","48","48"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"48","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "95","1"
 \.
@@ -2674,8 +3046,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "95","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"95","48","95","95"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"95","95","95"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"95","unknown","95"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"95","48","95","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2686,12 +3066,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "96","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"96","48","96","96"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"96","96","96"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"96","unknown","96"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"48","48","48","2"
+"96","48","96","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2706,8 +3090,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "49","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"49","3D agent-based model","49","insert code","none","49","sample_output1/output_000023.xml","49","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"49","3D agent-based model","49","insert code","none","49","sample_output1/output_000023.png","sample_output1/output_000023.xml","49","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2718,10 +3102,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "49","0","49","49"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"49","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "97","1"
 \.
@@ -2730,8 +3110,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "97","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"97","49","97","97"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"97","97","97"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"97","unknown","97"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"97","49","97","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2742,12 +3130,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "98","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"98","49","98","98"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"98","98","98"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"98","unknown","98"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"49","49","49","2"
+"98","49","98","2"
 \.
 
 COPY cansim."UserInformation" ("id", "Name", "Phone", "URL", "Affiliation", "Location", "email") from stdin with csv delimiter ',' quote '"';
@@ -2762,8 +3154,8 @@ COPY cansim."reference" ("id", "URL", "note", "citation") from stdin with csv de
 "50","http://www.MathCancer.org/Publications.php#macklin12_jtb","DOI: 10.1016/j.jtbi.2012.02.002","P. Macklin et al., J. Theor. Biol. (2012)"
 \.
 
-COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
-"50","3D agent-based model","50","insert code","none","50","sample_output1/output_000024.xml","50","insert code"
+COPY cansim."data_source" ("id", "description", "reference_id", "created", "notes", "ProgramInformation_id", "thumbnail", "filename", "UserInformation_id", "last_modified") from stdin with csv delimiter ',' quote '"';
+"50","3D agent-based model","50","insert code","none","50","sample_output1/output_000024.png","sample_output1/output_000024.xml","50","insert code"
 \.
 
 COPY cansim."bounding_box" ("id", "upper_bounds", "lower_bounds") from stdin with csv delimiter ',' quote '"';
@@ -2774,10 +3166,6 @@ COPY cansim."metadata" ("id", "current_time", "bounding_box_id", "data_source_id
 "50","0","50","50"
 \.
 
-COPY cansim."cell_line" ("id", "data_source") from stdin with csv delimiter ',' quote '"';
-"50","unknown"
-\.
-
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
 "99","1"
 \.
@@ -2786,8 +3174,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "99","769.8","1","2.58e-006","1071.16","184.8","1","4188.79","523.599","183.6","1.5","0.7"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"99","50","99","99"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"99","99","99"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"99","unknown","99"
+\.
+
+COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
+"99","50","99","2"
 \.
 
 COPY cansim."microenvironment_vector" ("id", "oxygen") from stdin with csv delimiter ',' quote '"';
@@ -2798,12 +3194,16 @@ COPY cansim."phenotype_parameter_vector" ("id", "duration_of_S", "Youngs_modulus
 "100","769.8","1","0.258","1.0716e+006","184.8","1","4188.79","523.599","183.6","1.5","0"
 \.
 
-COPY cansim."microenvironment_phenotype_pair" ("id", "cell_line_id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
-"100","50","100","100"
+COPY cansim."microenvironment_phenotype_pair" ("id", "microenvironment_vector_id", "phenotype_parameter_vector_id") from stdin with csv delimiter ',' quote '"';
+"100","100","100"
+\.
+
+COPY cansim."cell_line" ("id", "data_source", "microenvironment_phenotype_pair_id") from stdin with csv delimiter ',' quote '"';
+"100","unknown","100"
 \.
 
 COPY cansim."MultiCell" ("id", "metadata_id", "cell_line_id", "simulation_id") from stdin with csv delimiter ',' quote '"';
-"50","50","50","2"
+"100","50","100","2"
 \.
 
 SET client_min_messages=ERROR;
