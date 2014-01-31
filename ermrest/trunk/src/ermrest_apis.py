@@ -288,9 +288,9 @@ def web_urls():
         import cirm
         cirm_urls = (
             # print job and print control, and zoomify
-            '/printer/([^/]+)/job', cirm.printjob.PrintJob,
-            '/printer/([^/]+)/job/([^/]+)/', cirm.printjob.PrintJob,
-            '/printer/([^/]+)/control/([^/]+)/', cirm.printcontrol.PrintControl,
+            '/printer/([^/]+)/job', cirm.printer.PrintJob,
+            '/printer/([^/]+)/job/([^/]+)/', cirm.printer.PrintJob,
+            '/printer/([^/]+)/control/([^/]+)/', cirm.printer.PrintControl,
             '/transfer', cirm.transfer.GlobusClient,
             '/zoomify/(.*)', cirm.zoomify.Zoomify
         )

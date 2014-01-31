@@ -50,5 +50,12 @@
       "database_name": "ermrest"
     },
     
+    "printers" : {
+      "slide_addr" : "mycxi.isi.edu",
+      "slide_port" : 9100,
+      "box_addr" : "mycxilabel.isi.edu",
+      "box_port": 9100
+    },
+    
     "deploy_cirm" : true
 }
