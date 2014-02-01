@@ -286,11 +286,26 @@ def web_urls():
     #       package installed
     if global_env.get('deploy_cirm'):
         import cirm
+        
+        def printControl(printers):
+            class C (cirm.printer.PrintControl):
+                def __init__(self):
+                    self.printers = printers
+                    cirm.printer.PrintControl.__init__(self)
+            return C
+
+        def printJob(printers):
+            class C (cirm.printer.PrintJob):
+                def __init__(self):
+                    self.printers = printers
+                    cirm.printer.PrintJob.__init__(self)
+            return C
+
         cirm_urls = (
             # print job and print control, and zoomify
-            '/printer/([^/]+)/job', cirm.printer.PrintJob,
-            '/printer/([^/]+)/job/([^/]+)/', cirm.printer.PrintJob,
-            '/printer/([^/]+)/control/([^/]+)/', cirm.printer.PrintControl,
+            '/printer/([^/]+)/job', printJob(global_env.get('printers')),
+            '/printer/([^/]+)/job/([^/]+)/', printJob(global_env.get('printers')),
+            '/printer/([^/]+)/control/([^/]+)/', printControl(global_env.get('printers')),
             '/transfer', cirm.transfer.GlobusClient,
             '/zoomify/(.*)', cirm.zoomify.Zoomify
         )
