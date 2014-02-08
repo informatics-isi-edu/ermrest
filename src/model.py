@@ -228,6 +228,8 @@ def __pg_default_value(base_type, raw):
     """
     if not raw:
         return raw
+    elif raw.find("'::text") >= 0:
+        return raw[1:raw.find("'::text")]
     elif raw.find('nextval') >= 0:
         return 'sequence' #TODO: or 'incremental'?
     elif base_type == 'integer' or base_type == 'bigint':

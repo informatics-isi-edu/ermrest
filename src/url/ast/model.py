@@ -206,7 +206,7 @@ class Column (Api):
 
     @staticmethod
     def prejson(c):
-        return dict(name=str(c.name), type=str(c.type))
+        return dict(name=str(c.name), type=str(c.type), default=str(c.default_value))
 
 
 class Keys (Api):
