@@ -29,6 +29,7 @@ from ermrest import exception
 
 import urllib
 import json
+import re
 
 __all__ = ["introspect", "Model", "Schema", "Table", "Column", "Type", "sql_ident"]
 
@@ -467,7 +468,11 @@ class FreetextColumn (Column):
     
     def __init__(self, table):
         self.table = table
-        self.srccols = [ c for c in table.columns.itervalues() if str(c.type) == 'text' ]
+        
+        def istext(ctype):
+            return re.match( r'(text|character)( *varying)?([(]0-9*[)])?', ctype)
+            
+        self.srccols = [ c for c in table.columns.itervalues() if istext(str(c.type)) ]
         self.srccols.sort(key=lambda c: c.position)
         self.type = Type('tsvector')
 
