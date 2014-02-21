@@ -479,7 +479,7 @@ class FreetextColumn (Column):
     def sql_name_with_talias(self, talias):
         colnames = [ '%s.%s' % (talias, c.sql_name()) for c in self.srccols ]
         if colnames:
-            return "to_tsvector('english'::regconfig, %s)" % (' || '.join([ "COALESCE(%s::text,''::text)" % name for name in colnames ]))
+            return "to_tsvector('english'::regconfig, %s)" % (" || ' ' || ".join([ "COALESCE(%s::text,''::text)" % name for name in colnames ]))
         else:
             return "to_tsvector('english'::regconfig, ''::text)"
 
