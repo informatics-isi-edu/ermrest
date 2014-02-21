@@ -19,11 +19,11 @@ CREATE TABLE cirm.box
 CREATE INDEX ON cirm.box USING gin ( 
   (to_tsvector('english'::regconfig, 
   	       COALESCE(id::text, ''::text) 
-	       || COALESCE(sample_name::text, ''::text) 
-	       || COALESCE(initials::text, '':text) 
-	       || COALESCE(disambiguator::text, '':text) 
-	       || COALESCE(comment::text, ''::text) 
-	       || COALESCE(tags::text, ''::text)
+	       || ' ' || COALESCE(sample_name::text, ''::text) 
+	       || ' ' || COALESCE(initials::text, ''::text) 
+	       || ' ' || COALESCE(disambiguator::text, ''::text) 
+	       || ' ' || COALESCE(comment::text, ''::text) 
+	       || ' ' || COALESCE(tags::text, ''::text)
 	      )
   ) 
 );
@@ -42,11 +42,11 @@ CREATE TABLE cirm.experiment
 CREATE INDEX ON cirm.experiment USING gin ( 
   (to_tsvector('english'::regconfig, 
   	       COALESCE(id::text, ''::text) 
-	       || COALESCE(experiment_description::text, ''::text) 
-	       || COALESCE(initials::text, '':text) 
-	       || COALESCE(disambiguator::text, ''::text) 
-	       || COALESCE(comment::text, ''::text) 
-	       || COALESCE(tags::text, ''::text)
+	       || ' ' || COALESCE(experiment_description::text, ''::text) 
+	       || ' ' || COALESCE(initials::text, ''::text) 
+	       || ' ' || COALESCE(disambiguator::text, ''::text) 
+	       || ' ' || COALESCE(comment::text, ''::text) 
+	       || ' ' || COALESCE(tags::text, ''::text)
 	      )
   ) 
 );
@@ -67,10 +67,10 @@ CREATE TABLE cirm.slide
 CREATE INDEX ON cirm.slide USING gin ( 
   (to_tsvector('english'::regconfig, 
   	       COALESCE(id::text, ''::text) 
-	       || COALESCE(box_of_origin_id::text, ''::text) 
-	       || COALESCE(experiment_id::text, '':text) 
-	       || COALESCE(comment::text, ''::text) 
-	       || COALESCE(tags::text, ''::text)
+	       || ' ' || COALESCE(box_of_origin_id::text, ''::text) 
+	       || ' ' || COALESCE(experiment_id::text, ''::text) 
+	       || ' ' || COALESCE(comment::text, ''::text) 
+	       || ' ' || COALESCE(tags::text, ''::text)
 	      )
   ) 
 );
@@ -92,12 +92,12 @@ CREATE TABLE cirm.scan
 CREATE INDEX ON cirm.scan USING gin ( 
   (to_tsvector('english'::regconfig, 
   	       COALESCE(id::text, ''::text) 
-	       || COALESCE(slide_id::text, ''::text) 
-	       || COALESCE(filename::text, '':text) 
-	       || COALESCE(thumbnail::text, ''::text) 
-	       || COALESCE(tilesdir::text, ''::text) 
-	       || COALESCE(comment::text, ''::text) 
-	       || COALESCE(tags::text, ''::text)
+	       || ' ' || COALESCE(slide_id::text, ''::text) 
+	       || ' ' || COALESCE(filename::text, ''::text) 
+	       || ' ' || COALESCE(thumbnail::text, ''::text) 
+	       || ' ' || COALESCE(tilesdir::text, ''::text) 
+	       || ' ' || COALESCE(comment::text, ''::text) 
+	       || ' ' || COALESCE(tags::text, ''::text)
 	      )
   ) 
 );
