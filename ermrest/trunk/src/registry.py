@@ -186,6 +186,8 @@ FROM %(schema)s.%(table)s
         entries = list()
         for id, descriptor in cur:
             entries.append(dict(id=id, descriptor=json.loads(descriptor)))
+        cur.close()
+        self._conn.commit()
         return entries
     
     
