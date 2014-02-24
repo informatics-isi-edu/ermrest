@@ -183,10 +183,20 @@ class Catalog (PooledConnection):
             self._dbc = self._get_pooled_connection()
         return self._dbc
 
+    def discard_connection(self, conn):
+        """Discard connection from pool"""
+        assert conn  == self._dbc
+        try:
+            self._dbc.close()
+        except:
+            pass
+        self._dbc = None
+    
     def release_connection(self, conn):
         """Return connection to pool"""
         assert conn  == self._dbc
         self._put_pooled_connection(conn)
+        self._dbc = None
     
     def get_model(self):
         # TODO: turn this into a @property

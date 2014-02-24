@@ -20,46 +20,58 @@
 """
 from ermrest.exception import *
 from ermrest import model
+import psycopg2
+import web
+import traceback
+import sys
 
 class Api (object):
     is_filter = False
 
     def __init__(self, catalog):
         self.catalog = catalog
+        self._conn = None
 
     def with_queryopts(self, qopt):
         self.queryopts = qopt
         return self
 
-    def get_conn(self):
-        self._conn = self.catalog.get_conn()
-        return self._conn
-
     def perform(self, body, finish):
         # TODO: implement backoff/retry on transient exceptions?
-        conn = self.get_conn()
+        self._conn = self.catalog.get_conn()
         try:
-            result = body(conn)
-            conn.commit()
+            result = body(self._conn)
+            self._conn.commit()
+            return finish(result)
+        except psycopg2.InterfaceError, e:
+            # reset bad connection
+            self.catalog.discard_conn(self._conn)
+            self._conn = self.catalog.get_conn()
+            et, ev2, tb = sys.exc_info()
+            web.debug(
+                str(e),
+                traceback.format_exception(et, ev2, tb))
+            raise rest.ServiceUnavailable("Please try again.")
         except NotFound, e:
-            conn.rollback()
+            self._conn.rollback()
             raise rest.NotFound(e.message)
         except BadData, e:
-            conn.rollback()
+            self._conn.rollback()
             raise rest.BadRequest(e.message)
         except ConflictData, e:
-            conn.rollback()
+            self._conn.rollback()
             raise rest.Conflict(e.message)
         except UnsupportedMediaType, e:
-            conn.rollback()
+            self._conn.rollback()
             raise rest.UnsupportedMediaType
         except:
-            conn.rollback()
+            self._conn.rollback()
             raise
-        return finish(result)
     
     def final(self):
-        self.catalog.release_conn(self._conn)
+        if self._conn:
+            self.catalog.release_conn(self._conn)
+            self._conn = None
 
 class Path (list):
     pass

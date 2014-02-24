@@ -116,13 +116,14 @@ class Entity (Api):
     def GET(self, uri):
         """Perform HTTP GET of entities.
         """
-        if not self.catalog.manager.has_content_read(
-                                web.ctx.webauthn2_context.attributes):
-            raise rest.Unauthorized(uri)
-
         content_type = negotiated_content_type(default=self.default_content_type)
         
         def body(conn):
+            if not self.catalog.manager.has_content_read(
+                web.ctx.webauthn2_context.attributes
+                ):
+                raise rest.Unauthorized(uri)
+
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
             return epath.get(conn, content_type=content_type)
