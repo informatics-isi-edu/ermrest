@@ -206,6 +206,7 @@ class Dispatcher:
             raise
 
     def METHOD(self, methodname):
+        ast = None
         try:
             try:
                 uri, ast = self.prepareDispatch()
@@ -237,6 +238,8 @@ class Dispatcher:
         finally:
             # log after we force iterator, to flush any deferred transaction log messages
             request_final()
+            if ast is not None:
+                ast.final()
 
     def HEAD(self):
         return self.METHOD('HEAD')

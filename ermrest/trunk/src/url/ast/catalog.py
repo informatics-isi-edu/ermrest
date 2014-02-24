@@ -115,6 +115,10 @@ class Catalog (Api):
         """get db conn to this catalog."""
         return self.manager.get_connection()
     
+    def release_conn(self, conn):
+        """release db conn to this catalog."""
+        self.manager.release_connection(conn)
+    
     def GET(self, uri):
         """Perform HTTP GET of catalog.
         """

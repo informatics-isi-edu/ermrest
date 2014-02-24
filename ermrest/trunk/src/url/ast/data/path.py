@@ -32,7 +32,8 @@ class Api (object):
         return self
 
     def get_conn(self):
-        return self.catalog.get_conn()
+        self._conn = self.catalog.get_conn()
+        return self._conn
 
     def perform(self, body, finish):
         # TODO: implement backoff/retry on transient exceptions?
@@ -57,6 +58,8 @@ class Api (object):
             raise
         return finish(result)
     
+    def final(self):
+        self.catalog.release_conn(self._conn)
 
 class Path (list):
     pass

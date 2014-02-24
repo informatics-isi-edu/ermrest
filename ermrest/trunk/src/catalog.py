@@ -32,6 +32,7 @@ import uuid
 import base64
 import psycopg2
 import sanepg2
+from webauthn2.util import PooledConnection
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists
 
@@ -131,7 +132,7 @@ WHERE datname = %(dbname)s
             self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
     
     
-class Catalog (object):
+class Catalog (PooledConnection):
     """Provides basic catalog management.
     """
     
@@ -161,6 +162,14 @@ class Catalog (object):
         self._factory = factory
         self._dbc = None
         self._model = None
+
+        pool_key = (self.descriptor[self._DBNAME],)
+        PooledConnection.__init__(self, pool_key)
+
+    def _new_connection(self):
+        """Create raw connection to be managed by parent pool class"""
+        return psycopg2.connect(dbname=self.descriptor[self._DBNAME],
+                                connection_factory=sanepg2.connection)
         
     def __del__(self):
         if self._dbc:
@@ -168,11 +177,16 @@ class Catalog (object):
             self._dbc = None
         
     def get_connection(self):
+        """Get connection from pool"""
         # TODO: turn this into a @property
         if not self._dbc:
-            self._dbc = psycopg2.connect(dbname=self.descriptor[self._DBNAME],
-                                         connection_factory=sanepg2.connection)
+            self._dbc = self._get_pooled_connection()
         return self._dbc
+
+    def release_connection(self, conn):
+        """Return connection to pool"""
+        assert conn  == self._dbc
+        self._put_pooled_connection(conn)
     
     def get_model(self):
         # TODO: turn this into a @property
