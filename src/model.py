@@ -52,24 +52,58 @@ def introspect(conn):
     """
     
     # Select all column metadata from database, excluding system schemas
+
+    # this postgres-specific code borrows bits from its information_schema view definitions
+    # but is trimmed down to be a cheaper query to execute
     SELECT_COLUMNS = '''
-SELECT 
-   c.table_catalog, 
-   c.table_schema, 
-   c.table_name, 
-   array_agg(c.column_name::text ORDER BY c.ordinal_position) AS column_names, 
-   array_agg(c.column_default::text ORDER BY c.ordinal_position) AS default_values, 
-   array_agg(c.data_type::text ORDER BY c.ordinal_position) AS data_types, 
-   array_agg(e.data_type::text ORDER BY c.ordinal_position) AS element_types
-FROM information_schema.columns c 
-LEFT JOIN information_schema.element_types e
-  ON ((c.table_catalog, c.table_schema, c.table_name, 'TABLE', c.dtd_identifier)
-       = (e.object_catalog, e.object_schema, e.object_name, e.object_type, e.collection_type_identifier))
-WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog')
-GROUP BY 
-   c.table_catalog, 
-   c.table_schema, 
-   c.table_name
+SELECT
+  current_database() AS table_catalog,
+  nc.nspname AS table_schema,
+  c.relname AS table_name,
+  array_agg(a.attname::text ORDER BY a.attnum) AS column_names,
+  array_agg(pg_get_expr(ad.adbin, ad.adrelid)::text ORDER BY a.attnum) AS default_values,
+  array_agg(
+    CASE
+      WHEN t.typtype = 'd'::"char" THEN
+        CASE
+          WHEN bt.typelem <> 0::oid AND bt.typlen = (-1) THEN 'ARRAY'::text
+          WHEN nbt.nspname = 'pg_catalog'::name THEN format_type(t.typbasetype, NULL::integer)
+          ELSE 'USER-DEFINED'::text
+        END
+      ELSE
+        CASE
+          WHEN t.typelem <> 0::oid AND t.typlen = (-1) THEN 'ARRAY'::text
+          WHEN nt.nspname = 'pg_catalog'::name THEN format_type(a.atttypid, NULL::integer)
+          ELSE 'USER-DEFINED'::text
+        END
+    END::text
+    ORDER BY a.attnum) AS data_types,
+  array_agg(
+    CASE
+      WHEN t.typtype = 'd'::"char" THEN
+        CASE
+          WHEN bt.typelem <> 0::oid AND bt.typlen = (-1) THEN format_type(bt.typelem, NULL::integer)
+          WHEN nbt.nspname = 'pg_catalog'::name THEN NULL
+          ELSE 'USER-DEFINED'::text
+        END
+      ELSE
+        CASE
+          WHEN t.typelem <> 0::oid AND t.typlen = (-1) THEN format_type(t.typelem, NULL::integer)
+          WHEN nt.nspname = 'pg_catalog'::name THEN NULL
+          ELSE 'USER-DEFINED'::text
+        END
+    END::text
+    ORDER BY a.attnum) AS element_types
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class c ON (a.attrelid = c.oid)
+JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
+LEFT JOIN pg_catalog.pg_attrdef ad ON (a.attrelid = ad.adrelid AND a.attnum = ad.adnum)
+JOIN pg_catalog.pg_type t ON (t.oid = a.atttypid)
+JOIN pg_catalog.pg_namespace nt ON (t.typnamespace = nt.oid)
+LEFT JOIN pg_catalog.pg_type bt ON (t.typtype = 'd'::"char" AND t.typbasetype = bt.oid)
+LEFT JOIN pg_catalog.pg_namespace nbt ON (bt.typnamespace = nbt.oid)
+WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+GROUP BY nc.nspname, c.relname
     '''
     
     # Select the unique or primary key columns
