@@ -28,7 +28,7 @@ import csv
 from model import sql_ident, Type
 from ermrest.exception import *
 
-def make_row_thunk(cur, content_type):
+def make_row_thunk(conn, cur, content_type):
     def row_thunk():
         """Allow caller to lazily expand cursor after commit."""
         
@@ -54,6 +54,7 @@ def make_row_thunk(cur, content_type):
                 yield row_to_dict(cur, row)
 
         cur.close()
+        conn.commit()
         
     return row_thunk
 
@@ -410,7 +411,7 @@ RETURNING *
             
             cur = conn.cursor()
             cur.execute(upsert_sql)
-            return make_row_thunk(cur, content_type)
+            return make_row_thunk(conn, cur, content_type)
     
 
 class EntityPath (object):
@@ -623,7 +624,7 @@ WHERE %(keymatches)s
 
             cur = conn.execute(sql)
             
-            return make_row_thunk(cur, content_type)
+            return make_row_thunk(conn, cur, content_type)
         
     def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True):
         """Put or update entities depending on allow_existing, allow_missing modes.
