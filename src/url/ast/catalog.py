@@ -115,6 +115,9 @@ class Catalog (Api):
         """get db conn to this catalog."""
         return self.manager.get_connection()
     
+    def discard_conn(self, conn):
+        self.manager.discard_connection(conn)
+
     def release_conn(self, conn):
         """release db conn to this catalog."""
         self.manager.release_connection(conn)
