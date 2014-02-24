@@ -179,6 +179,7 @@ class Catalog (object):
         if not self._model:
             from ermrest.model import introspect
             self._model = introspect(self.get_connection())
+            self._dbc.commit()
         return self._model
     
     def destroy(self):
@@ -227,18 +228,18 @@ class Catalog (object):
         # first, deploy the metadata schema
         cur = None
         try:
-            cur = self.get_connection().cursor()
+            self.get_connection()
             
             # create schema, if it doesn't exist
             if not schema_exists(self._dbc, self._SCHEMA_NAME):
-                cur.execute("""
+                cur = self._dbc.execute("""
 CREATE SCHEMA %(schema)s;"""
                     % dict(schema=self._SCHEMA_NAME))
                 self._dbc.commit()
             
             # create meta table, if it doesn't exist
             if not table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME):
-                cur.execute("""
+                cur = self._dbc.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     key text NOT NULL,
     value text NOT NULL,
@@ -277,8 +278,7 @@ CREATE TABLE %(schema)s.%(table)s (
         
         cur = None
         try:
-            cur = self.get_connection().cursor()
-            cur.execute("""
+            cur = self.get_connection().execute("""
 SELECT * FROM %(schema)s.%(table)s
 %(where)s
 ;"""
@@ -289,9 +289,12 @@ SELECT * FROM %(schema)s.%(table)s
             meta = list()
             for k, v in cur:
                 meta.append(dict(key=k, value=v))
+            self._dbc.commit()
             return meta
         except psycopg2.ProgrammingError:
+            self._dbc.rollback()
             return list()
+        # BUG: other exceptions will not rollback??
         finally:
             if cur is not None:
                 cur.close()
@@ -301,8 +304,7 @@ SELECT * FROM %(schema)s.%(table)s
         """
         cur = None
         try:
-            cur = self.get_connection().cursor()
-            cur.execute("""
+            cur = self.get_connection().execute("""
 INSERT INTO %(schema)s.%(table)s
   (key, value)
 VALUES
@@ -327,8 +329,7 @@ VALUES
         """
         cur = None
         try:
-            cur = self.get_connection().cursor()
-            cur.execute("""
+            cur = self.get_connection().execute("""
 DELETE FROM %(schema)s.%(table)s
 WHERE key=%(key)s
 ;
@@ -358,8 +359,7 @@ VALUES
             
         cur = None
         try:
-            cur = self.get_connection().cursor()
-            cur.execute("""
+            cur = self.get_connection().execute("""
 DELETE FROM %(schema)s.%(table)s
 %(where)s
 ;"""
