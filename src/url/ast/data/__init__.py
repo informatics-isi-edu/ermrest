@@ -28,7 +28,6 @@ from ermrest import ermpath
 from ermrest.exception import rest, BadData
 import ermrest.model
 
-
 def negotiated_content_type(supported_types=['text/csv', 'application/json', 'application/x-json-stream'], default=None):
     """Determine negotiated response content-type from Accept header.
 
@@ -130,7 +129,7 @@ class Entity (Api):
 
         def post_commit(line_thunk):
             web.header('Content-Type', content_type)
-            web.ctx.ermrest_request_content_type = content_type
+            web.ctx.ermrest_content_type = content_type
             for line in line_thunk():
                 yield line
 
