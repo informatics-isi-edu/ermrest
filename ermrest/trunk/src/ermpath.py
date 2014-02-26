@@ -28,8 +28,9 @@ import web
 
 from model import sql_ident, Type
 from ermrest.exception import *
+from ermrest.catalog import _random_name
 
-def make_row_thunk(conn, cur, content_type):
+def make_row_thunk(conn, cur, content_type, drop_tables=[]):
     def row_thunk():
         """Allow caller to lazily expand cursor after commit."""
         
@@ -53,6 +54,9 @@ def make_row_thunk(conn, cur, content_type):
         elif content_type is dict:
             for row in cur:
                 yield row_to_dict(cur, row)
+
+        for table in drop_tables:
+            cur.execute("DROP TABLE %s" % sql_ident(table))
 
         cur.close()
         conn.commit()
@@ -219,19 +223,25 @@ class EntityElem (object):
         if len(self.filters) > 0:
             raise BadSyntax('Entity path filters not allowed during PUT.')
         
+        input_table = _random_name("input_data_")
+        input_json_table = _random_name("input_json_")
+
+        drop_tables = []
+
         # create temporary table
         cur = conn.cursor()
         cur.execute(
-            "CREATE TEMPORARY TABLE input_data (%s)" % (
+            "CREATE TEMPORARY TABLE %s (%s)" % (
+                sql_ident(input_table),
                 ','.join([ c.ddl() for c in self.table.columns_in_order() ])
                 )
             )
+        drop_tables.append( input_table )
         if in_content_type in [ 'application/x-json-stream' ]:
-            cur.execute( "CREATE TEMPORARY TABLE input_json (j json)" )
-        cur.close()
+            cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_ident(input_json_table))
+            drop_tables.append( input_json_table )
         
         # copy input data to temp table
-        cur = conn.cursor()
         if in_content_type == 'text/csv':
             hdr = csv.reader([ input_data.readline() ]).next()
 
@@ -250,13 +260,14 @@ class EntityElem (object):
             try:
                 cur.copy_expert(
                 """
-COPY input_data (%s) 
+COPY %s (%s) 
 FROM STDIN WITH (
     FORMAT csv, 
     HEADER false, 
     DELIMITER ',', 
     QUOTE '"'
 )""" % (
+                        sql_ident(input_table),
                         ','.join(csvcols)
                         ),
                 input_data
@@ -269,15 +280,16 @@ FROM STDIN WITH (
             try:
                 cur.execute( 
                 """
-INSERT INTO input_data (%(cols)s)
+INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s 
 FROM (
   SELECT (rs.r).*
   FROM (
-    SELECT json_populate_recordset( NULL::input_data, %(input)s::json ) AS r
+    SELECT json_populate_recordset( NULL::%(input_table)s, %(input)s::json ) AS r
   ) rs
 ) s
 """ % dict( 
+                        input_table = sql_ident(input_table),
                         cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
                         input = Type('text').sql_literal(buf)
                         )
@@ -287,20 +299,22 @@ FROM (
 
         elif in_content_type == 'application/x-json-stream':
             try:
-                cur.copy_expert( "COPY input_json (j) FROM STDIN", input_data )
+                cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_ident(input_json_table), input_data )
 
                 cur.execute(
                 """
-INSERT INTO input_data (%(cols)s)
+INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s
 FROM (
   SELECT (rs.r).*
   FROM (
-    SELECT json_populate_record( NULL::input_data, i.j ) AS r
-    FROM input_json i
+    SELECT json_populate_record( NULL::%(input_table)s, i.j ) AS r
+    FROM %(input_json)s i
   ) rs
 ) s
 """ % dict(
+                        input_table = sql_ident(input_table),
+                        input_json = sql_ident(input_json_table),
                         cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
                         )
                 )
@@ -309,8 +323,6 @@ FROM (
 
         else:
             raise UnsupportedMediaType('%s input not supported' % in_content_type)
-
-        cur.close()
 
         # find the "meta-key" for this table
         #  -- the union of all columns of all keys
@@ -325,28 +337,29 @@ FROM (
         nmkcols = [ c.sql_name() for c in nmkcols ]
  
         #  -- check for duplicate keys
-        cur = conn.cursor()
-        cur.execute("SELECT count(*) FROM input_data")
+        cur.execute("SELECT count(*) FROM %s" % sql_ident(input_table))
         total_rows = cur.fetchone()[0]
-        cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM input_data) s" % ','.join(mkcols))
+        cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (','.join(mkcols), sql_ident(input_table)))
         total_mkeys = cur.fetchone()[0]
-        cur.close()
         if total_rows > total_mkeys:
             raise ConflictData('Multiple input rows share the same unique key information.')
 
         correlating_sql = """
 SELECT count(*) AS count
-FROM input_data AS i
+FROM %(input_table)s AS i
 LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
-""" % dict(table = self.table.sql_name(), mkcols = ','.join(mkcols))
+""" % dict(table = self.table.sql_name(), 
+           mkcols = ','.join(mkcols),
+           input_table = sql_ident(input_table))
         
         update_sql = """
 UPDATE %(table)s AS t SET %(assigns)s
-FROM input_data AS i
+FROM %(input_table)s AS i
 WHERE %(keymatches)s
 RETURNING t.*
 """ % dict(
             table = self.table.sql_name(),
+            input_table = sql_ident(input_table),
             cols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
             assigns = ','.join([ "%s = i.%s " % (c, c) for c in nmkcols ]),
             keymatches = ' AND '.join([ "t.%s = i.%s " % (c, c) for c in mkcols ])
@@ -355,12 +368,13 @@ RETURNING t.*
         insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s
-FROM input_data AS i
+FROM %(input_table)s AS i
 LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
 WHERE t.%(mkcol0)s IS NULL
 RETURNING *
 """ % dict(
             table = self.table.sql_name(),
+            input_table = sql_ident(input_table),
             cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
             icols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
             mkcols = ','.join(mkcols),
@@ -400,8 +414,6 @@ RETURNING *
             '\nUNION ALL\n'.join(upsert_queries)
             )
 
-        cur = conn.cursor()
-            
         if allow_existing is False:
             cur.execute(correlating_sql + "\nWHERE t.%s IS NOT NULL" % mkcols[0])
             if cur.fetchone()[0] > 0:
@@ -412,9 +424,8 @@ RETURNING *
             if cur.fetchone()[0] > 0:
                 raise ConflictData('input row does not exist while allow_missing is False')
 
-        cur = conn.cursor()
         cur.execute(upsert_sql)
-        return make_row_thunk(conn, cur, content_type)
+        return make_row_thunk(conn, cur, content_type, drop_tables)
 
 class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
