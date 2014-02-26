@@ -313,8 +313,6 @@ FROM (
 
         # TODO: validate input_data
         #  -- check for duplicate keys
-        #  -- check for missing keys and allow_missing == false
-        #  -- check for existing keys and allow_existing == false
         
         # find the "meta-key" for this table
         #  -- the union of all columns of all keys
