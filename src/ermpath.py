@@ -24,6 +24,7 @@ navigating, and manipulating data in an ERMREST catalog.
 import psycopg2
 import urllib
 import csv
+import web
 
 from model import sql_ident, Type
 from ermrest.exception import *
@@ -311,22 +312,28 @@ FROM (
 
         cur.close()
 
-        # TODO: validate input_data
-        #  -- check for duplicate keys
-        
         # find the "meta-key" for this table
         #  -- the union of all columns of all keys
         mkcols = set()
         for key in self.table.uniques:
             for col in key:
                 mkcols.add(col)
-                
 
         allcols = set(self.table.columns_in_order())
         nmkcols = allcols - mkcols
         mkcols = [ c.sql_name() for c in mkcols ]
         nmkcols = [ c.sql_name() for c in nmkcols ]
-        
+ 
+        #  -- check for duplicate keys
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) FROM input_data")
+        total_rows = cur.fetchone()[0]
+        cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM input_data) s" % ','.join(mkcols))
+        total_mkeys = cur.fetchone()[0]
+        cur.close()
+        if total_rows > total_mkeys:
+            raise ConflictData('Multiple input rows share the same unique key information.')
+
         correlating_sql = """
 SELECT count(*) AS count
 FROM input_data AS i
@@ -393,25 +400,21 @@ RETURNING *
             '\nUNION ALL\n'.join(upsert_queries)
             )
 
-        if allow_existing is None and allow_missing is None:
-            return lambda : []
+        cur = conn.cursor()
+            
+        if allow_existing is False:
+            cur.execute(correlating_sql + "\nWHERE t.%s IS NOT NULL" % mkcols[0])
+            if cur.fetchone()[0] > 0:
+                raise ConflictData('input row exists while allow_existing is False')
 
-        else:
-            cur = conn.cursor()
-            
-            if allow_existing is False:
-                cur.execute(correlating_sql + "\nWHERE t.%s IS NOT NULL" % mkcols[0])
-                if cur.fetchone()[0] > 0:
-                    raise ConflictData('input row exists while allow_existing is False')
-            
-            if allow_missing is False:
-                cur.execute(correlating_sql + "\nWHERE t.%s IS NULL" % mkcols[0])
-                if cur.fetchone()[0] > 0:
-                    raise ConflictData('input row does not exist while allow_missing is False')
-            
-            cur = conn.cursor()
-            cur.execute(upsert_sql)
-            return make_row_thunk(conn, cur, content_type)
+        if allow_missing is False:
+            cur.execute(correlating_sql + "\nWHERE t.%s IS NULL" % mkcols[0])
+            if cur.fetchone()[0] > 0:
+                raise ConflictData('input row does not exist while allow_missing is False')
+
+        cur = conn.cursor()
+        cur.execute(upsert_sql)
+        return make_row_thunk(conn, cur, content_type)
 
 class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
