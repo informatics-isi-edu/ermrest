@@ -412,13 +412,96 @@ RETURNING *
             cur = conn.cursor()
             cur.execute(upsert_sql)
             return make_row_thunk(conn, cur, content_type)
-    
 
-class EntityPath (object):
+class AnyPath (object):
+    """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
+
+    """
+    def sql_get(self):
+        """Generate SQL query to get the resources described by this path.
+
+           The query will be of the form:
+
+              SELECT 
+                tK.* 
+              FROM "x" AS t0 
+                ... 
+              JOIN "z" AS tK ON (...)
+              WHERE ...
+           
+           encoding path references and filter conditions.
+
+        """
+        raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
+
+    def get(self, conn, content_type='text/csv', output_file=None):
+        """Fetch resources.
+
+           conn: sanepg2 database connection to catalog
+
+           content_type: 
+              text names of MIME types control serialization:
+                'text/csv' --> CSV table with header row
+                'application/json' --> JSON array of row objects
+                'application/x-json-stream' --> stream of JSON objects
+
+              Python types select native Python result formats
+                dict  --> dict of column:value per row
+                tuple --> tuple of values per row
+
+                for tuples, values will be ordered according to column
+                ordering in the catalog model.
+
+           output_file: 
+              None --> thunk result, when invoked generates iterable results
+              x --> x.write() the serialized output
+
+           Note: only text content types are supported with
+           output_file writing.
+        """
+        # TODO: refactor this common code between 
+
+        sql = self.sql_get()
+
+        if output_file:
+            # efficiently send results to file
+            if content_type == 'text/csv':
+                sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
+            elif content_type == 'application/json':
+                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q) TO STDOUT" % sql
+            elif content_type == 'application/x-json-stream':
+                sql = "COPY (SELECT row_to_json(q)::text FROM (%s) q) TO STDOUT" % sql
+            else:
+                raise NotImplementedError('content_type %s with output_file.write()' % content_type)
+
+            cur = conn.cursor()
+            cur.copy_expert(sql, output_file)
+            cur.close()
+
+        else:
+            # generate rows to caller
+            if content_type == 'text/csv':
+                # TODO implement and use row_to_csv() stored procedure?
+                pass
+            elif content_type == 'application/json':
+                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
+            elif content_type == 'application/x-json-stream':
+                sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
+            elif content_type in [ dict, tuple ]:
+                pass
+            else:
+                raise NotImplementedError('content_type %s' % content_type)
+
+            cur = conn.execute(sql)
+            
+            return make_row_thunk(conn, cur, content_type)
+        
+class EntityPath (AnyPath):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
 
     """
     def __init__(self, model):
+        AnyPath.__init__(self)
         self._model = model
         self._path = None
         self.aliases = {}
@@ -490,7 +573,7 @@ class EntityPath (object):
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self):
+    def sql_get(self, selects=None):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -506,6 +589,8 @@ class EntityPath (object):
            encoding path references and filter conditions.
 
         """
+        selects = selects or ("t%d.*" % (len(self._path) - 1))
+
         pkeys = self._path[-1].table.uniques.keys()
         pkeys.sort(key=lambda k: len(k))
         shortest_pkey = self._path[-1].table.uniques[pkeys[0]]
@@ -523,11 +608,11 @@ class EntityPath (object):
         return """
 SELECT 
   DISTINCT ON (%(distinct_on)s)
-  t%(len)d.*
+  %(selects)s
 FROM %(tables)s
 %(where)s
 """ % dict(distinct_on = ', '.join(distinct_on_cols),
-           len         = len(self._path) - 1,
+           selects     = selects,
            tables      = ' JOIN '.join(tables),
            where       = wheres and ('WHERE ' + ' AND '.join(wheres)) or ''
            )
@@ -565,66 +650,6 @@ WHERE %(keymatches)s
             raise NotFound('rows matching request path')
         cur.execute(self.sql_delete())
         cur.close()
-        
-    def get(self, conn, content_type='text/csv', output_file=None):
-        """Fetch entities.
-
-           conn: sanepg2 database connection to catalog
-
-           content_type: 
-              text names of MIME types control serialization:
-                'text/csv' --> CSV table with header row
-                'application/json' --> JSON array of row objects
-                'application/x-json-stream' --> stream of JSON objects
-
-              Python types select native Python result formats
-                dict  --> dict of column:value per row
-                tuple --> tuple of values per row
-
-                for tuples, values will be ordered according to column
-                ordering in the catalog model.
-
-           output_file: 
-              None --> thunk result, when invoked generates iterable results
-              x --> x.write() the serialized output
-
-           Note: only text content types are supported with
-           output_file writing.
-        """
-        sql = self.sql_get()
-
-        if output_file:
-            # efficiently send results to file
-            if content_type == 'text/csv':
-                sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
-            elif content_type == 'application/json':
-                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q) TO STDOUT" % sql
-            elif content_type == 'application/x-json-stream':
-                sql = "COPY (SELECT row_to_json(q)::text FROM (%s) q) TO STDOUT" % sql
-            else:
-                raise NotImplementedError('content_type %s with output_file.write()' % content_type)
-
-            cur = conn.cursor()
-            cur.copy_expert(sql, output_file)
-            cur.close()
-
-        else:
-            # generate rows to caller
-            if content_type == 'text/csv':
-                # TODO implement and use row_to_csv() stored procedure?
-                pass
-            elif content_type == 'application/json':
-                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
-            elif content_type == 'application/x-json-stream':
-                sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
-            elif content_type in [ dict, tuple ]:
-                pass
-            else:
-                raise NotImplementedError('content_type %s' % content_type)
-
-            cur = conn.execute(sql)
-            
-            return make_row_thunk(conn, cur, content_type)
         
     def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True):
         """Put or update entities depending on allow_existing, allow_missing modes.
@@ -682,13 +707,48 @@ WHERE %(keymatches)s
         return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing)
         
 
-class AttributePath (object):
+class AttributePath (AnyPath):
     """Hierarchical ERM data access to entity attributes, i.e. table cells.
 
     """
     def __init__(self, epath, attributes):
+        AnyPath.__init__(self)
         self.epath = epath
         self.attributes = attributes
+
+    def sql_get(self):
+        """Generate SQL query to get the resources described by this epath.
+
+           The query will be of the form:
+
+              SELECT 
+                DISTINCT ON (...)
+                tK.* 
+              FROM "x" AS t0 
+                ... 
+              JOIN "z" AS tK ON (...)
+              WHERE ...
+           
+           encoding path references and filter conditions.
+
+        """
+        # validate attributes for GET case
+        selects = []
+        
+        for attribute in self.attributes:
+            col, base = attribute.resolve_column(self.epath._model, self.epath)
+            if base == self.epath:
+                # column in final entity path element
+                selects.append( "t%d.%s" % (len(self.epath._path) - 1, sql_ident(col.name)) )
+            elif base in self.epath.aliases:
+                # column in interior path referenced by alias
+                selects.append( "t%d.%s" % (self.epath[base].pos, sql_ident(col.name)) )
+            else:
+                raise ConflictModel('Invalid attribute name "%s".' % attribute)
+
+        selects = ', '.join(selects)
+
+        return self.epath.sql_get(selects=selects)
 
 class QueryPath (object):
     """Hierarchical ERM data access to query results, i.e. computed rows.
