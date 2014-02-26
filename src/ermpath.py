@@ -215,6 +215,8 @@ class EntityElem (object):
               False --> raise exception
 
         """
+        if len(self.filters) > 0:
+            raise BadSyntax('Entity path filters not allowed during PUT.')
         
         # create temporary table
         cur = conn.cursor()
