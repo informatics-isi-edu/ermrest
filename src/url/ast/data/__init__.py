@@ -197,6 +197,9 @@ class Entity (Api):
 
 class Attribute (Api):
     """A specific attribute set by attributepath."""
+
+    default_content_type = 'application/x-json-stream'
+
     def __init__(self, catalog, path):
         Api.__init__(self, catalog)
         self.attributes = path[-1]
@@ -211,10 +214,31 @@ class Attribute (Api):
            can be used to perform attribute-level data access.
         """
         epath = self.epath.resolve(model)
-        # TODO: validate attributes
-        attributes = self.attributes
-        return AttributePath(epath, attributes)
+        return ermpath.AttributePath(epath, self.attributes)
     
+    def GET(self, uri):
+        """Perform HTTP GET of attributes.
+        """
+        content_type = negotiated_content_type(default=self.default_content_type)
+        
+        def body(conn):
+            if not self.catalog.manager.has_content_read(
+                web.ctx.webauthn2_context.attributes
+                ):
+                raise rest.Unauthorized(uri)
+
+            model = ermrest.model.introspect(conn)
+            apath = self.resolve(model)
+            return apath.get(conn, content_type=content_type)
+
+        def post_commit(line_thunk):
+            web.header('Content-Type', content_type)
+            web.ctx.ermrest_content_type = content_type
+            for line in line_thunk():
+                yield line
+
+        return self.perform(body, post_commit)
+
 
 class Query (Api):
     """A specific query set by querypath."""
