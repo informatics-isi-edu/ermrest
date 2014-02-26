@@ -121,7 +121,7 @@ def p_entity(p):
 def p_attribute(p):
     """attribute : catalogslash ATTRIBUTE '/' entitypath '/' attributeleaf """
     path = p[4]
-    path.append(p[5])
+    path.append(p[6])
     p[0] = p[1].attribute(path)
 
 def p_query(p):
