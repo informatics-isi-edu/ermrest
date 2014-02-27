@@ -135,35 +135,50 @@ GROUP BY
     # The following query was adapted from an example here:
     # http://msdn.microsoft.com/en-us/library/aa175805%28SQL.80%29.aspx
     FKEY_COLUMNS = '''
-SELECT
-   kcu1.constraint_schema AS fk_constraint_schema,
-   kcu1.constraint_name AS fk_constraint_name,
-   kcu1.table_schema AS fk_table_schema,
-   kcu1.table_name AS fk_table_name,
-   array_agg(kcu1.column_name::text ORDER BY kcu1.ordinal_position) AS fk_column_names,
-   kcu2.table_schema AS uq_table_schema,
-   kcu2.table_name AS uq_table_name,
-   array_agg(kcu2.column_name::text ORDER BY kcu1.ordinal_position) AS uq_column_names,
-   rc.delete_rule AS rc_delete_rule,
-   rc.update_rule AS rc_update_rule
-FROM information_schema.referential_constraints AS rc
-JOIN information_schema.key_column_usage AS kcu1
-  ON kcu1.constraint_catalog = rc.constraint_catalog
-     AND kcu1.constraint_schema = rc.constraint_schema
-     AND kcu1.constraint_name = rc.constraint_name
-JOIN information_schema.key_column_usage AS kcu2
-  ON kcu2.constraint_catalog = rc.unique_constraint_catalog
-     AND kcu2.constraint_schema = rc.unique_constraint_schema
-     AND kcu2.constraint_name = rc.unique_constraint_name
-     AND kcu2.ordinal_position = kcu1.ordinal_position
-GROUP BY 
-   kcu1.constraint_schema, kcu1.constraint_name, 
-   kcu1.table_schema, kcu1.table_name, 
-   kcu2.table_schema, kcu2.table_name, 
-   rc.delete_rule, rc.update_rule
-;
-    '''
-    
+  SELECT
+    ncon.nspname::information_schema.sql_identifier AS fk_constraint_schema,
+    con.conname::information_schema.sql_identifier AS fk_constraint_name,
+    nfk.nspname::information_schema.sql_identifier AS fk_table_schema,
+    fkcl.relname::information_schema.sql_identifier AS fk_table_name,
+    (SELECT array_agg(fka.attname ORDER BY i.i)
+     FROM generate_subscripts(con.conkey, 1) i
+     JOIN pg_catalog.pg_attribute fka ON con.conrelid = fka.attrelid AND con.conkey[i.i] = fka.attnum
+    ) AS fk_column_names,
+    nk.nspname::information_schema.sql_identifier AS uq_table_schema,
+    kcl.relname::information_schema.sql_identifier AS uq_table_name,
+    (SELECT array_agg(ka.attname ORDER BY i.i)
+     FROM generate_subscripts(con.confkey, 1) i
+     JOIN pg_catalog.pg_attribute ka ON con.confrelid = ka.attrelid AND con.confkey[i.i] = ka.attnum
+    ) AS uq_column_names,
+    CASE con.confdeltype
+            WHEN 'c'::"char" THEN 'CASCADE'::text
+            WHEN 'n'::"char" THEN 'SET NULL'::text
+            WHEN 'd'::"char" THEN 'SET DEFAULT'::text
+            WHEN 'r'::"char" THEN 'RESTRICT'::text
+            WHEN 'a'::"char" THEN 'NO ACTION'::text
+            ELSE NULL::text
+    END::information_schema.character_data AS rc_delete_rule,
+    CASE con.confupdtype
+            WHEN 'c'::"char" THEN 'CASCADE'::text
+            WHEN 'n'::"char" THEN 'SET NULL'::text
+            WHEN 'd'::"char" THEN 'SET DEFAULT'::text
+            WHEN 'r'::"char" THEN 'RESTRICT'::text
+            WHEN 'a'::"char" THEN 'NO ACTION'::text
+            ELSE NULL::text
+    END::information_schema.character_data AS rc_update_rule
+  FROM pg_namespace ncon
+  JOIN pg_constraint con ON ncon.oid = con.connamespace
+  JOIN pg_class fkcl ON con.conrelid = fkcl.oid AND con.contype = 'f'::"char"
+  JOIN pg_class kcl ON con.confrelid = kcl.oid AND con.contype = 'f'::"char"
+  JOIN pg_namespace nfk ON fkcl.relnamespace = nfk.oid
+  JOIN pg_namespace nk ON kcl.relnamespace = nk.oid
+  WHERE (pg_has_role(kcl.relowner, 'USAGE'::text) 
+         OR has_table_privilege(kcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(kcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+    AND (pg_has_role(fkcl.relowner, 'USAGE'::text) 
+         OR has_table_privilege(fkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(fkcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+ ;
+'''
+
     # PostgreSQL denotes array types with the string 'ARRAY'
     ARRAY_TYPE = 'ARRAY'
     
