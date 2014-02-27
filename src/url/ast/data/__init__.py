@@ -239,6 +239,39 @@ class Attribute (Api):
 
         return self.perform(body, post_commit)
 
+    def PUT(self, uri, post_method=False):
+        """Perform HTTP PUT of attributes.
+        """
+        if not self.catalog.manager.has_content_write(
+                                web.ctx.webauthn2_context.attributes):
+            raise rest.Unauthorized(uri)
+        
+        try:
+            in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
+            in_content_type = in_content_type.split(";", 1)[0].strip()
+        except:
+            in_content_type = self.default_content_type
+
+        content_type = negotiated_content_type(default=in_content_type)
+
+        input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
+        
+        def body(conn):
+            input_data.seek(0) # rewinds buffer, in case of retry
+            model = ermrest.model.introspect(conn)
+            apath = self.resolve(model)
+            return apath.put(conn,
+                             input_data, 
+                             in_content_type=in_content_type)
+
+        def post_commit(lines):
+            web.header('Content-Type', content_type)
+            web.ctx.ermrest_request_content_type = content_type
+            for line in lines:
+                yield line
+
+        return self.perform(body, post_commit)
+
 
 class Query (Api):
     """A specific query set by querypath."""
