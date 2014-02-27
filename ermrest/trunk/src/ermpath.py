@@ -229,7 +229,7 @@ class EntityElem (object):
 
         """
         if len(self.filters) > 0:
-            raise BadSyntax('Entity path filters not allowed during PUT.')
+            raise BadSyntax('Entity filters not allowed during PUT.')
         
         input_table = _random_name("input_data_")
         input_json_table = _random_name("input_json_")
