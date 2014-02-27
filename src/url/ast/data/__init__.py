@@ -127,10 +127,10 @@ class Entity (Api):
             epath = self.resolve(model)
             return epath.get(conn, content_type=content_type)
 
-        def post_commit(line_thunk):
+        def post_commit(lines):
             web.header('Content-Type', content_type)
             web.ctx.ermrest_content_type = content_type
-            for line in line_thunk():
+            for line in lines:
                 yield line
 
         return self.perform(body, post_commit)
@@ -156,11 +156,11 @@ class Entity (Api):
             input_data.seek(0) # rewinds buffer, in case of retry
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
-            return list(epath.put(conn, 
-                                  input_data, 
-                                  in_content_type=in_content_type,
-                                  content_type=content_type, 
-                                  allow_existing = not post_method)())
+            return epath.put(conn,
+                             input_data, 
+                             in_content_type=in_content_type,
+                             content_type=content_type, 
+                             allow_existing = not post_method)
 
         def post_commit(lines):
             web.header('Content-Type', content_type)

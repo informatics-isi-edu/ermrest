@@ -30,9 +30,15 @@ from model import sql_ident, Type
 from ermrest.exception import *
 from ermrest.catalog import _random_name
 
-def make_row_thunk(conn, cur, content_type, drop_tables=[]):
+def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
-        """Allow caller to lazily expand cursor after commit."""
+        """Allow caller to lazily expand cursor after commit.
+
+           If conn is not None, call conn.commit() after fetching
+           results to avoid leaving it idle in transaction due to the
+           cursor fetch commands.
+
+        """
         
         if content_type == 'text/csv':
             hdr = True
@@ -59,7 +65,9 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[]):
             cur.execute("DROP TABLE %s" % sql_ident(table))
 
         cur.close()
-        conn.commit()
+
+        if conn is not None:
+            conn.commit()
         
     return row_thunk
 
@@ -424,8 +432,9 @@ RETURNING *
             if cur.fetchone()[0] > 0:
                 raise ConflictData('input row does not exist while allow_missing is False')
 
+        # we cannot use a held cursor here because upsert_sql modifies the DB
         cur.execute(upsert_sql)
-        return make_row_thunk(conn, cur, content_type, drop_tables)
+        return list(make_row_thunk(None, cur, content_type, drop_tables)())
 
 class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
@@ -508,7 +517,7 @@ class AnyPath (object):
 
             cur = conn.execute(sql)
             
-            return make_row_thunk(conn, cur, content_type)
+            return make_row_thunk(conn, cur, content_type)()
         
 class EntityPath (AnyPath):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
