@@ -179,7 +179,7 @@ class EntityElem (object):
                 self.sql_join_condition()
                 )
     
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -227,21 +227,54 @@ class EntityElem (object):
               None --> skip input row
               False --> raise exception
 
+           attr_update: customized entity processing
+              mkcols, nmkcols --> use specified metakey and non-metakey columns
+              None --> use entity metakey and non-metakey columns
+
+           Input rows are correlated to stored entities by metakey
+           equivalence.  The metakey for an entity is the union of all
+           its unique keys.  The metakey for a custom update may be a
+           subset of columns and may in fact be a non-unique key.
+
+           Input row data is applied to existing entities by updating
+           the non-metakey columns to match the input.  Input row data
+           is used to insert new entities only when allow_missing is
+           False and attr_update is None.
+
         """
         if len(self.filters) > 0:
-            raise BadSyntax('Entity filters not allowed during PUT.')
+            raise BadSyntax('Entity filters not allowed during entity PUT.')
         
         input_table = _random_name("input_data_")
         input_json_table = _random_name("input_json_")
 
         drop_tables = []
 
+        if attr_update is not None:
+            # caller has configured an attribute update request
+            # input table has key columns followed by non-key columns
+            mkcols, nmkcols = attr_update
+            inputcols = mkcols + nmkcols
+        else:
+            # we are doing a whole entity request
+            # input table has columns in same order as entity table
+            inputcols = self.table.columns_in_order()
+            mkcols = set()
+            for unique in self.table.uniques:
+                for c in unique:
+                    mkcols.add(c)
+            nmkcols = [ c for c in inputcols if c not in mkcols ]
+            mkcols = [ c for c in inputcols if c in mkcols ]
+
+        assert len(mkcols) > 0
+        
+
         # create temporary table
         cur = conn.cursor()
         cur.execute(
             "CREATE TEMPORARY TABLE %s (%s)" % (
                 sql_ident(input_table),
-                ','.join([ c.ddl() for c in self.table.columns_in_order() ])
+                ','.join([ c.ddl() for c in inputcols ])
                 )
             )
         drop_tables.append( input_table )
@@ -253,17 +286,23 @@ class EntityElem (object):
         if in_content_type == 'text/csv':
             hdr = csv.reader([ input_data.readline() ]).next()
 
-            csvcols = []
+            inputcol_names = set([ str(c.name) for c in inputcols ])
+            csvcol_names = set()
+            csvcol_names_ordered = []
             for cn in hdr:
-                if cn not in self.table.columns:
-                    raise BadData('CSV column %s not recognized.' % cn)
-                else:
-                    csvcols.append(cn)
+                try:
+                    inputcol_names.remove(cn)
+                    csvcol_names.add(cn)
+                    csvcol_names_ordered.append(cn)
+                except KeyError:
+                    if cn in csvcol_names:
+                        raise BadData('CSV column %s appears more than once.' % cn)
+                    else:
+                        raise BadData('CSV column %s not recognized.' % cn)
 
-            numcols = len(self.table.columns.keys())
-            if len(set(csvcols)) != numcols or len(csvcols) != numcols:
-                raise BadData('CSV input must have all entity columns exactly once: %s' 
-                              % ', '.join([ c.sql_name() for c in self.table.columns_in_order() ]))
+            if len(inputcol_names) > 0:
+                raise BadData('CSV input missing required columns: %s' 
+                              % ', '.join([ '"%s"' % cn for cn in inputcol_names ]))
 
             try:
                 cur.copy_expert(
@@ -274,10 +313,9 @@ FROM STDIN WITH (
     HEADER false, 
     DELIMITER ',', 
     QUOTE '"'
-)""" % (
-                        sql_ident(input_table),
-                        ','.join(csvcols)
-                        ),
+)""" % (sql_ident(input_table),
+        ','.join([ sql_ident(cn) for cn in csvcol_names_ordered ])
+        ),
                 input_data
                 )
             except psycopg2.DataError, e:
@@ -298,7 +336,7 @@ FROM (
 ) s
 """ % dict( 
                         input_table = sql_ident(input_table),
-                        cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
+                        cols = ','.join([ c.sql_name() for c in inputcols ]),
                         input = Type('text').sql_literal(buf)
                         )
                 )
@@ -323,7 +361,7 @@ FROM (
 """ % dict(
                         input_table = sql_ident(input_table),
                         input_json = sql_ident(input_json_table),
-                        cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ])
+                        cols = ','.join([ c.sql_name() for c in inputcols ])
                         )
                 )
             except psycopg2.DataError, e:
@@ -332,15 +370,6 @@ FROM (
         else:
             raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
-        # find the "meta-key" for this table
-        #  -- the union of all columns of all keys
-        mkcols = set()
-        for key in self.table.uniques:
-            for col in key:
-                mkcols.add(col)
-
-        allcols = set(self.table.columns_in_order())
-        nmkcols = allcols - mkcols
         mkcols = [ c.sql_name() for c in mkcols ]
         nmkcols = [ c.sql_name() for c in nmkcols ]
  
@@ -352,41 +381,48 @@ FROM (
         if total_rows > total_mkeys:
             raise ConflictData('Multiple input rows share the same unique key information.')
 
-        correlating_sql = """
-SELECT count(*) AS count
-FROM %(input_table)s AS i
-LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
-""" % dict(table = self.table.sql_name(), 
-           mkcols = ','.join(mkcols),
-           input_table = sql_ident(input_table))
+        correlating_sql = [
+            "SELECT %(mkcols)s FROM %(input_table)s",
+            "SELECT %(mkcols)s FROM %(table)s"
+            ]
+        correlating_sql = tuple([
+            sql % dict(table = self.table.sql_name(), 
+                       mkcols = ','.join(mkcols),
+                       input_table = sql_ident(input_table))
+            for sql in correlating_sql
+            ])
         
         update_sql = """
 UPDATE %(table)s AS t SET %(assigns)s
 FROM %(input_table)s AS i
-WHERE %(keymatches)s
-RETURNING t.*
+WHERE %(keymatches)s 
+  AND (%(valnonmatches)s)
+RETURNING %(tcols)s
 """ % dict(
             table = self.table.sql_name(),
             input_table = sql_ident(input_table),
-            cols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
             assigns = ','.join([ "%s = i.%s " % (c, c) for c in nmkcols ]),
-            keymatches = ' AND '.join([ "t.%s = i.%s " % (c, c) for c in mkcols ])
+            keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s" % (c, c) for c in mkcols ]),
+            valnonmatches = ' OR '.join([ "t.%s IS DISTINCT FROM i.%s" % (c, c) for c in nmkcols ]),
+            tcols = ','.join([ 't.%s' % c.sql_name() for c in inputcols ])
             )
         
         insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s
-FROM %(input_table)s AS i
-LEFT OUTER JOIN %(table)s AS t USING (%(mkcols)s)
-WHERE t.%(mkcol0)s IS NULL
+FROM (
+  SELECT %(mkcols)s FROM %(input_table)s
+  EXCEPT
+  SELECT %(mkcols)s FROM %(table)s
+) k
+JOIN %(input_table)s AS i USING (%(mkcols)s)
 RETURNING *
 """ % dict(
             table = self.table.sql_name(),
             input_table = sql_ident(input_table),
-            cols = ','.join([ c.sql_name() for c in self.table.columns_in_order() ]),
-            icols = ','.join([ "i.%s" % c.sql_name() for c in self.table.columns_in_order() ]),
-            mkcols = ','.join(mkcols),
-            mkcol0 = mkcols[0]
+            cols = ','.join([ c.sql_name() for c in inputcols ]),
+            icols = ','.join([ 'i.%s' % c.sql_name() for c in inputcols ]),
+            mkcols = ','.join(mkcols)
         )
         
         updated_sql = "SELECT * FROM updated_rows"
@@ -413,7 +449,7 @@ RETURNING *
             upsert_ctes.append("updated_rows AS (%s)" % update_sql)
             upsert_queries.append(updated_sql)
 
-        if allow_missing:
+        if attr_update is None and allow_missing:
             upsert_ctes.append("inserted_rows AS (%s)" % insert_sql)
             upsert_queries.append(inserted_sql)
     
@@ -423,14 +459,14 @@ RETURNING *
             )
 
         if allow_existing is False:
-            cur.execute(correlating_sql + "\nWHERE t.%s IS NOT NULL" % mkcols[0])
-            if cur.fetchone()[0] > 0:
-                raise ConflictData('input row exists while allow_existing is False')
+            cur.execute("%s INTERSECT ALL %s" % correlating_sql)
+            for row in cur:
+                raise ConflictData('Input row key (%s) collides with existing entity.' % row)
 
         if allow_missing is False:
-            cur.execute(correlating_sql + "\nWHERE t.%s IS NULL" % mkcols[0])
-            if cur.fetchone()[0] > 0:
-                raise ConflictData('input row does not exist while allow_missing is False')
+            cur.execute("%s EXCEPT ALL %s" % correlating_sql)
+            for row in cur:
+                raise ConflictData('Input row key (%s) does not match existing entity.' % row)
 
         # we cannot use a held cursor here because upsert_sql modifies the DB
         cur.execute(upsert_sql)
@@ -674,7 +710,7 @@ WHERE %(keymatches)s
         cur.execute(self.sql_delete())
         cur.close()
         
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -727,7 +763,7 @@ WHERE %(keymatches)s
         if len(self._path) != 1:
             raise BadData("unsupported path length for put")
         
-        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing)
+        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update)
         
 
 class AttributePath (AnyPath):
@@ -773,6 +809,78 @@ class AttributePath (AnyPath):
 
         return self.epath.sql_get(selects=selects)
 
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
+        """Update entity attributes.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+ 
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+           allow_existing: when input rows match existing keys
+              True --> update existing row with input (default)
+              None --> skip input row
+              False --> raise exception
+
+           allow_missing: when input rows do not match existing keys
+              True --> insert input rows (default)
+              None --> skip input row
+              False --> raise exception
+
+        """
+        # metakey defaults to all keys in entity table
+        etable = self.epath.current_entity_table()
+        mkcols = set()
+        for unique in etable.uniques:
+            for c in unique:
+                mkcols.add(c)
+        nmkcols = set()
+
+        # update columns are named explicitly
+        for attribute in self.attributes:
+            col, base = attribute.resolve_column(self.epath._model, self.epath)
+            if base == self.epath:
+                # column in final entity path element
+                nmkcols.add(col)
+            elif base in self.epath.aliases:
+                # column in interior path referenced by alias
+                raise BadData('Only unqualified attribute names from entity %s can be modified by PUT.' % etable.name)
+            else:
+                raise ConflictModel('Invalid attribute name "%s".' % attribute)
+        
+        attr_update = (list(mkcols), list(nmkcols))
+        return self.epath.put(conn, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update)
+        
 class QueryPath (object):
     """Hierarchical ERM data access to query results, i.e. computed rows.
 
