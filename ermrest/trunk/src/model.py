@@ -180,7 +180,8 @@ GROUP BY
     #
     # Introspect schemas, tables, columns
     #
-    cur = conn.execute(SELECT_COLUMNS)
+    cur = conn.cursor()
+    cur.execute(SELECT_COLUMNS)
     for dname, sname, tname, cnames, default_values, data_types, element_types in cur:
 
         cols = []
@@ -205,12 +206,10 @@ GROUP BY
         assert (dname, sname, tname) not in tables
         tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols)
             
-    cur.close()
-
     #
     # Introspect uniques / primary key references, aggregated by constraint
     #
-    cur = conn.execute(PKEY_COLUMNS)
+    cur.execute(PKEY_COLUMNS)
     for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names in cur:
 
         pk_constraint_key = (pk_schema, pk_name)
@@ -224,12 +223,10 @@ GROUP BY
         if pk_colset not in pkeys:
             pkeys[pk_colset] = Unique(pk_colset)
 
-    cur.close()
-
     #
     # Introspect foreign keys references, aggregated by reference constraint
     #
-    cur = conn.execute(FKEY_COLUMNS)
+    cur.execute(FKEY_COLUMNS)
     for fk_schema, fk_name, fk_table_schema, fk_table_name, fk_column_names, \
             uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update \
             in cur:
