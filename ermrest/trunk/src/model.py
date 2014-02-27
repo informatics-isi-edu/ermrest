@@ -131,9 +131,6 @@ GROUP BY
     '''
 
     # Select the foreign key reference columns
-    #
-    # The following query was adapted from an example here:
-    # http://msdn.microsoft.com/en-us/library/aa175805%28SQL.80%29.aspx
     FKEY_COLUMNS = '''
   SELECT
     ncon.nspname::information_schema.sql_identifier AS fk_constraint_schema,
