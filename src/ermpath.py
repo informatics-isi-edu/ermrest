@@ -866,6 +866,9 @@ class AttributePath (AnyPath):
                 mkcols.add(c)
         nmkcols = set()
 
+        if len(mkcols) == 0:
+            raise ConflictModel('Attribute update is not supported on entities without uniqueness constraints.')
+
         # update columns are named explicitly
         for attribute in self.attributes:
             col, base = attribute.resolve_column(self.epath._model, self.epath)
