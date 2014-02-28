@@ -695,7 +695,7 @@ WHERE %(keymatches)s
 """ % dict(
             table = table.sql_name(),
             getqry = self.sql_get(),
-            keymatches = ' AND '.join([ "t.%s = i.%s " % (c, c) for c in mkcols ])
+            keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s " % (c, c) for c in mkcols ])
             )
     
     def delete(self, conn):
@@ -706,7 +706,7 @@ WHERE %(keymatches)s
         cur = conn.cursor()
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         if cur.fetchone()[0] == 0:
-            raise NotFound('rows matching request path')
+            raise NotFound('entities matching request path')
         cur.execute(self.sql_delete())
         cur.close()
         
@@ -776,7 +776,7 @@ class AttributePath (AnyPath):
         self.attributes = attributes
 
     def sql_get(self):
-        """Generate SQL query to get the resources described by this epath.
+        """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
 
@@ -809,6 +809,41 @@ class AttributePath (AnyPath):
 
         return self.epath.sql_get(selects=selects)
 
+    def sql_delete(self, del_columns, equery=None):
+        """Generate SQL statement to delete the attributes described by this apath.
+
+           del_columns: iterable set of Column instances to be deleted
+
+        """
+        if equery is None:
+            equery = self.epath.sql_get()
+
+        etable = self.epath.current_entity_table()
+
+        mkcols = set()
+        for unique in etable.uniques:
+            for c in unique:
+                mkcols.add(c)
+
+        for c in del_columns:
+            if c in mkcols:
+                raise ConflictModel('Deletion of attribute %s not supported because it is part of a unique key for entities.' % c.name)
+
+        # actually correlate by full row, not just unique meta-key
+        mkcols = [ c.sql_name() for c in etable.columns_in_order() ]
+        nmkcols = [ c.sql_name() for c in del_columns ]
+        
+        return """
+UPDATE %(table)s AS t SET %(updates)s
+FROM (%(getqry)s) AS i
+WHERE %(keymatches)s
+""" % dict(
+            table = etable.sql_name(),
+            getqry = equery,
+            keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s " % (c, c) for c in mkcols ]),
+            updates = ', '.join([ "%s = NULL" % c for c in nmkcols ])
+            )
+    
     def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
         """Update entity attributes.
 
@@ -884,6 +919,36 @@ class AttributePath (AnyPath):
         attr_update = (list(mkcols), list(nmkcols))
         return self.epath.put(conn, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update)
         
+
+    def delete(self, conn):
+        """Delete entity attributes.
+
+        """
+        equery = self.epath.sql_get()
+        nmkcols = set()
+        
+        # delete columns are named explicitly
+        for attribute in self.attributes:
+            col, base = attribute.resolve_column(self.epath._model, self.epath)
+            if base == self.epath:
+                # column in final entity path element
+                nmkcols.add(col)
+            elif base in self.epath.aliases:
+                # column in interior path referenced by alias
+                raise BadData('Only unqualified attribute names from entity %s can be modified by DELETE.' % etable.name)
+            else:
+                raise ConflictModel('Invalid attribute name "%s".' % attribute)
+        
+        dquery = self.sql_delete(nmkcols, equery)
+
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) AS count FROM (%s) s" % equery)
+        if cur.fetchone()[0] == 0:
+            raise NotFound('entities matching request path')
+        cur.execute(dquery)
+        cur.close()
+
+
 class QueryPath (object):
     """Hierarchical ERM data access to query results, i.e. computed rows.
 
