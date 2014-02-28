@@ -387,6 +387,12 @@ class Name (object):
             elem.pos,
             sql_ident(self.nameparts[-1])
             )
+
+    def sql_literal(self, etype):
+        if not self.absolute and len(self.nameparts) == 1:
+            return Value(self.nameparts[0]).sql_literal(etype)
+        else:
+            raise exception.BadSyntax('Names such as "%s" not supported in filter expressions.' % self)
         
     def validate_attribute_update(self):
         """Return icolname for valid input column reference.
@@ -395,7 +401,7 @@ class Name (object):
         if self.absolute and len(self.nameparts) == 1:
             return self.nameparts[0]
         else:
-            raise BadSyntax('Name "%s" is not a valid input column reference.' % self)
+            raise exception.BadSyntax('Name "%s" is not a valid input column reference.' % self)
 
 class Value (object):
     """Represent a literal value in an ERMREST URL.
@@ -418,5 +424,5 @@ class Value (object):
         return etype.sql_literal(self._str)
 
     def validate_attribute_update(self):
-        raise BadSyntax('Value %s is not supported in an attribute update path filter.' % self)
+        raise exception.BadSyntax('Value %s is not supported in an attribute update path filter.' % self)
 
