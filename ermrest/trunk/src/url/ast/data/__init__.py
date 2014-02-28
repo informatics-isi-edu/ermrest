@@ -231,10 +231,10 @@ class Attribute (Api):
             apath = self.resolve(model)
             return apath.get(conn, content_type=content_type)
 
-        def post_commit(line_thunk):
+        def post_commit(lines):
             web.header('Content-Type', content_type)
             web.ctx.ermrest_content_type = content_type
-            for line in line_thunk():
+            for line in lines:
                 yield line
 
         return self.perform(body, post_commit)
@@ -269,6 +269,24 @@ class Attribute (Api):
             web.ctx.ermrest_request_content_type = content_type
             for line in lines:
                 yield line
+
+        return self.perform(body, post_commit)
+
+    def DELETE(self, uri):
+        """Perform HTTP DELETE of entity attribute.
+        """
+        if not self.catalog.manager.has_content_write(
+                                web.ctx.webauthn2_context.attributes):
+            raise rest.Unauthorized(uri)
+        
+        def body(conn):
+            model = ermrest.model.introspect(conn)
+            apath = self.resolve(model)
+            apath.delete(conn)
+
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
 
         return self.perform(body, post_commit)
 
