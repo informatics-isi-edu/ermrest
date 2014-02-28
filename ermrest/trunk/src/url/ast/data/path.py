@@ -143,6 +143,8 @@ class FilterElem (Api):
     def sql_where(self, epath, elem):
         return self.pred.sql_where(epath, elem)
 
+    def validate_attribute_update(self, apath):
+        return self.pred.validate_attribute_update(apath)
 
 class Predicate (Api):
 
@@ -160,6 +162,9 @@ class Predicate (Api):
 
     def validate(self, epath):
         self.left_col, self.left_elem = self.left_name.validate(epath)
+
+    def validate_attribute_update(self, apath):
+        raise BadSyntax('Predicate %s is not supported in an attribute update path filter.' % self)
 
 class UnaryPredicate (Predicate):
     def __init__(self, left_name, right_expr=None):
@@ -232,6 +237,19 @@ class NullPredicate (UnaryPredicate):
 @op('=')
 class EqualPredicate (BinaryPredicate):
     sqlop = '='
+
+    def validate_attribute_update(self, apath):
+        tcol, base = self.left_name.resolve_column(apath.epath._model, apath.epath)
+        if base == apath.epath:
+            # column in final entity path element
+            pass
+        elif base in apath.epath.aliases:
+            raise ConflictModel('Only unqualified attribute names from entity %s can be constrained in PUT.' % apath.epath.current_entity_table().name)
+        else:
+            raise ConflictModel('Invalid attribute name "%s".' % attribute)
+        
+        icolname = self.right_expr.validate_attribute_update()
+        return tcol, icolname
 
 @op('geq')
 class GreaterEqualPredicate (BinaryOrderedPredicate):
