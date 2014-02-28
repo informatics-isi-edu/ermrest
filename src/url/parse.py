@@ -273,6 +273,9 @@ def p_expr_const(p):
     """expr : string """
     p[0] = ast.Value(p[1])
 
+def p_expr_name(p):
+    """expr : name """
+    p[0] = p[1]
 
 def p_op(p):
     """op : '='"""

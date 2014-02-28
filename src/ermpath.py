@@ -461,15 +461,19 @@ RETURNING *
         if allow_existing is False:
             cur.execute("%s INTERSECT ALL %s" % correlating_sql)
             for row in cur:
-                raise ConflictData('Input row key (%s) collides with existing entity.' % row)
+                raise ConflictData('Input row key (%s) collides with existing entity.' % str(row))
 
         if allow_missing is False:
             cur.execute("%s EXCEPT ALL %s" % correlating_sql)
             for row in cur:
-                raise ConflictData('Input row key (%s) does not match existing entity.' % row)
+                raise ConflictData('Input row key (%s) does not match existing entity.' % str(row))
 
         # we cannot use a held cursor here because upsert_sql modifies the DB
-        cur.execute(upsert_sql)
+        try:
+            cur.execute(upsert_sql)
+        except psycopg2.IntegrityError, e:
+            raise ConflictModel('Input data violates model. ' + e.pgerror)
+            
         return list(make_row_thunk(None, cur, content_type, drop_tables)())
 
 class AnyPath (object):
@@ -893,12 +897,27 @@ WHERE %(keymatches)s
               False --> raise exception
 
         """
-        # metakey defaults to all keys in entity table
-        etable = self.epath.current_entity_table()
         mkcols = set()
-        for unique in etable.uniques:
-            for c in unique:
-                mkcols.add(c)
+        if self.epath._path[-1].filters:
+            # special case filter syntax is allowed
+            # to override metakey input/table row correlation
+            for filt in self.epath._path[-1].filters:
+                tcol, icolname = filt.validate_attribute_update(self)
+                if tcol in mkcols:
+                    raise BadSyntax('Attribute "%s" bound too many times in path.' % tcol.name)
+                if str(tcol.name) != icolname:
+                    raise BadSyntax('Remapping of input name "%s" to attribute "%s" not supported.' % (icolname, tcol.name))
+                mkcols.add(tcol)
+
+            # remove filters to allow epath.put() to work
+            self.epath._path[-1].filters = []
+        else:
+            # metakey defaults to all keys in entity table
+            etable = self.epath.current_entity_table()
+            for unique in etable.uniques:
+                for c in unique:
+                    mkcols.add(c)
+
         nmkcols = set()
 
         if len(mkcols) == 0:
@@ -912,7 +931,7 @@ WHERE %(keymatches)s
                 nmkcols.add(col)
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
-                raise BadData('Only unqualified attribute names from entity %s can be modified by PUT.' % etable.name)
+                raise ConflictModel('Only unqualified attribute names from entity %s can be modified by PUT.' % etable.name)
             else:
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
         
@@ -935,7 +954,7 @@ WHERE %(keymatches)s
                 nmkcols.add(col)
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
-                raise BadData('Only unqualified attribute names from entity %s can be modified by DELETE.' % etable.name)
+                raise ConflictModel('Only unqualified attribute names from entity %s can be modified by DELETE.' % etable.name)
             else:
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
         
