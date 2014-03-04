@@ -44,7 +44,7 @@ COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, co
 COPY cirm.scan (id, slide_id, scan_num, filename, thumbnail, tilesdir, comment, tags) from stdin with csv delimiter ',' quote '"';
 20131108-wnt1creZEGG-RES-0-09-000-000,20131108-wnt1creZEGG-RES-0-09-000,0,sample2.czi,sample2.jpeg,sample2/,"should use this",""
 20131108-wnt1creZEGG-RES-0-12-000-000,20131108-wnt1creZEGG-RES-0-12-000,0,sample2.czi,sample2.jpeg,sample2/,"scan under review",""
-20131108-wnt1creZEGG-RES-0-12-000-001,20131108-wnt1creZEGG-RES-0-12-000,0,sample3.czi,sample3.jpeg,sample3/,"should use this one",""
+20131108-wnt1creZEGG-RES-0-12-000-001,20131108-wnt1creZEGG-RES-0-12-000,1,sample3.czi,sample3.jpeg,sample3/,"should use this one",""
 20131108-wnt1creZEGG-RES-0-38-000-000,20131108-wnt1creZEGG-RES-0-38-000,0,sample1.czi,sample1.jpeg,sample1/,"some ROIs",""
 20131108-wnt1creZEGG-RES-0-38-000-001,20131108-wnt1creZEGG-RES-0-38-000,1,sample1.czi,sample1.jpeg,sample1/,"another scan of 38",""
 20131108-wnt1creZEGG-RES-0-39-000-000,20131108-wnt1creZEGG-RES-0-39-000,0,sample1.czi,sample1.jpeg,sample1/,"more ROIs",""
