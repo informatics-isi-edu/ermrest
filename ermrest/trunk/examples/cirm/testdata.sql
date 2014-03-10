@@ -2,11 +2,13 @@
 COPY cirm.box (id, section_date, sample_name, initials, disambiguator, comment, tags) from stdin with csv delimiter ',' quote '"';
 20131108-wnt1creZEGG-RES-0,2013-11-08,wnt1creZEGG,RES,0,"My sectioned sample returned from lab",""
 20131110-wnt1creZEGG-RES-0,2013-12-01,wnt1creZEGG,RES,0,"Another of my boxes back from lab",""
+20140130-wnt1creZEGG-RES-0,2014-01-30,wnt1creZEGG,RES,0,"Box from lab",""
 \.
 
 COPY cirm.experiment (id, experiment_date, experiment_description, initials, disambiguator, comment, tags) from stdin with csv delimiter ',' quote '"';
 20131112-myantibody1-SV-0,2013-11-12,myantibody1,SV,0,"This is Serban's experiment",""
 20131115-myantibody2-KC-0,2013-11-15,myantibody2,KC,0,"This is Karl's experiment",""
+20140130-myantibody3-RS-0,2014-01-30,myantibody3,RS,0,"This is Rob's experiment",""
 \.
 
 COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, comment, tags) from stdin with csv delimiter ',' quote '"';
@@ -41,6 +43,19 @@ COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, co
 20131110-wnt1creZEGG-RES-0-53-000,20131110-wnt1creZEGG-RES-0,,53,0,"--",""
 \.
 
+COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, comment, tags) from stdin with csv delimiter ',' quote '"';
+20140130-wnt1creZEGG-RES-0-01-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-02-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-03-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-04-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-05-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-06-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-07-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-08-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-09-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+20140130-wnt1creZEGG-RES-0-10-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,6,0,"slide to be reviewed further",""
+\.
+
 COPY cirm.scan (id, slide_id, scan_num, filename, thumbnail, tilesdir, comment, tags) from stdin with csv delimiter ',' quote '"';
 20131108-wnt1creZEGG-RES-0-09-000-000,20131108-wnt1creZEGG-RES-0-09-000,0,sample2.czi,sample2.jpeg,sample2/,"should use this",""
 20131108-wnt1creZEGG-RES-0-12-000-000,20131108-wnt1creZEGG-RES-0-12-000,0,sample2.czi,sample2.jpeg,sample2/,"scan under review",""
@@ -57,6 +72,19 @@ COPY cirm.scan (id, slide_id, scan_num, filename, thumbnail, tilesdir, comment, 
 20131110-wnt1creZEGG-RES-0-29-000-000,20131110-wnt1creZEGG-RES-0-29-000,0,sample1.czi,sample1.jpeg,sample1/,"some ROIs",""
 20131110-wnt1creZEGG-RES-0-29-000-001,20131110-wnt1creZEGG-RES-0-29-000,1,sample1.czi,sample1.jpeg,sample1/,"another scan of 29",""
 20131110-wnt1creZEGG-RES-0-31-000-000,20131110-wnt1creZEGG-RES-0-31-000,0,sample2.czi,sample2.jpeg,sample2/,"scan under review",""
+\.
+
+COPY cirm.scan (id, slide_id, scan_num, filename, thumbnail, tilesdir, comment, tags) from stdin with csv delimiter ',' quote '"';
+20140130-wnt1creZEGG-RES-0-01-000-001,20140130-wnt1creZEGG-RES-0-01-000,0,30-01-2014_Barcode-0737.czi,30-01-2014_Barcode-0737.jpg,30-01-2014_Barcode-0737/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-02-000-001,20140130-wnt1creZEGG-RES-0-02-000,0,30-01-2014_Barcode-0739.czi,30-01-2014_Barcode-0739.jpg,/30-01-2014_Barcode-0739/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-03-000-001,20140130-wnt1creZEGG-RES-0-03-000,0,30-01-2014_Barcode-0743.czi,30-01-2014_Barcode-0743.jpg,/30-01-2014_Barcode-0743/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-04-000-001,20140130-wnt1creZEGG-RES-0-04-000,0,30-01-2014_Barcode-0745.czi,30-01-2014_Barcode-0745.jpg,/30-01-2014_Barcode-0745/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-05-000-001,20140130-wnt1creZEGG-RES-0-05-000,0,30-01-2014_Barcode-0776.czi,30-01-2014_Barcode-0776.jpg,/30-01-2014_Barcode-0776/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-06-000-001,20140130-wnt1creZEGG-RES-0-06-000,0,30-01-2014_Barcode-0819.czi,30-01-2014_Barcode-0819.jpg,/30-01-2014_Barcode-0819/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-07-000-001,20140130-wnt1creZEGG-RES-0-07-000,0,30-01-2014_Barcode-0820.czi,30-01-2014_Barcode-0820.jpg,/30-01-2014_Barcode-0820/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-08-000-001,20140130-wnt1creZEGG-RES-0-08-000,0,30-01-2014_Barcode-0821.czi,30-01-2014_Barcode-0821.jpg,/30-01-2014_Barcode-0821/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-09-000-001,20140130-wnt1creZEGG-RES-0-09-000,0,30-01-2014_Barcode-0823.czi,30-01-2014_Barcode-0823.jpg,/30-01-2014_Barcode-0823/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-10-000-001,20140130-wnt1creZEGG-RES-0-10-000,0,31-01-2014_Barcode-0832.czi,31-01-2014_Barcode-0832.jpg,/31-01-2014_Barcode-0832/,"scan under review",""
 \.
 
 SET client_min_messages=ERROR;
