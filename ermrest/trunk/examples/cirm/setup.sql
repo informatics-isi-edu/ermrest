@@ -82,6 +82,7 @@ CREATE TABLE cirm.scan
     slide_id varchar(37),
     scan_num integer NOT NULL,
     filename text,
+    filesize bigint,
     thumbnail text,
     tilesdir text,
     comment text,
