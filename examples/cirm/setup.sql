@@ -86,6 +86,7 @@ CREATE TABLE cirm.scan
     filesize bigint,
     thumbnail text,
     tilesdir text,
+    zoomify text,
     comment text,
     tags text,
     FOREIGN KEY (slide_id) REFERENCES cirm.slide (id)
