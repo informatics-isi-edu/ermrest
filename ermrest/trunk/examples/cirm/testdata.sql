@@ -57,34 +57,34 @@ COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, co
 \.
 
 COPY cirm.scan (id, slide_id, scan_num, endpoint, filename, filesize, thumbnail, tilesdir, comment, tags) from stdin with csv delimiter ',' quote '"';
-20131108-wnt1creZEGG-RES-0-09-000-000,20131108-wnt1creZEGG-RES-0-09-000,0,isidev#cirm-files,sample2.czi,2465079520,sample2.jpeg,sample2/,"should use this",""
-20131108-wnt1creZEGG-RES-0-12-000-000,20131108-wnt1creZEGG-RES-0-12-000,0,isidev#cirm-files,sample2.czi,2465079520,sample2.jpeg,sample2/,"scan under review",""
-20131108-wnt1creZEGG-RES-0-12-000-001,20131108-wnt1creZEGG-RES-0-12-000,1,isidev#cirm-files,sample3.czi,12330720832,sample3.jpeg,sample3/,"should use this one",""
-20131108-wnt1creZEGG-RES-0-38-000-000,20131108-wnt1creZEGG-RES-0-38-000,0,isidev#cirm-files,sample1.czi,1308622048,sample1.jpeg,sample1/,"some ROIs",""
-20131108-wnt1creZEGG-RES-0-38-000-001,20131108-wnt1creZEGG-RES-0-38-000,1,isidev#cirm-files,sample1.czi,1308622048,sample1.jpeg,sample1/,"another scan of 38",""
-20131108-wnt1creZEGG-RES-0-39-000-000,20131108-wnt1creZEGG-RES-0-39-000,0,isidev#cirm-files,sample1.czi,1308622048,sample1.jpeg,sample1/,"more ROIs",""
-20131108-wnt1creZEGG-RES-0-55-000-000,20131108-wnt1creZEGG-RES-0-55-000,0,isidev#cirm-files,sample3.czi,12330720832,sample3.jpeg,sample3/,"still working on this",""
+20131108-wnt1creZEGG-RES-0-09-000-000,20131108-wnt1creZEGG-RES-0-09-000,0,isidev#cirm-files,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-09-000/sample2.jpeg,sample2/,"should use this",""
+20131108-wnt1creZEGG-RES-0-12-000-000,20131108-wnt1creZEGG-RES-0-12-000,0,isidev#cirm-files,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-12-000/sample2.jpeg,sample2/,"scan under review",""
+20131108-wnt1creZEGG-RES-0-12-000-001,20131108-wnt1creZEGG-RES-0-12-000,1,isidev#cirm-files,sample3.czi,12330720832,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-12-000/sample3.jpeg,sample3/,"should use this one",""
+20131108-wnt1creZEGG-RES-0-38-000-000,20131108-wnt1creZEGG-RES-0-38-000,0,isidev#cirm-files,sample1.czi,1308622048,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-38-000/sample1.jpeg,sample1/,"some ROIs",""
+20131108-wnt1creZEGG-RES-0-38-000-001,20131108-wnt1creZEGG-RES-0-38-000,1,isidev#cirm-files,sample2.czi,1308622048,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-38-000/sample2.jpeg,sample1/,"another scan of 38",""
+20131108-wnt1creZEGG-RES-0-39-000-000,20131108-wnt1creZEGG-RES-0-39-000,0,isidev#cirm-files,sample1.czi,1308622048,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-39-000/sample1.jpeg,sample1/,"more ROIs",""
+20131108-wnt1creZEGG-RES-0-55-000-000,20131108-wnt1creZEGG-RES-0-55-000,0,isidev#cirm-files,sample3.czi,12330720832,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-55-000/sample3.jpeg,sample3/,"still working on this",""
 \.
 
 COPY cirm.scan (id, slide_id, scan_num, endpoint, filename, filesize, thumbnail, tilesdir, comment, tags) from stdin with csv delimiter ',' quote '"';
-20131110-wnt1creZEGG-RES-0-06-000-000,20131110-wnt1creZEGG-RES-0-06-000,0,isidev#cirm-files,sample3.czi,12330720832,sample3.jpeg,sample3/,"found something",""
-20131110-wnt1creZEGG-RES-0-12-000-000,20131110-wnt1creZEGG-RES-0-12-000,0,isidev#cirm-files,sample2.czi,2465079520,sample2.jpeg,sample2/,"scan under review",""
-20131110-wnt1creZEGG-RES-0-29-000-000,20131110-wnt1creZEGG-RES-0-29-000,0,isidev#cirm-files,sample1.czi,1308622048,sample1.jpeg,sample1/,"some ROIs",""
-20131110-wnt1creZEGG-RES-0-29-000-001,20131110-wnt1creZEGG-RES-0-29-000,1,isidev#cirm-files,sample1.czi,1308622048,sample1.jpeg,sample1/,"another scan of 29",""
-20131110-wnt1creZEGG-RES-0-31-000-000,20131110-wnt1creZEGG-RES-0-31-000,0,isidev#cirm-files,sample2.czi,2465079520,sample2.jpeg,sample2/,"scan under review",""
+20131110-wnt1creZEGG-RES-0-06-000-000,20131110-wnt1creZEGG-RES-0-06-000,0,isidev#cirm-files,sample3.czi,12330720832,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-06-000/sample3.jpeg,sample3/,"found something",""
+20131110-wnt1creZEGG-RES-0-12-000-000,20131110-wnt1creZEGG-RES-0-12-000,0,isidev#cirm-files,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-12-000/sample2.jpeg,sample2/,"scan under review",""
+20131110-wnt1creZEGG-RES-0-29-000-000,20131110-wnt1creZEGG-RES-0-29-000,0,isidev#cirm-files,sample1.czi,1308622048,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-29-000/sample1.jpeg,sample1/,"some ROIs",""
+20131110-wnt1creZEGG-RES-0-29-000-001,20131110-wnt1creZEGG-RES-0-29-000,1,isidev#cirm-files,sample2.czi,1308622048,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-29-000/sample2.jpeg,sample1/,"another scan of 29",""
+20131110-wnt1creZEGG-RES-0-31-000-000,20131110-wnt1creZEGG-RES-0-31-000,0,isidev#cirm-files,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-31-000/sample2.jpeg,sample2/,"scan under review",""
 \.
 
 COPY cirm.scan (id, slide_id, scan_num, endpoint, filename, filesize, thumbnail, tilesdir, comment, tags) from stdin with csv delimiter ',' quote '"';
-20140130-wnt1creZEGG-RES-0-01-000-001,20140130-wnt1creZEGG-RES-0-01-000,0,isidev#cirm-files,30-01-2014_Barcode-0737.czi,755687264,30-01-2014_Barcode-0737.jpg,30-01-2014_Barcode-0737/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-02-000-001,20140130-wnt1creZEGG-RES-0-02-000,0,isidev#cirm-files,30-01-2014_Barcode-0739.czi,907742720,30-01-2014_Barcode-0739.jpg,/30-01-2014_Barcode-0739/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-03-000-001,20140130-wnt1creZEGG-RES-0-03-000,0,isidev#cirm-files,30-01-2014_Barcode-0743.czi,525592320,30-01-2014_Barcode-0743.jpg,30-01-2014_Barcode-0743/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-04-000-001,20140130-wnt1creZEGG-RES-0-04-000,0,isidev#cirm-files,30-01-2014_Barcode-0745.czi,580849440,30-01-2014_Barcode-0745.jpg,/30-01-2014_Barcode-0745/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-05-000-001,20140130-wnt1creZEGG-RES-0-05-000,0,isidev#cirm-files,30-01-2014_Barcode-0776.czi,607320096,30-01-2014_Barcode-0776.jpg,/30-01-2014_Barcode-0776/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-06-000-001,20140130-wnt1creZEGG-RES-0-06-000,0,isidev#cirm-files,30-01-2014_Barcode-0819.czi,523799680,30-01-2014_Barcode-0819.jpg,30-01-2014_Barcode-0819/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-07-000-001,20140130-wnt1creZEGG-RES-0-07-000,0,isidev#cirm-files,30-01-2014_Barcode-0820.czi,567064160,30-01-2014_Barcode-0820.jpg,/30-01-2014_Barcode-0820/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-08-000-001,20140130-wnt1creZEGG-RES-0-08-000,0,isidev#cirm-files,30-01-2014_Barcode-0821.czi,572666784,30-01-2014_Barcode-0821.jpg,/30-01-2014_Barcode-0821/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-09-000-001,20140130-wnt1creZEGG-RES-0-09-000,0,isidev#cirm-files,30-01-2014_Barcode-0823.czi,530951360,30-01-2014_Barcode-0823.jpg,/30-01-2014_Barcode-0823/,"scan under review",""
-20140130-wnt1creZEGG-RES-0-10-000-001,20140130-wnt1creZEGG-RES-0-10-000,0,isidev#cirm-files,31-01-2014_Barcode-0832.czi,521829856,31-01-2014_Barcode-0832.jpg,/31-01-2014_Barcode-0832/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-01-000-001,20140130-wnt1creZEGG-RES-0-01-000,0,isidev#cirm-files,30-01-2014_Barcode-0737.czi,755687264,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-01-000/30-01-2014_Barcode-0737.jpg,30-01-2014_Barcode-0737/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-02-000-001,20140130-wnt1creZEGG-RES-0-02-000,0,isidev#cirm-files,30-01-2014_Barcode-0739.czi,907742720,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-02-000/30-01-2014_Barcode-0739.jpg,/30-01-2014_Barcode-0739/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-03-000-001,20140130-wnt1creZEGG-RES-0-03-000,0,isidev#cirm-files,30-01-2014_Barcode-0743.czi,525592320,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-03-000/30-01-2014_Barcode-0743.jpg,30-01-2014_Barcode-0743/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-04-000-001,20140130-wnt1creZEGG-RES-0-04-000,0,isidev#cirm-files,30-01-2014_Barcode-0745.czi,580849440,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-04-000/30-01-2014_Barcode-0745.jpg,/30-01-2014_Barcode-0745/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-05-000-001,20140130-wnt1creZEGG-RES-0-05-000,0,isidev#cirm-files,30-01-2014_Barcode-0776.czi,607320096,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-05-000/30-01-2014_Barcode-0776.jpg,/30-01-2014_Barcode-0776/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-06-000-001,20140130-wnt1creZEGG-RES-0-06-000,0,isidev#cirm-files,30-01-2014_Barcode-0819.czi,523799680,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-06-000/30-01-2014_Barcode-0819.jpg,30-01-2014_Barcode-0819/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-07-000-001,20140130-wnt1creZEGG-RES-0-07-000,0,isidev#cirm-files,30-01-2014_Barcode-0820.czi,567064160,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-07-000/30-01-2014_Barcode-0820.jpg,/30-01-2014_Barcode-0820/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-08-000-001,20140130-wnt1creZEGG-RES-0-08-000,0,isidev#cirm-files,30-01-2014_Barcode-0821.czi,572666784,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-08-000/30-01-2014_Barcode-0821.jpg,/30-01-2014_Barcode-0821/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-09-000-001,20140130-wnt1creZEGG-RES-0-09-000,0,isidev#cirm-files,30-01-2014_Barcode-0823.czi,530951360,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-09-000/30-01-2014_Barcode-0823.jpg,/30-01-2014_Barcode-0823/,"scan under review",""
+20140130-wnt1creZEGG-RES-0-10-000-001,20140130-wnt1creZEGG-RES-0-10-000,0,isidev#cirm-files,31-01-2014_Barcode-0832.czi,521829856,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-10-000/31-01-2014_Barcode-0832.jpg,/31-01-2014_Barcode-0832/,"scan under review",""
 \.
 
 SET client_min_messages=ERROR;
