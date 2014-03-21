@@ -87,8 +87,8 @@ class EntityElem (object):
         self.filters = []
 
     def _link_parts(self):
-        fkcols = [ urllib.quote(c.name) for c in self.keyref.foreign_key.columns ]
-        pkcols = [ urllib.quote(c.name) for c in self.keyref.unique.columns ]
+        fkcols = [ c.name for c in self.keyref.foreign_key.columns ]
+        pkcols = [ c.name for c in self.keyref.unique.columns ]
 
         if self.refop == '=@':
             # left to right reference
