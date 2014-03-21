@@ -78,9 +78,9 @@ CREATE INDEX ON cirm.slide USING gin (
 
 CREATE TABLE cirm.scan
   (
-    id varchar(41) PRIMARY KEY,
+    id text PRIMARY KEY,
     slide_id varchar(37),
-    scan_num integer NOT NULL,
+    original_filename text,
     go_endpoint text,
     go_path text,
     http_url text,
