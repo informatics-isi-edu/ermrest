@@ -1,17 +1,17 @@
 
-COPY cirm.box (id, section_date, sample_name, initials, disambiguator, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.box (id, "Section Date", "Sample Name", "Initials", "Disambiguator", "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20131108-wnt1creZEGG-RES-0,2013-11-08,wnt1creZEGG,RES,0,"My sectioned sample returned from lab",""
 20131110-wnt1creZEGG-RES-0,2013-12-01,wnt1creZEGG,RES,0,"Another of my boxes back from lab",""
 20140130-wnt1creZEGG-RES-0,2014-01-30,wnt1creZEGG,RES,0,"Box from lab",""
 \.
 
-COPY cirm.experiment (id, experiment_date, experiment_description, initials, disambiguator, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.experiment (id, "Experiment Date", "Experiment Description", "Initials", "Disambiguator", "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20131112-myantibody1-SV-0,2013-11-12,myantibody1,SV,0,"This is Serban's experiment",""
 20131115-myantibody2-KC-0,2013-11-15,myantibody2,KC,0,"This is Karl's experiment",""
 20140130-myantibody3-RS-0,2014-01-30,myantibody3,RS,0,"This is Rob's experiment",""
 \.
 
-COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.slide (id, "Box ID", "Experiment ID", "Seq.", "Rev.", "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20131108-wnt1creZEGG-RES-0-09-000,20131108-wnt1creZEGG-RES-0,20131115-myantibody2-KC-0,9,0,"under further review",""
 20131108-wnt1creZEGG-RES-0-12-000,20131108-wnt1creZEGG-RES-0,20131112-myantibody1-SV-0,12,0,"using in experiment",""
 20131108-wnt1creZEGG-RES-0-38-000,20131108-wnt1creZEGG-RES-0,20131112-myantibody1-SV-0,38,0,"looks interesting",""
@@ -27,7 +27,7 @@ COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, co
 20131108-wnt1creZEGG-RES-0-84-000,20131108-wnt1creZEGG-RES-0,,84,0,"--",""
 \.
 
-COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.slide (id, "Box ID", "Experiment ID", "Seq.", "Rev.", "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20131110-wnt1creZEGG-RES-0-06-000,20131110-wnt1creZEGG-RES-0,20131115-myantibody2-KC-0,6,0,"slide to be reviewed further",""
 20131110-wnt1creZEGG-RES-0-12-000,20131110-wnt1creZEGG-RES-0,20131112-myantibody1-SV-0,12,0,"assigned to my experiment",""
 20131110-wnt1creZEGG-RES-0-25-000,20131110-wnt1creZEGG-RES-0,,25,0,"--",""
@@ -43,7 +43,7 @@ COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, co
 20131110-wnt1creZEGG-RES-0-53-000,20131110-wnt1creZEGG-RES-0,,53,0,"--",""
 \.
 
-COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.slide (id, "Box ID", "Experiment ID", "Seq.", "Rev.", "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20140130-wnt1creZEGG-RES-0-01-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,1,0,"slide to be reviewed further",""
 20140130-wnt1creZEGG-RES-0-02-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,2,0,"slide to be reviewed further",""
 20140130-wnt1creZEGG-RES-0-03-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,3,0,"slide to be reviewed further",""
@@ -56,7 +56,7 @@ COPY cirm.slide (id, box_of_origin_id, experiment_id, sequence_num, revision, co
 20140130-wnt1creZEGG-RES-0-10-000,20140130-wnt1creZEGG-RES-0,20140130-myantibody3-RS-0,10,0,"slide to be reviewed further",""
 \.
 
-COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url, filename, filesize, thumbnail, tilesdir, zoomify, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url, filename, filesize, thumbnail, tilesdir, zoomify, "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20131108-wnt1creZEGG-RES-0-09-000-000,20131108-wnt1creZEGG-RES-0-09-000,sample2.czi,isidev#cirm-files,/scans/sample2/sample2.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample2/sample2.czi,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-09-000/sample2.jpeg,sample2/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131108-wnt1creZEGG-RES-0-09-000/sample2.html,"should use this",""
 20131108-wnt1creZEGG-RES-0-12-000-000,20131108-wnt1creZEGG-RES-0-12-000,sample2.czi,isidev#cirm-files,/scans/sample2/sample2.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample2/sample2.czi,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-12-000/sample2.jpeg,sample2/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131108-wnt1creZEGG-RES-0-12-000/sample2.html,"scan under review",""
 20131108-wnt1creZEGG-RES-0-12-000-001,20131108-wnt1creZEGG-RES-0-12-000,sample3.czi,isidev#cirm-files,/scans/sample3/sample3.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample3/sample3.czi,sample3.czi,12330720832,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-12-000/sample3.jpeg,sample3/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131108-wnt1creZEGG-RES-0-12-000/sample3.html,"should use this one",""
@@ -66,7 +66,7 @@ COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url,
 20131108-wnt1creZEGG-RES-0-55-000-000,20131108-wnt1creZEGG-RES-0-55-000,sample3.czi,isidev#cirm-files,/scans/sample3/sample3.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample3/sample3.czi,sample3.czi,12330720832,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131108-wnt1creZEGG-RES-0-55-000/sample3.jpeg,sample3/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131108-wnt1creZEGG-RES-0-55-000/sample3.html,"still working on this",""
 \.
 
-COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url, filename, filesize, thumbnail, tilesdir, zoomify, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url, filename, filesize, thumbnail, tilesdir, zoomify, "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20131110-wnt1creZEGG-RES-0-06-000-000,20131110-wnt1creZEGG-RES-0-06-000,sample3.czi,isidev#cirm-files,/scans/sample3/sample3.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample3/sample3.czi,sample3.czi,12330720832,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-06-000/sample3.jpeg,sample3/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131110-wnt1creZEGG-RES-0-06-000/sample3.html,"found something",""
 20131110-wnt1creZEGG-RES-0-12-000-000,20131110-wnt1creZEGG-RES-0-12-000,sample2.czi,isidev#cirm-files,/scans/sample2/sample2.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample2/sample2.czi,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-12-000/sample2.jpeg,sample2/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131110-wnt1creZEGG-RES-0-12-000/sample2.html,"scan under review",""
 20131110-wnt1creZEGG-RES-0-29-000-000,20131110-wnt1creZEGG-RES-0-29-000,sample1.czi,isidev#cirm-files,/scans/sample1/sample1.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample1/sample1.czi,sample1.czi,1308622048,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-29-000/sample1.jpeg,sample1/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131110-wnt1creZEGG-RES-0-29-000/sample1.html,"some ROIs",""
@@ -74,7 +74,7 @@ COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url,
 20131110-wnt1creZEGG-RES-0-31-000-000,20131110-wnt1creZEGG-RES-0-31-000,sample2.czi,isidev#cirm-files,/scans/sample2/sample2.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/sample2/sample2.czi,sample2.czi,2465079520,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20131110-wnt1creZEGG-RES-0-31-000/sample2.jpeg,sample2/,https://cirm-dev.misd.isi.edu/cirm-files/html/20131110-wnt1creZEGG-RES-0-31-000/sample2.html,"scan under review",""
 \.
 
-COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url, filename, filesize, thumbnail, tilesdir, zoomify, comment, tags) from stdin with csv delimiter ',' quote '"';
+COPY cirm.scan (id, slide_id, original_filename, go_endpoint, go_path, http_url, filename, filesize, thumbnail, tilesdir, zoomify, "Comment", "Tags") from stdin with csv delimiter ',' quote '"';
 20140130-wnt1creZEGG-RES-0-01-000-001,20140130-wnt1creZEGG-RES-0-01-000,30-01-2014_Barcode-0737.czi,isidev#cirm-files,/scans/20140130-wnt1creZEGG-RES-0-01-000/30-01-2014_Barcode-0737.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/20140130-wnt1creZEGG-RES-0-01-000/30-01-2014_Barcode-0737.czi,30-01-2014_Barcode-0737.czi,755687264,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-01-000/30-01-2014_Barcode-0737.jpg,30-01-2014_Barcode-0737/,https://cirm-dev.misd.isi.edu/cirm-files/html/20140130-wnt1creZEGG-RES-0-01-000/30-01-2014_Barcode-0737.html,"scan under review",""
 20140130-wnt1creZEGG-RES-0-02-000-001,20140130-wnt1creZEGG-RES-0-02-000,30-01-2014_Barcode-0739.czi,isidev#cirm-files,/scans/20140130-wnt1creZEGG-RES-0-02-000/30-01-2014_Barcode-0739.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/20140130-wnt1creZEGG-RES-0-02-000/30-01-2014_Barcode-0739.czi,30-01-2014_Barcode-0739.czi,907742720,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-02-000/30-01-2014_Barcode-0739.jpg,,,"scan under review",""
 20140130-wnt1creZEGG-RES-0-03-000-001,20140130-wnt1creZEGG-RES-0-03-000,30-01-2014_Barcode-0743.czi,isidev#cirm-files,/scans/20140130-wnt1creZEGG-RES-0-03-000/30-01-2014_Barcode-0743.czi,https://cirm-dev.misd.isi.edu/cirm-files/scans/20140130-wnt1creZEGG-RES-0-03-000/30-01-2014_Barcode-0743.czi,30-01-2014_Barcode-0743.czi,525592320,https://cirm-dev.misd.isi.edu/cirm-files/thumbnails/20140130-wnt1creZEGG-RES-0-03-000/30-01-2014_Barcode-0743.jpg,30-01-2014_Barcode-0743/,https://cirm-dev.misd.isi.edu/cirm-files/html/20140130-wnt1creZEGG-RES-0-03-000/30-01-2014_Barcode-0743.html,"scan under review",""
