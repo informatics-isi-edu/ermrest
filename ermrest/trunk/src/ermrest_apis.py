@@ -165,6 +165,8 @@ def request_init():
         web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
     except (ValueError, IndexError):
         raise rest.Unauthorized('service access')
+    except (webauthn2.exc.AuthnFailed):
+        raise rest.Forbidden('Authentication failed')
 
 def request_final():
     """Log final request handler state to finalize a request's audit trail."""
