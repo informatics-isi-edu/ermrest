@@ -252,18 +252,18 @@ class Catalog (PooledConnection):
         # first, deploy the metadata schema
         cur = None
         try:
-            self.get_connection()
+            cur = self.get_connection().cursor()
             
             # create schema, if it doesn't exist
             if not schema_exists(self._dbc, self._SCHEMA_NAME):
-                cur = self._dbc.execute("""
+                cur.execute("""
 CREATE SCHEMA %(schema)s;"""
                     % dict(schema=self._SCHEMA_NAME))
                 self._dbc.commit()
             
             # create meta table, if it doesn't exist
             if not table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME):
-                cur = self._dbc.execute("""
+                cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     key text NOT NULL,
     value text NOT NULL,
