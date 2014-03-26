@@ -328,7 +328,8 @@ SELECT * FROM %(schema)s.%(table)s
         """
         cur = None
         try:
-            cur = self.get_connection().execute("""
+            cur = self.get_connection().cursor()
+            cur.execute("""
 INSERT INTO %(schema)s.%(table)s
   (key, value)
 VALUES
@@ -353,7 +354,8 @@ VALUES
         """
         cur = None
         try:
-            cur = self.get_connection().execute("""
+            cur = self.get_connection().cursor()
+            cur.execute("""
 DELETE FROM %(schema)s.%(table)s
 WHERE key=%(key)s
 ;
@@ -383,7 +385,8 @@ VALUES
             
         cur = None
         try:
-            cur = self.get_connection().execute("""
+            cur = self.get_connection().cursor()
+            cur.execute("""
 DELETE FROM %(schema)s.%(table)s
 %(where)s
 ;"""
