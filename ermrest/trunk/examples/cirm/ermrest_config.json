@@ -51,9 +51,9 @@
     },
     
     "printers" : {
-      "slide_addr" : "mycxi.isi.edu",
+      "slide_addr" : "slidecode.hsc.usc.edu",
       "slide_port" : 9100,
-      "box_addr" : "mycxilabel.isi.edu",
+      "box_addr" : "boxcode.hsc.usc.edu",
       "box_port": 9100
     },
     
