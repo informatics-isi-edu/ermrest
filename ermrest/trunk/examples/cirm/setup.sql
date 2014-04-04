@@ -57,11 +57,11 @@ CREATE TABLE "CIRM"."Slide"
     "Seq." integer NOT NULL,
     "Rev." integer NOT NULL,
     "Box ID" varchar(30) NOT NULL,
-    "Experiment ID" varchar(30),
+    "Experiment ID" varchar(30) DEFAULT NULL,
     "Comment" text,
     "Tags" text,
     FOREIGN KEY ("Box ID") REFERENCES "CIRM"."Box" ("ID"),
-    FOREIGN KEY ("Experiment ID") REFERENCES "CIRM"."Experiment" ("ID")
+    FOREIGN KEY ("Experiment ID") REFERENCES "CIRM"."Experiment" ("ID") ON DELETE SET DEFAULT
   );
 
 CREATE INDEX ON "CIRM"."Slide" USING gin ( 
@@ -79,7 +79,7 @@ CREATE INDEX ON "CIRM"."Slide" USING gin (
 CREATE TABLE "CIRM"."Scan"
   (
     "ID" text PRIMARY KEY,
-    "Slide ID" varchar(37),
+    "Slide ID" varchar(37) DEFAULT NULL,
     "Original Filename" text,
     "GO Endpoint" text,
     "GO Path" text,
@@ -90,7 +90,7 @@ CREATE TABLE "CIRM"."Scan"
     "Zoomify" text,
     "Comment" text,
     "Tags" text,
-    FOREIGN KEY ("Slide ID") REFERENCES "CIRM"."Slide" ("ID")
+    FOREIGN KEY ("Slide ID") REFERENCES "CIRM"."Slide" ("ID") ON DELETE SET DEFAULT
   );
 
 CREATE INDEX ON "CIRM"."Scan" USING gin ( 
