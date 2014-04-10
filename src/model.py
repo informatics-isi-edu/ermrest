@@ -357,7 +357,7 @@ class Schema:
                     ])
             )
 
-class Table:
+class Table (object):
     """Represents a database table.
     
     At present, this has a 'name' and a collection of table 'columns'. It
@@ -397,14 +397,15 @@ class Table:
 
     def prejson(self):
         return dict(
+            schema_name=str(self.schema.name),
             table_name=str(self.name),
-            columns=[
+            column_definitions=[
                 c.prejson() for c in self.columns_in_order()
                 ],
-            uniques=[
+            keys=[
                 u.prejson() for u in self.uniques.values()
                 ],
-            fkeys=[
+            foreign_keys=[
                 fk.prejson() for fk in self.fkeys.values()
                 ]
             )
@@ -457,7 +458,7 @@ class ArrayType(Type):
         return "%s[]" % self.base_type.sql()
 
 
-class Column:
+class Column (object):
     """Represents a table column.
     
     Its fields include:
@@ -490,12 +491,11 @@ class Column:
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
-    def prejson(self):
+    def prejson(c):
         return dict(
-            column_name=str(self.name),
-            position=self.position,
-            type=str(self.type),
-            default_value=self.default_value
+            name=str(c.name), 
+            type=str(c.type),
+            default=str(c.default_value)
             )
 
     def sql_name(self):
@@ -531,7 +531,7 @@ class FreetextColumn (Column):
         else:
             return "to_tsvector('english'::regconfig, ''::text)"
 
-class Unique:
+class Unique (object):
     """A unique constraint."""
     
     def __init__(self, cols):
@@ -555,12 +555,19 @@ class Unique:
 
     def prejson(self):
         return dict(
-            unique_columns=[
-                str(c.name) for c in self.columns
+            unique_columns=[ str(c.name) for c in self.columns ],
+            referenced_bys=[
+                dict( referring_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
+                      unique_to_referring_maps=[
+                        dict([ (str(p.name), str(f.name)) for p, f in kr.referenceby_map.items() ])
+                        for kr in self.table_references[rt]
+                        ]
+                      )
+                for rt in self.table_references.keys()
                 ]
             )
 
-class ForeignKey:
+class ForeignKey (object):
     """A foreign key."""
 
     def __init__(self, cols):
@@ -585,14 +592,17 @@ class ForeignKey:
 
     def prejson(self):
         return dict(
-            fkey_columns=[
-                str(c.name) for c in self.columns
-                ],
+            ref_columns=[ str(c.name) for c in self.columns ],
             references=[
-                fkr.prejson() for fkr in self.references.values()
+                dict( referred_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
+                      referring_to_unique_maps=[
+                        dict([ (str(f.name), str(p.name)) for f, p in kr.reference_map.items() ])
+                        for kr in self.table_references[rt]
+                        ]
+                      )
+                for rt in self.table_references.keys()
                 ]
             )
-            
 
 class KeyReference:
     """A reference from a foreign key to a primary key."""

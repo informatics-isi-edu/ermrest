@@ -37,8 +37,7 @@ class Schemas (Api):
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
         def post_commit(model):
-            schema_names = model.schemas.keys()
-            return json.dumps(schema_names) + '\n'
+            return json.dumps(model.prejson(), indent=2) + '\n'
 
         return self.perform(model_body, post_commit)
 
@@ -66,8 +65,7 @@ class Schema (Api):
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
         def post_commit(schema):
-            table_names = schema.tables.keys()
-            return json.dumps(table_names) + '\n'
+            return json.dumps(schema.prejson(), indent=2) + '\n'
 
         return self.perform(
             lambda conn: schema_body(conn, str(self.name)), 
@@ -79,6 +77,10 @@ class Tables (Api):
     def __init__(self, schema):
         Api.__init__(self, schema.catalog)
         self.schema = schema
+
+    def table(self, name):
+        """A specific table for this schema."""
+        return self.schema.table(name)
 
     def GET(self, uri):
         return self.schema.GET(uri)
@@ -132,16 +134,7 @@ class Table (Api):
     def GET(self, uri):
         def post_commit(tup):
             schema, table = tup
-            columns = table.columns_in_order()
-
-            response = dict()
-            response['schema_name'] = str(schema.name)
-            response['table_name'] = str(table.name)
-            response['column_definitions'] = Columns.prejson(columns)
-            response['uniques'] = Keys.prejson(table.uniques)
-            response['foreign_keys'] = Foreignkeys.prejson(table.fkeys)
-        
-            return json.dumps(response) + '\n'
+            return json.dumps(table.prejson(), indent=2) + '\n'
 
         return self.perform(
             lambda conn: schema_table_body(
@@ -161,9 +154,7 @@ class Columns (Api):
     def GET(self, uri):
         def post_commit(tup):
             schema, table = tup
-            columns = table.columns.values()
-            columns.sort(key=lambda c: c.position)
-            return json.dumps(Columns.prejson(columns)) + '\n'
+            return json.dumps([ c.prejson() for c in table.columns_in_order() ], indent=2) + '\n'
 
         return self.perform(
             lambda conn: schema_table_body(
@@ -173,10 +164,6 @@ class Columns (Api):
                 ),
             post_commit
             )
-
-    @staticmethod
-    def prejson(columns):
-        return [ Column.prejson(c) for c in columns ]
 
 class Column (Api):
     """A specific column by name."""
@@ -193,7 +180,7 @@ class Column (Api):
                 raise exception.NotFound('column "%s"' % column_name)
             else:
                 column = table.columns[column_name]
-            return json.dumps(Column.prejson(column)) + '\n'
+            return json.dumps(column.prejson(), indent=2) + '\n'
 
         return self.perform(
             lambda conn: schema_table_body(
@@ -203,11 +190,6 @@ class Column (Api):
                 ),
             post_commit
             )
-
-    @staticmethod
-    def prejson(c):
-        return dict(name=str(c.name), type=str(c.type), default=str(c.default_value))
-
 
 class Keys (Api):
     """A set of keys."""
@@ -219,7 +201,7 @@ class Keys (Api):
         def post_commit(tup):
             schema, table = tup
             keys = table.uniques
-            return json.dumps(Keys.prejson(keys)) + '\n'
+            return json.dumps([ key.prejson() for key in keys.values() ]) + '\n'
 
         return self.perform(
             lambda conn: schema_table_body(
@@ -229,10 +211,6 @@ class Keys (Api):
                 ),
             post_commit
             )
-
-    @staticmethod
-    def prejson(uniques):
-        return [ Key.prejson(u) for u in uniques.values() ]
 
 class Key (Api):
     """A specific key by column set."""
@@ -262,25 +240,10 @@ class Key (Api):
             return table.uniques[fs]
 
         def post_commit(key):
-            return json.dumps(Key.prejson(key)) + '\n'
+            return json.dumps(key.prejson(), indent=2) + '\n'
 
         return self.perform(body, post_commit)
 
-
-    @staticmethod
-    def prejson(u):
-        return dict(
-            unique_columns=[ str(c.name) for c in u.columns ],
-            referenced_bys=[
-                dict( referring_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
-                      unique_to_referring_maps=[
-                        dict([ (str(p.name), str(f.name)) for p, f in kr.referenceby_map.items() ])
-                        for kr in u.table_references[rt]
-                        ]
-                      )
-                for rt in u.table_references.keys()
-                ]
-            )
 
 class Foreignkeys (Api):
     """A set of foreign keys."""
@@ -292,7 +255,7 @@ class Foreignkeys (Api):
         def post_commit(tup):
             schema, table = tup
             fkeys = table.fkeys
-            return json.dumps(Foreignkeys.prejson(fkeys)) + '\n'
+            return json.dumps([ fk.prejson() for fk in fkeys.values() ], indent=2) + '\n'
 
         return self.perform(
             lambda conn: schema_table_body(
@@ -302,10 +265,6 @@ class Foreignkeys (Api):
                 ),
             post_commit
             )
-
-    @staticmethod
-    def prejson(fkeys):
-        return [ Foreignkey.prejson(fk) for fk in fkeys.values() ]
 
 class Foreignkey (Api):
     """A specific foreign key by column set."""
@@ -334,30 +293,15 @@ class Foreignkey (Api):
                 raise exception.NotFound('foreign key (%s)' % (','.join([ str(c) for c in cols])))
             return table.fkeys[fs]
 
-
         def post_commit(fkey):
-            return json.dumps(Foreignkey.prejson(fkey)) + '\n'
+            return json.dumps(fkey.prejson(), indent=2) + '\n'
 
         return self.perform(body, post_commit)
-
-    @staticmethod
-    def prejson(fk):
-        return dict(
-            ref_columns=[ str(c.name) for c in fk.columns ],
-            references=[
-                dict( referred_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
-                      referring_to_unique_maps=[
-                        dict([ (str(f.name), str(p.name)) for f, p in kr.reference_map.items() ])
-                        for kr in fk.table_references[rt]
-                        ]
-                      )
-                for rt in fk.table_references.keys()
-                ]
-            )
 
 class ForeignkeyReferences (Api):
     """A set of foreign key references."""
     def __init__(self, catalog):
+        Api.__init__(self, catalog)
         self.catalog = catalog
         self._from_table = None
         self._from_key = None
