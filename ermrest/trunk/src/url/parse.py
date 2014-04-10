@@ -47,8 +47,11 @@ def p_apis(p):
              | catalog
              | schemas 
              | schema
+             | schemaslash
              | tables 
+             | tablesslash
              | table
+             | tableslash
              | columns 
              | column
              | keys 
@@ -304,41 +307,51 @@ def p_schema(p):
     """schema : catalogslash SCHEMA '/' name """
     p[0] = p[1].schema(p[4])
 
+def p_schema2(p):
+    """schemaslash : schema '/'"""
+    p[0] = p[1]
 
 def p_tables(p):
-    """tables : schema '/' TABLE slashopt """
+    """tables : schemaslash TABLE"""
     p[0] = p[1].tables()
 
-def p_table(p):
-    """table : schema '/' TABLE '/' name """
-    p[0] = p[1].table(p[5])
+def p_tables2(p):
+    """tablesslash : tables '/'"""
+    p[0] = p[1]
 
+def p_table(p):
+    """table : tablesslash name """
+    p[0] = p[1].table(p[2])
+
+def p_table2(p):
+    """tableslash : table '/' """
+    p[0] = p[1]
 
 def p_columns(p):
-    """columns : table '/' COLUMN slashopt """
+    """columns : tableslash COLUMN slashopt """
     p[0] = p[1].columns()
 
 def p_column(p):
-    """column : table '/' COLUMN '/' name """
-    p[0] = p[1].column(p[5])
+    """column : tableslash COLUMN '/' name """
+    p[0] = p[1].column(p[4])
 
 
 def p_keys(p):
-    """keys : table '/' KEY slashopt """
+    """keys : tableslash KEY slashopt """
     p[0] = p[1].keys()
 
 def p_key(p):
-    """key : table '/' KEY '/' namelist1 """
-    p[0] = p[1].key(p[5])
+    """key : tableslash KEY '/' namelist1 """
+    p[0] = p[1].key(p[4])
 
 
 def p_foreignkeys(p):
-    """foreignkeys : table '/' FOREIGNKEY slashopt """
+    """foreignkeys : tableslash FOREIGNKEY slashopt """
     p[0] = p[1].foreignkeys()
 
 def p_foreignkey(p):
-    """foreignkey : table '/' FOREIGNKEY '/' namelist1 """
-    p[0] = p[1].foreignkey(p[5])
+    """foreignkey : tableslash FOREIGNKEY '/' namelist1 """
+    p[0] = p[1].foreignkey(p[4])
 
 
 def p_foreignkey_reference(p):
@@ -355,12 +368,12 @@ def p_foreignkey_reftable_columns(p):
 
 
 def p_table_references(p):
-    """references : table '/' REFERENCE slashopt """
+    """references : tableslash REFERENCE slashopt """
     p[0] = p[1].references()
 
 def p_table_reftable(p):
-    """referencedtable : table '/' REFERENCE '/' name """
-    p[0] = p[1].references().with_to_table_name(p[5])
+    """referencedtable : tableslash REFERENCE '/' name """
+    p[0] = p[1].references().with_to_table_name(p[4])
 
 def p_table_reftable_slash(p):
     """referencedtableslash : referencedtable '/' """
@@ -392,7 +405,7 @@ def p_t_refbys(p):
     p[0] = p[1]
 
 def p_t_refby(p):
-    """treferencedby : table '/' REFERENCEDBY """
+    """treferencedby : tableslash REFERENCEDBY """
     p[0] = p[1].referencedbys()
 
 def p_t_refby_table(p):
