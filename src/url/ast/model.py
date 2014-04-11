@@ -119,7 +119,7 @@ class Table (Api):
 
     def foreignkey(self, column_set):
         """A specific foreign key for this table."""
-        return Foreignkey(self, column_set)
+        return Foreignkey(self, column_set, catalog=self.catalog)
 
     def references(self):
         """A set of foreign key references from this table."""
@@ -230,8 +230,10 @@ class Foreignkeys (Api):
 
 class Foreignkey (Api):
     """A specific foreign key by column set."""
-    def __init__(self, table, column_set):
-        Api.__init__(self, table.schema.catalog)
+    def __init__(self, table, column_set, catalog=None):
+        if catalog is None:
+            catalog = table.schema.catalog
+        Api.__init__(self, catalog)
         self.table = table
         self.columns = column_set
 
@@ -279,7 +281,7 @@ class ForeignkeyReferences (Api):
             sname, tname = None, from_table_name
         else:
             raise ValueError('Invalid qualified table name: %s' % ':'.join(from_table_name))
-        self._from_table = Table(sname, tname)
+        self._from_table = Table(sname, tname, catalog=self.catalog)
         return self
 
     def with_from_key(self, from_key):
