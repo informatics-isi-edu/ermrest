@@ -313,6 +313,11 @@ class Model:
                     ])
             )
         
+    def lookup_schema(self, sname):
+        if sname in self.schemas:
+            return self.schemas[sname]
+        else:
+            raise exception.ConflictModel('Schema %s does not exist.' % sname)
 
     def lookup_table(self, sname, tname):
         if sname is not None:
@@ -491,11 +496,18 @@ class Column (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
-    def prejson(c):
+    def prejson(self):
         return dict(
-            name=str(c.name), 
-            type=str(c.type),
-            default=str(c.default_value)
+            name=str(self.name), 
+            type=str(self.type),
+            default=str(self.default_value)
+            )
+
+    def prejson_ref(self):
+        return dict(
+            schema_name=str(self.table.schema.name),
+            table_name=str(self.table.name),
+            column_name=str(self.name)
             )
 
     def sql_name(self):
@@ -629,14 +641,14 @@ class KeyReference:
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
-        fks = []
-        pks = []
-        for fk in self.reference_map.keys():
-            fks.append( str(fk) )
-            pks.append( str(self.reference_map[fk]) )
+        fcs = []
+        pcs = []
+        for fc in self.reference_map.keys():
+            fcs.append( fc.prejson_ref() )
+            pcs.append( self.reference_map[fc].prejson_ref() )
         return dict(
-            foreign_key_columns=fks,
-            referenced_columns=pks
+            foreign_key_columns=fcs,
+            referenced_columns=pcs
             )
 
     def __repr__(self):
