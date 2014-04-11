@@ -43,10 +43,7 @@ class Schemas (Api):
 
 def schema_body(conn, schema_name):
     model = model_body(conn)
-    if schema_name not in model.schemas:
-        raise exception.NotFound('schema "%s"' % schema_name)
-    else:
-        return model.schemas[schema_name]
+    return model.lookup_schema(schema_name)
 
 class Schema (Api):
     """A specific schema by name."""
@@ -64,7 +61,7 @@ class Schema (Api):
 
     def GET_body(self, conn):
         model = model_body(conn)
-        return model.lookup_schema(str(self.name))
+        return model.lookup_schema(self.name)
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
@@ -121,14 +118,6 @@ class Table (Api):
         """A specific foreign key for this table."""
         return Foreignkey(self, column_set, catalog=self.catalog)
 
-    def references(self):
-        """A set of foreign key references from this table."""
-        return ForeignkeyReferences(self.schema.catalog).with_from_table(self)
-
-    def referencedbys(self):
-        """A set of foreign key references to this table."""
-        return ForeignkeyReferences(self.schema.catalog).with_to_table(self)
-
     def GET_body(self, conn):
         model = model_body(conn)
         return model.lookup_table(
@@ -141,6 +130,7 @@ class Table (Api):
             return json.dumps(table.prejson(), indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
+
 
 class Columns (Api):
     """A column set."""
@@ -194,10 +184,6 @@ class Key (Keys):
         Keys.__init__(self, table, catalog)
         self.columns = column_set
 
-    def referencedbys(self):
-        """A set of foreign key references to this key."""
-        return ForeignkeyReferences(self.table.schema.catalog).with_to_key(self)
-
     def GET_body(self, conn):
         table = Keys.GET_body(self, conn)
         try:
@@ -207,9 +193,10 @@ class Key (Keys):
         fs = frozenset(cols)
         if fs not in table.uniques:
             raise exception.NotFound('key (%s)' % (','.join([ str(c) for c in cols])))
-        return table.uniques[fs]
+        return table, table.uniques[fs]
         
-    def GET_post_commit(self, key):
+    def GET_post_commit(self, tup):
+        table, key = tup
         return json.dumps(key.prejson(), indent=2) + '\n'
 
 class Foreignkeys (Api):
@@ -250,10 +237,11 @@ class Foreignkey (Api):
         fs = frozenset(cols)
         if fs not in table.fkeys:
             raise exception.NotFound('foreign key (%s)' % (','.join([ str(c) for c in cols])))
-        return table.fkeys[fs]
+        return table, table.fkeys[fs]
 
     def GET(self, uri):
-        def post_commit(fkey):
+        def post_commit(tup):
+            table, fkey = tup
             return json.dumps(fkey.prejson(), indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
@@ -268,6 +256,7 @@ class ForeignkeyReferences (Api):
         self._to_table = None
         self._to_key = None
 
+    # currently unused but might be useful to retain?
     def with_from_table(self, from_table):
         """Refine reference set with referencing table information."""
         self._from_table = from_table
@@ -289,11 +278,13 @@ class ForeignkeyReferences (Api):
         self._from_key = from_key
         return self
 
+    # currently unused but might be useful to retain?
     def with_from_columns(self, from_columns):
         """Refine reference set with foreign key column information."""
         assert self._from_table
         return self.with_from_key(self._from_table.foreignkey(from_columns))
 
+    # currently unused but might be useful to retain?
     def with_to_table(self, to_table):
         """Refine reference set with referenced table information."""
         self._to_table = to_table
@@ -307,7 +298,7 @@ class ForeignkeyReferences (Api):
             sname, tname = None, to_table_name
         else:
             raise ValueError('Invalid qualified table name: %s' % ':'.join(to_table_name))
-        self._to_table = Table(sname, tname, catalog=self.catalog)
+        self._to_table = Table(sname and Schema(self.catalog, sname), tname, catalog=self.catalog)
         return self
 
     def with_to_key(self, to_key):
@@ -325,17 +316,15 @@ class ForeignkeyReferences (Api):
         to_table, to_key = None, None
 
         # get real ermrest.model instances...
-        if self._from_table:
+        if self._from_key:
+            from_table, from_key = self._from_key.GET_body(conn)
+        elif self._from_table:
             from_table = self._from_table.GET_body(conn)
 
-            if self._from_key:
-                from_key = self._from_key.GET_body(conn)
-
-        if self._to_table:
+        if self._to_key:
+            to_table, to_key = self._to_key.GET_body(conn)
+        elif self._to_table:
             to_table = self._to_table.GET_body(conn)
-
-            if self._to_key:
-                to_key = self._to_key.GET_body(conn)
 
         # find matching foreign key references...
         if from_table:
