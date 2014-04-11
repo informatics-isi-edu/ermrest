@@ -60,24 +60,8 @@ def p_apis(p):
              | foreignkey
              | foreignkeyrefs 
              | foreignkeyreftable 
+             | foreignkeyreftableslash
              | foreignkeyref
-             | references 
-             | referencedtable 
-             | referencedtableslash
-             | referencedtablecols
-             | referencedtablecolsslash
-             | referencedtablecolsslashkey
-             | referencedtablecolsslashkeyslash
-             | treferencedbys 
-             | treferencedbytable 
-             | treferencedbytableslash
-             | treferencedbytablecols
-             | treferencedbytablecolsslash
-             | treferencedbytablecolsslashkey
-             | treferencedbytablecolsslashkeyslash
-             | kreferencedbys 
-             | kreferencedbytable 
-             | kreferencedbytableslash
              | meta
              | entity
              | attribute
@@ -321,6 +305,8 @@ def p_tables2(p):
 
 def p_table(p):
     """table : tablesslash name """
+    if len(p[2]) > 1:
+        raise ParseError(p[2], 'Qualified table name not allowed: ')
     p[0] = p[1].table(p[2])
 
 def p_table2(p):
@@ -333,6 +319,8 @@ def p_columns(p):
 
 def p_column(p):
     """column : tableslash COLUMN '/' name """
+    if len(p[4]) > 1:
+        raise ParseError(p[4], 'Qualified column name not allowed: ')
     p[0] = p[1].column(p[4])
 
 
@@ -342,6 +330,9 @@ def p_keys(p):
 
 def p_key(p):
     """key : tableslash KEY '/' namelist1 """
+    for name in p[4]:
+        if len(name) > 1:
+            raise ParseError(name, 'Qualified key column name not allowed: ')
     p[0] = p[1].key(p[4])
 
 
@@ -351,6 +342,9 @@ def p_foreignkeys(p):
 
 def p_foreignkey(p):
     """foreignkey : tableslash FOREIGNKEY '/' namelist1 """
+    for name in p[4]:
+        if len(name) > 1:
+            raise ParseError(name, 'Qualified foreign key column name not allowed: ')
     p[0] = p[1].foreignkey(p[4])
 
 
@@ -362,100 +356,16 @@ def p_foreignkey_reftable(p):
     """foreignkeyreftable : foreignkey '/' REFERENCE '/' name """
     p[0] = p[1].references().with_to_table_name(p[5])
 
+def p_foreignkey_reftable2(p):
+    """foreignkeyreftableslash : foreignkeyreftable '/'"""
+    p[0] = p[1]
+
 def p_foreignkey_reftable_columns(p):
-    """foreignkeyref : foreignkeyreftable '/' namelist1 """
-    p[0] = p[1].with_to_columns(p[3])
-
-
-def p_table_references(p):
-    """references : tableslash REFERENCE slashopt """
-    p[0] = p[1].references()
-
-def p_table_reftable(p):
-    """referencedtable : tableslash REFERENCE '/' name """
-    p[0] = p[1].references().with_to_table_name(p[4])
-
-def p_table_reftable_slash(p):
-    """referencedtableslash : referencedtable '/' """
-    p[0] = p[1]
-
-def p_table_reftable_columns(p):
-    """referencedtablecols : referencedtableslash namelist1 """
+    """foreignkeyref : foreignkeyreftableslash namelist1 """
+    for name in p[2]:
+        if len(name) > 1:
+            raise ParseError(name, 'Qualified key column name not allowed: ')
     p[0] = p[1].with_to_columns(p[2])
-
-def p_table_reftable_columns_slash(p):
-    """referencedtablecolsslash : referencedtablecols '/' """
-    p[0] = p[1]
-
-def p_table_reftable_columns_slash_key(p):
-    """referencedtablecolsslashkey : referencedtablecolsslash FOREIGNKEY """
-    p[0] = p[1]
-
-def p_table_reftable_columns_slash_key_slash(p):
-    """referencedtablecolsslashkeyslash : referencedtablecolsslashkey '/' """
-    p[0] = p[1]
-
-def p_table_reftable_columns_foreignkey(p):
-    """foreignkeyref : referencedtablecolsslashkeyslash namelist1 """
-    p[0] = p[1].with_from_columns(p[2])
-
-
-def p_t_refbys(p):
-    """treferencedbys : treferencedby slashopt """
-    p[0] = p[1]
-
-def p_t_refby(p):
-    """treferencedby : tableslash REFERENCEDBY """
-    p[0] = p[1].referencedbys()
-
-def p_t_refby_table(p):
-    """treferencedbytable : treferencedby '/' name """
-    p[0] = p[1].with_from_table_name(p[3])
-
-def p_t_refby_table_slash(p):
-    """treferencedbytableslash : treferencedbytable '/' """
-    p[0] = p[1]
-
-def p_t_refby_table_cols(p):
-    """treferencedbytablecols : treferencedbytableslash namelist1 """
-    p[0] = p[1].with_from_columns(p[2])
-
-def p_t_refby_table_cols_slash(p):
-    """treferencedbytablecolsslash : treferencedbytablecols '/' """
-    p[0] = p[1]
-
-def p_t_refby_table_cols_slash_key(p):
-    """treferencedbytablecolsslashkey : treferencedbytablecolsslash KEY """
-    p[0] = p[1]
-
-def p_t_refby_table_cols_slash_key_slash(p):
-    """treferencedbytablecolsslashkeyslash : treferencedbytablecolsslashkey '/' """
-    p[0] = p[1]
-
-def p_t_refby_table_cols_slash_key_slash_foreignkey(p):
-    """foreignkeyref : treferencedbytablecolsslashkey '/' namelist1"""
-    p[0] = p[1].with_to_columns(p[3])
-
-
-def p_k_refbys(p):
-    """kreferencedbys : kreferencedby slashopt """
-    p[0] = p[1]
-
-def p_k_refby(p):
-    """kreferencedby : key '/' REFERENCEDBY """
-    p[0] = p[1].referencedbys()
-
-def p_k_refby_table(p):
-    """kreferencedbytable : kreferencedby '/' name """
-    p[0] = p[1].with_from_table_name(p[3])
-
-def p_k_refby_table_slash(p):
-    """kreferencedbytableslash : kreferencedbytable '/' """
-    p[0] = p[1]
-
-def p_k_refby_table_foreignkey(p):
-    """foreignkeyref : kreferencedbytableslash namelist1 """
-    p[0] = p[1].with_from_columns(p[2])
 
 
 def p_queryopts(p):
@@ -568,7 +478,7 @@ def make_parser():
     # use this to shut it up: errorlog=yacc.NullLogger()
     # NullLogger attribute not supported by Python 2.4
     # return yacc.yacc(debug=False, errorlog=yacc.NullLogger())
-    return yacc.yacc(debug=False, optimize=1, tabmodule='url_parsetab', write_tables=1)
+    return yacc.yacc(debug=True, optimize=1, tabmodule='url_parsetab', write_tables=1)
 #    return yacc.yacc()
 
 def make_parse():

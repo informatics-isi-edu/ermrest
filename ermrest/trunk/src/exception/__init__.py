@@ -31,7 +31,7 @@ class LexicalError (ValueError):
 class ParseError (ValueError):
     """Exception for grammatical errors in URL parsing"""
 
-    def __init__(self, t, message='URL parse error at token:'):
+    def __init__(self, t, message='URL parse error at token: '):
         ValueError.__init__(self, message + str(t))
         self.message = message
 

@@ -321,6 +321,10 @@ class Model:
 
     def lookup_table(self, sname, tname):
         if sname is not None:
+            if str(sname) not in self.schemas:
+                raise exception.ConflictModel('Schema %s does not exist.' % sname)
+            if tname not in self.schemas[sname].tables:
+                raise exception.ConflictModel('Table %s does not exist in schema %s.' % (tname, sname))
             return self.schemas[sname].tables[tname]
         else:
             tables = set()
