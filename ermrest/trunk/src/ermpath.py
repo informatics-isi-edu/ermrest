@@ -26,7 +26,8 @@ import urllib
 import csv
 import web
 
-from model import sql_ident, Type
+from util import sql_identifier
+from model import Type
 from ermrest.exception import *
 from ermrest.catalog import _random_name
 
@@ -62,7 +63,7 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
                 yield row_to_dict(cur, row)
 
         for table in drop_tables:
-            cur.execute("DROP TABLE %s" % sql_ident(table))
+            cur.execute("DROP TABLE %s" % sql_identifier(table))
 
         cur.close()
 
@@ -152,9 +153,9 @@ class EntityElem (object):
         return ' AND '.join([
                 't%d.%s = t%d.%s' % (
                     ltnum, 
-                    sql_ident(lcnames[i]),
+                    sql_identifier(lcnames[i]),
                     self.pos, 
-                    sql_ident(rcnames[i])
+                    sql_identifier(rcnames[i])
                     )
                 for i in range(0, len(lcnames))
                 ])
@@ -273,13 +274,13 @@ class EntityElem (object):
         cur = conn.cursor()
         cur.execute(
             "CREATE TEMPORARY TABLE %s (%s)" % (
-                sql_ident(input_table),
+                sql_identifier(input_table),
                 ','.join([ c.ddl() for c in inputcols ])
                 )
             )
         drop_tables.append( input_table )
         if in_content_type in [ 'application/x-json-stream' ]:
-            cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_ident(input_json_table))
+            cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(input_json_table))
             drop_tables.append( input_json_table )
         
         # copy input data to temp table
@@ -313,8 +314,8 @@ FROM STDIN WITH (
     HEADER false, 
     DELIMITER ',', 
     QUOTE '"'
-)""" % (sql_ident(input_table),
-        ','.join([ sql_ident(cn) for cn in csvcol_names_ordered ])
+)""" % (sql_identifier(input_table),
+        ','.join([ sql_identifier(cn) for cn in csvcol_names_ordered ])
         ),
                 input_data
                 )
@@ -335,7 +336,7 @@ FROM (
   ) rs
 ) s
 """ % dict( 
-                        input_table = sql_ident(input_table),
+                        input_table = sql_identifier(input_table),
                         cols = ','.join([ c.sql_name() for c in inputcols ]),
                         input = Type('text').sql_literal(buf)
                         )
@@ -345,7 +346,7 @@ FROM (
 
         elif in_content_type == 'application/x-json-stream':
             try:
-                cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_ident(input_json_table), input_data )
+                cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
 
                 cur.execute(
                 """
@@ -359,8 +360,8 @@ FROM (
   ) rs
 ) s
 """ % dict(
-                        input_table = sql_ident(input_table),
-                        input_json = sql_ident(input_json_table),
+                        input_table = sql_identifier(input_table),
+                        input_json = sql_identifier(input_json_table),
                         cols = ','.join([ c.sql_name() for c in inputcols ])
                         )
                 )
@@ -374,9 +375,9 @@ FROM (
         nmkcols = [ c.sql_name() for c in nmkcols ]
  
         #  -- check for duplicate keys
-        cur.execute("SELECT count(*) FROM %s" % sql_ident(input_table))
+        cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
         total_rows = cur.fetchone()[0]
-        cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (','.join(mkcols), sql_ident(input_table)))
+        cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (','.join(mkcols), sql_identifier(input_table)))
         total_mkeys = cur.fetchone()[0]
         if total_rows > total_mkeys:
             raise ConflictData('Multiple input rows share the same unique key information.')
@@ -388,7 +389,7 @@ FROM (
         correlating_sql = tuple([
             sql % dict(table = self.table.sql_name(), 
                        mkcols = ','.join(mkcols),
-                       input_table = sql_ident(input_table))
+                       input_table = sql_identifier(input_table))
             for sql in correlating_sql
             ])
         
@@ -400,7 +401,7 @@ WHERE %(keymatches)s
 RETURNING %(tcols)s
 """ % dict(
             table = self.table.sql_name(),
-            input_table = sql_ident(input_table),
+            input_table = sql_identifier(input_table),
             assigns = ','.join([ "%s = i.%s " % (c, c) for c in nmkcols ]),
             keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s" % (c, c) for c in mkcols ]),
             valnonmatches = ' OR '.join([ "t.%s IS DISTINCT FROM i.%s" % (c, c) for c in nmkcols ]),
@@ -419,7 +420,7 @@ JOIN %(input_table)s AS i USING (%(mkcols)s)
 RETURNING *
 """ % dict(
             table = self.table.sql_name(),
-            input_table = sql_ident(input_table),
+            input_table = sql_identifier(input_table),
             cols = ','.join([ c.sql_name() for c in inputcols ]),
             icols = ','.join([ 'i.%s' % c.sql_name() for c in inputcols ]),
             mkcols = ','.join(mkcols)
@@ -658,7 +659,7 @@ class EntityPath (AnyPath):
         pkeys.sort(key=lambda k: len(k))
         shortest_pkey = self._path[-1].table.uniques[pkeys[0]]
         distinct_on_cols = [ 
-            't%d.%s' % (len(self._path) - 1, sql_ident(c.name))
+            't%d.%s' % (len(self._path) - 1, sql_identifier(c.name))
              for c in shortest_pkey.columns
             ]
 
@@ -802,10 +803,10 @@ class AttributePath (AnyPath):
             col, base = attribute.resolve_column(self.epath._model, self.epath)
             if base == self.epath:
                 # column in final entity path element
-                selects.append( "t%d.%s" % (len(self.epath._path) - 1, sql_ident(col.name)) )
+                selects.append( "t%d.%s" % (len(self.epath._path) - 1, sql_identifier(col.name)) )
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
-                selects.append( "t%d.%s" % (self.epath[base].pos, sql_ident(col.name)) )
+                selects.append( "t%d.%s" % (self.epath[base].pos, sql_identifier(col.name)) )
             else:
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
 

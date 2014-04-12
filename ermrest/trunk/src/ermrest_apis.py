@@ -67,7 +67,7 @@ import urllib
 import sys
 import traceback
 import itertools
-
+import psycopg2
 import webauthn2
 
 from url import url_parse_func
@@ -231,6 +231,10 @@ class Dispatcher:
                 # exceptions signal normal REST response scenarios
                 request_trace( str(e) )
                 raise e
+            except psycopg2.Error, e:
+                request_trace( str(e) )
+                # TODO: simplify postgres error text?
+                raise rest.Conflict( str(e) )
             except Exception, e:
                 et, ev, tb = sys.exc_info()
                 request_trace( str(ev) )
