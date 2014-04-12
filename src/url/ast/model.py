@@ -61,7 +61,7 @@ class Schema (Api):
 
     def GET_body(self, conn):
         model = model_body(conn)
-        return model.lookup_schema(self.name)
+        return model.lookup_schema(str(self.name))
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
@@ -69,6 +69,31 @@ class Schema (Api):
             return json.dumps(schema.prejson(), indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
+
+    def POST(self, uri):
+        """Create a new empty schema."""
+        def body(conn):
+            model = model_body(conn)
+            model.create_schema(conn, str(self.name))
+            
+        def post_commit(ignore):
+            web.ctx.status = '201 Created'
+            return ''
+
+        return self.perform(body, post_commit)
+
+    def DELETE(self, uri):
+        """Delete an existing schema."""
+        def body(conn):
+            model = model_body(conn)
+            model.delete_schema(conn, str(self.name))
+            
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
+
+        return self.perform(body, post_commit)
+        
 
 class Tables (Api):
     """A table set."""
@@ -82,6 +107,7 @@ class Tables (Api):
 
     def GET(self, uri):
         return self.schema.GET(uri)
+
 
 class Table (Api):
     """A specific table by name."""
@@ -125,13 +151,43 @@ class Table (Api):
             str(self.name)
             )
 
+    def GET_post_commit(self, table):
+        return json.dumps(table.prejson(), indent=2) + '\n'
+
     def GET(self, uri):
+        """Get table resource representation."""
+        return self.perform(self.GET_body, self.GET_post_commit)
+
+    def POST(self, uri):
+        """Add a new table to the schema according to input resource representation."""
+        try:
+            tabledoc = json.load(web.ctx.env['wsgi.input'])
+        except:
+            raise exception.BadData('Could not deserialize JSON input.')
+
+        def body(conn):
+            schema = schema_body(conn, str(self.schema.name))
+            table = ermrest.model.Table.create_fromjson(conn, schema, tabledoc)
+            return table
+
         def post_commit(table):
-            return json.dumps(table.prejson(), indent=2) + '\n'
+            web.ctx.status = '201 Created'
+            return self.GET_post_commit(table)
 
-        return self.perform(self.GET_body, post_commit)
+        return self.perform(body, post_commit)
 
+    def DELETE(self, uri):
+        """Delete a table from the schema."""
+        def body(conn):
+            schema = schema_body(conn, str(self.schema.name))
+            schema.delete_table(conn, str(self.name))
+            
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
 
+        return self.perform(body, post_commit)
+        
 class Columns (Api):
     """A column set."""
     def __init__(self, table):

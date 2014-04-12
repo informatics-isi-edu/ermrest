@@ -30,7 +30,7 @@ from catalog import Catalogs, Catalog
 import model
 import data
 
-from ermrest.model import sql_ident
+from ermrest.util import sql_identifier
 from ermrest import exception
 
 import urllib
@@ -385,7 +385,7 @@ class Name (object):
         """
         return 't%d.%s' % (
             elem.pos,
-            sql_ident(self.nameparts[-1])
+            sql_identifier(self.nameparts[-1])
             )
 
     def sql_literal(self, etype):

@@ -26,12 +26,13 @@ needed by other modules of the ermrest project.
 """
 
 from ermrest import exception
+from ermrest.util import sql_identifier, sql_literal
 
 import urllib
 import json
 import re
 
-__all__ = ["introspect", "Model", "Schema", "Table", "Column", "Type", "sql_ident"]
+__all__ = ["introspect", "Model", "Schema", "Table", "Column", "Type"]
 
 def frozendict (d):
     """Convert a dictionary to a canonical and immutable form."""
@@ -51,10 +52,25 @@ def introspect(conn):
     Returns the introspected Model instance.
     """
     
-    # Select all column metadata from database, excluding system schemas
-
     # this postgres-specific code borrows bits from its information_schema view definitions
     # but is trimmed down to be a cheaper query to execute
+
+    # Select all column metadata from database, excluding system schemas
+    SELECT_TABLES = '''
+SELECT
+  current_database() AS table_catalog,
+  nc.nspname AS table_schema,
+  c.relname AS table_name
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
+LEFT JOIN pg_catalog.pg_attribute a ON (a.attrelid = c.oid)
+WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+  AND NOT pg_is_other_temp_schema(nc.oid) 
+  AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
+  AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
+GROUP BY nc.nspname, c.relname
+    '''
+    
     SELECT_COLUMNS = '''
 SELECT
   current_database() AS table_catalog,
@@ -193,6 +209,14 @@ GROUP BY
     # Introspect schemas, tables, columns
     #
     cur = conn.cursor()
+
+    # get schemas (including empty ones)
+    cur.execute("SELECT catalog_name, schema_name FROM information_schema.schemata")
+
+    for dname, sname in cur:
+        if (dname, sname) not in schemas:
+            schemas[(dname, sname)] = Schema(model, sname)
+
     cur.execute(SELECT_COLUMNS)
     for dname, sname, tname, cnames, default_values, data_types, element_types in cur:
 
@@ -206,7 +230,7 @@ GROUP BY
                 base_type = Type(data_types[i])
         
             # Translate default_value
-            default_value = __pg_default_value(base_type, default_values[i])
+            default_value = pg_default_value(base_type, default_values[i])
 
             col = Column(cnames[i], i, base_type, default_value)
             cols.append( col )
@@ -217,7 +241,15 @@ GROUP BY
             schemas[(dname, sname)] = Schema(model, sname)
         assert (dname, sname, tname) not in tables
         tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols)
-            
+
+    # also get empty tables
+    cur.execute(SELECT_TABLES)
+    for dname, sname, tname in cur:
+        if (dname, sname) not in schemas:
+            schemas[(dname, sname)] = Schema(model, sname)
+        if (dname, sname, tname) not in tables:
+            tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, [])
+
     #
     # Introspect uniques / primary key references, aggregated by constraint
     #
@@ -269,7 +301,7 @@ GROUP BY
 
     return model
 
-def __pg_default_value(base_type, raw):
+def pg_default_value(base_type, raw):
     """Converts raw default value with base_type hints.
     
     This is at present sort of an ugly hack. It is definitely incomplete but 
@@ -290,10 +322,7 @@ def __pg_default_value(base_type, raw):
     else:
         return 'unknown'
 
-def sql_ident(s):
-    return '"' + s.replace('"', '""') + '"'
-
-class Model:
+class Model (object):
     """Represents a database model.
     
     At present, this amounts to a collection of 'schemas' in the conventional
@@ -340,7 +369,27 @@ class Model:
             else:
                 return tables.pop()
     
-class Schema:
+    def create_schema(self, conn, sname):
+        """Add a schema to the model."""
+        if sname in self.schemas:
+            raise exception.ConflictModel('Requested schema %s already exists.' % sname)
+        cur = conn.cursor()
+        cur.execute('CREATE SCHEMA %s' % sql_identifier(sname))
+        cur.close()
+        conn.commit()
+        return Schema(self, sname)
+
+    def delete_schema(self, conn, sname):
+        """Remove a schema from the model."""
+        if sname not in self.schemas:
+            raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
+        cur = conn.cursor()
+        cur.execute('DROP SCHEMA %s' % sql_identifier(sname))
+        cur.close()
+        conn.commit()
+        del self.schemas[sname]
+
+class Schema (object):
     """Represents a database schema.
     
     At present, this has a 'name' and a collection of database 'tables'. It 
@@ -365,6 +414,16 @@ class Schema:
                     (str(t), self.tables[t].prejson()) for t in self.tables
                     ])
             )
+
+    def delete_table(self, conn, tname):
+        """Drop a table from the schema."""
+        if tname not in self.tables:
+            raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
+        cur = conn.cursor()
+        cur.execute('DROP TABLE %s.%s' % (sql_identifier(self.name), sql_identifier(tname)))
+        cur.close()
+        conn.commit()
+        del self.tables[tname]
 
 class Table (object):
     """Represents a database table.
@@ -404,6 +463,66 @@ class Table (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    @staticmethod
+    def create_fromjson(conn, schema, tabledoc):
+        sname = tabledoc.get('schema_name', str(schema.name))
+        if sname != str(schema.name):
+            raise exception.ConflictModel('JSON schema name %s does not match URL schema name %s' % (sname, schema.name))
+
+        tname = tabledoc.get('table_name')
+        if not tname:
+            raise exception.BadData('Table representation requires table_name field.')
+
+        if tname in schema.tables:
+            raise exception.ConflictModel('Table %s already exists in schema %s.' % (tname, sname))
+
+        columns = Column.fromjson(tabledoc.get('column_definitions',[]))
+        table = Table(schema, tname, columns)
+        keys = Unique.fromjson(table, tabledoc.get('keys', []))
+        fkeys = ForeignKey.fromjson(table, tabledoc.get('foreign_keys', []))
+
+        clauses = []
+        for column in columns:
+            parts = [
+                sql_identifier(str(column.name)),
+                str(column.type.name)
+                ]
+            if column.default_value:
+                parts.append(sql_literal(column.default_value))
+
+            clauses.append(' '.join(parts))
+
+        for key in keys:
+            clauses.append('UNIQUE(%s)' % (','.join([sql_identifier(c.name) for c in key.columns])))
+
+        for fkey in fkeys:
+            fk_cols = list(fkey.columns)
+            for ref in fkey.references.values():
+                clauses.append(
+                    'FOREIGN KEY (%s) REFERENCES %s.%s (%s)'
+                    % (
+                        ','.join([ sql_identifier(fk_cols[i].name) for i in range(0, len(fk_cols)) ]),
+                        sql_identifier(ref.unique.table.schema.name),
+                        sql_identifier(ref.unique.table.name),
+                        ','.join([ sql_identifier(ref.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
+                        )
+                    )
+
+        cur = conn.cursor()
+        cur.execute("""
+CREATE TABLE %(sname)s.%(tname)s (
+   %(clauses)s
+);
+""" % dict(sname=sql_identifier(sname),
+           tname=sql_identifier(tname),
+           clauses=',\n'.join(clauses)
+           )
+                    )
+        cur.close()
+        conn.commit()
+
+        return table
+                    
     def prejson(self):
         return dict(
             schema_name=str(self.schema.name),
@@ -421,8 +540,8 @@ class Table (object):
 
     def sql_name(self):
         return '.'.join([
-                sql_ident(self.schema.name),
-                sql_ident(self.name)
+                sql_identifier(self.schema.name),
+                sql_identifier(self.name)
                 ])
 
     def freetext_column(self):
@@ -500,11 +619,25 @@ class Column (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    @staticmethod
+    def fromjson(columnsdoc):
+        columns = []
+        for i in range(0, len(columnsdoc)):
+            ctype = columnsdoc[i]['type']
+            column = Column(
+                columnsdoc[i]['name'],
+                i,
+                Type(ctype),
+                pg_default_value(ctype, columnsdoc[i]['default'])
+                )
+            columns.append(column)
+        return columns
+
     def prejson(self):
         return dict(
             name=str(self.name), 
             type=str(self.type),
-            default=str(self.default_value)
+            default=self.default_value
             )
 
     def prejson_ref(self):
@@ -515,11 +648,11 @@ class Column (object):
             )
 
     def sql_name(self):
-        return sql_ident(self.name)
+        return sql_identifier(self.name)
     
     def ddl(self):
         return "%s %s" % (
-            sql_ident(self.name),
+            sql_identifier(self.name),
             self.type.sql()
             )
 
@@ -569,6 +702,21 @@ class Unique (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    @staticmethod
+    def fromjson(table, keysdoc):
+        keys = []
+        for keydoc in keysdoc:
+            keycolumns = []
+            kcnames = keydoc.get('unique_columns', [])
+            for kcname in kcnames:
+                if kcname not in table.columns:
+                    raise exception.BadData('Key column %s not defined in table.' % kcname)
+                keycolumns.append(table.columns[kcname])
+            keycolumns = frozenset(keycolumns)
+            if keycolumns not in table.uniques:
+                keys.append( Unique(keycolumns) )
+        return keys
+
     def prejson(self):
         return dict(
             unique_columns=[ str(c.name) for c in self.columns ],
@@ -606,6 +754,29 @@ class ForeignKey (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    @staticmethod
+    def fromjson(table, fkeysdoc):
+        fkeys = []
+        for fkeydoc in fkeysdoc:
+            fkeycolumns = []
+            fkcnames = fkeydoc.get('ref_columns')
+            if not fkcnames:
+                raise exception.BadData('Foreign key representation requires non-empty ref_columns field.')
+            for fkcname in fkcnames:
+                if fkcname not in table.columns:
+                    raise exception.BadData('Foreign key column %s not defined in table.' % fkcname)
+                fkeycolumns.append(table.columns[fkcname])
+            fkeycolumns = frozenset(fkeycolumns)
+            if fkeycolumns not in table.fkeys:
+                fkey = ForeignKey(fkeycolumns)
+                fkeys.append( fkey )
+            else:
+                fkey = table.fkeys[fkeycolumns]
+
+            KeyReference.fromjson(fkey, fkeydoc.get('references', []))
+
+        return fkeys
+
     def prejson(self):
         return dict(
             ref_columns=[ str(c.name) for c in self.columns ],
@@ -623,7 +794,7 @@ class ForeignKey (object):
 class KeyReference:
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete, on_update):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION'):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map = dict(fk_ref_map)
@@ -643,6 +814,45 @@ class KeyReference:
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
+
+    @staticmethod
+    def fromjson(fkey, refsdoc):
+        refs = []
+        for refdoc in refsdoc:
+            reftabledoc = refdoc.get('referred_table', {})
+            reftable = fkey.table.schema.model.lookup_table(reftabledoc.get('schema_name'), reftabledoc.get('table_name'))
+            fk_ref_maps = refdoc.get('referring_to_unique_maps', [])
+            for fk_ref_map in fk_ref_maps:
+                fk_cols = []
+                pk_cols = []
+
+                for fkcn, pkcn in fk_ref_map.items():
+                    if fkcn not in fkey.table.columns:
+                        raise exception.BadData('Foreign key column name %s not defined in table.' % fkcn)
+                    if pkcn not in reftable.columns:
+                        raise exception.BadData('Key column name %s not defined in table.' % pkcn)
+                    fk_cols.append(fkey.table.columns[fkcn])
+                    pk_cols.append(reftable.columns[pkcn])
+
+                fk_colset = frozenset(fk_cols)
+                pk_colset = frozenset(pk_cols)
+
+                if fk_colset != fkey.columns:
+                    raise exception.BadData('Reference map referring columns %s do not match foreign key columns %s.' 
+                                            % (fk_colset, fkey.columns))
+                if pk_colset not in reftable.uniques:
+                    raise exception.BadData('Reference map referenced columns %s do not match any key in table %s.'
+                                            % (pk_colset, reftable))
+                pkey = reftable.uniques[pk_colset]
+
+                fk_ref_map = frozendict(dict([ (fk_cols[i], pk_cols[i]) for i in range(0, len(fk_cols)) ]))
+
+                if fk_ref_map not in fkey.references:
+                    fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map)
+                    refs.append( fkey.references[fk_ref_map] )
+
+        return refs
+            
 
     def prejson(self):
         fcs = []
