@@ -297,7 +297,9 @@ GROUP BY
 
         # each reference constraint implies a foreign key reference but might be duplicate
         if fk_ref_map not in fk.references:
-            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update)
+            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name) )
+        else:
+            fk.references[fk_ref_map].constraint_names.add( (fk_schema, fk_name) )
 
     cur.close()
 
@@ -861,7 +863,7 @@ class ForeignKey (object):
 class KeyReference:
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION'):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map = dict(fk_ref_map)
@@ -875,6 +877,9 @@ class KeyReference:
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         unique.table_references[foreign_key.table].add(self)
+        self.constraint_names = set()
+        if constraint_name:
+            self.constraint_names.add(constraint_name)
 
     def __str__(self):
         return self.verbose()
