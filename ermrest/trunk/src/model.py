@@ -483,15 +483,8 @@ class Table (object):
 
         clauses = []
         for column in columns:
-            parts = [
-                sql_identifier(str(column.name)),
-                str(column.type.name)
-                ]
-            if column.default_value:
-                parts.append(sql_literal(column.default_value))
-
-            clauses.append(' '.join(parts))
-
+            clauses.append(column.sql_def())
+            
         for key in keys:
             clauses.append('UNIQUE(%s)' % (','.join([sql_identifier(c.name) for c in key.columns])))
 
@@ -522,6 +515,44 @@ CREATE TABLE %(sname)s.%(tname)s (
         conn.commit()
 
         return table
+
+    def add_column(self, conn, columndoc):
+        """Add column to table."""
+        # new column always goes on rightmost position
+        position = len(self.columns)
+        column = Column.fromjson_single(columndoc, position)
+        if column.name in self.columns:
+            raise exception.ConflictModel('Column %s already exists in table %s:%s.' % (column.name, self.schema.name, self.name))
+        cur = conn.cursor()
+        cur.execute(
+            'ALTER TABLE %s.%s ADD COLUMN %s ;' 
+            % (sql_identifier(str(self.schema.name)),
+               sql_identifier(str(self.name)),
+               column.sql_def()
+               )
+            )
+        cur.close()
+        conn.commit()
+        self.columns[column.name] = column
+        column.table = self
+        return column
+
+    def delete_column(self, conn, cname):
+        """Delete column from table."""
+        if cname not in self.columns:
+            raise exception.NotFound('column %s in table %s:%s' % (cname, self.schema.name, self.name))
+        cur = conn.cursor()
+        cur.execute(
+            'ALTER TABLE %s.%s DROP COLUMN %s ;' 
+            % (sql_identifier(str(self.schema.name)),
+               sql_identifier(str(self.name)),
+               sql_identifier(cname)
+               )
+            )
+        cur.close()
+        conn.commit()
+        del self.columns[cname]
+        
                     
     def prejson(self):
         return dict(
@@ -619,18 +650,31 @@ class Column (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def sql_def(self):
+        """Render SQL column clause for table DDL."""
+        parts = [
+            sql_identifier(str(self.name)),
+            str(self.type.name)
+            ]
+        if self.default_value:
+            parts.append(sql_literal(self.default_value))
+        return ' '.join(parts)
+
+    @staticmethod
+    def fromjson_single(columndoc, position):
+        ctype = columndoc['type']
+        return Column(
+            columndoc['name'],
+            position,
+            Type(ctype),
+            pg_default_value(ctype, columndoc['default'])
+            )
+
     @staticmethod
     def fromjson(columnsdoc):
         columns = []
         for i in range(0, len(columnsdoc)):
-            ctype = columnsdoc[i]['type']
-            column = Column(
-                columnsdoc[i]['name'],
-                i,
-                Type(ctype),
-                pg_default_value(ctype, columnsdoc[i]['default'])
-                )
-            columns.append(column)
+            columns.append(Column.fromjson_single(columnsdoc[i], i))
         return columns
 
     def prejson(self):
