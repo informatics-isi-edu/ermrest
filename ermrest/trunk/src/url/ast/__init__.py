@@ -170,21 +170,14 @@ class Name (object):
     """Represent a qualified or unqualified name in an ERMREST URL.
 
     """
-    def __init__(self, absolute=False):
+    def __init__(self):
         """Initialize a zero-element name container.
-
-           absolute = True means a name with leading ':'
-           absolute = False means a name with leading text (default)
         """
-        self.absolute = absolute
         self.nameparts = []
 
     def __str__(self):
-        return '%s%s' % (
-            self.absolute and ':' or '',
-            ':'.join(map(urllib.quote, self.nameparts))
-            )
-
+        return ':'.join(map(urllib.quote, self.nameparts))
+    
     def __repr__(self):
         return '<ermrest.url.ast.Name %s>' % str(self)
 
@@ -239,7 +232,7 @@ class Name (object):
             n0, n1, n2 = self.nameparts
             return (model.lookup_table(n0, n1).columns[n2], None)
         
-        elif not self.absolute:
+        else:
             if len(self.nameparts) == 1:
                 if self.nameparts[0] in table.columns:
                     return (table.columns[self.nameparts[0]], epath)
@@ -264,17 +257,12 @@ class Name (object):
            Returns (keyref, refop, lalias) as resolved key reference
            configuration.
         
-           An absolute or relative name :?'n0:n1:n2' must be:
+           A name 'n0:n1:n2' must be:
 
              1. a column in the model to link its containing entity to
                 the path by involved reference
 
-           An absolute name ':n0:n1' must be:
-
-             1. a table in the model that can be linked to the path by
-                implicit reference.
-
-           A relative name 'n0' may be:
+           A name 'n0' may be:
 
              1. a column of the current epath table type involved in
                 exactly one reference.
@@ -282,7 +270,7 @@ class Name (object):
              2. an unambiguous table in the model, and also can be
                 linked to the path
 
-           A relative name 'n0:n1' may be:
+           A name 'n0:n1' may be:
 
              1. a column of an aliased table in the epath context,
                 involved in exactly one reference.
@@ -306,59 +294,52 @@ class Name (object):
             keyref, refop = _default_link_col(table.columns[n2], left=False, reftable=ptable)
             return keyref, refop, None
         
-        if self.absolute and len(self.nameparts) == 2:
-            table = self.resolve_table(model)
-            keyref, refop = _default_link_table2table(ptable, table)
-            return keyref, refop, None
-
-        elif not self.absolute:
-            if len(self.nameparts) == 1:
-                name = self.nameparts[0]
-                if name in ptable.columns:
-                    keyref, refop = _default_link_col(ptable.columns[name])
-                    return keyref, refop, None
-
-                else:
-                    table = self.resolve_table(model)
-                    keyref, refop = _default_link_table2table(ptable, table)
-                    return keyref, refop, None
-
-            elif len(self.nameparts) == 2:
-                n0, n1 = self.nameparts
-                if n0 in epath.aliases \
-                        and n1 in epath[n0].table.columns:
-                    keyref, refop = _default_link_col(epath[n0].table.columns[n1])
-                    return keyref, refop, n0
-
-                try:
-                    table = model.lookup_table(n0, n1)
-                except exception.ConflictModel:
-                    table = None
-
-                if table:
-                    keyref, refop = _default_link_table2table(ptable, table)
-                    return keyref, refop, None
-                
-                table = model.lookup_table(None, n0)
-                keyref, refop = _default_link_col(table.columns[n1], left=False, reftable=ptable)
+        elif len(self.nameparts) == 1:
+            name = self.nameparts[0]
+            if name in ptable.columns:
+                keyref, refop = _default_link_col(ptable.columns[name])
                 return keyref, refop, None
+
+            else:
+                table = self.resolve_table(model)
+                keyref, refop = _default_link_table2table(ptable, table)
+                return keyref, refop, None
+
+        elif len(self.nameparts) == 2:
+            n0, n1 = self.nameparts
+            if n0 in epath.aliases \
+                    and n1 in epath[n0].table.columns:
+                keyref, refop = _default_link_col(epath[n0].table.columns[n1])
+                return keyref, refop, n0
+
+            try:
+                table = model.lookup_table(n0, n1)
+            except exception.ConflictModel:
+                table = None
+
+            if table:
+                keyref, refop = _default_link_table2table(ptable, table)
+                return keyref, refop, None
+
+            table = model.lookup_table(None, n0)
+            keyref, refop = _default_link_col(table.columns[n1], left=False, reftable=ptable)
+            return keyref, refop, None
             
         raise exception.BadSyntax('Name %s is not a valid syntax for table-linking.' % self)
 
     def resolve_table(self, model):
         """Resolve self as table name.
         
-           Qualified names ':n0:n1' or 'n0:n1' can only be resolved
-           from the model as :schema:table.  Bare names 'n0' can be
-           resolved as table if that is unambiguous across all
-           schemas in the model.
+           Qualified names 'n0:n1' can only be resolved from the model
+           as schema:table.  Bare names 'n0' can be resolved as table
+           if that is unambiguous across all schemas in the model.
 
            Raises exception.ConflictModel on failed resolution.
         """
         if len(self.nameparts) == 2:
             sname, tname = self.nameparts
             return model.lookup_table(sname, tname)
-        elif len(self.nameparts) == 1 and not self.absolute:
+        elif len(self.nameparts) == 1:
             tname = self.nameparts[0]
             return model.lookup_table(None, tname)
 
@@ -389,7 +370,7 @@ class Name (object):
             )
 
     def sql_literal(self, etype):
-        if not self.absolute and len(self.nameparts) == 1:
+        if len(self.nameparts) == 1:
             return Value(self.nameparts[0]).sql_literal(etype)
         else:
             raise exception.BadSyntax('Names such as "%s" not supported in filter expressions.' % self)
@@ -398,7 +379,7 @@ class Name (object):
         """Return icolname for valid input column reference.
            
         """
-        if self.absolute and len(self.nameparts) == 1:
+        if len(self.nameparts) == 1:
             return self.nameparts[0]
         else:
             raise exception.BadSyntax('Name "%s" is not a valid input column reference.' % self)

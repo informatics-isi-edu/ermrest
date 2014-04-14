@@ -118,7 +118,7 @@ def p_query(p):
     p[0] = p[1].query(path)
 
 def p_aleaf(p):
-    """attributeleaf : namelist1"""
+    """attributeleaf : snamelist1"""
     p[0] = p[1]
 
 
@@ -146,15 +146,15 @@ def p_entitypath_alias(p):
 
 
 def p_entityelem_single(p):
-    """entityelem : name """
+    """entityelem : sname """
     p[0] = ast.data.path.SingleElem(p[1])
 
 def p_entityelem_multi(p):
-    """entityelem : namelist2 """
+    """entityelem : snamelist2 """
     p[0] = ast.data.path.MultiElem(p[1])
 
 def p_entityelem_cols(p):
-    """entityelem : '(' namelist1 ')' """
+    """entityelem : '(' snamelist1 ')' """
     p[0] = ast.data.path.MultiElem(p[2])
 
 def p_entityelem_variants(p):
@@ -163,11 +163,11 @@ def p_entityelem_variants(p):
     p[0] = p[1]
 
 def p_entityelem_fromalias(p):
-    """ref_left : string '(' namelist1 ')' """
+    """ref_left : string '(' snamelist1 ')' """
     p[0] = ast.data.path.ReferenceLeft(p[1], p[3])
 
 def p_entityelem_totable(p):
-    """ref_right : '(' namelist1 ')' name """
+    """ref_right : '(' snamelist1 ')' sname """
     p[0] = ast.data.path.ReferenceRight(p[4], p[2])
 
 def p_entityelem_leftdir(p):
@@ -183,33 +183,37 @@ def p_entityelem_full(p):
     p[0] = ast.data.path.ReferenceElem(p[1], p[2], p[3])
 
 
-def p_name(p):
-    """name : string"""
+def p_sname(p):
+    """sname : string"""
     p[0] = ast.Name().with_suffix(p[1])
 
-def p_name_abs(p):
+def p_sname2(p):
+    """sname : name"""
+    p[0] = p[1]
+
+def p_name(p):
     """name : ':' string """
-    p[0] = ast.Name(absolute=True).with_suffix(p[2])
+    p[0] = ast.Name().with_suffix(p[2])
 
 def p_name_grow(p):
     """name : name ':' string"""
     p[0] = p[1].with_suffix(p[3])
 
 
-def p_namelist1(p):
-    """namelist1 : name """
+def p_snamelist1(p):
+    """snamelist1 : sname """
     p[0] = ast.NameList([ p[1] ])
 
 def p_namelist(p):
-    """namelist1 : namelist2 """
+    """snamelist1 : snamelist2 """
     p[0] = p[1]
 
 def p_namelist2(p):
-    """namelist2 : name ',' name"""
+    """snamelist2 : sname ',' sname"""
     p[0] = ast.NameList([ p[1], p[3] ])
 
 def p_namelist2_grow(p):
-    """namelist2 : namelist2 ',' name"""
+    """snamelist2 : snamelist2 ',' sname"""
     p[0] = p[1]
     p[0].append( p[3] )
 
@@ -232,11 +236,11 @@ def p_filter(p):
 
 
 def p_predicate2(p):
-    """predicate : name op expr """
+    """predicate : sname op expr """
     p[0] = ast.data.path.predicatecls(p[2])(p[1], p[3])
 
 def p_predicate1(p):
-    """predicate : name op """
+    """predicate : sname op """
     p[0] = ast.data.path.predicatecls(p[2])(p[1])
 
 def p_neg_predicate(p):
@@ -288,7 +292,7 @@ def p_schemas(p):
     p[0] = p[1].schemas()
 
 def p_schema(p):
-    """schema : catalogslash SCHEMA '/' name """
+    """schema : catalogslash SCHEMA '/' sname """
     p[0] = p[1].schema(p[4])
 
 def p_schema2(p):
@@ -304,7 +308,7 @@ def p_tables2(p):
     p[0] = p[1]
 
 def p_table(p):
-    """table : tablesslash name """
+    """table : tablesslash sname """
     if len(p[2]) > 1:
         raise ParseError(p[2], 'Qualified table name not allowed: ')
     p[0] = p[1].table(p[2])
@@ -318,7 +322,7 @@ def p_columns(p):
     p[0] = p[1].columns()
 
 def p_column(p):
-    """column : tableslash COLUMN '/' name """
+    """column : tableslash COLUMN '/' sname """
     if len(p[4]) > 1:
         raise ParseError(p[4], 'Qualified column name not allowed: ')
     p[0] = p[1].column(p[4])
@@ -329,7 +333,7 @@ def p_keys(p):
     p[0] = p[1].keys()
 
 def p_key(p):
-    """key : tableslash KEY '/' namelist1 """
+    """key : tableslash KEY '/' snamelist1 """
     for name in p[4]:
         if len(name) > 1:
             raise ParseError(name, 'Qualified key column name not allowed: ')
@@ -341,7 +345,7 @@ def p_foreignkeys(p):
     p[0] = p[1].foreignkeys()
 
 def p_foreignkey(p):
-    """foreignkey : tableslash FOREIGNKEY '/' namelist1 """
+    """foreignkey : tableslash FOREIGNKEY '/' snamelist1 """
     for name in p[4]:
         if len(name) > 1:
             raise ParseError(name, 'Qualified foreign key column name not allowed: ')
@@ -353,7 +357,7 @@ def p_foreignkey_reference(p):
     p[0] = p[1].references()
 
 def p_foreignkey_reftable(p):
-    """foreignkeyreftable : foreignkey '/' REFERENCE '/' name """
+    """foreignkeyreftable : foreignkey '/' REFERENCE '/' sname """
     p[0] = p[1].references().with_to_table_name(p[5])
 
 def p_foreignkey_reftable2(p):
@@ -361,7 +365,7 @@ def p_foreignkey_reftable2(p):
     p[0] = p[1]
 
 def p_foreignkey_reftable_columns(p):
-    """foreignkeyref : foreignkeyreftableslash namelist1 """
+    """foreignkeyref : foreignkeyreftableslash snamelist1 """
     for name in p[2]:
         if len(name) > 1:
             raise ParseError(name, 'Qualified key column name not allowed: ')
