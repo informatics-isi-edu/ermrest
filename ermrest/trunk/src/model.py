@@ -488,7 +488,7 @@ class Table (object):
             clauses.append(column.sql_def())
             
         for key in keys:
-            clauses.append('UNIQUE(%s)' % (','.join([sql_identifier(c.name) for c in key.columns])))
+            clauses.append(key.sql_def())
 
         for fkey in fkeys:
             fk_cols = list(fkey.columns)
@@ -552,6 +552,13 @@ CREATE TABLE %(sname)s.%(tname)s (
         self.alter_table(conn, 'DROP COLUMN %s' % sql_identifier(cname))
         del self.columns[cname]
                     
+    def add_unique(self, conn, udoc):
+        """Add a unique constraint to table."""
+        for key in Unique.fromjson_single(self, udoc):
+            # new key must be added to table
+            self.alter_table(conn, 'ADD %s' % key.sql_def())
+            yield key
+
     def prejson(self):
         return dict(
             schema_name=str(self.schema.name),
@@ -744,20 +751,28 @@ class Unique (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def sql_def(self):
+        """Render SQL table constraint clause for DDL."""
+        return 'UNIQUE(%s)' % (','.join([sql_identifier(c.name) for c in self.columns]))
+
+    @staticmethod
+    def fromjson_single(table, keydoc):
+        """Yield Unique instance if and only if keydoc describes a key not already in table."""
+        keycolumns = []
+        kcnames = keydoc.get('unique_columns', [])
+        for kcname in kcnames:
+            if kcname not in table.columns:
+                raise exception.BadData('Key column %s not defined in table.' % kcname)
+            keycolumns.append(table.columns[kcname])
+        keycolumns = frozenset(keycolumns)
+        if keycolumns not in table.uniques:
+            yield Unique(keycolumns)
+
     @staticmethod
     def fromjson(table, keysdoc):
-        keys = []
         for keydoc in keysdoc:
-            keycolumns = []
-            kcnames = keydoc.get('unique_columns', [])
-            for kcname in kcnames:
-                if kcname not in table.columns:
-                    raise exception.BadData('Key column %s not defined in table.' % kcname)
-                keycolumns.append(table.columns[kcname])
-            keycolumns = frozenset(keycolumns)
-            if keycolumns not in table.uniques:
-                keys.append( Unique(keycolumns) )
-        return keys
+            for key in Unique.fromjson_single(table, keydoc):
+                yield key
 
     def prejson(self):
         return dict(

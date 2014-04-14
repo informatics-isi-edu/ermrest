@@ -256,14 +256,31 @@ class Keys (Api):
         self.table = table
 
     def GET_body(self, conn):
-        return self.table.GET_body(conn)
+        return self.table.GET_body(conn).uniques.values()
 
-    def GET_post_commit(self, table):
-        return json.dumps([ key.prejson() for key in table.uniques.values() ], indent=2) + '\n'
+    def GET_post_commit(self, keys):
+        return json.dumps([ key.prejson() for key in keys ], indent=2) + '\n'
 
     def GET(self, uri):
         return self.perform(self.GET_body, self.GET_post_commit)
         
+    def POST(self, uri):
+        """Add a new key to the table according to input resource representation."""
+        try:
+            keydoc = json.load(web.ctx.env['wsgi.input'])
+        except:
+            raise exception.BadData('Could not deserialize JSON input.')
+        
+        def body(conn):
+            table = self.table.GET_body(conn)
+            return list(table.add_unique(conn, keydoc))
+
+        def post_commit(newkeys):
+            web.ctx.status = '201 Created'
+            return self.GET_post_commit(newkeys)
+
+        return self.perform(body, post_commit)
+
 class Key (Keys):
     """A specific key by column set."""
     def __init__(self, table, column_set, catalog=None):
