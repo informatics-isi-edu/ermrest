@@ -302,7 +302,7 @@ class Key (Keys):
         self.columns = column_set
 
     def GET_body(self, conn):
-        table = Keys.GET_body(self, conn)
+        table = self.table.GET_body(conn)
         try:
             cols = [ table.columns[str(c)] for c in self.columns ]
         except (KeyError), te:
@@ -315,6 +315,18 @@ class Key (Keys):
     def GET_post_commit(self, tup):
         table, key = tup
         return json.dumps(key.prejson(), indent=2) + '\n'
+
+    def DELETE(self, uri):
+        """Delete a key constraint from a table."""
+        def body(conn):
+            table, key = self.GET_body(conn)
+            table.delete_unique(conn, key)
+
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
+
+        return self.perform(body, post_commit)
 
 class Foreignkeys (Api):
     """A set of foreign keys."""

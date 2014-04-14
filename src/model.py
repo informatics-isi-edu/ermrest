@@ -265,7 +265,9 @@ GROUP BY
 
         # each constraint implies a pkey but might be duplicate
         if pk_colset not in pkeys:
-            pkeys[pk_colset] = Unique(pk_colset)
+            pkeys[pk_colset] = Unique(pk_colset, (pk_schema, pk_name) )
+        else:
+            pkeys[pk_colset].constraint_names.add( (pk_schema, pk_name) )
 
     #
     # Introspect foreign keys references, aggregated by reference constraint
@@ -556,6 +558,14 @@ CREATE TABLE %(sname)s.%(tname)s (
             self.alter_table(conn, 'ADD %s' % key.sql_def())
             yield key
 
+    def delete_unique(self, conn, unique):
+        """Delete unique constraint(s) from table."""
+        if unique.columns not in self.uniques or len(unique.constraint_names) == 0:
+            raise exception.ConflictModel('Unique constraint columns %s not understood in table %s:%s.' % (unique.columns, self.schema.name, self.name))
+        for pk_schema, pk_name in unique.constraint_names:
+            # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
+            self.alter_table(conn, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
+
     def prejson(self):
         return dict(
             schema_name=str(self.schema.name),
@@ -729,12 +739,15 @@ class FreetextColumn (Column):
 class Unique (object):
     """A unique constraint."""
     
-    def __init__(self, cols):
+    def __init__(self, cols, constraint_name=None):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
+        self.constraint_names = set()
+        if constraint_name:
+            self.constraint_names.add(constraint_name)
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
