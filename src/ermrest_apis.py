@@ -227,7 +227,7 @@ class Dispatcher:
                     return itertools.chain([first], result)
                 else:
                     return result
-            except rest.WebException, e:
+            except (rest.WebException, web.HTTPError), e:
                 # exceptions signal normal REST response scenarios
                 request_trace( str(e) )
                 raise e

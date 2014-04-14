@@ -464,7 +464,7 @@ class Table (object):
         return json.dumps(self.prejson(), indent=2)
 
     @staticmethod
-    def create_fromjson(conn, schema, tname, tabledoc):
+    def create_fromjson(conn, schema, tabledoc):
         sname = tabledoc.get('schema_name', str(schema.name))
         if sname != str(schema.name):
             raise exception.ConflictModel('JSON schema name %s does not match URL schema name %s' % (sname, schema.name))
@@ -472,9 +472,8 @@ class Table (object):
         if 'table_name' not in tabledoc:
             raise exception.BadData('Table representation requires table_name field.')
         
-        if tname != tabledoc.get('table_name'):
-            raise exception.ConflictData('Table name %s from URI does not match name %s from input.' % (tname, tabledoc.get('table_name')))
-        
+        tname = tabledoc.get('table_name')
+
         if tname in schema.tables:
             raise exception.ConflictModel('Table %s already exists in schema %s.' % (tname, sname))
 
@@ -531,13 +530,11 @@ CREATE TABLE %(sname)s.%(tname)s (
         cur.close()
         conn.commit()
 
-    def add_column(self, conn, cname, columndoc):
+    def add_column(self, conn, columndoc):
         """Add column to table."""
         # new column always goes on rightmost position
         position = len(self.columns)
         column = Column.fromjson_single(columndoc, position)
-        if column.name != cname:
-            raise exception.ConflictData('Column name %s from URI does not match name %s from input.' % (cname, column.name))
         if column.name in self.columns:
             raise exception.ConflictModel('Column %s already exists in table %s:%s.' % (column.name, self.schema.name, self.name))
         self.alter_table(conn, 'ADD COLUMN %s' % column.sql_def())
