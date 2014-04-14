@@ -518,6 +518,19 @@ CREATE TABLE %(sname)s.%(tname)s (
 
         return table
 
+    def alter_table(self, conn, alterclause):
+        """Generic ALTER TABLE ... wrapper"""
+        cur = conn.cursor()
+        cur.execute(
+            'ALTER TABLE %s.%s  %s ;' 
+            % (sql_identifier(str(self.schema.name)),
+               sql_identifier(str(self.name)),
+               alterclause
+               )
+            )
+        cur.close()
+        conn.commit()
+
     def add_column(self, conn, cname, columndoc):
         """Add column to table."""
         # new column always goes on rightmost position
@@ -527,16 +540,7 @@ CREATE TABLE %(sname)s.%(tname)s (
             raise exception.ConflictData('Column name %s from URI does not match name %s from input.' % (cname, column.name))
         if column.name in self.columns:
             raise exception.ConflictModel('Column %s already exists in table %s:%s.' % (column.name, self.schema.name, self.name))
-        cur = conn.cursor()
-        cur.execute(
-            'ALTER TABLE %s.%s ADD COLUMN %s ;' 
-            % (sql_identifier(str(self.schema.name)),
-               sql_identifier(str(self.name)),
-               column.sql_def()
-               )
-            )
-        cur.close()
-        conn.commit()
+        self.alter_table(conn, 'ADD COLUMN %s' % column.sql_def())
         self.columns[column.name] = column
         column.table = self
         return column
@@ -545,18 +549,8 @@ CREATE TABLE %(sname)s.%(tname)s (
         """Delete column from table."""
         if cname not in self.columns:
             raise exception.NotFound('column %s in table %s:%s' % (cname, self.schema.name, self.name))
-        cur = conn.cursor()
-        cur.execute(
-            'ALTER TABLE %s.%s DROP COLUMN %s ;' 
-            % (sql_identifier(str(self.schema.name)),
-               sql_identifier(str(self.name)),
-               sql_identifier(cname)
-               )
-            )
-        cur.close()
-        conn.commit()
+        self.alter_table(conn, 'DROP COLUMN %s' % sql_identifier(cname))
         del self.columns[cname]
-        
                     
     def prejson(self):
         return dict(
