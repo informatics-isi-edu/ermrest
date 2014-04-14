@@ -105,9 +105,33 @@ class Tables (Api):
         """A specific table for this schema."""
         return self.schema.table(name)
 
-    def GET(self, uri):
-        return self.schema.GET(uri)
+    def GET_body(self, conn):
+        schema = self.schema.GET_body(conn)
+        return schema.tables.values()
 
+    def GET_post_commit(self, tables):
+        return json.dumps([ table.prejson() for table in tables ], indent=2) + '\n'
+
+    def GET(self, uri):
+        return self.perform(self.GET_body, self.GET_post_commit)
+
+    def POST(self, uri):
+        """Add a new table to the schema according to input resource representation."""
+        try:
+            tabledoc = json.load(web.ctx.env['wsgi.input'])
+        except:
+            raise exception.BadData('Could not deserialize JSON input.')
+
+        def body(conn):
+            schema = schema_body(conn, str(self.schema.name))
+            table = ermrest.model.Table.create_fromjson(conn, schema, tabledoc)
+            return table
+
+        def post_commit(table):
+            web.ctx.status = '201 Created'
+            return self.GET_post_commit([table])
+
+        return self.perform(body, post_commit)
 
 class Table (Api):
     """A specific table by name."""
@@ -159,22 +183,8 @@ class Table (Api):
         return self.perform(self.GET_body, self.GET_post_commit)
 
     def POST(self, uri):
-        """Add a new table to the schema according to input resource representation."""
-        try:
-            tabledoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.BadData('Could not deserialize JSON input.')
-
-        def body(conn):
-            schema = schema_body(conn, str(self.schema.name))
-            table = ermrest.model.Table.create_fromjson(conn, schema, str(self.name), tabledoc)
-            return table
-
-        def post_commit(table):
-            web.ctx.status = '201 Created'
-            return self.GET_post_commit(table)
-
-        return self.perform(body, post_commit)
+        # give more helpful error message
+        raise exception.rest.NoMethod('create tables at the table collection resource instead')
 
     def DELETE(self, uri):
         """Delete a table from the schema."""
@@ -195,27 +205,13 @@ class Columns (Api):
         self.table = table
 
     def GET_body(self, conn):
-        return self.table.GET_body(conn)
+        return self.table.GET_body(conn).columns_in_order()
 
-    def GET_post_commit(self, table):
-        return json.dumps([ c.prejson() for c in table.columns_in_order() ], indent=2) + '\n'
+    def GET_post_commit(self, columns):
+        return json.dumps([ c.prejson() for c in columns ], indent=2) + '\n'
 
     def GET(self, uri):
         return self.perform(self.GET_body, self.GET_post_commit)
-
-class Column (Columns):
-    """A specific column by name."""
-    def __init__(self, table, name):
-        Columns.__init__(self, table)
-        self.name = name
-
-    def GET_post_commit(self, table):
-        column_name = str(self.name)
-        if column_name not in table.columns:
-            raise exception.NotFound('column "%s"' % column_name)
-        else:
-            column = table.columns[column_name]
-        return json.dumps(column.prejson(), indent=2) + '\n'
 
     def POST(self, uri):
         """Add a new column to the table according to input resource representation."""
@@ -225,20 +221,38 @@ class Column (Columns):
             raise exception.BadData('Could not deserialize JSON input.')
 
         def body(conn):
-            table = self.GET_body(conn)
-            table.add_column(conn, str(self.name), columndoc)
-            return table
+            table = self.table.GET_body(conn)
+            return table.add_column(conn, columndoc)
 
-        def post_commit(table):
+        def post_commit(column):
             web.ctx.status = '201 Created'
-            return self.GET_post_commit(table)
+            return self.GET_post_commit([column])
 
         return self.perform(body, post_commit)
+
+class Column (Columns):
+    """A specific column by name."""
+    def __init__(self, table, name):
+        Columns.__init__(self, table)
+        self.name = name
+
+    def GET_post_commit(self, columns):
+        columns = dict([ (c.name, c) for c in columns ])
+        column_name = str(self.name)
+        if column_name not in columns:
+            raise exception.NotFound('column "%s"' % column_name)
+        else:
+            column = columns[column_name]
+        return json.dumps(column.prejson(), indent=2) + '\n'
+
+    def POST(self, uri):
+        # turn off inherited POST method from Columns superclass
+        raise exception.rest.NoMethod('create columns at the column collection resource instead')
 
     def DELETE(self, uri):
         """Delete column from table."""
         def body(conn):
-            table = self.GET_body(conn)
+            table = self.table.GET_body(conn)
             table.delete_column(conn, str(self.name))
 
         def post_commit(ignore):
