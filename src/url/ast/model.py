@@ -45,6 +45,10 @@ def schema_body(conn, schema_name):
     model = model_body(conn)
     return model.lookup_schema(schema_name)
 
+##
+## TODO: enforce URI/JSON consistency checks on names of created entities?
+##
+
 class Schema (Api):
     """A specific schema by name."""
     def __init__(self, catalog, name):
@@ -216,6 +220,36 @@ class Column (Columns):
         else:
             column = table.columns[column_name]
         return json.dumps(column.prejson(), indent=2) + '\n'
+
+    def POST(self, uri):
+        """Add a new column to the table according to input resource representation."""
+        try:
+            columndoc = json.load(web.ctx.env['wsgi.input'])
+        except:
+            raise exception.BadData('Could not deserialize JSON input.')
+
+        def body(conn):
+            table = self.GET_body(conn)
+            table.add_column(conn, columndoc)
+            return table
+
+        def post_commit(table):
+            web.ctx.status = '201 Created'
+            return self.GET_post_commit(table)
+
+        return self.perform(body, post_commit)
+
+    def DELETE(self, uri):
+        """Delete column from table."""
+        def body(conn):
+            table = self.GET_body(conn)
+            table.delete_column(conn, str(self.name))
+
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
+
+        return self.perform(body, post_commit)
 
 class Keys (Api):
     """A set of keys."""
