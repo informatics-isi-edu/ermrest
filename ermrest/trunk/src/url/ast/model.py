@@ -45,10 +45,6 @@ def schema_body(conn, schema_name):
     model = model_body(conn)
     return model.lookup_schema(schema_name)
 
-##
-## TODO: enforce URI/JSON consistency checks on names of created entities?
-##
-
 class Schema (Api):
     """A specific schema by name."""
     def __init__(self, catalog, name):
@@ -171,7 +167,7 @@ class Table (Api):
 
         def body(conn):
             schema = schema_body(conn, str(self.schema.name))
-            table = ermrest.model.Table.create_fromjson(conn, schema, tabledoc)
+            table = ermrest.model.Table.create_fromjson(conn, schema, str(self.name), tabledoc)
             return table
 
         def post_commit(table):
@@ -230,7 +226,7 @@ class Column (Columns):
 
         def body(conn):
             table = self.GET_body(conn)
-            table.add_column(conn, columndoc)
+            table.add_column(conn, str(self.name), columndoc)
             return table
 
         def post_commit(table):
