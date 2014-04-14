@@ -493,3 +493,17 @@ class ForeignkeyReferences (Api):
             return json.dumps([ fkr.prejson() for fkr in fkrs ], indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
+
+    def DELETE(self, uri):
+        """Delete foreign-key reference constraint from table."""
+        def body(conn):
+            fkrs = self.GET_body(conn)
+            for fkr in fkrs:
+                fkr.foreign_key.table.delete_fkeyref(conn, fkr)
+
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
+
+        return self.perform(body, post_commit)
+

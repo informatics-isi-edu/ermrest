@@ -568,6 +568,13 @@ CREATE TABLE %(sname)s.%(tname)s (
             # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
             self.alter_table(conn, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
 
+    def delete_fkeyref(self, conn, fkr):
+        """Delete foreign-key reference constraint(s) from table."""
+        assert fkr.foreign_key.table == self
+        for fk_schema, fk_name in fkr.constraint_names:
+            # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
+            self.alter_table(conn, 'DROP CONSTRAINT %s' % sql_identifier(fk_name))
+
     def prejson(self):
         return dict(
             schema_name=str(self.schema.name),
