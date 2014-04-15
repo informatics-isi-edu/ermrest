@@ -79,7 +79,7 @@ CREATE INDEX ON "CIRM"."Slide" USING gin (
 CREATE TABLE "CIRM"."Scan"
   (
     "ID" text PRIMARY KEY,
-    "Slide ID" varchar(37) DEFAULT NULL,
+    "Slide ID" varchar(37) NOT NULL,
     "Original Filename" text,
     "GO Endpoint" text,
     "GO Path" text,
@@ -90,7 +90,7 @@ CREATE TABLE "CIRM"."Scan"
     "Zoomify" text,
     "Comment" text,
     "Tags" text,
-    FOREIGN KEY ("Slide ID") REFERENCES "CIRM"."Slide" ("ID") ON DELETE SET DEFAULT
+    FOREIGN KEY ("Slide ID") REFERENCES "CIRM"."Slide" ("ID")
   );
 
 CREATE INDEX ON "CIRM"."Scan" USING gin ( 
