@@ -494,17 +494,8 @@ class Table (object):
             clauses.append(key.sql_def())
 
         for fkey in fkeys:
-            fk_cols = list(fkey.columns)
             for ref in fkey.references.values():
-                clauses.append(
-                    'FOREIGN KEY (%s) REFERENCES %s.%s (%s)'
-                    % (
-                        ','.join([ sql_identifier(fk_cols[i].name) for i in range(0, len(fk_cols)) ]),
-                        sql_identifier(ref.unique.table.schema.name),
-                        sql_identifier(ref.unique.table.name),
-                        ','.join([ sql_identifier(ref.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
-                        )
-                    )
+                clauses.append(ref.sql_def())
 
         cur = conn.cursor()
         cur.execute("""
@@ -568,6 +559,13 @@ CREATE TABLE %(sname)s.%(tname)s (
             # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
             self.alter_table(conn, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
 
+    def add_fkeyref(self, conn, fkrdoc):
+        """Add foreign-key reference constraint to table."""
+        for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
+            # new foreign key constraint must be added to table
+            self.alter_table(conn, 'ADD %s' % fkr.sql_def())
+            yield fkr
+
     def delete_fkeyref(self, conn, fkr):
         """Delete foreign-key reference constraint(s) from table."""
         assert fkr.foreign_key.table == self
@@ -586,7 +584,8 @@ CREATE TABLE %(sname)s.%(tname)s (
                 u.prejson() for u in self.uniques.values()
                 ],
             foreign_keys=[
-                fk.prejson() for fk in self.fkeys.values()
+                fkr.prejson()
+                for fk in self.fkeys.values() for fkr in fk.references.values()
                 ]
             )
 
@@ -822,25 +821,12 @@ class ForeignKey (object):
         return json.dumps(self.prejson(), indent=2)
 
     @staticmethod
-    def fromjson(table, fkeysdoc):
+    def fromjson(table, refsdoc):
         fkeys = []
-        for fkeydoc in fkeysdoc:
-            fkeycolumns = []
-            fkcnames = fkeydoc.get('ref_columns')
-            if not fkcnames:
-                raise exception.BadData('Foreign key representation requires non-empty ref_columns field.')
-            for fkcname in fkcnames:
-                if fkcname not in table.columns:
-                    raise exception.BadData('Foreign key column %s not defined in table.' % fkcname)
-                fkeycolumns.append(table.columns[fkcname])
-            fkeycolumns = frozenset(fkeycolumns)
-            if fkeycolumns not in table.fkeys:
-                fkey = ForeignKey(fkeycolumns)
-                fkeys.append( fkey )
-            else:
-                fkey = table.fkeys[fkeycolumns]
 
-            KeyReference.fromjson(fkey, fkeydoc.get('references', []))
+        for refdoc in refsdoc:
+            # callee will append newly created fkeys to our list as out-variable
+            fkrs = list(KeyReference.fromjson(table.schema.model, refdoc, None, table, None, None, fkeys))
 
         return fkeys
 
@@ -878,44 +864,83 @@ class KeyReference:
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def sql_def(self):
+        """Render SQL table constraint clause for DDL."""   
+        fk_cols = list(self.foreign_key.columns)
+        return ('FOREIGN KEY (%s) REFERENCES %s.%s (%s)'
+                % (
+                ','.join([ sql_identifier(fk_cols[i].name) for i in range(0, len(fk_cols)) ]),
+                sql_identifier(self.unique.table.schema.name),
+                sql_identifier(self.unique.table.name),
+                ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
+                ))
+    
     @staticmethod
-    def fromjson(fkey, refsdoc):
+    def fromjson(model, refdoc, fkey=None, fktable=None, pkey=None, pktable=None, outfkeys=None):
+        fk_cols = []
+        pk_cols = []
         refs = []
-        for refdoc in refsdoc:
-            reftabledoc = refdoc.get('referred_table', {})
-            reftable = fkey.table.schema.model.lookup_table(reftabledoc.get('schema_name'), reftabledoc.get('table_name'))
-            fk_ref_maps = refdoc.get('referring_to_unique_maps', [])
-            for fk_ref_map in fk_ref_maps:
-                fk_cols = []
-                pk_cols = []
 
-                for fkcn, pkcn in fk_ref_map.items():
-                    if fkcn not in fkey.table.columns:
-                        raise exception.BadData('Foreign key column name %s not defined in table.' % fkcn)
-                    if pkcn not in reftable.columns:
-                        raise exception.BadData('Key column name %s not defined in table.' % pkcn)
-                    fk_cols.append(fkey.table.columns[fkcn])
-                    pk_cols.append(reftable.columns[pkcn])
+        def check_columns(cols, kind):
+            tnames = set(map(lambda d: (d.get('schema_name'), d.get('table_name')), cols))
+            if len(tnames) != 1:
+                raise exception.BadData('All %s columns must come from one table.' % kind)
+            sname, tname = tnames.pop()
+            table = model.lookup_table(sname, tname)
+            for cname in map(lambda d: d.get('column_name'), cols):
+                if cname in table.columns:
+                    yield table.columns[cname]
+                else:
+                    raise exception.ConflictModel('The %s column %s not defined in table.' % (kind, cname))
 
-                fk_colset = frozenset(fk_cols)
-                pk_colset = frozenset(pk_cols)
+        def get_colset_key_table(columns, is_fkey=True, key=None, table=None):
+            if len(columns) == 0:
+                raise exception.BadData('Foreign-key references require at least one column pair.')
 
-                if fk_colset != fkey.columns:
-                    raise exception.BadData('Reference map referring columns %s do not match foreign key columns %s.' 
-                                            % (fk_colset, fkey.columns))
-                if pk_colset not in reftable.uniques:
-                    raise exception.BadData('Reference map referenced columns %s do not match any key in table %s.'
-                                            % (pk_colset, reftable))
-                pkey = reftable.uniques[pk_colset]
+            colset = frozenset(columns)
 
-                fk_ref_map = frozendict(dict([ (fk_cols[i], pk_cols[i]) for i in range(0, len(fk_cols)) ]))
+            if table is None:
+                table = columns[0].table
+            elif table != columns[0].table:
+                raise exception.ConflictModel('Mismatch in tables for %s columns.' % (is_fkey and 'foreign-key' or 'referenced'))
 
-                if fk_ref_map not in fkey.references:
-                    fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map)
-                    refs.append( fkey.references[fk_ref_map] )
+            if key is None:
+                if is_fkey:
+                    if colset not in table.fkeys:
+                        key = ForeignKey(colset)
+                        if outfkeys is not None:
+                            outfkeys.append(key)
+                    else:
+                        key = table.fkeys[colset]
+                else:
+                    if colset not in table.uniques:
+                        raise exception.ConflictModel('Referenced columns %s are not part of a unique key.' % colset)
+                    else:
+                        key = table.uniques[colset]
 
-        return refs
-            
+            elif is_fkey and fk_colset != fkey.columns:
+                raise exception.ConflictModel(
+                    'Reference map referring columns %s do not match foreign key columns %s.' 
+                    % (colset, key.columns)
+                    )
+            elif (not is_fkey) and fk_colset != fkey.columns:
+                raise exception.ConflictModel(
+                    'Reference map referenced columns %s do not match unique columns %s.' 
+                    % (colset, key.columns)
+                    )
+
+            return colset, key, table
+
+        fk_columns = list(check_columns(refdoc.get('foreign_key_columns', []), 'foreign-key'))
+        pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
+
+        fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
+        pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
+        fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
+        
+        if fk_ref_map not in fkey.references:
+            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map)
+            yield fkey.references[fk_ref_map]
 
     def prejson(self):
         fcs = []

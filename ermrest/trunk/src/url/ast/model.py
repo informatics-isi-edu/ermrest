@@ -347,6 +347,23 @@ class Foreignkeys (Api):
 
         return self.perform(self.GET_body, post_commit)
 
+    def POST(self, uri):
+        """Add a new foreign-key reference to table according to input resource representation."""
+        try:
+            keydoc = json.load(web.ctx.env['wsgi.input'])
+        except:
+            raise exception.BadData('Could not deserialize JSON input.')
+        
+        def body(conn):
+            table = self.table.GET_body(conn)
+            return list(table.add_fkeyref(conn, keydoc))
+
+        def post_commit(newrefs):
+            web.ctx.status = '201 Created'
+            return json.dumps([ r.prejson() for r in newrefs ], indent=2) + '\n'
+
+        return self.perform(body, post_commit)
+
 class Foreignkey (Api):
     """A specific foreign key by column set."""
     def __init__(self, table, column_set, catalog=None):
