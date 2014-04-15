@@ -340,7 +340,10 @@ class Foreignkeys (Api):
     def GET(self, uri):
         def post_commit(table):
             fkeys = table.fkeys
-            return json.dumps([ fk.prejson() for fk in fkeys.values() ], indent=2) + '\n'
+            response = []
+            for fk in fkeys.values():
+                response.extend( fk.prejson() )
+            return json.dumps(response, indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
 
@@ -490,7 +493,12 @@ class ForeignkeyReferences (Api):
 
     def GET(self, uri):
         def post_commit(fkrs):
-            return json.dumps([ fkr.prejson() for fkr in fkrs ], indent=2) + '\n'
+            if self._from_key and self._to_key:
+                assert len(fkrs) == 1
+                response = fkrs[0].prejson()
+            else:
+                response = [ fkr.prejson() for fkr in fkrs ]
+            return json.dumps(response, indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
 

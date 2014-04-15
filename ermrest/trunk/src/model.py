@@ -795,16 +795,7 @@ class Unique (object):
 
     def prejson(self):
         return dict(
-            unique_columns=[ str(c.name) for c in self.columns ],
-            referenced_bys=[
-                dict( referring_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
-                      unique_to_referring_maps=[
-                        dict([ (str(p.name), str(f.name)) for p, f in kr.referenceby_map.items() ])
-                        for kr in self.table_references[rt]
-                        ]
-                      )
-                for rt in self.table_references.keys()
-                ]
+            unique_columns=[ str(c.name) for c in self.columns ]
             )
 
 class ForeignKey (object):
@@ -854,18 +845,11 @@ class ForeignKey (object):
         return fkeys
 
     def prejson(self):
-        return dict(
-            ref_columns=[ str(c.name) for c in self.columns ],
-            references=[
-                dict( referred_table=dict( schema_name=str(rt.schema.name), table_name=str(rt.name) ),
-                      referring_to_unique_maps=[
-                        dict([ (str(f.name), str(p.name)) for f, p in kr.reference_map.items() ])
-                        for kr in self.table_references[rt]
-                        ]
-                      )
-                for rt in self.table_references.keys()
-                ]
-            )
+        refs = []
+        for krset in self.table_references.values():
+            for kr in krset:
+                refs.append( kr.prejson() )
+        return refs
 
 class KeyReference:
     """A reference from a foreign key to a primary key."""
