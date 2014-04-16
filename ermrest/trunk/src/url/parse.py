@@ -163,7 +163,7 @@ def p_entityelem_variants(p):
     p[0] = p[1]
 
 def p_entityelem_fromalias(p):
-    """ref_left : string '(' snamelist1 ')' """
+    """ref_left : sname '(' snamelist1 ')' """
     p[0] = ast.data.path.ReferenceLeft(p[1], p[3])
 
 def p_entityelem_totable(p):
@@ -182,23 +182,22 @@ def p_entityelem_full(p):
     """entityelem : ref_left refop ref_right"""
     p[0] = ast.data.path.ReferenceElem(p[1], p[2], p[3])
 
-
-def p_sname(p):
-    """sname : string"""
+def p_bname(p):
+    """bname : string"""
     p[0] = ast.Name().with_suffix(p[1])
 
-def p_sname2(p):
-    """sname : name"""
-    p[0] = p[1]
+def p_bname_grow(p):
+    """bname : bname ':' string"""
+    p[0] =  p[1].with_suffix(p[3])
 
 def p_name(p):
-    """name : ':' string """
-    p[0] = ast.Name().with_suffix(p[2])
+    """name : ':' bname """
+    p[0] = p[2]
 
-def p_name_grow(p):
-    """name : name ':' string"""
-    p[0] = p[1].with_suffix(p[3])
-
+def p_sname(p):
+    """sname : bname 
+             | name"""
+    p[0] = p[1]
 
 def p_snamelist1(p):
     """snamelist1 : sname """
