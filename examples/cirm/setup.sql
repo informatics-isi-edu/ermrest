@@ -90,6 +90,17 @@ CREATE TABLE "CIRM"."Scan"
     "Zoomify" text,
     "Comment" text,
     "Tags" text,
+    "Microscope" text,
+    "Camera" text,
+    "Objective" text,
+    "Exposure Time" integer,
+    "Channels" integer,
+    "Channel Name" text,
+    "Contrast Method" text,
+    "Magnification" text,
+    "Light Source Intensity" text,
+    "Image Size" text,
+    "Scaling (per pixel)" text,
     FOREIGN KEY ("Slide ID") REFERENCES "CIRM"."Slide" ("ID")
   );
 
