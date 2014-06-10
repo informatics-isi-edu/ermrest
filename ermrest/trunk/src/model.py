@@ -205,6 +205,13 @@ GROUP BY
 
     model = Model()
     
+    # brute-force try to prevent any transaction leaks via pooling
+    # this will discard any state changes we forgot to commit
+    try:
+        conn.rollback()
+    except:
+        pass
+
     #
     # Introspect schemas, tables, columns
     #
