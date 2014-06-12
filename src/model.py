@@ -340,7 +340,9 @@ class Model (object):
     database sense of the term.
     """
     
-    def __init__(self, schemas=dict()):
+    def __init__(self, schemas=None):
+        if schemas is None:
+            schemas = dict()
         self.schemas = schemas
     
     def verbose(self):
