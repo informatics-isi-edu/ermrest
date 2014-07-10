@@ -416,14 +416,15 @@ FROM (
   EXCEPT
   SELECT %(mkcols)s FROM %(table)s
 ) k
-JOIN %(input_table)s AS i USING (%(mkcols)s)
+JOIN %(input_table)s AS i ON (%(keymatches)s)
 RETURNING *
 """ % dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
             cols = ','.join([ c.sql_name() for c in inputcols ]),
             icols = ','.join([ 'i.%s' % c.sql_name() for c in inputcols ]),
-            mkcols = ','.join(mkcols)
+            mkcols = ','.join(mkcols),
+            keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c, c) for c in mkcols ])
         )
         
         updated_sql = "SELECT * FROM updated_rows"
