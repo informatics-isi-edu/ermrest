@@ -37,6 +37,7 @@ any request bearing escaped slashes meant to be user data.
 
 import urllib
 import ply.lex
+import web
 
 from ermrest.exception import *
 
@@ -51,7 +52,7 @@ reserved = [
 
 # only these literal punctuation are actually used in our language
 literals = [
-    '(', ')', ':', ';', ',', '=', '@', '&', '/'
+    '(', ')', ':', ';', ',', '=', '@', '&', '/', '?'
     ]
 
 # special strings which can be keywords when parsing
@@ -132,6 +133,7 @@ def t_STRING(t):
     return t
 
 def t_error(t):
+    web.debug(t)
     raise LexicalError()
 
 def make_lexer():
