@@ -135,7 +135,7 @@ class Entity (Api):
 
         return self.perform(body, post_commit)
 
-    def PUT(self, uri, post_method=False):
+    def PUT(self, uri, post_method=False, post_defaults=None):
         """Perform HTTP PUT of entities.
         """
         if not self.catalog.manager.has_content_write(
@@ -160,7 +160,8 @@ class Entity (Api):
                              input_data, 
                              in_content_type=in_content_type,
                              content_type=content_type, 
-                             allow_existing = not post_method)
+                             allow_existing = not post_method,
+                             use_defaults = post_defaults)
 
         def post_commit(lines):
             web.header('Content-Type', content_type)
@@ -173,8 +174,7 @@ class Entity (Api):
     def POST(self, uri):
         """Perform HTTP POST of entities.
         """
-        
-        return self.PUT(uri, post_method=True)
+        return self.PUT(uri, post_method=True, post_defaults=self.queryopts.get('defaults'))
 
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.

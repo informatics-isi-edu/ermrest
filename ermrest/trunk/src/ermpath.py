@@ -180,7 +180,7 @@ class EntityElem (object):
                 self.sql_join_condition()
                 )
     
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -232,6 +232,10 @@ class EntityElem (object):
               mkcols, nmkcols --> use specified metakey and non-metakey columns
               None --> use entity metakey and non-metakey columns
 
+           use_defaults: customize entity processing
+              { col, ... } --> use defaults
+              None --> use input values
+
            Input rows are correlated to stored entities by metakey
            equivalence.  The metakey for an entity is the union of all
            its unique keys.  The metakey for a custom update may be a
@@ -269,6 +273,16 @@ class EntityElem (object):
 
         assert len(mkcols) > 0
         
+        skip_key_tests = False
+
+        if use_defaults is not None:
+            if use_defaults.intersection( set([ c.name for c in mkcols ]) ):
+                # default values for one or more key columns have been requested
+                # input rows cannot be tested for key uniqueness except by trying to insert!
+                skip_key_tests = True
+
+            # ignore non-key input columns where defaults are to be used
+            nmkcols = [ c for c in nmkcols if c.name not in use_defaults ]
 
         # create temporary table
         cur = conn.cursor()
@@ -375,12 +389,13 @@ FROM (
         nmkcols = [ c.sql_name() for c in nmkcols ]
  
         #  -- check for duplicate keys
-        cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
-        total_rows = cur.fetchone()[0]
-        cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (','.join(mkcols), sql_identifier(input_table)))
-        total_mkeys = cur.fetchone()[0]
-        if total_rows > total_mkeys:
-            raise ConflictData('Multiple input rows share the same unique key information.')
+        if not skip_key_tests:
+            cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
+            total_rows = cur.fetchone()[0]
+            cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (','.join(mkcols), sql_identifier(input_table)))
+            total_mkeys = cur.fetchone()[0]
+            if total_rows > total_mkeys:
+                raise ConflictData('Multiple input rows share the same unique key information.')
 
         correlating_sql = [
             "SELECT %(mkcols)s FROM %(input_table)s",
@@ -407,8 +422,21 @@ RETURNING %(tcols)s
             valnonmatches = ' OR '.join([ "t.%s IS DISTINCT FROM i.%s" % (c, c) for c in nmkcols ]),
             tcols = ','.join([ 't.%s' % c.sql_name() for c in inputcols ])
             )
-        
-        insert_sql = """
+
+	if skip_key_tests:
+            insert_sql = """
+INSERT INTO %(table)s (%(cols)s)
+SELECT %(icols)s
+FROM %(input_table)s
+RETURNING *
+""" % dict(
+                table = self.table.sql_name(),
+                input_table = sql_identifier(input_table),
+                cols = ','.join([ c.sql_name() for c in inputcols if c.name not in use_defaults ]),
+                icols = ','.join([ c.sql_name() for c in inputcols if c.name not in use_defaults ])
+                )
+        else:
+            insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s
 FROM (
@@ -419,13 +447,13 @@ FROM (
 JOIN %(input_table)s AS i ON (%(keymatches)s)
 RETURNING *
 """ % dict(
-            table = self.table.sql_name(),
-            input_table = sql_identifier(input_table),
-            cols = ','.join([ c.sql_name() for c in inputcols ]),
-            icols = ','.join([ 'i.%s' % c.sql_name() for c in inputcols ]),
-            mkcols = ','.join(mkcols),
-            keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c, c) for c in mkcols ])
-        )
+                table = self.table.sql_name(),
+                input_table = sql_identifier(input_table),
+                cols = ','.join([ c.sql_name() for c in inputcols ]),
+                icols = ','.join([ 'i.%s' % c.sql_name() for c in inputcols ]),
+                mkcols = ','.join(mkcols),
+                keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c, c) for c in mkcols ])
+                )
         
         updated_sql = "SELECT * FROM updated_rows"
         inserted_sql = "SELECT * FROM inserted_rows"
@@ -460,7 +488,7 @@ RETURNING *
             '\nUNION ALL\n'.join(upsert_queries)
             )
 
-        if allow_existing is False:
+        if allow_existing is False and not skip_key_tests:
             cur.execute("%s INTERSECT ALL %s" % correlating_sql)
             for row in cur:
                 raise ConflictData('Input row key (%s) collides with existing entity.' % str(row))
@@ -716,7 +744,7 @@ WHERE %(keymatches)s
         cur.execute(self.sql_delete())
         cur.close()
         
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -769,7 +797,7 @@ WHERE %(keymatches)s
         if len(self._path) != 1:
             raise BadData("unsupported path length for put")
         
-        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update)
+        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults)
         
 
 class AttributePath (AnyPath):
