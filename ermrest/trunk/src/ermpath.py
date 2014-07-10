@@ -446,7 +446,7 @@ RETURNING *
         upsert_ctes = []
         upsert_queries = []
         
-        if allow_existing:
+        if allow_existing and nmkcols:
             upsert_ctes.append("updated_rows AS (%s)" % update_sql)
             upsert_queries.append(updated_sql)
 
