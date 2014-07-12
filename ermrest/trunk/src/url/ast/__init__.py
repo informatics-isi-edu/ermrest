@@ -243,9 +243,11 @@ class Name (object):
 
             elif len(self.nameparts) == 2:
                 n0, n1 = self.nameparts
-                if n0 in epath.aliases \
-                        and n1 in epath[n0].table.columns:
-                    return (epath[n0].table.columns[n1], n0)
+                if n0 in epath.aliases:
+                    if n1 in epath[n0].table.columns:
+                        return (epath[n0].table.columns[n1], n0)
+                    else:
+                        raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
 
                 return (model.lookup_table(None, n0).columns[n1], None)
 
