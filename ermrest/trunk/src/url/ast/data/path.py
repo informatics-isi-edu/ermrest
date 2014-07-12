@@ -106,26 +106,6 @@ class MultiElem (Api):
         """Resolve self.name as a link in the model and epath context."""
         return self.names.resolve_link(model, epath)
 
-class ReferenceLeft (Api):
-    """A path element referencing left-hand columns."""
-    def __init__(self, alias, cols):
-        self.alias = alias
-        self.cols = cols
-
-class ReferenceRight (Api):
-    """A path element referencing right-hand columns."""
-    def __init__(self, table, cols):
-        self.table = table
-        self.cols = cols
-        
-
-class ReferenceElem (Api):
-    """A path element with directional reference addressing syntax."""
-    def __init__(self, left=None, direction=None, right=None):
-        self.left = left
-        self.direction = direction
-        self.right = right
-    
 
 class FilterElem (Api):
     """A path element that applies a filter."""
