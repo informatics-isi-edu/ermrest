@@ -157,31 +157,6 @@ def p_entityelem_cols(p):
     """entityelem : '(' snamelist1 ')' """
     p[0] = ast.data.path.MultiElem(p[2])
 
-def p_entityelem_variants(p):
-    """entityelem : ref_left
-                  | ref_right """
-    p[0] = p[1]
-
-def p_entityelem_fromalias(p):
-    """ref_left : sname '(' snamelist1 ')' """
-    p[0] = ast.data.path.ReferenceLeft(p[1], p[3])
-
-def p_entityelem_totable(p):
-    """ref_right : '(' snamelist1 ')' sname """
-    p[0] = ast.data.path.ReferenceRight(p[4], p[2])
-
-def p_entityelem_leftdir(p):
-    """entityelem : ref_left refop"""
-    p[0] = ast.data.path.ReferenceElem(p[1], p[2])
-
-def p_entityelem_rightdir(p):
-    """entityelem : refop ref_right"""
-    p[0] = ast.data.path.ReferenceElem(None, p[1], p[2])
-
-def p_entityelem_full(p):
-    """entityelem : ref_left refop ref_right"""
-    p[0] = ast.data.path.ReferenceElem(p[1], p[2], p[3])
-
 def p_bname(p):
     """bname : string"""
     p[0] = ast.Name().with_suffix(p[1])
