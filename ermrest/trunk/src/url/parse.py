@@ -149,9 +149,9 @@ def p_entityelem_single(p):
     """entityelem : sname """
     p[0] = ast.data.path.SingleElem(p[1])
 
-def p_entityelem_multi(p):
-    """entityelem : snamelist2 """
-    p[0] = ast.data.path.MultiElem(p[1])
+#def p_entityelem_multi(p):
+#   """entityelem : snamelist2 """
+#    p[0] = ast.data.path.MultiElem(p[1])
 
 def p_entityelem_cols(p):
     """entityelem : '(' snamelist1 ')' """
@@ -173,6 +173,10 @@ def p_sname(p):
     """sname : bname 
              | name"""
     p[0] = p[1]
+
+def p_bname_aliased(p):
+    """sname : string ASSIGN sname """
+    p[0] = p[3].set_alias(p[1])
 
 def p_snamelist1(p):
     """snamelist1 : sname """
