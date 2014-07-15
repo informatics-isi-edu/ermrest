@@ -191,12 +191,11 @@ def p_namelist2_grow(p):
     p[0] = p[1]
     p[0].append( p[3] )
 
-
-def p_refop(p):
-    """refop : REFL2R
-             | REFR2L
-             | '@' """
-    p[0] = p[1]
+#def p_refop(p):
+#    """refop : REFL2R
+#             | REFR2L
+#             | '@' """
+#    p[0] = p[1]
 
 def p_entity_filter(p):
     """entitypath : entitypath '/' filter """

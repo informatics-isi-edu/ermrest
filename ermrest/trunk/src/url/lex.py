@@ -84,7 +84,7 @@ keywords = dict([
         for kw in keywords
         ])
 
-tokens = [ 'ESCAPESTRING', 'STRING', 'NUMSTRING', 'OPMARK', 'REFL2R', 'REFR2L', 'ASSIGN' ] + list(keywords.values())
+tokens = [ 'ESCAPESTRING', 'STRING', 'NUMSTRING', 'OPMARK', 'ASSIGN' ] + list(keywords.values())
 
 def urlunquote(url):
     if type(url) not in [ str, unicode ]:
@@ -102,13 +102,13 @@ def t_OPMARK(t):
     r'::'
     return t
 
-def t_REFL2R(t):
-    r'=@'
-    return t
+#def t_REFL2R(t):
+#    r'=@'
+#    return t
 
-def t_REFR2L(t):
-    r'@='
-    return t
+#def t_REFR2L(t):
+#    r'@='
+#    return t
 
 def t_ASSIGN(t):
     r':='
