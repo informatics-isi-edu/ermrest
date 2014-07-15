@@ -827,17 +827,31 @@ class AttributePath (AnyPath):
         """
         # validate attributes for GET case
         selects = []
+
+        outputs = set()
         
         for attribute in self.attributes:
             col, base = attribute.resolve_column(self.epath._model, self.epath)
             if base == self.epath:
                 # column in final entity path element
-                selects.append( "t%d.%s" % (len(self.epath._path) - 1, sql_identifier(col.name)) )
+                select = "t%d.%s" % (len(self.epath._path) - 1, sql_identifier(col.name))
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
-                selects.append( "t%d.%s" % (self.epath[base].pos, sql_identifier(col.name)) )
+                select = "t%d.%s" % (self.epath[base].pos, sql_identifier(col.name))
             else:
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
+
+            if attribute.alias is not None:
+                if str(attribute.alias) in outputs:
+                    raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
+                outputs.add(str(attribute.alias))
+                selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
+            else:
+                if str(col.name) in outputs:
+                    raise BadSyntax('Output column name "%s" appears more than once.' % col.name)
+                outputs.add(str(col.name))
+                selects.append(select)
+
 
         selects = ', '.join(selects)
 

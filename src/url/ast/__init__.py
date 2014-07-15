@@ -174,6 +174,11 @@ class Name (object):
         """Initialize a zero-element name container.
         """
         self.nameparts = []
+        self.alias = None
+
+    def set_alias(self, alias):
+        self.alias = alias
+        return self
 
     def __str__(self):
         return ':'.join(map(urllib.quote, self.nameparts))
