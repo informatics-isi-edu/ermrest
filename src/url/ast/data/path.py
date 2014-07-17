@@ -32,9 +32,14 @@ class Api (object):
         self.catalog = catalog
         self._conn = None
         self.queryopts = dict()
+        self.sort = None
 
     def with_queryopts(self, qopt):
         self.queryopts = qopt
+        return self
+
+    def with_sort(self, sort):
+        self.sort = sort
         return self
 
     def negotiated_limit(self):

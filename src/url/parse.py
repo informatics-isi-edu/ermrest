@@ -63,9 +63,8 @@ def p_apis(p):
              | foreignkeyreftableslash
              | foreignkeyref
              | meta
-             | entity
-             | attribute
-             | query"""
+             | data
+             | datasort"""
     p[0] = p[1]
 
 def p_start(p):
@@ -92,6 +91,25 @@ def p_catalogslash(p):
 def p_meta(p):
     """meta : catalogslash META slashopt """
     p[0] = p[1].meta()
+
+def p_data(p):
+    """data : entity
+            | attribute
+            | query"""
+    p[0] = p[1]
+
+def p_data_sort(p):
+    """datasort : data '@' SORT '(' sortlist ')' """
+    p[0] = p[1].with_sort(p[5])
+
+def p_sortlist(p):
+    """sortlist : sortitem"""
+    p[0] = ast.SortList([ p[1] ])
+
+def p_sortlist_grow(p):
+    """sortlist : sortlist ',' sortitem"""
+    p[0] = p[1]
+    p[0].append( p[3] )
 
 def p_meta_key(p):
     """meta : catalogslash META '/' STRING slashopt """
@@ -160,6 +178,14 @@ def p_entityelem_cols(p):
 def p_bname(p):
     """bname : string"""
     p[0] = ast.Name().with_suffix(p[1])
+
+def p_sortitem(p):
+    """sortitem : string"""
+    p[0] = ast.Sortkey(p[1])
+
+def p_sortitem_descending(p):
+    """sortitem : string OPMARK DESC OPMARK"""
+    p[0] = ast.Sortkey(p[1], True)
 
 def p_bname_grow(p):
     """bname : bname ':' string"""

@@ -62,6 +62,7 @@ keywords = [
     'catalog',
     'ciregexp',
     'column',
+    'desc',
     'entity',
     'foreignkey',
     'geq',
@@ -76,6 +77,7 @@ keywords = [
     'referencedby',
     'regexp',
     'schema',
+    'sort',
     'table',
     'ts'
 ]

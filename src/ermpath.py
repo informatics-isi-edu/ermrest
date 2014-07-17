@@ -600,6 +600,7 @@ class EntityPath (AnyPath):
         AnyPath.__init__(self)
         self._model = model
         self._path = None
+        self.sort = None
         self.aliases = {}
 
     def __str__(self):
@@ -632,6 +633,28 @@ class EntityPath (AnyPath):
            Filters restrict the matched rows of the right-most table.
         """
         return self._path[-1].add_filter(filt)
+
+    def add_sort(self, sort):
+        """Add a sortlist specification for final output.
+
+           Each column must be part of the entity type associated with current path.
+        """
+        table = self.current_entity_table()
+
+        if not sort:
+            self.sort = None
+        else:
+            parts = []
+            for key in sort:
+                if key.keyname not in table.columns:
+                    raise ConflictModel('Sort key "%s" not found in table "%s".' % (key.keyname, table.name))
+                parts.append( '%s%s' % (
+                        sql_identifier(key.keyname), 
+                        { True: ' DESC'}.get(key.descending, '')
+                        )
+                              )
+
+            self.sort = 'ORDER BY ' + ', '.join(parts)
 
     def add_link(self, keyref, refop, ralias=None, lalias=None):
         """Extend the path by linking in another table.
@@ -669,7 +692,7 @@ class EntityPath (AnyPath):
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None):
+    def sql_get(self, selects=None, sort=None):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -701,7 +724,7 @@ class EntityPath (AnyPath):
         for elem in self._path:
             wheres.extend( elem.sql_wheres() )
 
-        return """
+        sql = """
 SELECT 
   DISTINCT ON (%(distinct_on)s)
   %(selects)s
@@ -710,9 +733,19 @@ FROM %(tables)s
 """ % dict(distinct_on = ', '.join(distinct_on_cols),
            selects     = selects,
            tables      = ' JOIN '.join(tables),
-           where       = wheres and ('WHERE ' + ' AND '.join(wheres)) or ''
+           where       = wheres and ('WHERE ' + ' AND '.join(wheres)) or '',
+           order       = self.sort
            )
-    
+	
+	# This subquery is ugly and inefficient but necessary due to DISTINCT ON above
+	if sort is None:
+            sort = self.sort
+
+    	if sort is not None:
+            sql = "SELECT * FROM (%s) s %s" % (sql, sort)
+
+        return sql
+
     def sql_delete(self):
         """Generate SQL statement to delete the entities described by this epath.
         """
@@ -811,6 +844,14 @@ class AttributePath (AnyPath):
         AnyPath.__init__(self)
         self.epath = epath
         self.attributes = attributes
+        self.sort = None
+
+    def add_sort(self, sort):
+        """Add a sortlist specification for final output.
+
+           Validation deferred until sql_get() runs... sort keys must match designated output columns.
+        """
+        self.sort = sort
 
     def sql_get(self):
         """Generate SQL query to get the resources described by this apath.
@@ -855,10 +896,22 @@ class AttributePath (AnyPath):
                 outputs.add(str(col.name))
                 selects.append(select)
 
+        if self.sort:
+            parts = []
+            for key in self.sort:
+                if key.keyname not in outputs:
+                    raise BadData('Sort key "%s" not among output columns.' % key.keyname)
+                parts.append( '%s%s' % (
+                        sql_identifier(key.keyname), 
+                        { True: ' DESC'}.get(key.descending, '')
+                        )
+                              )
+
+            self.sort = 'ORDER BY ' + ', '.join(parts)
 
         selects = ', '.join(selects)
 
-        return self.epath.sql_get(selects=selects)
+        return self.epath.sql_get(selects=selects, sort=self.sort)
 
     def sql_delete(self, del_columns, equery=None):
         """Generate SQL statement to delete the attributes described by this apath.
