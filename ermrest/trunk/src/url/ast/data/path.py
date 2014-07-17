@@ -51,7 +51,11 @@ class Api (object):
             return limit
         else:
             try:
-                return web.ctx.ermrest_config.get('default_limit', 100)
+                limit = web.ctx.ermrest_config.get('default_limit', 100)
+                if str(limit).lower() == 'none' or limit is None:
+                    limit = None
+                else:
+                    limit = int(limit)
             except:
                 return 100
     
