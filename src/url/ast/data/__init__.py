@@ -73,7 +73,6 @@ def negotiated_content_type(supported_types=['text/csv', 'application/json', 'ap
 
     return default
 
-
 class Entity (Api):
     """A specific entity set by entitypath."""
 
@@ -116,6 +115,7 @@ class Entity (Api):
         """Perform HTTP GET of entities.
         """
         content_type = negotiated_content_type(default=self.default_content_type)
+        limit = self.negotiated_limit()
         
         def body(conn):
             if not self.catalog.manager.has_content_read(
@@ -125,7 +125,7 @@ class Entity (Api):
 
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
-            return epath.get(conn, content_type=content_type)
+            return epath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             web.header('Content-Type', content_type)
@@ -220,6 +220,7 @@ class Attribute (Api):
         """Perform HTTP GET of attributes.
         """
         content_type = negotiated_content_type(default=self.default_content_type)
+        limit = self.negotiated_limit()
         
         def body(conn):
             if not self.catalog.manager.has_content_read(
@@ -229,7 +230,7 @@ class Attribute (Api):
 
             model = ermrest.model.introspect(conn)
             apath = self.resolve(model)
-            return apath.get(conn, content_type=content_type)
+            return apath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             web.header('Content-Type', content_type)

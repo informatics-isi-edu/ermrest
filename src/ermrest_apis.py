@@ -86,6 +86,7 @@ __all__ = [
 global_env = webauthn2.merge_config(
     jsonFileName='ermrest_config.json', 
     built_ins={
+        "default_limit": 100,
         "db": "ermrest", 
         "dbn": "postgres", 
         "dbmaxconnections": 8
@@ -160,6 +161,7 @@ def request_init():
     web.ctx.ermrest_request_trace = request_trace
     web.ctx.ermrest_registry = registry
     web.ctx.ermrest_catalog_factory = catalog_factory
+    web.ctx.ermrest_config = global_env
     try:
         # get client authentication context
         web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
