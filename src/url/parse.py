@@ -136,7 +136,7 @@ def p_query(p):
     p[0] = p[1].query(path)
 
 def p_aleaf(p):
-    """attributeleaf : snamelist1"""
+    """attributeleaf : attrlist1"""
     p[0] = p[1]
 
 
@@ -200,8 +200,21 @@ def p_sname(p):
              | name"""
     p[0] = p[1]
 
-def p_bname_aliased(p):
-    """sname : string ASSIGN sname """
+def p_attrlist1(p):
+    """attrlist1 : attritem"""
+    p[0] = ast.NameList([ p[1] ])
+
+def p_attrlist1_grow(p):
+    """attrlist1 : attrlist1 ',' attritem"""
+    p[0] = p[1]
+    p[0].append( p[3] )
+
+def p_attritem(p):
+    """attritem : sname"""
+    p[0] = p[1]
+
+def p_attritem_aliased(p):
+    """attritem : string ASSIGN sname"""
     p[0] = p[3].set_alias(p[1])
 
 def p_snamelist1(p):
