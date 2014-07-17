@@ -31,11 +31,30 @@ class Api (object):
     def __init__(self, catalog):
         self.catalog = catalog
         self._conn = None
+        self.queryopts = dict()
 
     def with_queryopts(self, qopt):
         self.queryopts = qopt
         return self
 
+    def negotiated_limit(self):
+        """Determine query result size limit to use."""
+        if 'limit' in self.queryopts:
+            limit = self.queryopts['limit']
+            if str(limit).lower() == 'none':
+                limit = None
+            else:
+                try:
+                    limit = int(limit)
+                except ValueError, e:
+                    raise rest.BadRequest('The "limit" query-parameter requires an integer or the string "none".')
+            return limit
+        else:
+            try:
+                return web.ctx.ermrest_config.get('default_limit', 100)
+            except:
+                return 100
+    
     def perform(self, body, finish):
         # TODO: implement backoff/retry on transient exceptions?
         self._conn = self.catalog.get_conn()

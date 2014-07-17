@@ -527,7 +527,7 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
-    def get(self, conn, content_type='text/csv', output_file=None):
+    def get(self, conn, content_type='text/csv', output_file=None, limit=None):
         """Fetch resources.
 
            conn: sanepg2 database connection to catalog
@@ -555,6 +555,9 @@ class AnyPath (object):
         # TODO: refactor this common code between 
 
         sql = self.sql_get()
+
+        if limit is not None:
+            sql += (' LIMIT %d' % limit)
 
         if output_file:
             # efficiently send results to file
