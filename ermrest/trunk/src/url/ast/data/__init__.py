@@ -125,6 +125,7 @@ class Entity (Api):
 
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
+            epath.add_sort(self.sort)
             return epath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
@@ -230,6 +231,7 @@ class Attribute (Api):
 
             model = ermrest.model.introspect(conn)
             apath = self.resolve(model)
+            apath.add_sort(self.sort)
             return apath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):

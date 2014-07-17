@@ -119,6 +119,20 @@ def _default_link_col(col, left=True, reftable=None):
     """
     return _default_link_cols([col], left, reftable)
 
+class SortList (list):
+    """Represent a list of Sortkey instances.
+
+    """
+
+    pass
+
+class Sortkey (object):
+    """Represent an unqualified name with optional descending flag.
+
+    """
+    def __init__(self, keyname, descending=False):
+        self.keyname = keyname
+        self.descending = descending
 
 class NameList (list):
     """Represent a list of Name instances.
