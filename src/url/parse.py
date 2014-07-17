@@ -256,7 +256,7 @@ def p_predicate2(p):
     p[0] = ast.data.path.predicatecls(p[2])(p[1], p[3])
 
 def p_predicate1(p):
-    """predicate : sname op """
+    """predicate : sname opnull """
     p[0] = ast.data.path.predicatecls(p[2])(p[1])
 
 def p_neg_predicate(p):
@@ -288,6 +288,10 @@ def p_op(p):
     """op : '='"""
     p[0] = p[1]
 
+def p_opnull(p):
+    """opnull : OPMARK NULL OPMARK"""
+    p[0] = p[2]
+
 def p_op_labeled(p):
     """op : OPMARK oplabel OPMARK """
     p[0] = p[2]
@@ -299,8 +303,7 @@ def p_oplabel(p):
                | LT
                | REGEXP 
                | CIREGEXP
-               | TS
-               | NULL """
+               | TS """
     p[0] = p[1]
 
 def p_schemas(p):
