@@ -733,7 +733,7 @@ FROM %(tables)s
 """ % dict(distinct_on = ', '.join(distinct_on_cols),
            selects     = selects,
            tables      = ' JOIN '.join(tables),
-           where       = wheres and ('WHERE ' + ' AND '.join(wheres)) or '',
+           where       = wheres and ('WHERE ' + ' AND '.join(['(%s)' % w for w in wheres])) or '',
            order       = self.sort
            )
 	
