@@ -95,6 +95,7 @@ def p_meta(p):
 def p_data(p):
     """data : entity
             | attribute
+            | attributegroup
             | query"""
     p[0] = p[1]
 
@@ -129,6 +130,20 @@ def p_attribute(p):
     path.append(p[6])
     p[0] = p[1].attribute(path)
 
+def p_attributegroup(p):
+    """attributegroup : catalogslash ATTRIBUTEGROUP '/' entitypath '/' groupkeys ';' groupleaf """
+    path = p[4]
+    path.append(p[6])
+    path.append(p[8])
+    p[0] = p[1].attributegroup(path)
+
+def p_attributegroup_keysonly(p):
+    """attributegroup : catalogslash ATTRIBUTEGROUP '/' entitypath '/' groupkeys"""
+    path = p[4]
+    path.append(p[6])
+    path.append(ast.NameList())
+    p[0] = p[1].attributegroup(path)
+
 def p_query(p):
     """query : catalogslash QUERY '/' entitypath '/' attributeleaf """
     path = p[4]
@@ -139,6 +154,13 @@ def p_aleaf(p):
     """attributeleaf : attrlist1"""
     p[0] = p[1]
 
+def p_groupkeys(p):
+    """groupkeys : attrlist1"""
+    p[0] = p[1]
+
+def p_groupleaf(p):
+    """groupleaf : attrlist1"""
+    p[0] = p[1]
 
 def p_entityroot(p):
     """entitypath : entityelem """

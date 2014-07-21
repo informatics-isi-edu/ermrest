@@ -59,6 +59,7 @@ literals = [
 keywords = [
     'acl',
     'attribute',
+    'attributegroup',
     'catalog',
     'ciregexp',
     'column',

@@ -853,7 +853,7 @@ class AttributePath (AnyPath):
         """
         self.sort = sort
 
-    def sql_get(self):
+    def sql_get(self, split_sort=False):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -911,7 +911,11 @@ class AttributePath (AnyPath):
 
         selects = ', '.join(selects)
 
-        return self.epath.sql_get(selects=selects, sort=self.sort)
+        if split_sort:
+            # let the caller compose the query and the sort clause
+            return (self.epath.sql_get(selects=selects), self.sort)
+        else:
+            return self.epath.sql_get(selects=selects, sort=self.sort)
 
     def sql_delete(self, del_columns, equery=None):
         """Generate SQL statement to delete the attributes described by this apath.
@@ -1067,6 +1071,109 @@ WHERE %(keymatches)s
         cur.execute(dquery)
         cur.close()
 
+class AttributeGroupPath (AnyPath):
+    """Hierarchical ERM data access to entity attributes, i.e. table cells.
+
+    """
+    def __init__(self, epath, groupkeys, attributes):
+        AnyPath.__init__(self)
+        self.epath = epath
+        self.groupkeys = groupkeys
+        self.attributes = attributes
+        self.sort = None
+
+    def add_sort(self, sort):
+        """Add a sortlist specification for final output.
+
+           Validation deferred until sql_get() runs... sort keys must match designated output columns.
+        """
+        self.sort = sort
+
+    def sql_get(self):
+        """Generate SQL query to get the resources described by this apath.
+
+           The query will be of the form:
+
+              SELECT
+                group keys...,
+                attributes...
+              FROM (
+                SELECT 
+                  DISTINCT ON (...)
+                  tK.* 
+                FROM "x" AS t0 
+                  ... 
+                JOIN "z" AS tK ON (...)
+                WHERE ...
+              ) s
+              GROUP BY group keys...
+           
+           encoding path references and filter conditions.
+
+        """
+        apath = AttributePath(self.epath, self.groupkeys + self.attributes)
+        apath.add_sort(self.sort)
+        
+        groupkeys = []
+        aggregates = []
+        extras = []
+
+        for key in self.groupkeys:
+            col, base = key.resolve_column(self.epath._model, self.epath)
+            if key.alias is not None:
+                groupkeys.append( sql_identifer(str(key.alias)) )
+            else:
+                groupkeys.append( sql_identifier(str(col.name)) )
+
+        for attribute in self.attributes:
+            # TODO: allow real aggregate expressions as attributes
+            col, base = attribute.resolve_column(self.epath._model, self.epath)
+            if attribute.alias is not None:
+                extras.append( sql_identifier(str(attribute.alias)) )
+            else:
+                extras.append( sql_identifier(str(col.name)) )
+
+        asql, sort = apath.sql_get(split_sort=True)
+        if not sort:
+            sort = ''
+
+        if extras:
+            # an impure aggregate query includes extras which must be reduced 
+            # by an arbitrary DISTINCT ON and joined to the core aggregate query
+            sql = """
+SELECT
+  %(selects)s
+FROM ( 
+  SELECT %(groupaggs)s FROM ( %(asql)s ) s GROUP BY %(groupkeys)s
+) g
+JOIN ( 
+  SELECT DISTINCT ON ( %(groupkeys)s )
+    %(groupextras)s
+  FROM ( %(asql)s ) s
+) e ON ( %(joinons)s )
+%(sort)s
+"""
+        else:
+            # a pure aggregate query has only group keys and aggregates
+            sql = """
+SELECT %(groupaggs)s
+FROM ( %(asql)s ) s
+GROUP BY %(groupkeys)s
+%(sort)s
+"""
+        return sql % dict(
+            asql=asql,
+            sort=sort,
+            selects=', '.join(['g.%s' % k for k in groupkeys + aggregates]
+                              + [ 'e.%s' % e for e in extras ]),
+            groupkeys=', '.join(groupkeys),
+            groupaggs=', '.join(groupkeys + aggregates),
+            groupextras=', '.join(groupkeys + extras),
+            joinons=' AND '.join([ 
+                    '(g.%s IS NOT DISTINCT FROM e.%s)' % (k, k)
+                    for k in groupkeys
+                    ])
+            )
 
 class QueryPath (object):
     """Hierarchical ERM data access to query results, i.e. computed rows.

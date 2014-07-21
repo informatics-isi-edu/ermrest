@@ -293,6 +293,52 @@ class Attribute (Api):
 
         return self.perform(body, post_commit)
 
+class AttributeGroup (Api):
+    """A specific group set by entity path, group keys, and group attributes."""
+
+    default_content_type = 'application/x-json-stream'
+
+    def __init__(self, catalog, path):
+        Api.__init__(self, catalog)
+        self.attributes = path[-1]
+        self.groupkeys = path[-2]
+        self.epath = Entity(catalog, path[0:-2])
+
+    def resolve(self, model):
+        """Resolve self against a specific database model.
+
+           The path is validated against the model and any unqualified
+           names or implicit entity referencing patterns are resolved
+           to a canonical ermrest.ermpath.AttributePath instance that
+           can be used to perform attribute-level data access.
+        """
+        epath = self.epath.resolve(model)
+        return ermpath.AttributeGroupPath(epath, self.groupkeys, self.attributes)
+    
+    def GET(self, uri):
+        """Perform HTTP GET of attribute groups.
+        """
+        content_type = negotiated_content_type(default=self.default_content_type)
+        limit = self.negotiated_limit()
+        
+        def body(conn):
+            if not self.catalog.manager.has_content_read(
+                web.ctx.webauthn2_context.attributes
+                ):
+                raise rest.Unauthorized(uri)
+
+            model = ermrest.model.introspect(conn)
+            agpath = self.resolve(model)
+            agpath.add_sort(self.sort)
+            return agpath.get(conn, content_type=content_type, limit=limit)
+
+        def post_commit(lines):
+            web.header('Content-Type', content_type)
+            web.ctx.ermrest_content_type = content_type
+            for line in lines:
+                yield line
+
+        return self.perform(body, post_commit)
 
 class Query (Api):
     """A specific query set by querypath."""
