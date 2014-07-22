@@ -1098,15 +1098,12 @@ class AttributeGroupPath (AnyPath):
                 group keys...,
                 attributes...
               FROM (
-                SELECT 
-                  DISTINCT ON (...)
-                  tK.* 
-                FROM "x" AS t0 
-                  ... 
-                JOIN "z" AS tK ON (...)
-                WHERE ...
+                ...
               ) s
               GROUP BY group keys...
+
+           and may join on an additional DISTINCT ON query if the
+           attribute list includes non-key non-aggregate values.
            
            encoding path references and filter conditions.
 
