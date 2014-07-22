@@ -1118,7 +1118,7 @@ class AttributeGroupPath (AnyPath):
         for key in self.groupkeys:
             col, base = key.resolve_column(self.epath._model, self.epath)
             if key.alias is not None:
-                groupkeys.append( sql_identifer(str(key.alias)) )
+                groupkeys.append( sql_identifier(str(key.alias)) )
             else:
                 groupkeys.append( sql_identifier(str(col.name)) )
 
