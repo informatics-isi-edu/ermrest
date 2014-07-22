@@ -1,5 +1,6 @@
 {
     "webauthn2" : {
+      "require_client": true,
       "require_attributes": true, 
       "listusers_permit": ["admin"], 
       "listattributes_permit": ["admin"], 
