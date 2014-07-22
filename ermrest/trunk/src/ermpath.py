@@ -648,7 +648,7 @@ class EntityPath (AnyPath):
             for key in sort:
                 if key.keyname not in table.columns:
                     raise ConflictModel('Sort key "%s" not found in table "%s".' % (key.keyname, table.name))
-                parts.append( '%s%s' % (
+                parts.append( '%s%s NULLS LAST' % (
                         sql_identifier(key.keyname), 
                         { True: ' DESC'}.get(key.descending, '')
                         )
@@ -901,7 +901,7 @@ class AttributePath (AnyPath):
             for key in self.sort:
                 if key.keyname not in outputs:
                     raise BadData('Sort key "%s" not among output columns.' % key.keyname)
-                parts.append( '%s%s' % (
+                parts.append( '%s%s NULLS LAST' % (
                         sql_identifier(key.keyname), 
                         { True: ' DESC'}.get(key.descending, '')
                         )
