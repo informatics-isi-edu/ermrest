@@ -1190,6 +1190,9 @@ GROUP BY %(groupkeys)s
             else:
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
         
+        if not nmkcols:
+            raise BadSyntax('Grouped attribute update requires at least one target attribute.')
+
         attr_update = (list(mkcols), list(nmkcols))
         attr_aliases = (mkcol_aliases, nmkcol_aliases)
         return self.epath.put(conn, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update, attr_aliases=attr_aliases)
