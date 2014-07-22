@@ -152,7 +152,7 @@ class Catalog (Api):
         """Perform HTTP DELETE of catalog.
         """
         if not self.manager.is_owner(web.ctx.webauthn2_context.client):
-            raise exception.rest.Unauthorized(uri)
+            raise exception.rest.Forbidden(uri)
         
         ######
         # TODO: needs to be done in two steps
@@ -185,7 +185,7 @@ class Meta (Api):
         """
         if not self.catalog.manager.has_read(
                                 web.ctx.webauthn2_context.attributes):
-            raise exception.rest.Unauthorized(uri)
+            raise exception.rest.Forbidden(uri)
         
         content_type = data.negotiated_content_type(self.supported_types, 
                                                     self.default_content_type)
@@ -201,7 +201,7 @@ class Meta (Api):
                         web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
                         web.ctx.webauthn2_context.client) ):
-            raise exception.rest.Unauthorized(uri)
+            raise exception.rest.Forbidden(uri)
         
         # disallow PUT of META
         if not self.key:
@@ -211,7 +211,7 @@ class Meta (Api):
             # must be owner to change owner
             if not self.catalog.manager.is_owner(
                             web.ctx.webauthn2_context.client):
-                raise exception.rest.Unauthorized(uri)
+                raise exception.rest.Forbidden(uri)
             # must set owner to a rolename (TODO: better validation)
             if not self.value or self.value == '':
                 raise exception.rest.Forbidden(uri)
@@ -231,7 +231,7 @@ class Meta (Api):
                         web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
                         web.ctx.webauthn2_context.client) ):
-            raise exception.rest.Unauthorized(uri)
+            raise exception.rest.Forbidden(uri)
         
         # disallow DELETE of META
         if not self.key:
