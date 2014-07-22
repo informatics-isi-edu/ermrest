@@ -180,7 +180,7 @@ class EntityElem (object):
                 self.sql_join_condition()
                 )
     
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -259,7 +259,11 @@ class EntityElem (object):
             # caller has configured an attribute update request
             # input table has key columns followed by non-key columns
             mkcols, nmkcols = attr_update
-            inputcols = mkcols + nmkcols
+            if attr_aliases is not None:
+                mkcol_aliases, nmkcol_aliases = attr_aliases
+            else:
+                mkcol_aliases = dict()
+                nmkcol_aliases = dict()
         else:
             # we are doing a whole entity request
             # input table has columns in same order as entity table
@@ -270,6 +274,8 @@ class EntityElem (object):
                     mkcols.add(c)
             nmkcols = [ c for c in inputcols if c not in mkcols ]
             mkcols = [ c for c in inputcols if c in mkcols ]
+            mkcol_aliases = dict()
+            nmkcol_aliases = dict()
 
         assert len(mkcols) > 0
         
@@ -289,7 +295,8 @@ class EntityElem (object):
         cur.execute(
             "CREATE TEMPORARY TABLE %s (%s)" % (
                 sql_identifier(input_table),
-                ','.join([ c.ddl() for c in inputcols ])
+                ','.join([ c.ddl(mkcol_aliases.get(c)) for c in mkcols ] 
+                         + [ c.ddl(nmkcol_aliases.get(c)) for c in nmkcols ] )
                 )
             )
         drop_tables.append( input_table )
@@ -301,7 +308,10 @@ class EntityElem (object):
         if in_content_type == 'text/csv':
             hdr = csv.reader([ input_data.readline() ]).next()
 
-            inputcol_names = set([ str(c.name) for c in inputcols ])
+            inputcol_names = set(
+                [ str(mkcol_aliases.get(c, c.name)) for c in mkcols ]
+                + [ str(mkcol_aliases.get(c, c.name)) for c in mkcols ]
+                )
             csvcol_names = set()
             csvcol_names_ordered = []
             for cn in hdr:
@@ -351,7 +361,10 @@ FROM (
 ) s
 """ % dict( 
                         input_table = sql_identifier(input_table),
-                        cols = ','.join([ c.sql_name() for c in inputcols ]),
+                        cols = ','.join(
+                            [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
+                            + [ c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols ]
+                            ),
                         input = Type('text').sql_literal(buf)
                         )
                 )
@@ -376,7 +389,10 @@ FROM (
 """ % dict(
                         input_table = sql_identifier(input_table),
                         input_json = sql_identifier(input_json_table),
-                        cols = ','.join([ c.sql_name() for c in inputcols ])
+                        cols = ','.join(
+                            [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
+                            + [ c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols ]
+                            )
                         )
                 )
             except psycopg2.DataError, e:
@@ -385,25 +401,28 @@ FROM (
         else:
             raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
-        mkcols = [ c.sql_name() for c in mkcols ]
-        nmkcols = [ c.sql_name() for c in nmkcols ]
- 
         #  -- check for duplicate keys
         if not skip_key_tests:
             cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
             total_rows = cur.fetchone()[0]
-            cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (','.join(mkcols), sql_identifier(input_table)))
+            cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (
+                    ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols]),
+                    sql_identifier(input_table))
+                        )
             total_mkeys = cur.fetchone()[0]
             if total_rows > total_mkeys:
                 raise ConflictData('Multiple input rows share the same unique key information.')
 
         correlating_sql = [
-            "SELECT %(mkcols)s FROM %(input_table)s",
+            "SELECT %(inmkcols)s FROM %(input_table)s",
             "SELECT %(mkcols)s FROM %(table)s"
             ]
         correlating_sql = tuple([
             sql % dict(table = self.table.sql_name(), 
-                       mkcols = ','.join(mkcols),
+                       inmkcols = ','.join(
+                        [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
+                        ),
+                       mkcols = ','.join([ c.sql_name() for c in mkcols ]),
                        input_table = sql_identifier(input_table))
             for sql in correlating_sql
             ])
@@ -417,12 +436,16 @@ RETURNING %(tcols)s
 """ % dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
-            assigns = ','.join([ "%s = i.%s " % (c, c) for c in nmkcols ]),
-            keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s" % (c, c) for c in mkcols ]),
-            valnonmatches = ' OR '.join([ "t.%s IS DISTINCT FROM i.%s" % (c, c) for c in nmkcols ]),
-            tcols = ','.join([ 't.%s' % c.sql_name() for c in inputcols ])
+            assigns = ','.join([ "%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
+            keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]),
+            valnonmatches = ' OR '.join([ "t.%s IS DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]),
+            tcols = ','.join(
+        [ 'i.%s AS %s' % (c.sql_name(mkcol_aliases.get(c)), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+        + [ 't.%s AS %s' % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
+        )
             )
 
+	# NOTE: insert only happens for /entity/ API which does not support column aliases
 	if skip_key_tests:
             insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
@@ -432,8 +455,8 @@ RETURNING *
 """ % dict(
                 table = self.table.sql_name(),
                 input_table = sql_identifier(input_table),
-                cols = ','.join([ c.sql_name() for c in inputcols if c.name not in use_defaults ]),
-                icols = ','.join([ c.sql_name() for c in inputcols if c.name not in use_defaults ])
+                cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
+                icols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ])
                 )
         else:
             insert_sql = """
@@ -449,10 +472,10 @@ RETURNING *
 """ % dict(
                 table = self.table.sql_name(),
                 input_table = sql_identifier(input_table),
-                cols = ','.join([ c.sql_name() for c in inputcols ]),
-                icols = ','.join([ 'i.%s' % c.sql_name() for c in inputcols ]),
-                mkcols = ','.join(mkcols),
-                keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c, c) for c in mkcols ])
+                cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ]),
+                icols = ','.join([ 'i.%s' % c.sql_name() for c in (mkcols + nmkcols) ]),
+                mkcols = ','.join([ c.sql_name() for c in mkcols ]),
+                keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name()) for c in mkcols ])
                 )
         
         updated_sql = "SELECT * FROM updated_rows"
@@ -780,7 +803,7 @@ WHERE %(keymatches)s
         cur.execute(self.sql_delete())
         cur.close()
         
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -833,7 +856,7 @@ WHERE %(keymatches)s
         if len(self._path) != 1:
             raise BadData("unsupported path length for put")
         
-        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults)
+        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults, attr_aliases)
         
 
 class AttributePath (AnyPath):
@@ -952,97 +975,6 @@ WHERE %(keymatches)s
             updates = ', '.join([ "%s = NULL" % c for c in nmkcols ])
             )
     
-    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
-        """Update entity attributes.
-
-           conn: sanepg2 connection to catalog
-
-           input_data:
-              x with x.read() --> data will be read
-              iterable --> data will be iterated
-
-           in_content_type:
-              text names of MIME types control deserialization:
-                'text/csv' --> CSV table
-                'application/json' --> JSON array of objects
-                'application/x-json-stream' --> stream of JSON objects
-
-                for MIME types, iterable input will be concatenated to
-                form input byte stream, or read() will be called to
-                fetch byte stream until an empty read() result is
-                received.
- 
-              None means input is Python data stream (iter only)
-                dicts will be seen as column: value, ... rows
-                tuples will be seen as value, ... rows
-                other types are erroneous
-
-                for Python data streams, iterable input must yield one
-                row respresentation at a time.  read() is not
-                supported for Python data streams.
-
-                for tuples, values must be ordered according to column
-                ordering in the catalog model.
-
-           content_type and output_file: see documentation for
-              identical feature in get() method of this class. The
-              result being controlled is a representation of each
-              inserted or modified row, including any default values
-              which might have been absent from the input.
-
-           allow_existing: when input rows match existing keys
-              True --> update existing row with input (default)
-              None --> skip input row
-              False --> raise exception
-
-           allow_missing: when input rows do not match existing keys
-              True --> insert input rows (default)
-              None --> skip input row
-              False --> raise exception
-
-        """
-        mkcols = set()
-        if self.epath._path[-1].filters:
-            # special case filter syntax is allowed
-            # to override metakey input/table row correlation
-            for filt in self.epath._path[-1].filters:
-                tcol, icolname = filt.validate_attribute_update(self)
-                if tcol in mkcols:
-                    raise BadSyntax('Attribute "%s" bound too many times in path.' % tcol.name)
-                if str(tcol.name) != icolname:
-                    raise BadSyntax('Remapping of input name "%s" to attribute "%s" not supported.' % (icolname, tcol.name))
-                mkcols.add(tcol)
-
-            # remove filters to allow epath.put() to work
-            self.epath._path[-1].filters = []
-        else:
-            # metakey defaults to all keys in entity table
-            etable = self.epath.current_entity_table()
-            for unique in etable.uniques:
-                for c in unique:
-                    mkcols.add(c)
-
-        nmkcols = set()
-
-        if len(mkcols) == 0:
-            raise ConflictModel('Attribute update is not supported on entities without uniqueness constraints.')
-
-        # update columns are named explicitly
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
-            if base == self.epath:
-                # column in final entity path element
-                nmkcols.add(col)
-            elif base in self.epath.aliases:
-                # column in interior path referenced by alias
-                raise ConflictModel('Only unqualified attribute names from entity %s can be modified by PUT.' % etable.name)
-            else:
-                raise ConflictModel('Invalid attribute name "%s".' % attribute)
-        
-        attr_update = (list(mkcols), list(nmkcols))
-        return self.epath.put(conn, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update)
-        
-
     def delete(self, conn):
         """Delete entity attributes.
 
@@ -1081,6 +1013,9 @@ class AttributeGroupPath (AnyPath):
         self.groupkeys = groupkeys
         self.attributes = attributes
         self.sort = None
+
+        if not groupkeys:
+            raise BadSyntax('Attribute group requires at least one group key.')
 
     def add_sort(self, sort):
         """Add a sortlist specification for final output.
@@ -1171,6 +1106,94 @@ GROUP BY %(groupkeys)s
                     for k in groupkeys
                     ])
             )
+
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
+        """Update entity attributes.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+ 
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+           allow_existing: when input rows match existing keys
+              True --> update existing row with input (default)
+              None --> skip input row
+              False --> raise exception
+
+           allow_missing: when input rows do not match existing keys
+              True --> insert input rows (default)
+              None --> skip input row
+              False --> raise exception
+
+        """
+        mkcols = set()
+        mkcol_aliases = dict()
+        for groupkey in self.groupkeys:
+            col, base = groupkey.resolve_column(self.epath._model, self.epath)
+            if col in mkcols:
+                raise BadSyntax('Group key column %s cannot be bound more than once.' % col)
+            if groupkey.alias:
+                mkcol_aliases[col] = groupkey.alias
+            if base == self.epath:
+                # column in final entity path element
+                mkcols.add(col)
+            elif base in self.epath.aliases:
+                # column in interior path referenced by alias
+                mkcols.add(col)
+            else:
+                raise ConflictModel('Invalid groupkey name "%s".' % groupkey)
+
+        nmkcols = set()
+        nmkcol_aliases = dict()
+        for attribute in self.attributes:
+            col, base = attribute.resolve_column(self.epath._model, self.epath)
+            if col in nmkcols:
+                raise BadSyntax('Update column %s cannot be bound more than once.' % col)
+            if attribute.alias:
+                nmkcol_aliases[col] = attribute.alias
+            if base == self.epath:
+                # column in final entity path element
+                nmkcols.add(col)
+            elif base in self.epath.aliases:
+                # column in interior path referenced by alias
+                raise ConflictModel('Only unqualified attribute names from entity %s can be modified by PUT.' % etable.name)
+            else:
+                raise ConflictModel('Invalid attribute name "%s".' % attribute)
+        
+        attr_update = (list(mkcols), list(nmkcols))
+        attr_aliases = (mkcol_aliases, nmkcol_aliases)
+        return self.epath.put(conn, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update, attr_aliases=attr_aliases)
+        
 
 class QueryPath (object):
     """Hierarchical ERM data access to query results, i.e. computed rows.

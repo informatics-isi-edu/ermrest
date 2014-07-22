@@ -720,12 +720,19 @@ class Column (object):
             column_name=str(self.name)
             )
 
-    def sql_name(self):
-        return sql_identifier(self.name)
+    def sql_name(self, alias=None):
+        if alias:
+            return sql_identifier(alias)
+        else:
+            return sql_identifier(self.name)
     
-    def ddl(self):
+    def ddl(self, alias=None):
+        if alias:
+            name = alias
+        else:
+            name = self.name
         return "%s %s" % (
-            sql_identifier(self.name),
+            sql_identifier(name),
             self.type.sql()
             )
 
