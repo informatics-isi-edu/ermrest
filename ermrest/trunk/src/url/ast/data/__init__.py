@@ -121,7 +121,7 @@ class Entity (Api):
             if not self.catalog.manager.has_content_read(
                 web.ctx.webauthn2_context.attributes
                 ):
-                raise rest.Unauthorized(uri)
+                raise rest.Forbidden(uri)
 
             model = ermrest.model.introspect(conn)
             epath = self.resolve(model)
@@ -141,7 +141,7 @@ class Entity (Api):
         """
         if not self.catalog.manager.has_content_write(
                                 web.ctx.webauthn2_context.attributes):
-            raise rest.Unauthorized(uri)
+            raise rest.Forbidden(uri)
         
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
@@ -182,7 +182,7 @@ class Entity (Api):
         """
         if not self.catalog.manager.has_content_write(
                                 web.ctx.webauthn2_context.attributes):
-            raise rest.Unauthorized(uri)
+            raise rest.Forbidden(uri)
         
         def body(conn):
             model = ermrest.model.introspect(conn)
@@ -227,7 +227,7 @@ class Attribute (Api):
             if not self.catalog.manager.has_content_read(
                 web.ctx.webauthn2_context.attributes
                 ):
-                raise rest.Unauthorized(uri)
+                raise rest.Forbidden(uri)
 
             model = ermrest.model.introspect(conn)
             apath = self.resolve(model)
@@ -247,7 +247,7 @@ class Attribute (Api):
         """
         if not self.catalog.manager.has_content_write(
                                 web.ctx.webauthn2_context.attributes):
-            raise rest.Unauthorized(uri)
+            raise rest.Forbidden(uri)
         
         def body(conn):
             model = ermrest.model.introspect(conn)
@@ -292,7 +292,7 @@ class AttributeGroup (Api):
             if not self.catalog.manager.has_content_read(
                 web.ctx.webauthn2_context.attributes
                 ):
-                raise rest.Unauthorized(uri)
+                raise rest.Forbidden(uri)
 
             model = ermrest.model.introspect(conn)
             agpath = self.resolve(model)
@@ -312,7 +312,7 @@ class AttributeGroup (Api):
         """
         if not self.catalog.manager.has_content_write(
                                 web.ctx.webauthn2_context.attributes):
-            raise rest.Unauthorized(uri)
+            raise rest.Forbidden(uri)
         
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
