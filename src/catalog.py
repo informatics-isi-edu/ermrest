@@ -408,22 +408,22 @@ DELETE FROM %(schema)s.%(table)s
     def has_read(self, roles):
         """Tests whether the user roles have read permission.
         """
-        return self._test_perm(self.META_READ_USER, roles)
+        return self.is_owner(roles) or self._test_perm(self.META_READ_USER, roles)
     
     def has_write(self, roles):
         """Tests whether the user roles have write permission.
         """
-        return self._test_perm(self.META_WRITE_USER, roles)
+        return self.is_owner(roles) or self._test_perm(self.META_WRITE_USER, roles)
                                   
     def has_content_read(self, roles):
         """Tests whether the user roles have content read permission.
         """
-        return self._test_perm(self.META_CONTENT_READ_USER, roles)
+        return self.is_owner(roles) or self._test_perm(self.META_CONTENT_READ_USER, roles)
     
     def has_content_write(self, roles):
         """Tests whether the user roles have content write permission.
         """
-        return self._test_perm(self.META_CONTENT_WRITE_USER, roles)
+        return self.is_owner(roles) or self._test_perm(self.META_CONTENT_WRITE_USER, roles)
     
     def is_owner(self, roles):
         """Tests whether the user role is owner.
