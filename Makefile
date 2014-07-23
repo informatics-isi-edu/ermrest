@@ -80,8 +80,7 @@ predeploy: $(PREDEPLOY)
 unpredeploy: force
 	rm -f $(PREDEPLOY)
 
-$(DEPLOYLOCK): predeploy install
-	mkdir -p $(VARLIBDIR)
+$(DEPLOYLOCK): predeploy install $(VARLIBDIR)
 	$(SBINDIR)/ermrest-deploy
 
 deploy: $(DEPLOYLOCK)
