@@ -1,7 +1,10 @@
 
 # Recipes for CentOS 6.x
 
-$(PREDEPLOY):
+$(VARLIBDIR):
+	mkdir -p $(VARLIBDIR)
+
+$(PREDEPLOY): $(VARLIBDIR)
 	yum -y --skip-broken install postgresql92{,-devel,-server} policycoreutils-python || true
 	yum -y --skip-broken install httpd mod_{ssl,wsgi} python{,-psycopg2,-webpy,-dateutil,-json,-simplejson,-setuptools,-ply,-suds} pytz || true
 	useradd -m -r $(DAEMONUSER) || true
@@ -12,7 +15,6 @@ $(PREDEPLOY):
 	chkconfig postgresql-9.2 on || true
 	chkconfig httpd on || true
 	setsebool -P httpd_enable_homedirs on || true
-	mkdir -p $(VARLIBDIR)
 	touch $(PREDEPLOY)
 
 httpd_restart: force
