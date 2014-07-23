@@ -86,6 +86,8 @@ class Catalog (Api):
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
         self.manager = catalog.Catalog(web.ctx.ermrest_catalog_factory, 
                                        entries[0]['descriptor'])
+        if not self.manager.has_read(web.ctx.webauthn2_context.attributes):
+            raise exception.rest.Forbidden('catalog ' + str(catalog_id))
 
     def schemas(self):
         """The schema set for this catalog."""
