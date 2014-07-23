@@ -113,11 +113,11 @@ def p_sortlist_grow(p):
     p[0].append( p[3] )
 
 def p_meta_key(p):
-    """meta : catalogslash META '/' STRING slashopt """
+    """meta : catalogslash META '/' string slashopt """
     p[0] = p[1].meta(p[4])
 
 def p_meta_key_value(p):
-    """meta : catalogslash META '/' STRING '/' STRING slashopt """
+    """meta : catalogslash META '/' string '/' string slashopt """
     p[0] = p[1].meta(p[4], p[6])
 
 def p_entity(p):
