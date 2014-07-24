@@ -103,11 +103,11 @@ def _default_link_cols(cols, left=True, reftable=None):
         links.extend([ (ref, left and '=@' or '@=') for ref in refs ])
     
     if len(links) == 0:
-        raise exception.ConflictModel('No link found involving columns %s' % cols)
+        raise exception.ConflictModel('No link found involving columns %s' % [ str(c) for c in cols ])
     elif len(links) == 1:
         return links[0]
     else:
-        raise exception.ConflictModel('Ambiguous links found involving columns %s' % cols)
+        raise exception.ConflictModel('Ambiguous links found involving columns %s' % [ str(c) for c in cols ])
 
 
 def _default_link_col(col, left=True, reftable=None):
