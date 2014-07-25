@@ -86,7 +86,8 @@ def _default_link_cols(cols, left=True, reftable=None):
     if constraint_key in table.uniques:
         refs = set()
         if reftable:
-            refs.update( table.uniques[constraint_key].table_references[reftable] )
+            if reftable in table.uniques[constraint_key].table_references:
+                refs.update( table.uniques[constraint_key].table_references[reftable] )
         else:
             for rs in table.uniques[constraint_key].table_references.values():
                 refs.update(rs)
@@ -96,7 +97,8 @@ def _default_link_cols(cols, left=True, reftable=None):
     if constraint_key in table.fkeys:
         refs = set()
         if reftable:
-            refs.update( table.fkeys[constraint_key].table_references[reftable] )
+            if reftable in table.fkeys[constraint_key].table_references:
+                refs.update( table.fkeys[constraint_key].table_references[reftable] )
         else:
             for rs in table.fkeys[constraint_key].table_references.values():
                 refs.update(rs)
@@ -278,75 +280,31 @@ class Name (object):
            Returns (keyref, refop, lalias) as resolved key reference
            configuration.
         
-           A name 'n0:n1:n2' must be:
+           A name 'n0' must be an unambiguous table in the model
 
-             1. a column in the model to link its containing entity to
-                the path by involved reference
+           A name 'n0:n1' must be a table in the model
 
-           A name 'n0' may be:
+           The named table must have an unambiguous implicit reference
+           to the epath context.
 
-             1. a column of the current epath table type involved in
-                exactly one reference.
-
-             2. an unambiguous table in the model, and also can be
-                linked to the path
-
-           A name 'n0:n1' may be:
-
-             1. a column of an aliased table in the epath context,
-                involved in exactly one reference.
-
-             2. a table in the model that can be linked to the path by
-                implicit reference.
-
-             3. a column in the model involved in exactly one
-                reference back to the current epath table type.
-
-           TODO: add other column-based methods?
-           TODO: review resolution policy for sanity?
-        
            Raises exception.ConflictModel on failed resolution.
         """
         ptable = epath.current_entity_table()
         
-        if len(self.nameparts) == 3:
-            n0, n1, n2 = self.nameparts
-            table = model.lookup_table(n0, n1)
-            keyref, refop = _default_link_col(table.columns[n2], left=False, reftable=ptable)
-            return keyref, refop, None
-        
-        elif len(self.nameparts) == 1:
+        if len(self.nameparts) == 1:
             name = self.nameparts[0]
-            if name in ptable.columns:
-                keyref, refop = _default_link_col(ptable.columns[name])
-                return keyref, refop, None
-
-            else:
-                table = self.resolve_table(model)
-                keyref, refop = _default_link_table2table(ptable, table)
-                return keyref, refop, None
+            table = self.resolve_table(model)
+            keyref, refop = _default_link_table2table(ptable, table)
+            return keyref, refop, None
 
         elif len(self.nameparts) == 2:
             n0, n1 = self.nameparts
-            if n0 in epath.aliases \
-                    and n1 in epath[n0].table.columns:
-                keyref, refop = _default_link_col(epath[n0].table.columns[n1])
-                return keyref, refop, n0
 
-            try:
-                table = model.lookup_table(n0, n1)
-            except exception.ConflictModel:
-                table = None
-
-            if table:
-                keyref, refop = _default_link_table2table(ptable, table)
-                return keyref, refop, None
-
-            table = model.lookup_table(None, n0)
-            keyref, refop = _default_link_col(table.columns[n1], left=False, reftable=ptable)
+            table = model.lookup_table(n0, n1)
+            keyref, refop = _default_link_table2table(ptable, table)
             return keyref, refop, None
-            
-        raise exception.BadSyntax('Name %s is not a valid syntax for table-linking.' % self)
+
+        raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
 
     def resolve_table(self, model):
         """Resolve self as table name.

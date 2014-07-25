@@ -187,15 +187,11 @@ def p_entitypath_alias(p):
 
 def p_entityelem_single(p):
     """entityelem : sname """
-    p[0] = ast.data.path.SingleElem(p[1])
-
-#def p_entityelem_multi(p):
-#   """entityelem : snamelist2 """
-#    p[0] = ast.data.path.MultiElem(p[1])
+    p[0] = ast.data.path.TableElem(p[1])
 
 def p_entityelem_cols(p):
     """entityelem : '(' snamelist1 ')' """
-    p[0] = ast.data.path.MultiElem(p[2])
+    p[0] = ast.data.path.ColumnsElem(p[2])
 
 def p_bname(p):
     """bname : string"""
