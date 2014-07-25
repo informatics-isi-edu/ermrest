@@ -104,8 +104,8 @@ class Api (object):
 class Path (list):
     pass
 
-class SingleElem (Api):
-    """A path element with a single name may be a table or column."""
+class TableElem (Api):
+    """A path element with a single name must be a table."""
     def __init__(self, name):
         self.name = name
         self.alias = None
@@ -121,8 +121,8 @@ class SingleElem (Api):
         """Resolve self.name as a link in the model and epath context."""
         return self.name.resolve_link(model, epath)
 
-class MultiElem (Api):
-    """A path element with multiple names must be columns."""
+class ColumnsElem (Api):
+    """A path element with parenthetic name list must be columns."""
     def __init__(self, names):
         self.names = names
         self.alias = None
