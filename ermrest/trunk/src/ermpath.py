@@ -1058,12 +1058,34 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(str(col.name)) )
 
         for attribute in self.attributes:
-            # TODO: allow real aggregate expressions as attributes
             col, base = attribute.resolve_column(self.epath._model, self.epath)
             if attribute.alias is not None:
-                extras.append( sql_identifier(str(attribute.alias)) )
+                sql_attr = str(attribute.alias)
             else:
-                extras.append( sql_identifier(str(col.name)) )
+                sql_attr = str(col.name)
+
+            sql_attr = sql_identifier(sql_attr)
+
+            if hasattr(attribute, 'aggfunc'):
+                if attribute.alias is None:
+                    raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
+
+                aggfunc_templates = dict(
+                    min='min(%s) AS %s', 
+                    max='max(%s) AS %s', 
+                    cnt='count(%s) AS %s', 
+                    cnt_d='count(DISTINCT %s) AS %s',
+                    array='array_agg(%s) AS %s'
+                    )
+
+                if str(attribute.aggfunc) not in aggfunc_templates:
+                    raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
+
+                sql_attr = aggfunc_templates[str(attribute.aggfunc)] % (sql_attr, sql_attr)
+
+                aggregates.append(sql_attr)
+            else:
+                extras.append(sql_attr)
 
         asql, sort = apath.sql_get(split_sort=True)
         if not sort:
@@ -1176,6 +1198,9 @@ GROUP BY %(groupkeys)s
         nmkcols = set()
         nmkcol_aliases = dict()
         for attribute in self.attributes:
+            if hasattr(attribute, 'aggfunc'):
+                raise BadSyntax('Aggregated column %s not allowed in PUT.' % attribute)
+
             col, base = attribute.resolve_column(self.epath._model, self.epath)
             if col in nmkcols:
                 raise BadSyntax('Update column %s cannot be bound more than once.' % col)
