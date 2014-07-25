@@ -186,10 +186,10 @@ class Name (object):
     """Represent a qualified or unqualified name in an ERMREST URL.
 
     """
-    def __init__(self):
+    def __init__(self, nameparts=None):
         """Initialize a zero-element name container.
         """
-        self.nameparts = []
+        self.nameparts = nameparts and list(nameparts) or []
         self.alias = None
 
     def set_alias(self, alias):
@@ -385,4 +385,17 @@ class Value (object):
 
     def validate_attribute_update(self):
         raise exception.BadSyntax('Value %s is not supported in an attribute update path filter.' % self)
+
+class Aggregate (Name):
+    """Represent an aggregate function used as an attribute."""
+
+    def __init__(self, aggfunc, name):
+        Name.__init__(self, name.nameparts)
+        self.aggfunc = aggfunc
+
+    def __str__(self):
+        return '%s(%s)' % (self.aggfunc, ':'.join(map(urllib.quote, self.nameparts)))
+    
+    def __repr__(self):
+        return '<ermrest.url.ast.aggregate %s %s>' % (str(self.aggfunc), Name.__str__(self))
 

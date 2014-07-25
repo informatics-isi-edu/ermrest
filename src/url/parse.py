@@ -159,7 +159,7 @@ def p_groupkeys(p):
     p[0] = p[1]
 
 def p_groupleaf(p):
-    """groupleaf : attrlist1"""
+    """groupleaf : leafattrlist1"""
     p[0] = p[1]
 
 def p_entityroot(p):
@@ -218,6 +218,15 @@ def p_sname(p):
              | name"""
     p[0] = p[1]
 
+def p_leafattrlist1(p):
+    """leafattrlist1 : leafattritem"""
+    p[0] = ast.NameList([ p[1] ])
+
+def p_leafattrlist1_grow(p):
+    """leafattrlist1 : leafattrlist1 ',' leafattritem"""
+    p[0] = p[1]
+    p[0].append( p[3] )
+
 def p_attrlist1(p):
     """attrlist1 : attritem"""
     p[0] = ast.NameList([ p[1] ])
@@ -226,6 +235,22 @@ def p_attrlist1_grow(p):
     """attrlist1 : attrlist1 ',' attritem"""
     p[0] = p[1]
     p[0].append( p[3] )
+
+def p_attrcore(p):
+    """attrcore : sname"""
+    p[0] = p[1]
+
+def p_attrcore_agg(p):
+    """attrcore : string '(' sname ')'"""
+    p[0] = ast.Aggregate(p[1], p[3])
+
+def p_leafattritem(p):
+    """leafattritem : attrcore"""
+    p[0] = p[1]
+
+def p_leafattritem_aliased(p):
+    """leafattritem : string ASSIGN attrcore"""
+    p[0] = p[3].set_alias(p[1])
 
 def p_attritem(p):
     """attritem : sname"""
