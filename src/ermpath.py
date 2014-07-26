@@ -1223,6 +1223,73 @@ GROUP BY %(groupkeys)s
         return self.epath.put(conn, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update, attr_aliases=attr_aliases)
         
 
+class AggregatePath (AnyPath):
+    """Hierarchical ERM data access to aggregate row.
+
+    """
+    def __init__(self, epath, attributes):
+        AnyPath.__init__(self)
+        self.epath = epath
+        self.attributes = attributes
+
+        if not attributes:
+            raise BadSyntax('Aggregate requires at least one attribute.')
+
+    def add_sort(self, sort):
+        """Add a sortlist specification for final output.
+
+           Validation deferred until sql_get() runs... sort keys must match designated output columns.
+        """
+        if sort:
+            raise BadSyntax('Sort is meaningless for aggregates returning one row.')
+
+    def sql_get(self):
+        """Generate SQL query to get the resources described by this apath.
+
+        """
+        apath = AttributePath(self.epath, self.attributes)
+        
+        aggregates = []
+
+        for attribute in self.attributes:
+            col, base = attribute.resolve_column(self.epath._model, self.epath)
+            sql_attr = str(attribute.alias)
+            sql_attr = sql_identifier(sql_attr)
+
+            if hasattr(attribute, 'aggfunc'):
+                if attribute.alias is None:
+                    raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
+
+                aggfunc_templates = dict(
+                    min='min(%s) AS %s', 
+                    max='max(%s) AS %s', 
+                    cnt='count(%s) AS %s', 
+                    cnt_d='count(DISTINCT %s) AS %s',
+                    array='array_agg(%s) AS %s'
+                    )
+
+                if str(attribute.aggfunc) not in aggfunc_templates:
+                    raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
+
+                sql_attr = aggfunc_templates[str(attribute.aggfunc)] % (sql_attr, sql_attr)
+
+                aggregates.append(sql_attr)
+            else:
+                raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
+
+        asql, sort = apath.sql_get(split_sort=True)
+
+        
+        # a pure aggregate query has only group keys and aggregates
+        sql = """
+SELECT %(aggs)s
+FROM ( %(asql)s ) s
+"""
+        return sql % dict(
+            asql=asql,
+            aggs=', '.join(aggregates),
+            )
+
 class QueryPath (object):
     """Hierarchical ERM data access to query results, i.e. computed rows.
 

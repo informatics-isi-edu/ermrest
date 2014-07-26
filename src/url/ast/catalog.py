@@ -113,6 +113,10 @@ class Catalog (Api):
         """An attributegroup set for this catalog."""
         return data.AttributeGroup(self, agpath)
 
+    def aggregate(self, agpath):
+        """An aggregate row for this catalog."""
+        return data.Aggregate(self, agpath)
+
     def query(self, qpath):
         """A query set for this catalog."""
         return data.Query(self, qpath)
