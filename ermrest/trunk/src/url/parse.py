@@ -96,6 +96,7 @@ def p_data(p):
     """data : entity
             | attribute
             | attributegroup
+            | aggregate
             | query"""
     p[0] = p[1]
 
@@ -143,6 +144,12 @@ def p_attributegroup_keysonly(p):
     path.append(p[6])
     path.append(ast.NameList())
     p[0] = p[1].attributegroup(path)
+
+def p_aggregate(p):
+    """aggregate : catalogslash AGGREGATE '/' entitypath '/' groupleaf"""
+    path = p[4]
+    path.append(p[6])
+    p[0] = p[1].aggregate(path)
 
 def p_query(p):
     """query : catalogslash QUERY '/' entitypath '/' attributeleaf """
@@ -237,11 +244,12 @@ def p_attrlist1_grow(p):
     p[0].append( p[3] )
 
 def p_attrcore(p):
-    """attrcore : sname"""
+    """attrcore : sname
+                | aggfunc"""
     p[0] = p[1]
 
 def p_attrcore_agg(p):
-    """attrcore : string '(' sname ')'"""
+    """aggfunc : string '(' sname ')'"""
     p[0] = ast.Aggregate(p[1], p[3])
 
 def p_leafattritem(p):

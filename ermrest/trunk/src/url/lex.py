@@ -58,6 +58,7 @@ literals = [
 # special strings which can be keywords when parsing
 keywords = [
     'acl',
+    'aggregate',
     'attribute',
     'attributegroup',
     'catalog',
