@@ -1305,15 +1305,23 @@ def row_to_dict(cur, row):
             ])
 
 def val_to_csv(v):
-    if type(v) in [ int, float, long ]:
-        return '%s' % v
-
-    else:
-        v = str(v)
+    def condquote(v):
         if v.find(',') > 0 or v.find('"') > 0:
             return '"%s"' % (v.replace('"', '""'))
         else:
             return v
+
+    if v is None:
+        return ''
+
+    if type(v) in [ int, float, long ]:
+        return '%s' % v
+
+    if type(v) is list:
+        return condquote('{%s}' % ",".join([ val_to_csv(e) for e in v ]))
+
+    else:
+        return condquote(str(v))
 
 def row_to_csv(row):
     return ','.join([ val_to_csv(v) for v in row ])
