@@ -310,7 +310,7 @@ class EntityElem (object):
 
             inputcol_names = set(
                 [ str(mkcol_aliases.get(c, c.name)) for c in mkcols ]
-                + [ str(mkcol_aliases.get(c, c.name)) for c in mkcols ]
+                + [ str(mkcol_aliases.get(c, c.name)) for c in nmkcols ]
                 )
             csvcol_names = set()
             csvcol_names_ordered = []
