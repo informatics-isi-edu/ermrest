@@ -679,6 +679,9 @@ class Column (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def is_star_column(self):
+        return False
+
     def sql_def(self):
         """Render SQL column clause for table DDL."""
         parts = [
@@ -744,6 +747,8 @@ class FreetextColumn (Column):
     """
     
     def __init__(self, table):
+        Column.__init__(self, '*', None, Type('tsvector'), None)
+
         self.table = table
         
         def istext(ctype):
@@ -751,7 +756,6 @@ class FreetextColumn (Column):
             
         self.srccols = [ c for c in table.columns.itervalues() if istext(str(c.type)) ]
         self.srccols.sort(key=lambda c: c.position)
-        self.type = Type('tsvector')
 
     def sql_name_with_talias(self, talias):
         colnames = [ '%s.%s' % (talias, c.sql_name()) for c in self.srccols ]
@@ -759,6 +763,9 @@ class FreetextColumn (Column):
             return "to_tsvector('english'::regconfig, %s)" % (" || ' ' || ".join([ "COALESCE(%s::text,''::text)" % name for name in colnames ]))
         else:
             return "to_tsvector('english'::regconfig, ''::text)"
+
+    def is_star_column(self):
+        return True
 
 class Unique (object):
     """A unique constraint."""

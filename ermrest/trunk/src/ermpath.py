@@ -899,6 +899,12 @@ class AttributePath (AnyPath):
         
         for attribute in self.attributes:
             col, base = attribute.resolve_column(self.epath._model, self.epath)
+            if col.is_star_column():
+                if hasattr(attribute, 'aggfunc'):
+                    continue
+                else:
+                    raise BadSyntax('Psuedo-column "*" cannot be retrieved.')
+
             if base == self.epath:
                 # column in final entity path element
                 select = "t%d.%s" % (len(self.epath._path) - 1, sql_identifier(col.name))
@@ -1071,17 +1077,25 @@ class AttributeGroupPath (AnyPath):
                     raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
 
                 aggfunc_templates = dict(
-                    min='min(%s) AS %s', 
-                    max='max(%s) AS %s', 
-                    cnt='count(%s) AS %s', 
-                    cnt_d='count(DISTINCT %s) AS %s',
-                    array='array_agg(%s) AS %s'
+                    min='min(%(attr)s) AS %(attr)s', 
+                    max='max(%(attr)s) AS %(attr)s', 
+                    cnt='count(%(attr)s) AS %(attr)s', 
+                    cnt_d='count(DISTINCT %(attr)s) AS %(attr)s',
+                    array='array_agg(%(attr)s) AS %(attr)s'
                     )
 
                 if str(attribute.aggfunc) not in aggfunc_templates:
                     raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
 
-                sql_attr = aggfunc_templates[str(attribute.aggfunc)] % (sql_attr, sql_attr)
+                if col.is_star_column():
+                    if str(attribute.aggfunc) == 'cnt':
+                        templ = 'count(*) AS %(attr)s'
+                    else:
+                        raise BadSyntax('Unsupported aggregate function "%s" for psuedo-column "*".' % attribute.aggfunc)
+                else:
+                    templ = aggfunc_templates[str(attribute.aggfunc)] 
+
+                sql_attr = templ % dict(attr=sql_attr)
 
                 aggregates.append(sql_attr)
             else:
