@@ -25,21 +25,37 @@ import web
 from ermrest import exception
 import ermrest.model
 from data import Api
+from ermrest.util import negotiated_content_type
 
 def model_body(conn):
     return ermrest.model.introspect(conn)
 
 class Schemas (Api):
     """A schema set."""
+
+    supported_content_types = ['application/json', 'text/html']
+    default_content_type = supported_content_types[0]
+
     def __init__(self, catalog):
         Api.__init__(self, catalog)
         
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
+        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
+
         def post_commit(model):
+            web.header('Content-Type', content_type)
             return json.dumps(model.prejson(), indent=2) + '\n'
 
-        return self.perform(model_body, post_commit)
+        if content_type == 'text/html':
+            # return static AJAX page
+            web.header('Content-Type', content_type)
+            return """<html>
+THIS PAGE INTENTIONALLY BLANK.
+</html>
+"""
+        else:
+            return self.perform(model_body, post_commit)
 
 def schema_body(conn, schema_name):
     model = model_body(conn)
@@ -65,10 +81,21 @@ class Schema (Api):
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
+        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
+
         def post_commit(schema):
+            web.header('Content-Type', content_type)
             return json.dumps(schema.prejson(), indent=2) + '\n'
 
-        return self.perform(self.GET_body, post_commit)
+        if content_type == 'text/html':
+            # return static AJAX page
+            web.header('Content-Type', content_type)
+            return """<html>
+THIS PAGE INTENTIONALLY BLANK.
+</html>
+"""
+        else:
+            return self.perform(self.GET_body, post_commit)
 
     def POST(self, uri):
         """Create a new empty schema."""
