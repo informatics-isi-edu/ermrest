@@ -387,7 +387,10 @@ class Model (object):
         if sname in self.schemas:
             raise exception.ConflictModel('Requested schema %s already exists.' % sname)
         cur = conn.cursor()
-        cur.execute('CREATE SCHEMA %s' % sql_identifier(sname))
+        cur.execute("""
+CREATE SCHEMA %s ;
+SELECT model_change_event();
+""" % sql_identifier(sname))
         cur.close()
         conn.commit()
         return Schema(self, sname)
@@ -397,7 +400,10 @@ class Model (object):
         if sname not in self.schemas:
             raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
         cur = conn.cursor()
-        cur.execute('DROP SCHEMA %s' % sql_identifier(sname))
+        cur.execute("""
+DROP SCHEMA %s
+SELECT model_change_event();
+""" % sql_identifier(sname))
         cur.close()
         conn.commit()
         del self.schemas[sname]
@@ -433,7 +439,10 @@ class Schema (object):
         if tname not in self.tables:
             raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
         cur = conn.cursor()
-        cur.execute('DROP TABLE %s.%s' % (sql_identifier(self.name), sql_identifier(tname)))
+        cur.execute("""
+DROP TABLE %s.%s
+SELECT model_change_event();
+""" % (sql_identifier(self.name), sql_identifier(tname)))
         cur.close()
         conn.commit()
         del self.tables[tname]
@@ -511,6 +520,7 @@ class Table (object):
 CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
 );
+SELECT model_change_event();
 """ % dict(sname=sql_identifier(sname),
            tname=sql_identifier(tname),
            clauses=',\n'.join(clauses)
@@ -524,13 +534,14 @@ CREATE TABLE %(sname)s.%(tname)s (
     def alter_table(self, conn, alterclause):
         """Generic ALTER TABLE ... wrapper"""
         cur = conn.cursor()
-        cur.execute(
-            'ALTER TABLE %s.%s  %s ;' 
-            % (sql_identifier(str(self.schema.name)),
-               sql_identifier(str(self.name)),
-               alterclause
-               )
-            )
+        cur.execute("""
+ALTER TABLE %s.%s  %s ;
+SELECT model_change_event();
+""" % (sql_identifier(str(self.schema.name)),
+       sql_identifier(str(self.name)),
+       alterclause
+       )
+                    )
         cur.close()
         conn.commit()
 
