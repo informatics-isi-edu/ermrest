@@ -121,7 +121,7 @@ class Entity (Api):
                 ):
                 raise rest.Forbidden(uri)
 
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
             epath.add_sort(self.sort)
             return epath.get(conn, content_type=content_type, limit=limit)
@@ -153,7 +153,7 @@ class Entity (Api):
         
         def body(conn):
             input_data.seek(0) # rewinds buffer, in case of retry
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
             return epath.put(conn,
                              input_data, 
@@ -183,7 +183,7 @@ class Entity (Api):
             raise rest.Forbidden(uri)
         
         def body(conn):
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
             epath.delete(conn)
 
@@ -227,7 +227,7 @@ class Attribute (Api):
                 ):
                 raise rest.Forbidden(uri)
 
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             apath = self.resolve(model)
             apath.add_sort(self.sort)
             return apath.get(conn, content_type=content_type, limit=limit)
@@ -248,7 +248,7 @@ class Attribute (Api):
             raise rest.Forbidden(uri)
         
         def body(conn):
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             apath = self.resolve(model)
             apath.delete(conn)
 
@@ -292,7 +292,7 @@ class AttributeGroup (Api):
                 ):
                 raise rest.Forbidden(uri)
 
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
             agpath.add_sort(self.sort)
             return agpath.get(conn, content_type=content_type, limit=limit)
@@ -324,7 +324,7 @@ class AttributeGroup (Api):
         
         def body(conn):
             input_data.seek(0) # rewinds buffer, in case of retry
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
             return agpath.put(conn,
                               input_data, 
@@ -372,7 +372,7 @@ class Aggregate (Api):
                 ):
                 raise rest.Forbidden(uri)
 
-            model = ermrest.model.introspect(conn)
+            model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
             agpath.add_sort(self.sort)
             return agpath.get(conn, content_type=content_type, limit=limit)
