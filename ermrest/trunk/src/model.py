@@ -389,7 +389,7 @@ class Model (object):
         cur = conn.cursor()
         cur.execute("""
 CREATE SCHEMA %s ;
-SELECT model_change_event();
+SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
         cur.close()
         conn.commit()
@@ -402,7 +402,7 @@ SELECT model_change_event();
         cur = conn.cursor()
         cur.execute("""
 DROP SCHEMA %s
-SELECT model_change_event();
+SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
         cur.close()
         conn.commit()
@@ -441,7 +441,7 @@ class Schema (object):
         cur = conn.cursor()
         cur.execute("""
 DROP TABLE %s.%s
-SELECT model_change_event();
+SELECT _ermrest.model_change_event();
 """ % (sql_identifier(self.name), sql_identifier(tname)))
         cur.close()
         conn.commit()
@@ -520,7 +520,7 @@ class Table (object):
 CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
 );
-SELECT model_change_event();
+SELECT _ermrest.model_change_event();
 """ % dict(sname=sql_identifier(sname),
            tname=sql_identifier(tname),
            clauses=',\n'.join(clauses)
@@ -536,7 +536,7 @@ SELECT model_change_event();
         cur = conn.cursor()
         cur.execute("""
 ALTER TABLE %s.%s  %s ;
-SELECT model_change_event();
+SELECT _ermrest.model_change_event();
 """ % (sql_identifier(str(self.schema.name)),
        sql_identifier(str(self.name)),
        alterclause

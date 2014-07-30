@@ -296,7 +296,7 @@ CREATE TABLE %(schema)s.%(table)s (
     snap_txid bigint PRIMARY KEY
 );
 
-CREATE OR REPLACE FUNCTION model_change_event() RETURNS void AS $$
+CREATE OR REPLACE FUNCTION %(schema)s.model_change_event() RETURNS void AS $$
 DECLARE
 
   resultbool boolean;
@@ -332,13 +332,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION model_change_trigger() RETURNS event_trigger AS $$
+CREATE OR REPLACE FUNCTION %(schema)s.model_change_trigger() RETURNS event_trigger AS $$
 BEGIN
-  PERFORM model_change_event();
+  PERFORM %(schema)s.model_change_event();
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT model_change_event() ;
+SELECT %(schema)s.model_change_event() ;
 
 -- NEED TO BE POSTGRES SUPERUSER TO REGISTER AN EVENT TRIGGER!
 -- This will also fire on every REST data PUT because we use temporary tables
