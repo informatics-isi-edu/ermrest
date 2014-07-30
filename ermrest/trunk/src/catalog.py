@@ -33,8 +33,10 @@ import base64
 import psycopg2
 import sanepg2
 from webauthn2.util import PooledConnection
+import web
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists
+from ermrest.model import introspect
 
 __all__ = ['CatalogFactory', 'Catalog']
 
@@ -138,6 +140,7 @@ class Catalog (PooledConnection):
     
     _SCHEMA_NAME = '_ermrest'
     _TABLE_NAME = 'meta'
+    _MODEL_VERSION_TABLE_NAME = 'model_version'
     _DBNAME = 'dbname'
     META_OWNER = 'owner'
     META_READ_USER = 'read_user'
@@ -145,6 +148,9 @@ class Catalog (PooledConnection):
     META_CONTENT_READ_USER = 'content_read_user'
     META_CONTENT_WRITE_USER = 'content_write_user'
     ANONYMOUS = '*'
+
+    # key cache by (dbname, version)
+    MODEL_CACHE = dict()
     
     def __init__(self, factory, descriptor):
         """Initializes the catalog.
@@ -198,12 +204,25 @@ class Catalog (PooledConnection):
         self._put_pooled_connection(conn)
         self._dbc = None
     
-    def get_model(self):
+    def get_model_version(self, conn):
+        cur = conn.cursor()
+        cur.execute("""
+SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
+""" % dict(schema=self._SCHEMA_NAME, table=self._MODEL_VERSION_TABLE_NAME))
+        self._model_version = cur.next()[0]
+        cur.close()
+        return self._model_version
+
+    def get_model(self, conn=None):
         # TODO: turn this into a @property
+        if conn is None:
+            conn = self.get_connection()
         if not self._model:
-            from ermrest.model import introspect
-            self._model = introspect(self.get_connection())
-            self._dbc.commit()
+            cache_key = (self.descriptor[self._DBNAME], self.get_model_version(conn))
+            self._model = self.MODEL_CACHE.get(cache_key)
+            if self._model is None:
+                self._model = introspect(conn)
+                self.MODEL_CACHE[cache_key] = self._model
         return self._model
     
     def destroy(self):
@@ -259,7 +278,6 @@ class Catalog (PooledConnection):
                 cur.execute("""
 CREATE SCHEMA %(schema)s;"""
                     % dict(schema=self._SCHEMA_NAME))
-                self._dbc.commit()
             
             # create meta table, if it doesn't exist
             if not table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME):
@@ -271,8 +289,73 @@ CREATE TABLE %(schema)s.%(table)s (
 );"""
                     % dict(schema=self._SCHEMA_NAME,
                            table=self._TABLE_NAME))
-                self._dbc.commit()
-                
+            
+            if not table_exists(self._dbc, self._SCHEMA_NAME, self._MODEL_VERSION_TABLE_NAME):
+                cur.execute("""
+CREATE TABLE %(schema)s.%(table)s (
+    snap_txid bigint PRIMARY KEY
+);
+
+CREATE OR REPLACE FUNCTION model_change_event() RETURNS void AS $$
+DECLARE
+
+  resultbool boolean;
+  trigger_txid bigint;
+  previous_txid bigint;
+  snapshot txid_snapshot;
+
+BEGIN
+
+  SELECT txid_current() INTO trigger_txid;
+
+  SELECT EXISTS (SELECT snap_txid 
+                 FROM %(schema)s.%(table)s 
+                 WHERE snap_txid = trigger_txid) 
+  INTO resultbool ;
+
+  IF NOT resultbool THEN
+
+    SELECT txid_current_snapshot() INTO snapshot;
+
+    SELECT max(snap_txid) INTO previous_txid
+    FROM %(schema)s.%(table)s
+    WHERE snap_txid < txid_snapshot_xmin(snapshot) ;
+
+    INSERT INTO %(schema)s.%(table)s (snap_txid)
+      SELECT trigger_txid ;
+
+    DELETE FROM %(schema)s.%(table)s 
+    WHERE snap_txid < previous_txid ;
+
+  END IF;
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION model_change_trigger() RETURNS event_trigger AS $$
+BEGIN
+  PERFORM model_change_event();
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT model_change_event() ;
+
+-- NEED TO BE POSTGRES SUPERUSER TO REGISTER AN EVENT TRIGGER!
+-- This will also fire on every REST data PUT because we use temporary tables
+-- Without the trigger, we only bump model version on REST schema changes but not 
+-- out-of-band schema changes on server.
+
+-- CREATE EVENT TRIGGER trigger_for_model_changes ON ddl_command_end
+-- WHEN TAG IN (
+--   'ALTER SCHEMA', 'ALTER TABLE', 'CREATE INDEX', 'CREATE SCHEMA', 'CREATE TABLE', 'CREATE TABLE AS', 'DROP SCHEMA', 'DROP TABLE', 'DROP INDEX'
+-- )
+-- EXECUTE PROCEDURE model_change_trigger() ;
+
+""" % dict(schema=self._SCHEMA_NAME,
+           table=self._MODEL_VERSION_TABLE_NAME)
+                        )
+            
+            self._dbc.commit()
         finally:
             if cur is not None:
                 cur.close()
