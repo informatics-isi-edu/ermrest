@@ -179,13 +179,13 @@ def catalog_destroy(catalog_id):
     catalog = Catalog(catalog_factory, descriptor)
     catalog.destroy()
     
-def catalog_init_meta(catalog_id):
+def catalog_init_meta(catalog_id, role):
     """
     Initialize catalog metadata.
     """
     descriptor = registry_lookup(catalog_id)[0]['descriptor']
     catalog = Catalog(catalog_factory, descriptor)
-    catalog.init_meta()
+    catalog.init_meta(owner=role)
 
 def catalog_get_meta(catalog_id, key=None):
     """
