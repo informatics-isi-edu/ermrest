@@ -24,6 +24,7 @@ import psycopg2
 import web
 import traceback
 import sys
+import re
 
 class Api (object):
     is_filter = False
@@ -33,6 +34,8 @@ class Api (object):
         self._conn = None
         self.queryopts = dict()
         self.sort = None
+        self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
+        self.http_etag = None
 
     def with_queryopts(self, qopt):
         self.queryopts = qopt
@@ -64,6 +67,70 @@ class Api (object):
             except:
                 return 100
     
+    def set_http_etag(self, version):
+        """Set an ETag from version key.
+
+        """
+        etag = []
+
+        # TODO: compute source_checksum to help with cache invalidation
+        #etag.append( source_checksum )
+
+        if 'cookie' in self.http_vary:
+            etag.append( '%s' % web.ctx.webauthn2_context.client )
+        else:
+            etag.append( '*' )
+            
+        if 'accept' in self.http_vary:
+            etag.append( '%s' % web.ctx.env.get('HTTP_ACCEPT', '') )
+        else:
+            etag.append( '*' )
+
+        etag.append( '%s' % version )
+
+        self.http_etag = '"%s"' % ';'.join(etag).replace('"', '\\"')
+
+    def http_is_cached(self):
+        """Determine whether a request is cached and the request can return 304 Not Modified.
+           Currently only considers ETags via HTTP "If-None-Match" header, if caller set self.http_etag.
+        """
+        def etag_parse(s):
+            strong = True
+            if s[0:2] == 'W/':
+                strong = False
+                s = s[2:]
+            return (s, strong)
+
+        def etags_parse(s):
+            etags = []
+            s, strong = etag_parse(s)
+            while s:
+                s = s.strip()
+                m = re.match('^,? *(?P<first>(W/)?"(.|\\")*")(?P<rest>.*)', s)
+                if m:
+                    g = m.groupdict()
+                    etags.append(etag_parse(g['first']))
+                    s = g['rest']
+                else:
+                    s = None
+            return dict(etags)
+        
+        client_etags = etags_parse( web.ctx.env.get('HTTP_IF_NONE_MATCH', ''))
+        #web.debug(client_etags)
+        
+        if self.http_etag is not None and client_etags.has_key('%s' % self.http_etag):
+            return True
+
+        return False
+
+    def emit_headers(self):
+        """Emit any automatic headers prior to body beginning."""
+        #TODO: evaluate whether this function is necessary
+        if self.http_vary:
+            web.header('Vary', ', '.join(self.http_vary))
+        if self.http_etag:
+            web.header('ETag', '%s' % self.http_etag)
+        
     def perform(self, body, finish):
         # TODO: implement backoff/retry on transient exceptions?
         self._conn = self.catalog.get_conn()
