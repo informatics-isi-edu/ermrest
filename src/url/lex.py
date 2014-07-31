@@ -35,11 +35,11 @@ any request bearing escaped slashes meant to be user data.
 """
 
 
-import urllib
 import ply.lex
 import web
 
 from ermrest.exception import *
+from ermrest.util import urlunquote
 
 # except '%' which we do not want to recognize
 
@@ -89,18 +89,6 @@ keywords = dict([
         ])
 
 tokens = [ 'ESCAPESTRING', 'STRING', 'NUMSTRING', 'OPMARK', 'ASSIGN' ] + list(keywords.values())
-
-def urlunquote(url):
-    if type(url) not in [ str, unicode ]:
-        url = str(url)
-    text = urllib.unquote_plus(url)
-    if type(text) == str:
-        text = unicode(text, 'utf8')
-    elif type(text) == unicode:
-        pass
-    else:
-        raise TypeError('unexpected decode type %s in rest.url.lex.urlunquote()' % type(text))
-    return text
 
 def t_OPMARK(t):
     r'::'
