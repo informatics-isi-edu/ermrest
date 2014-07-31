@@ -1308,7 +1308,15 @@ class AggregatePath (AnyPath):
                 if str(attribute.aggfunc) not in aggfunc_templates:
                     raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
 
-                sql_attr = aggfunc_templates[str(attribute.aggfunc)] % (sql_attr, sql_attr)
+                if col.is_star_column():
+                    if str(attribute.aggfunc) == 'cnt':
+                        templ = 'count(*) AS %(attr)s'
+                    else:
+                        raise BadSyntax('Unsupported aggregate function "%s" for psuedo-column "*".' % attribute.aggfunc)
+                else:
+                    templ = aggfunc_templates[str(attribute.aggfunc)]
+
+                sql_attr = templ % dict(attr=sql_attr)
 
                 aggregates.append(sql_attr)
             else:
