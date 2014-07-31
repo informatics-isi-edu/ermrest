@@ -27,6 +27,28 @@ import ermrest.model
 from data import Api
 from ermrest.util import negotiated_content_type
 
+schema_html = """
+<html>
+  <head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+    <link type="text/css" rel="stylesheet" href="/ajax/css/ermrest.css" />
+    <script type="text/javascript" src="/ajax/js/jquery.js"></script>
+   <script type="text/javascript" src="/ajax/js/ermrest.js"></script>
+
+    <script type="text/javascript">
+    $(document).ready(function () {
+        %(ready)s();
+    });
+    </script>
+
+  </head>
+  <body>
+    <div id="ermrest">
+    </div>
+  </body>
+</html>
+"""
+
 def model_body(conn):
     return ermrest.model.introspect(conn)
 
@@ -50,10 +72,7 @@ class Schemas (Api):
         if content_type == 'text/html':
             # return static AJAX page
             web.header('Content-Type', content_type)
-            return """<html>
-THIS PAGE INTENTIONALLY BLANK.
-</html>
-"""
+            return schema_html % (dict(ready='initSchemas'))
         else:
             return self.perform(model_body, post_commit)
 
@@ -94,10 +113,7 @@ class Schema (Api):
         if content_type == 'text/html':
             # return static AJAX page
             web.header('Content-Type', content_type)
-            return """<html>
-THIS PAGE INTENTIONALLY BLANK.
-</html>
-"""
+            return schema_html % (dict(ready='initSchema'))
         else:
             return self.perform(self.GET_body, post_commit)
 
@@ -166,6 +182,10 @@ class Tables (Api):
 
 class Table (Api):
     """A specific table by name."""
+    
+    supported_content_types = ['application/json', 'text/html']
+    default_content_type = supported_content_types[0]
+
     def __init__(self, schema, name, catalog=None):
         if catalog is None:
             self.catalog = schema.catalog
@@ -210,8 +230,15 @@ class Table (Api):
         return json.dumps(table.prejson(), indent=2) + '\n'
 
     def GET(self, uri):
+        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
+        
         """Get table resource representation."""
-        return self.perform(self.GET_body, self.GET_post_commit)
+        if content_type == 'text/html':
+            # return static AJAX page
+            web.header('Content-Type', content_type)
+            return schema_html % (dict(ready='initTable'))
+        else:
+            return self.perform(self.GET_body, self.GET_post_commit)
 
     def POST(self, uri):
         # give more helpful error message
