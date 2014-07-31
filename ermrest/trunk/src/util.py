@@ -19,10 +19,39 @@ General utilities for ERMREST.
 
 # Right now these are all DB related utilities. We should keep it that way.
 
-__all__ = ['table_exists', 'schema_exists', 'sql_identifier', 'sql_literal', 'negotiated_content_type']
+__all__ = ['table_exists', 'schema_exists', 'sql_identifier', 'sql_literal', 'negotiated_content_type', 'urlquote', 'urlunquote']
 
 import web
-    
+import urllib
+
+def urlquote(url, safe=""):
+    "define common URL quote mechanism for registry URL value embeddings"
+    if type(url) not in [ str, unicode ]:
+        url = str(url)
+
+    if type(url) == unicode:
+        url = url.encode('utf8')
+
+    url = urllib.quote(url, safe=safe)
+        
+    if type(url) == str:
+        url = unicode(url, 'utf8')
+        
+    return url
+
+def urlunquote(url):
+    if type(url) not in [ str, unicode ]:
+        url = str(url)
+    text = urllib.unquote_plus(url)
+    if type(text) == str:
+        text = unicode(text, 'utf8')
+    elif type(text) == unicode:
+        pass
+    else:
+        raise TypeError('unexpected decode type %s in rest.url.lex.urlunquote()' % type(text))
+    return text
+
+
 def schema_exists(dbc, schemaname):
     """Return True or False depending on whether schema exists in our 
        database.
