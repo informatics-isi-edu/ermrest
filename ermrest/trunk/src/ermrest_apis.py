@@ -75,6 +75,7 @@ from ermrest.exception import *
 
 from ermrest.registry import RegistryFactory
 from ermrest.catalog import CatalogFactory
+from ermrest.util import negotiated_content_type, urlquote
 
 __all__ = [
     'web_urls',
@@ -166,7 +167,17 @@ def request_init():
         # get client authentication context
         web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
     except (ValueError, IndexError):
-        raise rest.Unauthorized('service access')
+        content_type = negotiated_content_type(
+            ['text/html', '*'],
+            '*'
+            )
+        if content_type == 'text/html':
+            # bounce browsers through a login form and back
+            refer = web.ctx.env['REQUEST_URI']
+            # leave off /ermrest/ prefix due to web.SeeOther behavior
+            raise web.SeeOther('/authn/session?referrer=%s' % urlquote(refer))
+        else:
+            raise rest.Unauthorized('service access')
     except (webauthn2.exc.AuthnFailed):
         raise rest.Forbidden('Authentication failed')
 
