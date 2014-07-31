@@ -37,6 +37,7 @@ class Entity (Api):
     def __init__(self, catalog, path):
         Api.__init__(self, catalog)
         self.path = path
+        self.http_vary.add('accept')
 
     def resolve(self, model):
         """Resolve self against a specific database model.
@@ -79,10 +80,17 @@ class Entity (Api):
 
             model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
+            self.set_http_etag( epath.get_data_version(conn) )
+            if self.http_is_cached():
+                web.ctx.status = '304 Not Modified'
+                return None
             epath.add_sort(self.sort)
             return epath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
+            self.emit_headers()
+            if lines is None:
+                return
             web.header('Content-Type', content_type)
             web.ctx.ermrest_content_type = content_type
             for line in lines:
@@ -159,6 +167,7 @@ class Attribute (Api):
         Api.__init__(self, catalog)
         self.attributes = path[-1]
         self.epath = Entity(catalog, path[0:-1])
+        self.http_vary.add('accept')
 
     def resolve(self, model):
         """Resolve self against a specific database model.
@@ -185,10 +194,17 @@ class Attribute (Api):
 
             model = self.catalog.manager.get_model(conn)
             apath = self.resolve(model)
+            self.set_http_etag( apath.epath.get_data_version(conn) )
+            if self.http_is_cached():
+                web.ctx.status = '304 Not Modified'
+                return None
             apath.add_sort(self.sort)
             return apath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
+            self.emit_headers()
+            if lines is None:
+                return
             web.header('Content-Type', content_type)
             web.ctx.ermrest_content_type = content_type
             for line in lines:
@@ -250,10 +266,17 @@ class AttributeGroup (Api):
 
             model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
+            self.set_http_etag( agpath.epath.get_data_version(conn) )
+            if self.http_is_cached():
+                web.ctx.status = '304 Not Modified'
+                return None
             agpath.add_sort(self.sort)
             return agpath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
+            self.emit_headers()
+            if lines is None:
+                return
             web.header('Content-Type', content_type)
             web.ctx.ermrest_content_type = content_type
             for line in lines:
@@ -327,13 +350,19 @@ class Aggregate (Api):
                 web.ctx.webauthn2_context.attributes
                 ):
                 raise rest.Forbidden(uri)
-
             model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
+            self.set_http_etag( agpath.epath.get_data_version(conn) )
+            if self.http_is_cached():
+                web.ctx.status = '304 Not Modified'
+                return None
             agpath.add_sort(self.sort)
             return agpath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
+            self.emit_headers()
+            if lines is None:
+                return
             web.header('Content-Type', content_type)
             web.ctx.ermrest_content_type = content_type
             for line in lines:

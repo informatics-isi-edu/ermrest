@@ -26,7 +26,7 @@ import urllib
 import csv
 import web
 
-from util import sql_identifier
+from util import sql_identifier, sql_literal
 from model import Type
 from ermrest.exception import *
 from ermrest.catalog import _random_name
@@ -523,6 +523,7 @@ RETURNING *
 
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
+            cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
             cur.execute(upsert_sql)
         except psycopg2.IntegrityError, e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
@@ -649,6 +650,26 @@ class EntityPath (AnyPath):
            path.
         """
         return self._path[-1].table
+
+    def get_data_version(self, conn):
+        """Get data version txid considering all tables in entity path."""
+        preds = [
+            '("schema" = %s AND "table" = %s)' % (
+                sql_literal(elem.table.schema.name), 
+                sql_literal(elem.table.name)
+                )
+            for elem in self._path
+            ]
+        cur = conn.cursor()
+        cur.execute("""
+SELECT COALESCE(max(snap_txid), 0) AS snap_txid 
+FROM _ermrest.data_version
+WHERE %(pred)s
+""" % dict(pred=' OR '.join(preds))
+                    )
+        version = next(cur)
+        cur.close()
+        return version
 
     def add_filter(self, filt):
         """Add a filter condition to the current path.
@@ -800,6 +821,7 @@ WHERE %(keymatches)s
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
+        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
         cur.execute(self.sql_delete())
         cur.close()
         
@@ -1006,6 +1028,7 @@ WHERE %(keymatches)s
         cur.execute("SELECT count(*) AS count FROM (%s) s" % equery)
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
+        cur.execut('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
         cur.execute(dquery)
         cur.close()
 

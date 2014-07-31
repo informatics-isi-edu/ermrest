@@ -141,6 +141,7 @@ class Catalog (PooledConnection):
     _SCHEMA_NAME = '_ermrest'
     _TABLE_NAME = 'meta'
     _MODEL_VERSION_TABLE_NAME = 'model_version'
+    _DATA_VERSION_TABLE_NAME = 'data_version'
     _DBNAME = 'dbname'
     META_OWNER = 'owner'
     META_READ_USER = 'read_user'
@@ -353,6 +354,74 @@ SELECT %(schema)s.model_change_event() ;
 
 """ % dict(schema=self._SCHEMA_NAME,
            table=self._MODEL_VERSION_TABLE_NAME)
+                        )
+            
+            if not table_exists(self._dbc, self._SCHEMA_NAME, self._DATA_VERSION_TABLE_NAME):
+                cur.execute("""
+CREATE TABLE %(schema)s.%(table)s (
+    "schema" text,
+    "table" text,
+    snap_txid bigint,
+    PRIMARY KEY ("schema", "table", "snap_txid")
+);
+
+CREATE OR REPLACE FUNCTION %(schema)s.data_change_event(sname text, tname text) RETURNS void AS $$
+DECLARE
+
+  resultbool boolean;
+  trigger_txid bigint;
+  previous_txid bigint;
+  snapshot txid_snapshot;
+
+BEGIN
+
+  SELECT txid_current() INTO trigger_txid;
+
+  SELECT EXISTS (SELECT snap_txid 
+                 FROM %(schema)s.%(table)s 
+                 WHERE "schema" = sname
+                   AND "table" = tname
+                   AND snap_txid = trigger_txid) 
+  INTO resultbool ;
+
+  IF NOT resultbool THEN
+
+    SELECT txid_current_snapshot() INTO snapshot;
+
+    SELECT max(snap_txid) INTO previous_txid
+    FROM %(schema)s.%(table)s
+    WHERE "schema" = sname
+      AND "table" = tname
+      AND snap_txid < txid_snapshot_xmin(snapshot) ;
+
+    INSERT INTO %(schema)s.%(table)s ("schema", "table", snap_txid)
+      SELECT sname, tname, trigger_txid ;
+
+    DELETE FROM %(schema)s.%(table)s 
+    WHERE "schema" = sname
+      AND "table" = tname
+      AND snap_txid < previous_txid ;
+
+  END IF;
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION %(schema)s.data_change_trigger() RETURNS trigger AS $$
+BEGIN
+  PERFORM %(schema)s.data_change_event( TG_TABLE_SCHEMA::text, TG_TABLE_NAME::text );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply this trigger to each table to get automatic data-change detection
+
+-- CREATE TRIGGER data_changes_on_sname_tname 
+--   AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE 
+--   ON sname.tname FOR EACH STATEMENT
+--   EXECUTE PROCEDURE %(schema)s.data_change_trigger() ;
+
+""" % dict(schema=self._SCHEMA_NAME,
+           table=self._DATA_VERSION_TABLE_NAME)
                         )
             
             self._dbc.commit()
