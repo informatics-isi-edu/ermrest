@@ -32,7 +32,7 @@ from ermrest.util import negotiated_content_type
 class Entity (Api):
     """A specific entity set by entitypath."""
 
-    default_content_type = 'application/x-json-stream'
+    default_content_type = 'application/json'
 
     def __init__(self, catalog, path):
         Api.__init__(self, catalog)
@@ -161,7 +161,7 @@ class Entity (Api):
 class Attribute (Api):
     """A specific attribute set by attributepath."""
 
-    default_content_type = 'application/x-json-stream'
+    default_content_type = 'application/json'
 
     def __init__(self, catalog, path):
         Api.__init__(self, catalog)
@@ -233,7 +233,7 @@ class Attribute (Api):
 class AttributeGroup (Api):
     """A specific group set by entity path, group keys, and group attributes."""
 
-    default_content_type = 'application/x-json-stream'
+    default_content_type = 'application/json'
 
     def __init__(self, catalog, path):
         Api.__init__(self, catalog)
@@ -321,7 +321,7 @@ class AttributeGroup (Api):
 class Aggregate (Api):
     """A specific aggregate tuple."""
 
-    default_content_type = 'application/x-json-stream'
+    default_content_type = 'application/json'
 
     def __init__(self, catalog, path):
         Api.__init__(self, catalog)
