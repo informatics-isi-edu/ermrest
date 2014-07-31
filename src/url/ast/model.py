@@ -63,6 +63,10 @@ def schema_body(conn, schema_name):
 
 class Schema (Api):
     """A specific schema by name."""
+
+    supported_content_types = ['application/json', 'text/html']
+    default_content_type = supported_content_types[0]
+
     def __init__(self, catalog, name):
         Api.__init__(self, catalog)
         self.name = name
