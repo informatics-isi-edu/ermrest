@@ -23,21 +23,7 @@ __all__ = ['table_exists', 'schema_exists', 'sql_identifier', 'sql_literal', 'ne
 
 import web
 import urllib
-
-def urlquote(url, safe=""):
-    "define common URL quote mechanism for registry URL value embeddings"
-    if type(url) not in [ str, unicode ]:
-        url = str(url)
-
-    if type(url) == unicode:
-        url = url.encode('utf8')
-
-    url = urllib.quote(url, safe=safe)
-        
-    if type(url) == str:
-        url = unicode(url, 'utf8')
-        
-    return url
+from webauthn2.util import urlquote, negotiated_content_type
 
 def urlunquote(url):
     if type(url) not in [ str, unicode ]:
@@ -48,7 +34,7 @@ def urlunquote(url):
     elif type(text) == unicode:
         pass
     else:
-        raise TypeError('unexpected decode type %s in rest.url.lex.urlunquote()' % type(text))
+        raise TypeError('unexpected decode type %s in urlunquote()' % type(text))
     return text
 
 
@@ -116,49 +102,4 @@ def sql_literal(v):
         return "'%s'" % _string_wrap(_string_wrap(s, '%'), "'")
     else:
         return 'NULL'
-
-def negotiated_content_type(supported_types=['text/csv', 'application/json', 'application/x-json-stream'], default=None):
-    """Determine negotiated response content-type from Accept header.
-
-       supported_types: a list of MIME types the caller would be able
-         to implement if the client has requested one.
-
-       default: a MIME type or None to return if none of the
-         supported_types were requested by the client.
-
-       This function considers the preference qfactors encoded in the
-       client request to choose the preferred type when there is more
-       than one supported type that the client would accept.
-
-    """
-    def accept_pair(s):
-        """parse one Accept header pair into (qfactor, type)."""
-        parts = s.split(';')
-        q = 1.0
-        t = parts[0].strip()
-        for p in parts[1:]:
-            fields = p.split('=')
-            if len(fields) == 2 and fields[0] == 'q':
-                q = fields[1]
-        return (q, t)
-
-    try:
-        accept = web.ctx.env['HTTP_ACCEPT']
-    except:
-        accept = ""
-            
-    accept_types = [ 
-        pair[1]
-        for pair in sorted(
-            [ accept_pair(s) for s in accept.lower().split(',') ],
-            key=lambda pair: pair[0]
-            ) 
-        ]
-
-    if accept_types:
-        for accept_type in accept_types:
-            if accept_type in supported_types:
-                return accept_type
-
-    return default
 
