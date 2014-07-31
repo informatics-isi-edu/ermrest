@@ -13,7 +13,7 @@ Run this utility to perform catalog management operations.
 
   cmd: create                                     (create catalog)
    or: destroy <catalog id>                       (destroy catalog)
-   or: init <catalog id>                          (init catalog)
+   or: init <catalog id> <role>                   (init catalog)
    or: getmeta <catalog id> [<key>]               (get metadata)
    or: addmeta <catalog id> <key> <value>         (add metadata)
    or: removemeta <catalog id> <key> [<value>]    (remove metadata)
@@ -35,8 +35,8 @@ def main(args):
         elif len(args) == 2 and args[0] == 'destroy':
             ermrest.catalog_destroy(args[1])
             
-        elif len(args) == 2 and args[0] == 'init':
-            ermrest.catalog_init_meta(args[1])
+        elif len(args) == 3 and args[0] == 'init':
+            ermrest.catalog_init_meta(args[1], args[2])
             
         elif len(args) == 2 and args[0] == 'getmeta':
             print json.dumps(ermrest.catalog_get_meta(args[1]))

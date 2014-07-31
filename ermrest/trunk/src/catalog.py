@@ -267,6 +267,9 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
     
     def init_meta(self, owner=None):
         """Initializes the Catalog metadata.
+        
+           When 'owner' is None, it initializes the catalog permissions with 
+           the anonymous ('*') role, including the ownership.
         """
         
         # first, deploy the metadata schema
@@ -430,12 +433,12 @@ $$ LANGUAGE plpgsql;
                 cur.close()
                 
         ## initial meta values
-        if owner:
-            self.add_meta(self.META_OWNER, owner)
-            self.add_meta(self.META_WRITE_USER, owner)
-        self.add_meta(self.META_READ_USER, self.ANONYMOUS)
-        self.add_meta(self.META_CONTENT_READ_USER, self.ANONYMOUS)
-        self.add_meta(self.META_CONTENT_WRITE_USER, self.ANONYMOUS)
+        owner = owner if owner else self.ANONYMOUS
+        self.add_meta(self.META_OWNER, owner)
+        self.add_meta(self.META_WRITE_USER, owner)
+        self.add_meta(self.META_READ_USER, owner)
+        self.add_meta(self.META_CONTENT_READ_USER, owner)
+        self.add_meta(self.META_CONTENT_WRITE_USER, owner)
         
     
     def get_meta(self, key=None, value=None):
