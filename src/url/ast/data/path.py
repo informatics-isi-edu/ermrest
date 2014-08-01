@@ -37,6 +37,58 @@ class Api (object):
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 
+    def enforce_owner(self, uri=''):
+        """Policy enforcement on is_owner.
+        """
+        if not self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client):
+            raise rest.Forbidden(uri)
+
+    def enforce_read(self, uri=''):
+        """Policy enforcement on has_read test.
+        """
+        if not (self.catalog.manager.has_read(
+                        web.ctx.webauthn2_context.attributes)
+                or self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client) ):
+            raise rest.Forbidden(uri)
+
+    def enforce_write(self, uri=''):
+        """Policy enforcement on has_write test.
+        """
+        if not (self.catalog.manager.has_write(
+                        web.ctx.webauthn2_context.attributes)
+                or self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client) ):
+            raise rest.Forbidden(uri)
+
+    def enforce_content_read(self, uri=''):
+        """Policy enforcement on has_content_read test.
+        """
+        if not (self.catalog.manager.has_content_read(
+                        web.ctx.webauthn2_context.attributes)
+                or self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client) ):
+            raise rest.Forbidden(uri)
+
+    def enforce_content_write(self, uri=''):
+        """Policy enforcement on has_content_write test.
+        """
+        if not (self.catalog.manager.has_content_write(
+                        web.ctx.webauthn2_context.attributes)
+                or self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client) ):
+            raise rest.Forbidden(uri)
+
+    def enforce_schema_write(self, uri=''):
+        """Policy enforcement on has_schema_write test.
+        """
+        if not (self.catalog.manager.has_schema_write(
+                        web.ctx.webauthn2_context.attributes)
+                or self.catalog.manager.is_owner(
+                        web.ctx.webauthn2_context.client) ):
+            raise rest.Forbidden(uri)
+
     def with_queryopts(self, qopt):
         self.queryopts = qopt
         return self

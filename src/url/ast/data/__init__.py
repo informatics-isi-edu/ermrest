@@ -73,10 +73,7 @@ class Entity (Api):
         limit = self.negotiated_limit()
         
         def body(conn):
-            if not self.catalog.manager.has_content_read(
-                web.ctx.webauthn2_context.attributes
-                ):
-                raise rest.Forbidden(uri)
+            self.enforce_content_read(uri)
 
             model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
@@ -101,9 +98,7 @@ class Entity (Api):
     def PUT(self, uri, post_method=False, post_defaults=None):
         """Perform HTTP PUT of entities.
         """
-        if not self.catalog.manager.has_content_write(
-                                web.ctx.webauthn2_context.attributes):
-            raise rest.Forbidden(uri)
+        self.enforce_content_write(uri)
         
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
@@ -142,9 +137,7 @@ class Entity (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
         """
-        if not self.catalog.manager.has_content_write(
-                                web.ctx.webauthn2_context.attributes):
-            raise rest.Forbidden(uri)
+        self.enforce_content_write(uri)
         
         def body(conn):
             model = self.catalog.manager.get_model(conn)
@@ -187,10 +180,7 @@ class Attribute (Api):
         limit = self.negotiated_limit()
         
         def body(conn):
-            if not self.catalog.manager.has_content_read(
-                web.ctx.webauthn2_context.attributes
-                ):
-                raise rest.Forbidden(uri)
+            self.enforce_content_read(uri)
 
             model = self.catalog.manager.get_model(conn)
             apath = self.resolve(model)
@@ -215,9 +205,7 @@ class Attribute (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entity attribute.
         """
-        if not self.catalog.manager.has_content_write(
-                                web.ctx.webauthn2_context.attributes):
-            raise rest.Forbidden(uri)
+        self.enforce_content_write(uri)
         
         def body(conn):
             model = self.catalog.manager.get_model(conn)
@@ -259,10 +247,7 @@ class AttributeGroup (Api):
         limit = self.negotiated_limit()
         
         def body(conn):
-            if not self.catalog.manager.has_content_read(
-                web.ctx.webauthn2_context.attributes
-                ):
-                raise rest.Forbidden(uri)
+            self.enforce_content_read(uri)
 
             model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
@@ -287,9 +272,7 @@ class AttributeGroup (Api):
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of attribute groups.
         """
-        if not self.catalog.manager.has_content_write(
-                                web.ctx.webauthn2_context.attributes):
-            raise rest.Forbidden(uri)
+        self.enforce_content_write(uri)
         
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
@@ -346,10 +329,7 @@ class Aggregate (Api):
         limit = self.negotiated_limit()
         
         def body(conn):
-            if not self.catalog.manager.has_content_read(
-                web.ctx.webauthn2_context.attributes
-                ):
-                raise rest.Forbidden(uri)
+            self.enforce_content_read(uri)
             model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
             self.set_http_etag( agpath.epath.get_data_version(conn) )
