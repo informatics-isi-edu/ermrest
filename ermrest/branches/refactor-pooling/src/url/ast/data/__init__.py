@@ -229,6 +229,7 @@ class AttributeGroup (Api):
         self.attributes = path[-1]
         self.groupkeys = path[-2]
         self.epath = Entity(catalog, path[0:-2])
+        self.http_vary.add('accept')
 
     def resolve(self, model):
         """Resolve self against a specific database model.
@@ -312,6 +313,7 @@ class Aggregate (Api):
         Api.__init__(self, catalog)
         self.attributes = path[-1]
         self.epath = Entity(catalog, path[0:-1])
+        self.http_vary.add('accept')
 
     def resolve(self, model):
         """Resolve self against a specific database model.
