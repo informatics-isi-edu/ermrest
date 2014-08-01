@@ -401,7 +401,7 @@ SELECT _ermrest.model_change_event();
             raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
         cur = conn.cursor()
         cur.execute("""
-DROP SCHEMA %s
+DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
         cur.close()
@@ -440,7 +440,7 @@ class Schema (object):
             raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
         cur = conn.cursor()
         cur.execute("""
-DROP TABLE %s.%s
+DROP TABLE %s.%s ;
 SELECT _ermrest.model_change_event();
 """ % (sql_identifier(self.name), sql_identifier(tname)))
         cur.close()
