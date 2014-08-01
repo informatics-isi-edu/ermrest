@@ -112,7 +112,7 @@ def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x):
     conn = None
     cur = None
     try:
-        web.debug('pooled_perform %s %s %s' % (databasename, bodyfunc, finalfunc))
+        #web.debug('pooled_perform %s %s %s' % (databasename, bodyfunc, finalfunc))
         conn = pools[databasename].getconn()
         cur = conn.cursor()
         try:
