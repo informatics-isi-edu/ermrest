@@ -207,13 +207,6 @@ class Api (object):
     def final(self):
         pass
 
-    def model_body(self, conn):
-        return self.catalog.manager.get_model(conn)
-
-    def schema_body(self, conn, schema_name):
-        model = self.model_body(conn)
-        return model.lookup_schema(schema_name)
-
 class Path (list):
     pass
 

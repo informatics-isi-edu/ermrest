@@ -130,36 +130,36 @@ class Catalog (Api):
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
         
-        # meta can be none, if catalog is not initialized
-        try:
-            meta = self.manager.get_meta()
-        except:
-            meta = None
-            
-        # note that the 'descriptor' includes private system information such 
-        # as the dbname (and potentially connection credentials) which should
-        # not ever be shared.
-        resource = dict(id=self.catalog_id,
-                        meta=meta)
-        return json.dumps(resource)
+        def body(conn, cur):
+            self.resolve(cur)
+            return list(self.manager.get_meta(cur))
+
+        def post_commit(meta):
+            # note that the 'descriptor' includes private system information such 
+            # as the dbname (and potentially connection credentials) which should
+            # not ever be shared.
+            resource = dict(id=self.catalog_id,
+                            meta=list(meta))
+            response = json.dumps(resource) + '\n'
+            web.header('Content-Length', len(response))
+            return response
+        
+        return self.perform(body, post_commit)
     
     def DELETE(self, uri):
         """Perform HTTP DELETE of catalog.
         """
-        self.enforce_owner(uri)
-        
-        ######
-        # TODO: needs to be done in two steps
-        #  1. in registry, flag the catalog to-be-destroyed
-        #  2. in manager, attempt to destroy catalog
-        #  3.a. in registry, unregister the catalog
-        #  3.b. if 2 fails, either rollback the registry
-        #       --or-- run a sweeper that finishes the job
-        ######
-        self.manager.destroy()
-        web.ctx.ermrest_registry.unregister(self.catalog_id)
-        web.ctx.status = '204 No Content'
-        return ''
+        def body(conn, cur):
+            self.resolve(cur)
+            self.enforce_owner(cur, uri)
+            return True
+
+        def post_commit(destroy):
+            web.ctx.ermrest_registry.unregister(self.catalog_id, destroy=True)
+            web.ctx.status = '204 No Content'
+            return ''
+
+        self.perform(body, post_commit)
 
 
 class Meta (Api):
@@ -177,54 +177,75 @@ class Meta (Api):
     def GET(self, uri):
         """Perform HTTP GET of catalog metadata.
         """
-        self.enforce_read(uri)
-        
         content_type = data.negotiated_content_type(self.supported_types, 
                                                     self.default_content_type)
-        web.header('Content-Type', content_type)
-        web.ctx.ermrest_request_content_type = content_type
-        return json.dumps(self.catalog.manager.get_meta(self.key, self.value))
-    
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_read(cur, uri)
+            return self.catalog.manager.get_meta(cur, self.key, self.value)
+
+        def post_commit(meta):
+            web.header('Content-Type', content_type)
+            web.ctx.ermrest_request_content_type = content_type
+            response = json.dumps(list(meta)) + '\n'
+            web.header('Content-Length', len(response))
+            return response
+
+        return self.perform(body, post_commit)
     
     def PUT(self, uri):
         """Perform HTTP PUT of catalog metadata.
         """
-        self.enforce_write(uri)
-        
         # disallow PUT of META
         if not self.key:
             raise exception.rest.NoMethod(uri)
         
-        if self.key == self.catalog.manager.META_OWNER:
-            # must be owner to change owner
-            self.enforce_owner(uri)
-            # must set owner to a rolename (TODO: better validation)
-            if not self.value or self.value == '':
-                raise exception.rest.Forbidden(uri)
-            # if all passed, SET the new owner
-            self.catalog.manager.set_meta(self.key, self.value)
-        else:
-            self.catalog.manager.add_meta(self.key, self.value)
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_write(cur, uri)
+        
+            if self.key == self.catalog.manager.META_OWNER:
+                # must be owner to change owner
+                self.enforce_owner(cur, uri)
+                # must set owner to a rolename (TODO: better validation)
+                if not self.value or self.value == '':
+                    raise exception.rest.Forbidden(uri)
+                # if all passed, SET the new owner
+                self.catalog.manager.set_meta(cur, self.key, self.value)
+            else:
+                self.catalog.manager.add_meta(cur, self.key, self.value)
             
-        web.ctx.status = '204 No Content'
-        return ''
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
+
+        return self.perform(body, post_commit)
     
     
     def DELETE(self, uri):
         """Perform HTTP DELETE of catalog metadata.
         """
-        self.enforce_write(uri)
-        
         # disallow DELETE of META
         if not self.key:
             raise exception.rest.NoMethod(uri)
         
         # disallow DELETE of OWNER
         if self.key == self.catalog.manager.META_OWNER:
-            raise exception.rest.Forbidden(uri)
+            raise exception.rest.NoMethod(uri)
             
-        # note: this does not throw exception if value is specified but does 
-        #       not exist
-        self.catalog.manager.remove_meta(self.key, self.value)
-        web.ctx.status = '204 No Content'
-        return ''
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_write(cur, uri)
+
+            meta = self.catalog.manager.get_meta(self.key, self.value)
+            if not meta:
+                raise exception.rest.NotFound(uri)
+        
+            self.catalog.manager.remove_meta(self.key, self.value)
+
+        def post_commit(ignore):
+            web.ctx.status = '204 No Content'
+            return ''
+
+        return self.perform(body, post_commit)
+

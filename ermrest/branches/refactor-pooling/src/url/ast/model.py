@@ -60,8 +60,12 @@ class Schemas (Api):
         
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
-        self.enforce_content_read(uri)
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
+
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_content_read(cur, uri)
+            return self.catalog.manager.get_model(cur)
 
         def post_commit(model):
             web.header('Content-Type', content_type)
@@ -72,7 +76,7 @@ class Schemas (Api):
             web.header('Content-Type', content_type)
             return schema_html % (dict(ready='initSchemas'))
         else:
-            return self.perform(self.model_body, post_commit)
+            return self.perform(body, post_commit)
 
 class Schema (Api):
     """A specific schema by name."""
@@ -92,13 +96,14 @@ class Schema (Api):
         """A specific table for this schema."""
         return Table(self, name)
 
-    def GET_body(self, conn):
-        model = self.model_body(conn)
+    def GET_body(self, conn, cur, uri):
+        self.catalog.resolve(cur)
+        self.enforce_content_read(cur, uri)
+        model = self.catalog.manager.get_model(cur)
         return model.lookup_schema(str(self.name))
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
-        self.enforce_content_read(uri)
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
 
         def post_commit(schema):
@@ -110,15 +115,15 @@ class Schema (Api):
             web.header('Content-Type', content_type)
             return schema_html % (dict(ready='initSchema'))
         else:
-            return self.perform(self.GET_body, post_commit)
+            return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
 
     def POST(self, uri):
         """Create a new empty schema."""
-        self.enforce_schema_write(uri)
-        
-        def body(conn):
-            model = self.model_body(conn)
-            model.create_schema(conn, str(self.name))
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            model = self.catalog.manager.get_model(cur)
+            model.create_schema(conn, cur, str(self.name))
             
         def post_commit(ignore):
             web.ctx.status = '201 Created'
@@ -128,11 +133,11 @@ class Schema (Api):
 
     def DELETE(self, uri):
         """Delete an existing schema."""
-        self.enforce_schema_write(uri)
-        
-        def body(conn):
-            model = self.model_body(conn)
-            model.delete_schema(conn, str(self.name))
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            model = self.catalog.manager.get_model(cur)
+            model.delete_schema(conn, cur, str(self.name))
             
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -151,30 +156,28 @@ class Tables (Api):
         """A specific table for this schema."""
         return self.schema.table(name)
 
-    def GET_body(self, conn):
-        schema = self.schema.GET_body(conn)
+    def GET_body(self, conn, cur, uri):
+        schema = self.schema.GET_body(conn, cur, uri)
         return schema.tables.values()
 
     def GET_post_commit(self, tables):
         return json.dumps([ table.prejson() for table in tables ], indent=2) + '\n'
 
     def GET(self, uri):
-        self.enforce_content_read(uri)
-        return self.perform(self.GET_body, self.GET_post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
 
     def POST(self, uri):
         """Add a new table to the schema according to input resource representation."""
-        self.enforce_schema_write(uri)
-        
         try:
             tabledoc = json.load(web.ctx.env['wsgi.input'])
         except:
             raise exception.BadData('Could not deserialize JSON input.')
 
-        def body(conn):
-            schema = self.schema_body(conn, str(self.schema.name))
-            table = ermrest.model.Table.create_fromjson(conn, schema, tabledoc)
-            return table
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            schema = self.schema.GET_body(conn, cur, uri)
+            return ermrest.model.Table.create_fromjson(conn, cur, schema, tabledoc)
 
         def post_commit(table):
             web.ctx.status = '201 Created'
@@ -221,8 +224,10 @@ class Table (Api):
         """A specific foreign key for this table."""
         return Foreignkey(self, column_set, catalog=self.catalog)
 
-    def GET_body(self, conn):
-        model = self.model_body(conn)
+    def GET_body(self, conn, cur, uri):
+        self.catalog.resolve(cur)
+        self.enforce_content_read(cur, uri)
+        model = self.catalog.manager.get_model(cur)
         return model.lookup_table(
             self.schema and str(self.schema.name) or None, 
             str(self.name)
@@ -232,7 +237,6 @@ class Table (Api):
         return json.dumps(table.prejson(), indent=2) + '\n'
 
     def GET(self, uri):
-        self.enforce_content_read(uri)
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
         
         """Get table resource representation."""
@@ -241,7 +245,7 @@ class Table (Api):
             web.header('Content-Type', content_type)
             return schema_html % (dict(ready='initTable'))
         else:
-            return self.perform(self.GET_body, self.GET_post_commit)
+            return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
 
     def POST(self, uri):
         # give more helpful error message
@@ -249,11 +253,11 @@ class Table (Api):
 
     def DELETE(self, uri):
         """Delete a table from the schema."""
-        self.enforce_schema_write(uri)
-        
-        def body(conn):
-            schema = self.schema_body(conn, str(self.schema.name))
-            schema.delete_table(conn, str(self.name))
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            table = self.GET_body(conn, cur, uri)
+            table.schema.delete_table(conn, cur, str(self.name))
             
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -267,28 +271,28 @@ class Columns (Api):
         Api.__init__(self, table.schema.catalog)
         self.table = table
 
-    def GET_body(self, conn):
-        return self.table.GET_body(conn).columns_in_order()
+    def GET_body(self, conn, cur, uri):
+        return self.table.GET_body(conn, cur, uri).columns_in_order()
 
     def GET_post_commit(self, columns):
         return json.dumps([ c.prejson() for c in columns ], indent=2) + '\n'
 
     def GET(self, uri):
-        self.enforce_content_read(uri)
-        return self.perform(self.GET_body, self.GET_post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
 
     def POST(self, uri):
         """Add a new column to the table according to input resource representation."""
-        self.enforce_schema_write(uri)
         
         try:
             columndoc = json.load(web.ctx.env['wsgi.input'])
         except:
             raise exception.BadData('Could not deserialize JSON input.')
 
-        def body(conn):
-            table = self.table.GET_body(conn)
-            return table.add_column(conn, columndoc)
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            table = self.table.GET_body(conn, cur, uri)
+            return table.add_column(conn, cur, columndoc)
 
         def post_commit(column):
             web.ctx.status = '201 Created'
@@ -317,11 +321,12 @@ class Column (Columns):
 
     def DELETE(self, uri):
         """Delete column from table."""
-        self.enforce_schema_write(uri)
         
-        def body(conn):
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
             table = self.table.GET_body(conn)
-            table.delete_column(conn, str(self.name))
+            table.delete_column(conn, cur, str(self.name))
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -337,28 +342,27 @@ class Keys (Api):
         Api.__init__(self, catalog)
         self.table = table
 
-    def GET_body(self, conn):
-        return self.table.GET_body(conn).uniques.values()
+    def GET_body(self, conn, cur, uri):
+        return self.table.GET_body(conn, cur, uri).uniques.values()
 
     def GET_post_commit(self, keys):
         return json.dumps([ key.prejson() for key in keys ], indent=2) + '\n'
 
     def GET(self, uri):
-        self.enforce_content_read(uri)
-        return self.perform(self.GET_body, self.GET_post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
         
     def POST(self, uri):
         """Add a new key to the table according to input resource representation."""
-        self.enforce_schema_write(uri)
-        
         try:
             keydoc = json.load(web.ctx.env['wsgi.input'])
         except:
             raise exception.BadData('Could not deserialize JSON input.')
         
-        def body(conn):
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
             table = self.table.GET_body(conn)
-            return list(table.add_unique(conn, keydoc))
+            return list(table.add_unique(conn, cur, keydoc))
 
         def post_commit(newkeys):
             web.ctx.status = '201 Created'
@@ -372,8 +376,8 @@ class Key (Keys):
         Keys.__init__(self, table, catalog)
         self.columns = column_set
 
-    def GET_body(self, conn):
-        table = self.table.GET_body(conn)
+    def GET_body(self, conn, cur, uri):
+        table = self.table.GET_body(conn, cur, uri)
         try:
             cols = [ table.columns[str(c)] for c in self.columns ]
         except (KeyError), te:
@@ -389,11 +393,12 @@ class Key (Keys):
 
     def DELETE(self, uri):
         """Delete a key constraint from a table."""
-        self.enforce_schema_write(uri)
         
-        def body(conn):
-            table, key = self.GET_body(conn)
-            table.delete_unique(conn, key)
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            table, key = self.GET_body(conn, cur, uri)
+            table.delete_unique(conn, cur, key)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -407,11 +412,10 @@ class Foreignkeys (Api):
         Api.__init__(self, table.schema.catalog)
         self.table = table
 
-    def GET_body(self, conn):
-        return self.table.GET_body(conn)
+    def GET_body(self, conn, cur, uri):
+        return self.table.GET_body(conn, cur, uri)
 
     def GET(self, uri):
-        self.enforce_content_read(uri)
         def post_commit(table):
             fkeys = table.fkeys
             response = []
@@ -419,20 +423,20 @@ class Foreignkeys (Api):
                 response.extend( fk.prejson() )
             return json.dumps(response, indent=2) + '\n'
 
-        return self.perform(self.GET_body, post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
 
     def POST(self, uri):
         """Add a new foreign-key reference to table according to input resource representation."""
-        self.enforce_schema_write(uri)
-        
         try:
             keydoc = json.load(web.ctx.env['wsgi.input'])
         except:
             raise exception.BadData('Could not deserialize JSON input.')
         
-        def body(conn):
-            table = self.table.GET_body(conn)
-            return list(table.add_fkeyref(conn, keydoc))
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            table = self.table.GET_body(conn, cur, uri)
+            return list(table.add_fkeyref(conn, cur, keydoc))
 
         def post_commit(newrefs):
             web.ctx.status = '201 Created'
@@ -453,8 +457,8 @@ class Foreignkey (Api):
         """A set of foreign key references from this foreign key."""
         return ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
     
-    def GET_body(self, conn):
-        table = self.table.GET_body(conn)
+    def GET_body(self, conn, cur, uri):
+        table = self.table.GET_body(conn, cur, uri)
         try:
             cols = [ table.columns[str(c)] for c in self.columns ]
         except (KeyError), te:
@@ -465,12 +469,11 @@ class Foreignkey (Api):
         return table, table.fkeys[fs]
 
     def GET(self, uri):
-        self.enforce_content_read(uri)
         def post_commit(tup):
             table, fkey = tup
             return json.dumps(fkey.prejson(), indent=2) + '\n'
 
-        return self.perform(self.GET_body, post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
 
 class ForeignkeyReferences (Api):
     """A set of foreign key references."""
@@ -537,20 +540,20 @@ class ForeignkeyReferences (Api):
         assert self._to_table
         return self.with_to_key( self._to_table.key(to_columns) )
 
-    def GET_body(self, conn):
+    def GET_body(self, conn, cur, uri):
         from_table, from_key = None, None
         to_table, to_key = None, None
 
         # get real ermrest.model instances...
         if self._from_key:
-            from_table, from_key = self._from_key.GET_body(conn)
+            from_table, from_key = self._from_key.GET_body(conn, cur, uri)
         elif self._from_table:
-            from_table = self._from_table.GET_body(conn)
+            from_table = self._from_table.GET_body(conn, cur, uri)
 
         if self._to_key:
-            to_table, to_key = self._to_key.GET_body(conn)
+            to_table, to_key = self._to_key.GET_body(conn, cur, uri)
         elif self._to_table:
-            to_table = self._to_table.GET_body(conn)
+            to_table = self._to_table.GET_body(conn, cur, uri)
 
         # find matching foreign key references...
         if from_table:
@@ -586,7 +589,6 @@ class ForeignkeyReferences (Api):
         
 
     def GET(self, uri):
-        self.enforce_content_read(uri)
         def post_commit(fkrs):
             if self._from_key and self._to_key:
                 assert len(fkrs) == 1
@@ -595,16 +597,17 @@ class ForeignkeyReferences (Api):
                 response = [ fkr.prejson() for fkr in fkrs ]
             return json.dumps(response, indent=2) + '\n'
 
-        return self.perform(self.GET_body, post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
 
     def DELETE(self, uri):
         """Delete foreign-key reference constraint from table."""
-        self.enforce_schema_write(uri)
         
-        def body(conn):
-            fkrs = self.GET_body(conn)
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_schema_write(cur, uri)
+            fkrs = self.GET_body(conn, cur, uri)
             for fkr in fkrs:
-                fkr.foreign_key.table.delete_fkeyref(conn, fkr)
+                fkr.foreign_key.table.delete_fkeyref(conn, cur, fkr)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'

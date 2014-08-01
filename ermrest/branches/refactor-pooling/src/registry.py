@@ -205,8 +205,7 @@ WHERE descriptor = %(descriptor)s;
         self._conn.commit()
         return dict(id=id, descriptor=descriptor)
     
-    
-    def unregister(self, id):
+    def unregister(self, id, destroy=False):
         """Unregister a catalog description.
         
            'id' : the id of the catalog to unregister.
