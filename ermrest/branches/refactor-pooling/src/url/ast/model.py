@@ -49,9 +49,6 @@ schema_html = """
 </html>
 """
 
-def model_body(conn):
-    return ermrest.model.introspect(conn)
-
 class Schemas (Api):
     """A schema set."""
 
@@ -75,11 +72,7 @@ class Schemas (Api):
             web.header('Content-Type', content_type)
             return schema_html % (dict(ready='initSchemas'))
         else:
-            return self.perform(model_body, post_commit)
-
-def schema_body(conn, schema_name):
-    model = model_body(conn)
-    return model.lookup_schema(schema_name)
+            return self.perform(self.model_body, post_commit)
 
 class Schema (Api):
     """A specific schema by name."""
@@ -100,7 +93,7 @@ class Schema (Api):
         return Table(self, name)
 
     def GET_body(self, conn):
-        model = model_body(conn)
+        model = self.model_body(conn)
         return model.lookup_schema(str(self.name))
 
     def GET(self, uri):
@@ -124,7 +117,7 @@ class Schema (Api):
         self.enforce_schema_write(uri)
         
         def body(conn):
-            model = model_body(conn)
+            model = self.model_body(conn)
             model.create_schema(conn, str(self.name))
             
         def post_commit(ignore):
@@ -138,7 +131,7 @@ class Schema (Api):
         self.enforce_schema_write(uri)
         
         def body(conn):
-            model = model_body(conn)
+            model = self.model_body(conn)
             model.delete_schema(conn, str(self.name))
             
         def post_commit(ignore):
@@ -179,7 +172,7 @@ class Tables (Api):
             raise exception.BadData('Could not deserialize JSON input.')
 
         def body(conn):
-            schema = schema_body(conn, str(self.schema.name))
+            schema = self.schema_body(conn, str(self.schema.name))
             table = ermrest.model.Table.create_fromjson(conn, schema, tabledoc)
             return table
 
@@ -229,7 +222,7 @@ class Table (Api):
         return Foreignkey(self, column_set, catalog=self.catalog)
 
     def GET_body(self, conn):
-        model = model_body(conn)
+        model = self.model_body(conn)
         return model.lookup_table(
             self.schema and str(self.schema.name) or None, 
             str(self.name)
@@ -259,7 +252,7 @@ class Table (Api):
         self.enforce_schema_write(uri)
         
         def body(conn):
-            schema = schema_body(conn, str(self.schema.name))
+            schema = self.schema_body(conn, str(self.schema.name))
             schema.delete_table(conn, str(self.name))
             
         def post_commit(ignore):
