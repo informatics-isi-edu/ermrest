@@ -63,6 +63,7 @@ class Schemas (Api):
         
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
+        self.enforce_content_read(uri)
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
 
         def post_commit(model):
@@ -104,6 +105,7 @@ class Schema (Api):
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
+        self.enforce_content_read(uri)
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
 
         def post_commit(schema):
@@ -119,6 +121,8 @@ class Schema (Api):
 
     def POST(self, uri):
         """Create a new empty schema."""
+        self.enforce_schema_write(uri)
+        
         def body(conn):
             model = model_body(conn)
             model.create_schema(conn, str(self.name))
@@ -131,6 +135,8 @@ class Schema (Api):
 
     def DELETE(self, uri):
         """Delete an existing schema."""
+        self.enforce_schema_write(uri)
+        
         def body(conn):
             model = model_body(conn)
             model.delete_schema(conn, str(self.name))
@@ -160,10 +166,13 @@ class Tables (Api):
         return json.dumps([ table.prejson() for table in tables ], indent=2) + '\n'
 
     def GET(self, uri):
+        self.enforce_content_read(uri)
         return self.perform(self.GET_body, self.GET_post_commit)
 
     def POST(self, uri):
         """Add a new table to the schema according to input resource representation."""
+        self.enforce_schema_write(uri)
+        
         try:
             tabledoc = json.load(web.ctx.env['wsgi.input'])
         except:
@@ -230,6 +239,7 @@ class Table (Api):
         return json.dumps(table.prejson(), indent=2) + '\n'
 
     def GET(self, uri):
+        self.enforce_content_read(uri)
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
         
         """Get table resource representation."""
@@ -246,6 +256,8 @@ class Table (Api):
 
     def DELETE(self, uri):
         """Delete a table from the schema."""
+        self.enforce_schema_write(uri)
+        
         def body(conn):
             schema = schema_body(conn, str(self.schema.name))
             schema.delete_table(conn, str(self.name))
@@ -269,10 +281,13 @@ class Columns (Api):
         return json.dumps([ c.prejson() for c in columns ], indent=2) + '\n'
 
     def GET(self, uri):
+        self.enforce_content_read(uri)
         return self.perform(self.GET_body, self.GET_post_commit)
 
     def POST(self, uri):
         """Add a new column to the table according to input resource representation."""
+        self.enforce_schema_write(uri)
+        
         try:
             columndoc = json.load(web.ctx.env['wsgi.input'])
         except:
@@ -309,6 +324,8 @@ class Column (Columns):
 
     def DELETE(self, uri):
         """Delete column from table."""
+        self.enforce_schema_write(uri)
+        
         def body(conn):
             table = self.table.GET_body(conn)
             table.delete_column(conn, str(self.name))
@@ -334,10 +351,13 @@ class Keys (Api):
         return json.dumps([ key.prejson() for key in keys ], indent=2) + '\n'
 
     def GET(self, uri):
+        self.enforce_content_read(uri)
         return self.perform(self.GET_body, self.GET_post_commit)
         
     def POST(self, uri):
         """Add a new key to the table according to input resource representation."""
+        self.enforce_schema_write(uri)
+        
         try:
             keydoc = json.load(web.ctx.env['wsgi.input'])
         except:
@@ -376,6 +396,8 @@ class Key (Keys):
 
     def DELETE(self, uri):
         """Delete a key constraint from a table."""
+        self.enforce_schema_write(uri)
+        
         def body(conn):
             table, key = self.GET_body(conn)
             table.delete_unique(conn, key)
@@ -396,6 +418,7 @@ class Foreignkeys (Api):
         return self.table.GET_body(conn)
 
     def GET(self, uri):
+        self.enforce_content_read(uri)
         def post_commit(table):
             fkeys = table.fkeys
             response = []
@@ -407,6 +430,8 @@ class Foreignkeys (Api):
 
     def POST(self, uri):
         """Add a new foreign-key reference to table according to input resource representation."""
+        self.enforce_schema_write(uri)
+        
         try:
             keydoc = json.load(web.ctx.env['wsgi.input'])
         except:
@@ -447,6 +472,7 @@ class Foreignkey (Api):
         return table, table.fkeys[fs]
 
     def GET(self, uri):
+        self.enforce_content_read(uri)
         def post_commit(tup):
             table, fkey = tup
             return json.dumps(fkey.prejson(), indent=2) + '\n'
@@ -567,6 +593,7 @@ class ForeignkeyReferences (Api):
         
 
     def GET(self, uri):
+        self.enforce_content_read(uri)
         def post_commit(fkrs):
             if self._from_key and self._to_key:
                 assert len(fkrs) == 1
@@ -579,6 +606,8 @@ class ForeignkeyReferences (Api):
 
     def DELETE(self, uri):
         """Delete foreign-key reference constraint from table."""
+        self.enforce_schema_write(uri)
+        
         def body(conn):
             fkrs = self.GET_body(conn)
             for fkr in fkrs:

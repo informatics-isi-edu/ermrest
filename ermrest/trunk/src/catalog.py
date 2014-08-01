@@ -146,6 +146,7 @@ class Catalog (PooledConnection):
     META_OWNER = 'owner'
     META_READ_USER = 'read_user'
     META_WRITE_USER = 'write_user'
+    META_SCHEMA_WRITE_USER = 'schema_write_user'
     META_CONTENT_READ_USER = 'content_read_user'
     META_CONTENT_WRITE_USER = 'content_write_user'
     ANONYMOUS = '*'
@@ -437,6 +438,7 @@ $$ LANGUAGE plpgsql;
         self.add_meta(self.META_OWNER, owner)
         self.add_meta(self.META_WRITE_USER, owner)
         self.add_meta(self.META_READ_USER, owner)
+        self.add_meta(self.META_SCHEMA_WRITE_USER, owner)
         self.add_meta(self.META_CONTENT_READ_USER, owner)
         self.add_meta(self.META_CONTENT_WRITE_USER, owner)
         
@@ -569,6 +571,11 @@ DELETE FROM %(schema)s.%(table)s
         """Tests whether the user roles have write permission.
         """
         return self.is_owner(roles) or self._test_perm(self.META_WRITE_USER, roles)
+    
+    def has_schema_write(self, roles):
+        """Tests whether the user roles have schema write permission.
+        """
+        return self.is_owner(roles) or self._test_perm(self.META_SCHEMA_WRITE_USER, roles)
                                   
     def has_content_read(self, roles):
         """Tests whether the user roles have content read permission.

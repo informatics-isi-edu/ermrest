@@ -16,7 +16,6 @@
 #
 
 """ERMREST URL abstract syntax tree (AST) classes for catalog resources.
-
 """
 
 import json
@@ -24,8 +23,8 @@ import web
 
 import model
 import data
-from model import Api
-from ermrest import util, exception, catalog
+from data import Api
+from ermrest import exception, catalog
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
@@ -79,15 +78,15 @@ class Catalog (Api):
         Api.__init__(self, self)
         self.catalog_id = catalog_id
         
-        # lookup the catalog manager
+        # bootstrap the catalog manager state
         self.registry = web.ctx.ermrest_registry
         entries = self.registry.lookup(catalog_id)
         if not entries or len(entries) == 0:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
         self.manager = catalog.Catalog(web.ctx.ermrest_catalog_factory, 
                                        entries[0]['descriptor'])
-        if not self.manager.has_read(web.ctx.webauthn2_context.attributes):
-            raise exception.rest.Forbidden('catalog ' + str(catalog_id))
+        # now enforce read permission
+        self.enforce_read('catalog/' + str(catalog_id))
 
     def schemas(self):
         """The schema set for this catalog."""
@@ -157,8 +156,7 @@ class Catalog (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of catalog.
         """
-        if not self.manager.is_owner(web.ctx.webauthn2_context.client):
-            raise exception.rest.Forbidden(uri)
+        self.enforce_owner(uri)
         
         ######
         # TODO: needs to be done in two steps
@@ -189,9 +187,7 @@ class Meta (Api):
     def GET(self, uri):
         """Perform HTTP GET of catalog metadata.
         """
-        if not self.catalog.manager.has_read(
-                                web.ctx.webauthn2_context.attributes):
-            raise exception.rest.Forbidden(uri)
+        self.enforce_read(uri)
         
         content_type = data.negotiated_content_type(self.supported_types, 
                                                     self.default_content_type)
@@ -203,11 +199,7 @@ class Meta (Api):
     def PUT(self, uri):
         """Perform HTTP PUT of catalog metadata.
         """
-        if not (self.catalog.manager.has_write(
-                        web.ctx.webauthn2_context.attributes)
-                or self.catalog.manager.is_owner(
-                        web.ctx.webauthn2_context.client) ):
-            raise exception.rest.Forbidden(uri)
+        self.enforce_write(uri)
         
         # disallow PUT of META
         if not self.key:
@@ -215,9 +207,7 @@ class Meta (Api):
         
         if self.key == self.catalog.manager.META_OWNER:
             # must be owner to change owner
-            if not self.catalog.manager.is_owner(
-                            web.ctx.webauthn2_context.client):
-                raise exception.rest.Forbidden(uri)
+            self.enforce_owner(uri)
             # must set owner to a rolename (TODO: better validation)
             if not self.value or self.value == '':
                 raise exception.rest.Forbidden(uri)
@@ -233,11 +223,7 @@ class Meta (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of catalog metadata.
         """
-        if not (self.catalog.manager.has_write(
-                        web.ctx.webauthn2_context.attributes)
-                or self.catalog.manager.is_owner(
-                        web.ctx.webauthn2_context.client) ):
-            raise exception.rest.Forbidden(uri)
+        self.enforce_write(uri)
         
         # disallow DELETE of META
         if not self.key:
