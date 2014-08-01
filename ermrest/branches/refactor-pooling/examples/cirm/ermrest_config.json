@@ -1,0 +1,61 @@
+{
+    "webauthn2" : {
+      "require_attributes": true, 
+      "listusers_permit": ["admin"], 
+      "listattributes_permit": ["admin"], 
+      "manageusers_permit": ["admin"], 
+      "manageattributes_permit": ["admin"], 
+            
+      "session_expiration_minutes": 30, 
+      "def_passwd_len": 10, 
+      "hash_passwd_reps": 1000,
+            
+      "sessionids_provider": "null", 
+      "sessionstates_provider": "null", 
+      "clients_provider": "globusonline", 
+      "attributes_provider": "globusonline",
+      "extend_session": false,
+      "globusonline_nexus_host": "nexus.api.globusonline.org",
+      "globusonline_nexus_ca": ":INSECURE:",
+      "globusonline_admin_users": "serban", 
+            
+      "handler_uri_usersession": null, 
+            
+      "web_cookie_name": "ermrest", 
+      "web_cookie_path": "/ermrest", 
+      "web_cookie_secure": true, 
+      "setheader": false,
+
+      "database_schema": "webauthn2", 
+      "database_type": "postgres", 
+      "database_name": "", 
+      "database_max_retries": 5, 
+
+      "crowd_home_uri": "https://YOUR CROWD2 HOST:8445/crowd/", 
+      "crowd_app_name": "YOUR CROWD APP NAME", 
+      "crowd_app_passwd": "YOUR CROWD APP PASSWD", 
+      "crowd_max_retries": 5, 
+      "crowd_listusers_scope": ["YOUR APP GROUP"],
+      "crowd_listgroups_scope": []
+    },
+    
+    "registry" : {
+      "type" : "database",
+      "database_name": "ermrest",
+      "database_schema": "ermrest"
+    },
+    
+    "catalog_factory" : {
+      "type" : "database",
+      "database_name": "ermrest"
+    },
+    
+    "printers" : {
+      "slide_addr" : "slidecode.hsc.usc.edu",
+      "slide_port" : 9100,
+      "box_addr" : "boxcode.hsc.usc.edu",
+      "box_port": 9100
+    },
+    
+    "deploy_cirm" : true
+}
