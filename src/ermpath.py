@@ -1298,11 +1298,11 @@ class AggregatePath (AnyPath):
                     raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
 
                 aggfunc_templates = dict(
-                    min='min(%s) AS %s', 
-                    max='max(%s) AS %s', 
-                    cnt='count(%s) AS %s', 
-                    cnt_d='count(DISTINCT %s) AS %s',
-                    array='array_agg(%s) AS %s'
+                    min='min(%(attr)s) AS %(attr)s',
+                    max='max(%(attr)s) AS %(attr)s',
+                    cnt='count(%(attr)s) AS %(attr)s',
+                    cnt_d='count(DISTINCT %(attr)s) AS %(attr)s',
+                    array='array_agg(%(attr)s) AS %(attr)s'
                     )
 
                 if str(attribute.aggfunc) not in aggfunc_templates:
