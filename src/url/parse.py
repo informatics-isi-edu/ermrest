@@ -297,10 +297,9 @@ def p_entity_filter(p):
     p[0].append( ast.data.path.FilterElem( p[3] ) )
 
 def p_filter(p):
-    """filter : predicate
-              | disjunction """
+    """filter : disjunction
+              | conjunction"""
     p[0] = p[1]
-
 
 def p_predicate2(p):
     """predicate : sname op expr """
@@ -310,20 +309,33 @@ def p_predicate1(p):
     """predicate : sname opnull """
     p[0] = ast.data.path.predicatecls(p[2])(p[1])
 
-def p_neg_predicate(p):
-    """predicate : '!' predicate """
+def p_neg_predicate1(p):
+    """npredicate : predicate """
+    p[0] = p[1]
+
+def p_neg_predicate2(p):
+    """npredicate : '!' predicate """
     p[0] = ast.data.path.Negation( p[2] )
 
 def p_paren_predicate(p):
     """predicate : '(' filter ')' """
+    p[0] = p[2]
+
+def p_conjunction_base(p):
+    """conjunction : npredicate """
+    p[0] = ast.data.path.Conjunction([p[1]])
+
+def p_conjunction_grow(p):
+    """conjunction : conjunction '&' npredicate"""
     p[0] = p[1]
+    p[0].append( p[3] )
 
 def p_disjunction_base(p):
-    """disjunction : predicate ';' predicate"""
+    """disjunction : conjunction ';' conjunction"""
     p[0] = ast.data.path.Disjunction([p[1], p[3]])
 
 def p_disjunction_grow(p):
-    """disjunction : disjunction ';' predicate"""
+    """disjunction : disjunction ';' conjunction"""
     p[0] = p[1]
     p[0].append( p[3] )
 

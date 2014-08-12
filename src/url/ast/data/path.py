@@ -464,4 +464,12 @@ class Disjunction (list):
         preds_sql = [ "(%s)" % f.sql_where(epath, elem) for f in self ]
         return " OR ".join(preds_sql)
 
+class Conjunction (list):
+    def validate(self, epath):
+        return [ f.validate(epath) for f in self ]
+
+    def sql_where(self, epath, elem):
+        preds_sql = [ "(%s)" % f.sql_where(epath, elem) for f in self ]
+        return " AND ".join(preds_sql)
+
 

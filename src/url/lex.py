@@ -52,7 +52,7 @@ reserved = [
 
 # only these literal punctuation are actually used in our language
 literals = [
-    '(', ')', ':', ';', ',', '=', '@', '&', '/', '?'
+    '(', ')', ':', ';', ',', '=', '@', '&', '/', '?', '!'
     ]
 
 # special strings which can be keywords when parsing
