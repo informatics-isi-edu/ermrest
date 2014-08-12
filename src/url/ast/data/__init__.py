@@ -132,7 +132,15 @@ class Entity (Api):
     def POST(self, uri):
         """Perform HTTP POST of entities.
         """
-        return self.PUT(uri, post_method=True, post_defaults=self.queryopts.get('defaults'))
+        defaults = self.queryopts.get('defaults')
+        if defaults and type(defaults) is not set:
+            # defaults is a single column name from queryopts
+            defaults = set([ defaults ])
+        else:
+            # defaults is already a set of column names from queryopts
+            # or it is None
+            pass
+        return self.PUT(uri, post_method=True, post_defaults=defaults)
 
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
