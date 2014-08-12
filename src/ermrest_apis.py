@@ -329,7 +329,7 @@ def web_urls():
     # add the "core" urls, e.g., the Dispatcher, last
     core_urls = (
         # core parser-based REST dispatcher
-        '.*', Dispatcher
+        '(?s).*', Dispatcher
     )
     urls.extend(core_urls)
     return tuple(urls)
