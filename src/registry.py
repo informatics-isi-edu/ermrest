@@ -122,13 +122,13 @@ class SimpleRegistry (Registry):
         """
         def body(conn, cur):
             # create registry schema, if it doesn't exist
-            if not schema_exists(conn, self._schema_name):
+            if not schema_exists(cur, self._schema_name):
                 cur.execute("""
 CREATE SCHEMA %(schema)s;"""
                     % dict(schema=self._schema_name))
             
             # create registry table, if it doesn't exist
-            if not table_exists(conn, self._schema_name, self.TABLE_NAME):
+            if not table_exists(cur, self._schema_name, self.TABLE_NAME):
                 cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     id bigserial PRIMARY KEY,
@@ -137,7 +137,7 @@ CREATE TABLE %(schema)s.%(table)s (
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
 
-        return sanepg2.pooled_perform(self.database, body)
+        return sanepg2.pooled_perform(self.database, body).next()
                 
     def lookup(self, id=None):
         def body(conn, cur):
