@@ -31,38 +31,22 @@ database backend.
 from util import *
 
 import json
+from ermrest import sanepg2
 import psycopg2
 
-__all__ = ["RegistryFactory", "Registry"]
+__all__ = ["get_registry"]
 
 
-class RegistryFactory (object):
-    """A factory of ERMREST registries.
+def get_registry(config):
+    """Returns an instance of the registry based on config.
     """
+    if config.get("type") != "database":
+        raise NotImplementedError()
     
-    def __init__(self, config):
-        """Initialize the registry factory.
-        """
-        self.registry = None
-        
-        ## Should validate the configuration here
-        if config.get("type") != "database":
-            raise NotImplementedError()
-        else:
-            self._dbname = config.get("database_name")
-            self._db_schema = config.get("database_schema")
-            self._dsn = "dbname=" + self._dbname
-        
-    def get_registry(self):
-        """Returns an instance of the registry.
-        """
-        if not self.registry:
-            ## Create singleton instance
-            self.registry = SimpleRegistry(
-                                psycopg2.connect(self._dsn),
-                                self._db_schema)
-        return self.registry
-
+    return SimpleRegistry(
+        database=config.get("database_name"),
+        schema=config.get("database_schema")
+        )
 
 class Registry (object):
     """A registry of ERMREST catalogs.
@@ -117,41 +101,34 @@ class Registry (object):
 class SimpleRegistry (Registry):
     """A simple registry implementation with a database backend.
     
-       On the first pass this impl will simply use a database for each
-       operation. If we end up using this impl for non-pilot users, it
-       should be upgraded with at least local caching of registries.
+       Operations use basic connection-pooling but each does its own
+       transaction since requests are usually independent and simple
+       lookup is the hot path.
     """
     
     TABLE_NAME = "simple_registry"
     
-    def __init__(self, conn, schema_name):
+    def __init__(self, database, schema):
         """Initialized the SimpleRegistry.
-        
-        The 'conn' parameter must be an open connection to the registry 
-        database.
         """
         super(SimpleRegistry, self).__init__()
-        self._conn = conn
-        self._schema_name = schema_name
-        
+        self.database = database
+        self._schema_name = schema
         
     def deploy(self):
         """Deploy the SimpleRegistry.
         
         Creates the database schema for the SimpleRegistry implementation.
         """
-        try:
-            cur = self._conn.cursor()
-            
+        def body(conn, cur):
             # create registry schema, if it doesn't exist
-            if not schema_exists(self._conn, self._schema_name):
+            if not schema_exists(conn, self._schema_name):
                 cur.execute("""
 CREATE SCHEMA %(schema)s;"""
                     % dict(schema=self._schema_name))
-                self._conn.commit()
             
             # create registry table, if it doesn't exist
-            if not table_exists(self._conn, self._schema_name, self.TABLE_NAME):
+            if not table_exists(conn, self._schema_name, self.TABLE_NAME):
                 cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     id bigserial PRIMARY KEY,
@@ -159,21 +136,17 @@ CREATE TABLE %(schema)s.%(table)s (
 );"""
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
-                self._conn.commit()
+
+        return sanepg2.pooled_perform(self.database, body)
                 
-        finally:
-            if cur is not None:
-                cur.close()
-    
-    
     def lookup(self, id=None):
-        if id:
-            where = "WHERE id = %s" % sql_literal(id)
-        else:
-            where = ""
-            
-        cur = self._conn.cursor()
-        cur.execute("""
+        def body(conn, cur):
+            if id:
+                where = "WHERE id = %s" % sql_literal(id)
+            else:
+                where = ""
+
+            cur.execute("""
 SELECT id, descriptor
 FROM %(schema)s.%(table)s
 %(where)s;
@@ -181,15 +154,12 @@ FROM %(schema)s.%(table)s
                    table=self.TABLE_NAME,
                    where=where
                    ) );
+            
+            # return results as a list of dictionaries
+            for eid, descriptor in cur:
+                yield dict(id=eid, descriptor=json.loads(descriptor))
 
-        # return results as a list of dictionaries
-        entries = list()
-        for id, descriptor in cur:
-            entries.append(dict(id=id, descriptor=json.loads(descriptor)))
-        cur.close()
-        self._conn.commit()
-        return entries
-    
+        return list(sanepg2.pooled_perform(self.database, body))
     
     def register(self, descriptor, id=None):
         assert isinstance(descriptor, dict)
