@@ -72,17 +72,17 @@ class Entity (Api):
         content_type = negotiated_content_type(default=self.default_content_type)
         limit = self.negotiated_limit()
         
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
+        def body(conn):
+            self.enforce_content_read(uri)
+
+            model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
-            self.set_http_etag( epath.get_data_version(cur) )
+            self.set_http_etag( epath.get_data_version(conn) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
             epath.add_sort(self.sort)
-            return epath.get(conn, cur, content_type=content_type, limit=limit)
+            return epath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -98,6 +98,8 @@ class Entity (Api):
     def PUT(self, uri, post_method=False, post_defaults=None):
         """Perform HTTP PUT of entities.
         """
+        self.enforce_content_write(uri)
+        
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
             in_content_type = in_content_type.split(";", 1)[0].strip()
@@ -108,14 +110,11 @@ class Entity (Api):
 
         input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
         
-        def body(conn, cur):
+        def body(conn):
             input_data.seek(0) # rewinds buffer, in case of retry
-            self.catalog.resolve(cur)
-            self.enforce_content_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
+            model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
             return epath.put(conn,
-                             cur,
                              input_data, 
                              in_content_type=in_content_type,
                              content_type=content_type, 
@@ -146,12 +145,12 @@ class Entity (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
         """
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_content_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
+        self.enforce_content_write(uri)
+        
+        def body(conn):
+            model = self.catalog.manager.get_model(conn)
             epath = self.resolve(model)
-            epath.delete(conn, cur)
+            epath.delete(conn)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -188,17 +187,17 @@ class Attribute (Api):
         content_type = negotiated_content_type(default=self.default_content_type)
         limit = self.negotiated_limit()
         
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
+        def body(conn):
+            self.enforce_content_read(uri)
+
+            model = self.catalog.manager.get_model(conn)
             apath = self.resolve(model)
-            self.set_http_etag( apath.epath.get_data_version(cur) )
+            self.set_http_etag( apath.epath.get_data_version(conn) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
             apath.add_sort(self.sort)
-            return apath.get(conn, cur, content_type=content_type, limit=limit)
+            return apath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -214,12 +213,12 @@ class Attribute (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entity attribute.
         """
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_content_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
+        self.enforce_content_write(uri)
+        
+        def body(conn):
+            model = self.catalog.manager.get_model(conn)
             apath = self.resolve(model)
-            apath.delete(conn, cur)
+            apath.delete(conn)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -237,7 +236,6 @@ class AttributeGroup (Api):
         self.attributes = path[-1]
         self.groupkeys = path[-2]
         self.epath = Entity(catalog, path[0:-2])
-        self.http_vary.add('accept')
 
     def resolve(self, model):
         """Resolve self against a specific database model.
@@ -256,17 +254,17 @@ class AttributeGroup (Api):
         content_type = negotiated_content_type(default=self.default_content_type)
         limit = self.negotiated_limit()
         
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
+        def body(conn):
+            self.enforce_content_read(uri)
+
+            model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
-            self.set_http_etag( agpath.epath.get_data_version(cur) )
+            self.set_http_etag( agpath.epath.get_data_version(conn) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
             agpath.add_sort(self.sort)
-            return agpath.get(conn, cur, content_type=content_type, limit=limit)
+            return agpath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -282,6 +280,8 @@ class AttributeGroup (Api):
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of attribute groups.
         """
+        self.enforce_content_write(uri)
+        
         try:
             in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
             in_content_type = in_content_type.split(";", 1)[0].strip()
@@ -292,14 +292,11 @@ class AttributeGroup (Api):
 
         input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
         
-        def body(conn, cur):
+        def body(conn):
             input_data.seek(0) # rewinds buffer, in case of retry
-            self.catalog.resolve(cur)
-            self.enforce_content_write(uri)
-            model = self.catalog.manager.get_model(cur)
+            model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
             return agpath.put(conn,
-                              cur,
                               input_data, 
                               in_content_type=in_content_type)
 
@@ -321,7 +318,6 @@ class Aggregate (Api):
         Api.__init__(self, catalog)
         self.attributes = path[-1]
         self.epath = Entity(catalog, path[0:-1])
-        self.http_vary.add('accept')
 
     def resolve(self, model):
         """Resolve self against a specific database model.
@@ -340,17 +336,16 @@ class Aggregate (Api):
         content_type = negotiated_content_type(default=self.default_content_type)
         limit = self.negotiated_limit()
         
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
+        def body(conn):
+            self.enforce_content_read(uri)
+            model = self.catalog.manager.get_model(conn)
             agpath = self.resolve(model)
-            self.set_http_etag( agpath.epath.get_data_version(cur) )
+            self.set_http_etag( agpath.epath.get_data_version(conn) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
             agpath.add_sort(self.sort)
-            return agpath.get(conn, cur, content_type=content_type, limit=limit)
+            return agpath.get(conn, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -370,3 +365,16 @@ class Query (Api):
         self.expressions = path[-1]
         self.epath = Entity(catalog, path[0:-1])
 
+    def resolve(self, model):
+        """Resolve self against a specific database model.
+
+           The path is validated against the model and any unqualified
+           names or implicit entity referencing patterns are resolved
+           to a canonical ermrest.ermpath.AttributePath instance that
+           can be used to perform attribute-level data access.
+        """
+        epath = self.epath.resolve(model)
+        # TODO: validate expressions
+        expressions = self.expressions
+        return QueryPath(epath, expressions)
+    

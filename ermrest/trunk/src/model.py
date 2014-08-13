@@ -41,7 +41,7 @@ def frozendict (d):
     return tuple(items)
         
 
-def introspect(cur):
+def introspect(conn):
     """Introspects a Catalog (i.e., a database).
     
     This function (currently) does not attempt to catch any database 
@@ -205,10 +205,17 @@ GROUP BY
 
     model = Model()
     
+    # brute-force try to prevent any transaction leaks via pooling
+    # this will discard any state changes we forgot to commit
+    try:
+        conn.rollback()
+    except:
+        pass
+
     #
     # Introspect schemas, tables, columns
     #
-    #cur = conn.cursor()
+    cur = conn.cursor()
 
     # get schemas (including empty ones)
     cur.execute("SELECT catalog_name, schema_name FROM information_schema.schemata")
@@ -300,6 +307,8 @@ GROUP BY
             fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name) )
         else:
             fk.references[fk_ref_map].constraint_names.add( (fk_schema, fk_name) )
+
+    cur.close()
 
     return model
 

@@ -38,13 +38,15 @@ def urlunquote(url):
     return text
 
 
-def schema_exists(cur, schemaname):
+def schema_exists(dbc, schemaname):
     """Return True or False depending on whether schema exists in our 
        database.
        
+       dbc : a database connection
        schemaname : the schema name
     """
 
+    cur = dbc.cursor()
     cur.execute("""
 SELECT * FROM information_schema.schemata
 WHERE schema_name = %(schema)s
@@ -52,17 +54,20 @@ WHERE schema_name = %(schema)s
                        % dict(schema=sql_literal(schemaname))
                        )
     exists = cur.rowcount > 0
+    cur.close()
     return exists
 
 
-def table_exists(cur, schemaname, tablename):
+def table_exists(dbc, schemaname, tablename):
     """Return True or False depending on whether (schema.)tablename exists in 
        our database.
        
-       
+       dbc : a database connection
        schemaname : the schema name
        tablename : the table name
     """
+    
+    cur = dbc.cursor()
     cur.execute("""
 SELECT * FROM information_schema.tables
 WHERE table_schema = %(schema)s
@@ -72,6 +77,7 @@ AND table_name = %(table)s
                             table=sql_literal(tablename))
                      )
     exists = cur.rowcount > 0
+    cur.close()
     return exists
 
 

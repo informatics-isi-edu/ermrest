@@ -67,8 +67,8 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
 
         cur.close()
 
-        #if conn is not None:
-        #    conn.commit()
+        if conn is not None:
+            conn.commit()
         
     return row_thunk
 
@@ -180,7 +180,7 @@ class EntityElem (object):
                 self.sql_join_condition()
                 )
     
-    def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -291,6 +291,7 @@ class EntityElem (object):
             nmkcols = [ c for c in nmkcols if c.name not in use_defaults ]
 
         # create temporary table
+        cur = conn.cursor()
         cur.execute(
             "CREATE TEMPORARY TABLE %s (%s)" % (
                 sql_identifier(input_table),
@@ -550,7 +551,7 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
-    def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None):
+    def get(self, conn, content_type='text/csv', output_file=None, limit=None):
         """Fetch resources.
 
            conn: sanepg2 database connection to catalog
@@ -593,7 +594,9 @@ class AnyPath (object):
             else:
                 raise NotImplementedError('content_type %s with output_file.write()' % content_type)
 
+            cur = conn.cursor()
             cur.copy_expert(sql, output_file)
+            cur.close()
 
         else:
             # generate rows to caller
@@ -648,7 +651,7 @@ class EntityPath (AnyPath):
         """
         return self._path[-1].table
 
-    def get_data_version(self, cur):
+    def get_data_version(self, conn):
         """Get data version txid considering all tables in entity path."""
         preds = [
             '("schema" = %s AND "table" = %s)' % (
@@ -657,6 +660,7 @@ class EntityPath (AnyPath):
                 )
             for elem in self._path
             ]
+        cur = conn.cursor()
         cur.execute("""
 SELECT COALESCE(max(snap_txid), 0) AS snap_txid 
 FROM _ermrest.data_version
@@ -664,6 +668,7 @@ WHERE %(pred)s
 """ % dict(pred=' OR '.join(preds))
                     )
         version = next(cur)
+        cur.close()
         return version
 
     def add_filter(self, filt):
@@ -807,18 +812,20 @@ WHERE %(keymatches)s
             keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s " % (c, c) for c in mkcols ])
             )
     
-    def delete(self, conn, cur):
+    def delete(self, conn):
         """Delete entities.
 
            conn: sanepg2 database connection to catalog
         """
+        cur = conn.cursor()
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
         cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
         cur.execute(self.sql_delete())
+        cur.close()
         
-    def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
            conn: sanepg2 connection to catalog
@@ -871,7 +878,7 @@ WHERE %(keymatches)s
         if len(self._path) != 1:
             raise BadData("unsupported path length for put")
         
-        return self._path[0].put(conn, cur, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults, attr_aliases)
+        return self._path[0].put(conn, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults, attr_aliases)
         
 
 class AttributePath (AnyPath):
@@ -996,7 +1003,7 @@ WHERE %(keymatches)s
             updates = ', '.join([ "%s = NULL" % c for c in nmkcols ])
             )
     
-    def delete(self, conn, cur):
+    def delete(self, conn):
         """Delete entity attributes.
 
         """
@@ -1017,11 +1024,13 @@ WHERE %(keymatches)s
         
         dquery = self.sql_delete(nmkcols, equery)
 
+        cur = conn.cursor()
         cur.execute("SELECT count(*) AS count FROM (%s) s" % equery)
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
         cur.execut('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
         cur.execute(dquery)
+        cur.close()
 
 class AttributeGroupPath (AnyPath):
     """Hierarchical ERM data access to entity attributes, i.e. table cells.
@@ -1157,7 +1166,7 @@ GROUP BY %(groupkeys)s
                     ])
             )
 
-    def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
+    def put(self, conn, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
         """Update entity attributes.
 
            conn: sanepg2 connection to catalog
@@ -1248,7 +1257,7 @@ GROUP BY %(groupkeys)s
 
         attr_update = (list(mkcols), list(nmkcols))
         attr_aliases = (mkcol_aliases, nmkcol_aliases)
-        return self.epath.put(conn, cur, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update, attr_aliases=attr_aliases)
+        return self.epath.put(conn, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update, attr_aliases=attr_aliases)
         
 
 class AggregatePath (AnyPath):

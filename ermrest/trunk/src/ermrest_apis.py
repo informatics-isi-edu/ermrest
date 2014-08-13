@@ -73,7 +73,7 @@ import webauthn2
 from url import url_parse_func
 from ermrest.exception import *
 
-from ermrest.registry import get_registry
+from ermrest.registry import RegistryFactory
 from ermrest.catalog import CatalogFactory
 from ermrest.util import negotiated_content_type, urlquote
 
@@ -109,7 +109,8 @@ AttrNest = webauthn2_handler_factory.AttrNest
 
 ## setup registry
 registry_config = global_env.get('registry')
-registry = registry_config and get_registry(registry_config) or None
+registry_factory = RegistryFactory(registry_config)
+registry = registry_factory.get_registry()
 
 ## setup catalog factory
 catalog_factory_config = global_env.get('catalog_factory')
@@ -245,9 +246,6 @@ class Dispatcher:
                 raise e
             except psycopg2.Error, e:
                 request_trace( str(e) )
-                et, ev, tb = sys.exc_info()
-                web.debug('got exception "%s" during METHOD() dispatcher' % str(ev),
-                          traceback.format_exception(et, ev, tb))
                 # TODO: simplify postgres error text?
                 raise rest.Conflict( str(e) )
             except Exception, e:
