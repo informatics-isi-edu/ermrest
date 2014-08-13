@@ -42,6 +42,8 @@ result before serialization commences.
 import psycopg2
 import psycopg2.pool
 import web
+import sys
+import traceback
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.
@@ -131,9 +133,14 @@ def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x):
             pools[databasename].putconn(conn, close=True)
             conn = None
             raise e
+        except GeneratorExit, e:
+            # happens normally at end of result yielding sequence
+            raise
         except:
+            et, ev, tb = sys.exc_info()
+            web.debug('got exception "%s" during sanepg2.pooled_perform()' % str(ev),
+                      traceback.format_exception(et, ev, tb))
             conn.rollback()
-            web.debug('got e')
             raise
     finally:
         if conn is not None:
