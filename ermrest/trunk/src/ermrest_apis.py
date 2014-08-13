@@ -109,7 +109,7 @@ AttrNest = webauthn2_handler_factory.AttrNest
 
 ## setup registry
 registry_config = global_env.get('registry')
-registry = get_registry(registry_config)
+registry = registry_config and get_registry(registry_config) or None
 
 ## setup catalog factory
 catalog_factory_config = global_env.get('catalog_factory')
