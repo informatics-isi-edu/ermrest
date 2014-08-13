@@ -21,7 +21,6 @@
 from ermrest.exception import *
 from ermrest import model
 import psycopg2
-from ermrest import sanepg2
 import web
 import traceback
 import sys
@@ -32,61 +31,62 @@ class Api (object):
 
     def __init__(self, catalog):
         self.catalog = catalog
+        self._conn = None
         self.queryopts = dict()
         self.sort = None
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 
-    def enforce_owner(self, cur, uri=''):
+    def enforce_owner(self, uri=''):
         """Policy enforcement on is_owner.
         """
         if not self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client):
+                        web.ctx.webauthn2_context.client):
             raise rest.Forbidden(uri)
 
-    def enforce_read(self, cur, uri=''):
+    def enforce_read(self, uri=''):
         """Policy enforcement on has_read test.
         """
         if not (self.catalog.manager.has_read(
-                        cur, web.ctx.webauthn2_context.attributes)
+                        web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        web.ctx.webauthn2_context.client) ):
             raise rest.Forbidden(uri)
 
-    def enforce_write(self, cur, uri=''):
+    def enforce_write(self, uri=''):
         """Policy enforcement on has_write test.
         """
         if not (self.catalog.manager.has_write(
-                        cur, web.ctx.webauthn2_context.attributes)
+                        web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        web.ctx.webauthn2_context.client) ):
             raise rest.Forbidden(uri)
 
-    def enforce_content_read(self, cur, uri=''):
+    def enforce_content_read(self, uri=''):
         """Policy enforcement on has_content_read test.
         """
         if not (self.catalog.manager.has_content_read(
-                        cur, web.ctx.webauthn2_context.attributes)
+                        web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        web.ctx.webauthn2_context.client) ):
             raise rest.Forbidden(uri)
 
-    def enforce_content_write(self, cur, uri=''):
+    def enforce_content_write(self, uri=''):
         """Policy enforcement on has_content_write test.
         """
         if not (self.catalog.manager.has_content_write(
-                        cur, web.ctx.webauthn2_context.attributes)
+                        web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        web.ctx.webauthn2_context.client) ):
             raise rest.Forbidden(uri)
 
-    def enforce_schema_write(self, cur, uri=''):
+    def enforce_schema_write(self, uri=''):
         """Policy enforcement on has_schema_write test.
         """
         if not (self.catalog.manager.has_schema_write(
-                        cur, web.ctx.webauthn2_context.attributes)
+                        web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        web.ctx.webauthn2_context.client) ):
             raise rest.Forbidden(uri)
 
     def with_queryopts(self, qopt):
@@ -184,35 +184,41 @@ class Api (object):
             web.header('ETag', '%s' % self.http_etag)
         
     def perform(self, body, finish):
-        def wrapbody(conn, cur):
-            # TODO: implement backoff/retry on transient exceptions?
-            try:
-                return body(conn, cur)
-            except psycopg2.InterfaceError, e:
-                raise rest.ServiceUnavailable("Please try again.")
-            except NotFound, e:
-                raise rest.NotFound(e.message)
-            except BadData, e:
-                raise rest.BadRequest(e.message)
-            except ConflictData, e:
-                et, ev, tb = sys.exc_info()
-                web.debug('got exception "%s" during Api.perform()' % str(ev),
-                      traceback.format_exception(et, ev, tb))
-                raise rest.Conflict(e.message)
-            except UnsupportedMediaType, e:
-                raise rest.UnsupportedMediaType
-
-        return sanepg2.pooled_perform(self.catalog.manager._dbname, wrapbody, finish)
+        # TODO: implement backoff/retry on transient exceptions?
+        self._conn = self.catalog.get_conn()
+        try:
+            result = body(self._conn)
+            self._conn.commit()
+            return finish(result)
+        except psycopg2.InterfaceError, e:
+            # reset bad connection
+            self.catalog.discard_conn(self._conn)
+            self._conn = self.catalog.get_conn()
+            et, ev2, tb = sys.exc_info()
+            web.debug(
+                str(e),
+                traceback.format_exception(et, ev2, tb))
+            raise rest.ServiceUnavailable("Please try again.")
+        except NotFound, e:
+            self._conn.rollback()
+            raise rest.NotFound(e.message)
+        except BadData, e:
+            self._conn.rollback()
+            raise rest.BadRequest(e.message)
+        except ConflictData, e:
+            self._conn.rollback()
+            raise rest.Conflict(e.message)
+        except UnsupportedMediaType, e:
+            self._conn.rollback()
+            raise rest.UnsupportedMediaType
+        except:
+            self._conn.rollback()
+            raise
     
     def final(self):
-        pass
-
-    def model_body(self, conn):
-        return self.catalog.manager.get_model(conn)
-
-    def schema_body(self, conn, schema_name):
-        model = self.model_body(conn)
-        return model.lookup_schema(schema_name)
+        if self._conn:
+            self.catalog.release_conn(self._conn)
+            self._conn = None
 
 class Path (list):
     pass

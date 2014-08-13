@@ -77,18 +77,17 @@ class Catalog (Api):
     def __init__(self, catalog_id):
         Api.__init__(self, self)
         self.catalog_id = catalog_id
-        self.manager = None
-        entries = web.ctx.ermrest_registry.lookup(catalog_id)
-        if not entries:
+        
+        # bootstrap the catalog manager state
+        self.registry = web.ctx.ermrest_registry
+        entries = self.registry.lookup(catalog_id)
+        if not entries or len(entries) == 0:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
         self.manager = catalog.Catalog(web.ctx.ermrest_catalog_factory, 
                                        entries[0]['descriptor'])
-
-    def resolve(self, cur):
-        """Bootstrap catalog manager state."""
         # now enforce read permission
-        self.enforce_read(cur, 'catalog/' + str(self.catalog_id))
-        
+        self.enforce_read('catalog/' + str(catalog_id))
+
     def schemas(self):
         """The schema set for this catalog."""
         return model.Schemas(self)
@@ -121,6 +120,17 @@ class Catalog (Api):
         """A query set for this catalog."""
         return data.Query(self, qpath)
 
+    def get_conn(self):
+        """get db conn to this catalog."""
+        return self.manager.get_connection()
+    
+    def discard_conn(self, conn):
+        self.manager.discard_connection(conn)
+
+    def release_conn(self, conn):
+        """release db conn to this catalog."""
+        self.manager.release_connection(conn)
+    
     def GET(self, uri):
         """Perform HTTP GET of catalog.
         """
@@ -157,7 +167,7 @@ class Catalog (Api):
         #       --or-- run a sweeper that finishes the job
         ######
         self.manager.destroy()
-        web.ctx.ermrest_registry.unregister(self.catalog_id)
+        self.registry.unregister(self.catalog_id)
         web.ctx.status = '204 No Content'
         return ''
 

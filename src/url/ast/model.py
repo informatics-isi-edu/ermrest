@@ -49,6 +49,9 @@ schema_html = """
 </html>
 """
 
+def model_body(conn):
+    return ermrest.model.introspect(conn)
+
 class Schemas (Api):
     """A schema set."""
 
@@ -57,31 +60,26 @@ class Schemas (Api):
 
     def __init__(self, catalog):
         Api.__init__(self, catalog)
-        self.http_vary.add('accept')
-
+        
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
         self.enforce_content_read(uri)
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
 
         def post_commit(model):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                web.header('Content-Type', content_type)
-                response = json.dumps(model.prejson(), indent=2) + '\n'
-                web.header('Content-Length', len(response))
-                return response
+            web.header('Content-Type', content_type)
+            return json.dumps(model.prejson(), indent=2) + '\n'
 
         if content_type == 'text/html':
             # return static AJAX page
             web.header('Content-Type', content_type)
             return schema_html % (dict(ready='initSchemas'))
         else:
-            return self.perform(self.model_body, post_commit)
+            return self.perform(model_body, post_commit)
+
+def schema_body(conn, schema_name):
+    model = model_body(conn)
+    return model.lookup_schema(schema_name)
 
 class Schema (Api):
     """A specific schema by name."""
@@ -92,7 +90,6 @@ class Schema (Api):
     def __init__(self, catalog, name):
         Api.__init__(self, catalog)
         self.name = name
-        self.http_vary.add('accept')
 
     def tables(self):
         """The table set for this schema."""
@@ -103,7 +100,7 @@ class Schema (Api):
         return Table(self, name)
 
     def GET_body(self, conn):
-        model = self.model_body(conn)
+        model = model_body(conn)
         return model.lookup_schema(str(self.name))
 
     def GET(self, uri):
@@ -112,16 +109,8 @@ class Schema (Api):
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
 
         def post_commit(schema):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                web.header('Content-Type', content_type)
-                response = json.dumps(schema.prejson(), indent=2) + '\n'
-                web.header('Content-Length', len(response))
-                return response
+            web.header('Content-Type', content_type)
+            return json.dumps(schema.prejson(), indent=2) + '\n'
 
         if content_type == 'text/html':
             # return static AJAX page
@@ -135,7 +124,7 @@ class Schema (Api):
         self.enforce_schema_write(uri)
         
         def body(conn):
-            model = self.model_body(conn)
+            model = model_body(conn)
             model.create_schema(conn, str(self.name))
             
         def post_commit(ignore):
@@ -149,7 +138,7 @@ class Schema (Api):
         self.enforce_schema_write(uri)
         
         def body(conn):
-            model = self.model_body(conn)
+            model = model_body(conn)
             model.delete_schema(conn, str(self.name))
             
         def post_commit(ignore):
@@ -174,16 +163,7 @@ class Tables (Api):
         return schema.tables.values()
 
     def GET_post_commit(self, tables):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps([ table.prejson() for table in tables ], indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+        return json.dumps([ table.prejson() for table in tables ], indent=2) + '\n'
 
     def GET(self, uri):
         self.enforce_content_read(uri)
@@ -199,7 +179,7 @@ class Tables (Api):
             raise exception.BadData('Could not deserialize JSON input.')
 
         def body(conn):
-            schema = self.schema_body(conn, str(self.schema.name))
+            schema = schema_body(conn, str(self.schema.name))
             table = ermrest.model.Table.create_fromjson(conn, schema, tabledoc)
             return table
 
@@ -249,23 +229,14 @@ class Table (Api):
         return Foreignkey(self, column_set, catalog=self.catalog)
 
     def GET_body(self, conn):
-        model = self.model_body(conn)
+        model = model_body(conn)
         return model.lookup_table(
             self.schema and str(self.schema.name) or None, 
             str(self.name)
             )
 
     def GET_post_commit(self, table):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps(table.prejson(), indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+        return json.dumps(table.prejson(), indent=2) + '\n'
 
     def GET(self, uri):
         self.enforce_content_read(uri)
@@ -288,7 +259,7 @@ class Table (Api):
         self.enforce_schema_write(uri)
         
         def body(conn):
-            schema = self.schema_body(conn, str(self.schema.name))
+            schema = schema_body(conn, str(self.schema.name))
             schema.delete_table(conn, str(self.name))
             
         def post_commit(ignore):
@@ -307,16 +278,7 @@ class Columns (Api):
         return self.table.GET_body(conn).columns_in_order()
 
     def GET_post_commit(self, columns):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps([ c.prejson() for c in columns ], indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+        return json.dumps([ c.prejson() for c in columns ], indent=2) + '\n'
 
     def GET(self, uri):
         self.enforce_content_read(uri)
@@ -354,17 +316,7 @@ class Column (Columns):
             raise exception.NotFound('column "%s"' % column_name)
         else:
             column = columns[column_name]
-
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps(column.prejson(), indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+        return json.dumps(column.prejson(), indent=2) + '\n'
 
     def POST(self, uri):
         # turn off inherited POST method from Columns superclass
@@ -396,16 +348,7 @@ class Keys (Api):
         return self.table.GET_body(conn).uniques.values()
 
     def GET_post_commit(self, keys):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps([ key.prejson() for key in keys ], indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+        return json.dumps([ key.prejson() for key in keys ], indent=2) + '\n'
 
     def GET(self, uri):
         self.enforce_content_read(uri)
@@ -449,16 +392,7 @@ class Key (Keys):
         
     def GET_post_commit(self, tup):
         table, key = tup
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps(key.prejson(), indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+        return json.dumps(key.prejson(), indent=2) + '\n'
 
     def DELETE(self, uri):
         """Delete a key constraint from a table."""
@@ -486,21 +420,10 @@ class Foreignkeys (Api):
     def GET(self, uri):
         self.enforce_content_read(uri)
         def post_commit(table):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                fkeys = table.fkeys
-                response = []
-                for fk in fkeys.values():
-                    response.extend( fk.prejson() )
-                response = json.dumps(response, indent=2) + '\n'
-                web.header('Content-Type', 'application/json')
-                web.header('Content-Length', len(response))
-                return response
-            
+            fkeys = table.fkeys
+            response = []
+            for fk in fkeys.values():
+                response.extend( fk.prejson() )
             return json.dumps(response, indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
@@ -551,17 +474,8 @@ class Foreignkey (Api):
     def GET(self, uri):
         self.enforce_content_read(uri)
         def post_commit(tup):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                table, fkey = tup
-                response = json.dumps(fkey.prejson(), indent=2) + '\n'
-                web.header('Content-Type', 'application/json')
-                web.header('Content-Length', len(response))
-                return response
+            table, fkey = tup
+            return json.dumps(fkey.prejson(), indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
 
@@ -681,21 +595,12 @@ class ForeignkeyReferences (Api):
     def GET(self, uri):
         self.enforce_content_read(uri)
         def post_commit(fkrs):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
+            if self._from_key and self._to_key:
+                assert len(fkrs) == 1
+                response = fkrs[0].prejson()
             else:
-                if self._from_key and self._to_key:
-                    assert len(fkrs) == 1
-                    response = fkrs[0].prejson()
-                else:
-                    response = [ fkr.prejson() for fkr in fkrs ]
-                response = json.dumps(response, indent=2) + '\n'
-                web.header('Content-Type', 'application/json')
-                web.header('Content-Length', len(response))
-                return response
+                response = [ fkr.prejson() for fkr in fkrs ]
+            return json.dumps(response, indent=2) + '\n'
 
         return self.perform(self.GET_body, post_commit)
 
