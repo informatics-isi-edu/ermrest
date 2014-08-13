@@ -24,7 +24,7 @@ import web
 import model
 import data
 from data import Api
-from ermrest import exception, catalog
+from ermrest import exception, catalog, sanepg2
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
@@ -44,14 +44,16 @@ class Catalogs (Api):
         # content negotiation
         content_type = data.negotiated_content_type(self.supported_types, 
                                                     self.default_content_type)
+
+        # HACK: use registry's db when creating new catalog DB
+        master_dbname = web.ctx.ermrest_registry.database
+        catalog = sanepg2.pooled_perform(master_dbname, web.ctx.ermrest_catalog_factory.create ).next()
+        sanepg2.pooled_perform(catalog._dbname, lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+        entry = web.ctx.ermrest_registry.register(catalog.descriptor)
+        catalog_id = entry['id']
+        
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
-        
-        # create and register catalog, return only its id
-        catalog = web.ctx.ermrest_catalog_factory.create()
-        catalog.init_meta(web.ctx.webauthn2_context.client)
-        entry=web.ctx.ermrest_registry.register(catalog.descriptor)
-        catalog_id = entry['id']
         
         # set location header and status
         if uri[-1:] == '/':

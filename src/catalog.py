@@ -67,7 +67,7 @@ class CatalogFactory (object):
            super user or have CREATEDB permissions.
         """
         
-    def create(self):
+    def create(self, conn, ignored_cur):
         """Create a Catalog.
         
            This operation creates a catalog (i.e., it creates a database) on 
@@ -78,11 +78,11 @@ class CatalogFactory (object):
         """
         # create database
         dbname = _random_name(prefix='_ermrest_')
-        self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        cur = None
         try:
-            cur = self._dbc.cursor()
+            conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+            cur = conn.cursor()
             cur.execute("CREATE DATABASE " + sql_identifier(dbname))
-            self._dbc.commit()
         except psycopg2.Error, ev:
             msg = str(ev)
             idx = msg.find("\n") # DETAIL starts after the first line feed
@@ -90,21 +90,25 @@ class CatalogFactory (object):
                 msg = msg[0:idx]
             raise RuntimeError(msg)
         finally:
-            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
+            if cur:
+                cur.close()
+            # just in case caller didn't use sanepg2 which resets this already...
+            conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
         
         return Catalog(self, dict(dbname=dbname))
     
     
-    def _destroy_catalog(self, catalog):
+    def _destroy_catalog(self, conn, ignored_cur, catalog):
         """Destroys a catalog.
         
            Do not call this method directly.
         """
+        cur = None
         try:
-            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+            conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
             
             # first, attempt to disconnect clients
-            cur = self._dbc.cursor()
+            cur = conn.cursor()
             cur.execute("""
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
@@ -118,6 +122,8 @@ WHERE datname = %(dbname)s
             # then, drop database
             cur.execute("DROP DATABASE " + 
                         sql_identifier(catalog.descriptor['dbname']))
+
+            cur.close()
             
         except psycopg2.Error, ev:
             msg = str(ev)
@@ -127,7 +133,10 @@ WHERE datname = %(dbname)s
             raise RuntimeError(msg)
         
         finally:
-            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
+            if cur:
+                cur.close()
+            # just in case caller didn't use sanepg2 which resets this already...
+            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
     
     
 class Catalog (object):
@@ -210,37 +219,34 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
                 continue
         raise RuntimeError(msg)
     
-    def init_meta(self, owner=None):
+    def init_meta(self, conn, cur, owner=None):
         """Initializes the Catalog metadata.
         
            When 'owner' is None, it initializes the catalog permissions with 
            the anonymous ('*') role, including the ownership.
         """
         
-        # first, deploy the metadata schema
-        cur = None
-        try:
-            cur = self.get_connection().cursor()
+        # create schema, if it doesn't exist
+        if not schema_exists(cur, self._SCHEMA_NAME):
+            cur.execute("""
+CREATE SCHEMA %(schema)s;
+""" % dict(schema=self._SCHEMA_NAME)
+                        )
             
-            # create schema, if it doesn't exist
-            if not schema_exists(self._dbc, self._SCHEMA_NAME):
-                cur.execute("""
-CREATE SCHEMA %(schema)s;"""
-                    % dict(schema=self._SCHEMA_NAME))
-            
-            # create meta table, if it doesn't exist
-            if not table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME):
-                cur.execute("""
+        # create meta table, if it doesn't exist
+        if not table_exists(cur, self._SCHEMA_NAME, self._TABLE_NAME):
+            cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     key text NOT NULL,
     value text NOT NULL,
     UNIQUE (key, value)
-);"""
-                    % dict(schema=self._SCHEMA_NAME,
-                           table=self._TABLE_NAME))
+);
+""" % dict(schema=self._SCHEMA_NAME,
+           table=self._TABLE_NAME)
+                        )
             
-            if not table_exists(self._dbc, self._SCHEMA_NAME, self._MODEL_VERSION_TABLE_NAME):
-                cur.execute("""
+        if not table_exists(cur, self._SCHEMA_NAME, self._MODEL_VERSION_TABLE_NAME):
+            cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     snap_txid bigint PRIMARY KEY
 );
@@ -304,8 +310,8 @@ SELECT %(schema)s.model_change_event() ;
            table=self._MODEL_VERSION_TABLE_NAME)
                         )
             
-            if not table_exists(self._dbc, self._SCHEMA_NAME, self._DATA_VERSION_TABLE_NAME):
-                cur.execute("""
+        if not table_exists(cur, self._SCHEMA_NAME, self._DATA_VERSION_TABLE_NAME):
+            cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     "schema" text,
     "table" text,
@@ -371,20 +377,15 @@ $$ LANGUAGE plpgsql;
 """ % dict(schema=self._SCHEMA_NAME,
            table=self._DATA_VERSION_TABLE_NAME)
                         )
-            
-            self._dbc.commit()
-        finally:
-            if cur is not None:
-                cur.close()
                 
         ## initial meta values
         owner = owner if owner else self.ANONYMOUS
-        self.add_meta(self.META_OWNER, owner)
-        self.add_meta(self.META_WRITE_USER, owner)
-        self.add_meta(self.META_READ_USER, owner)
-        self.add_meta(self.META_SCHEMA_WRITE_USER, owner)
-        self.add_meta(self.META_CONTENT_READ_USER, owner)
-        self.add_meta(self.META_CONTENT_WRITE_USER, owner)
+        self.add_meta(cur, self.META_OWNER, owner)
+        self.add_meta(cur, self.META_WRITE_USER, owner)
+        self.add_meta(cur, self.META_READ_USER, owner)
+        self.add_meta(cur, self.META_SCHEMA_WRITE_USER, owner)
+        self.add_meta(cur, self.META_CONTENT_READ_USER, owner)
+        self.add_meta(cur, self.META_CONTENT_WRITE_USER, owner)
         
     
     # TODO: change API to pass conn/cur through for request handler hot-path
@@ -412,39 +413,26 @@ SELECT * FROM %(schema)s.%(table)s
         for k, v in cur:
             yield dict(k=k, v=v)
     
-    def add_meta(self, key, value):
+    def add_meta(self, cur, key, value):
         """Adds a metadata (key, value) pair.
         """
-        cur = None
-        try:
-            cur = self.get_connection().cursor()
-            cur.execute("""
+        cur.execute("""
 INSERT INTO %(schema)s.%(table)s
   (key, value)
 VALUES
   (%(key)s, %(value)s)
-;"""
-                % dict(schema=self._SCHEMA_NAME,
-                       table=self._TABLE_NAME,
-                       key=sql_literal(key),
-                       value=sql_literal(value)) )
+;
+""" % dict(schema=self._SCHEMA_NAME,
+           table=self._TABLE_NAME,
+           key=sql_literal(key),
+           value=sql_literal(value)
+           )
+                    )
             
-            self._dbc.commit()
-            
-        except psycopg2.IntegrityError:
-            # Ignore attempt to add a duplicate entry
-            self._dbc.rollback()
-        finally:
-            if cur is not None:
-                cur.close()
-    
-    def set_meta(self, key, value):
+    def set_meta(self, cur, key, value):
         """Sets a metadata (key, value) pair.
         """
-        cur = None
-        try:
-            cur = self.get_connection().cursor()
-            cur.execute("""
+        cur.execute("""
 DELETE FROM %(schema)s.%(table)s
 WHERE key=%(key)s
 ;
@@ -452,19 +440,15 @@ INSERT INTO %(schema)s.%(table)s
   (key, value)
 VALUES
   (%(key)s, %(value)s)
-;"""
-                % dict(schema=self._SCHEMA_NAME,
-                       table=self._TABLE_NAME,
-                       key=sql_literal(key),
-                       value=sql_literal(value)) )
+;
+""" % dict(schema=self._SCHEMA_NAME,
+           table=self._TABLE_NAME,
+           key=sql_literal(key),
+           value=sql_literal(value)
+           ) 
+                    )
             
-            self._dbc.commit()
-            
-        finally:
-            if cur is not None:
-                cur.close()
-    
-    def remove_meta(self, key, value=None):
+    def remove_meta(self, cur, key, value=None):
         """Removes a metadata (key, value) pair or all pairs that match on the
            key alone.
         """
@@ -472,22 +456,15 @@ VALUES
         if value:
             where += " AND value = %s" % sql_literal(value)
             
-        cur = None
-        try:
-            cur = self.get_connection().cursor()
-            cur.execute("""
+        cur.execute("""
 DELETE FROM %(schema)s.%(table)s
 %(where)s
-;"""
-                % dict(schema=self._SCHEMA_NAME,
-                       table=self._TABLE_NAME,
-                       where=where) )
-            
-            self._dbc.commit()
-        finally:
-            if cur is not None:
-                cur.close()
-    
+;
+""" % dict(schema=self._SCHEMA_NAME,
+           table=self._TABLE_NAME,
+           where=where
+           ) 
+                    )
     
     def _test_perm(self, cur, perm, roles):
         """Tests whether the user roles have a permission.

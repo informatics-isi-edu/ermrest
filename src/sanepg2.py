@@ -114,6 +114,7 @@ def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x):
     try:
         #web.debug('pooled_perform %s %s %s' % (databasename, bodyfunc, finalfunc))
         conn = pools[databasename].getconn()
+        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
         cur = conn.cursor()
         try:
             result = bodyfunc(conn, cur)
