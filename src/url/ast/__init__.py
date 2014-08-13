@@ -327,16 +327,17 @@ class Name (object):
     def validate(self, epath):
         """Validate name in epath context, raising exception on problems.
 
-           Name must be a column of path's current entity type.
-
-           TODO: generalize to ancestor references later.
+           Name must be a column of path's current entity type 
+           or alias-qualified column of ancestor path entity type.
         """
         table = epath.current_entity_table()
         col, base = self.resolve_column(epath._model, epath)
-        if base != epath:
-            raise NotImplementedError('Name ancestor column validation')
+        if base == epath:
+            return col, epath._path[-1]
+        elif base in epath.aliases:
+            return col, epath._path[epath.aliases[base]]
 
-        return col, epath._path[-1]
+        raise exception.ConflictModel('Referenced column %s not bound in entity path.' % (col.table))
 
     def sql_column(self, epath, elem):
         """Generate SQL column reference for name in epath elem context.
