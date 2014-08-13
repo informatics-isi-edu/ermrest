@@ -239,11 +239,11 @@ class Meta (Api):
             self.catalog.resolve(cur)
             self.enforce_write(cur, uri)
 
-            meta = self.catalog.manager.get_meta(self.key, self.value)
+            meta = self.catalog.manager.get_meta(cur, self.key, self.value)
             if not meta:
                 raise exception.rest.NotFound(uri)
         
-            self.catalog.manager.remove_meta(self.key, self.value)
+            self.catalog.manager.remove_meta(cur, self.key, self.value)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
