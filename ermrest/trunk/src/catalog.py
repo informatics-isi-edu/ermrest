@@ -66,10 +66,6 @@ class CatalogFactory (object):
            The database (config['database_name']) dbuser must be a 
            super user or have CREATEDB permissions.
         """
-        # Yes, this will fail here if not configured correctly
-        self._dbc = psycopg2.connect(dbname=config['database_name'],
-                             connection_factory=sanepg2.connection)        
-        
         
     def create(self):
         """Create a Catalog.
@@ -134,7 +130,7 @@ WHERE datname = %(dbname)s
             self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
     
     
-class Catalog (PooledConnection):
+class Catalog (object):
     """Provides basic catalog management.
     """
     
@@ -170,60 +166,22 @@ class Catalog (PooledConnection):
         self._factory = factory
         self._dbc = None
         self._model = None
+        self._dbname = descriptor.get(self._DBNAME)
 
-        pool_key = (self.descriptor[self._DBNAME],)
-        PooledConnection.__init__(self, pool_key)
-
-    def _new_connection(self):
-        """Create raw connection to be managed by parent pool class"""
-        return psycopg2.connect(dbname=self.descriptor[self._DBNAME],
-                                connection_factory=sanepg2.connection)
-        
-    def __del__(self):
-        if self._dbc:
-            self._dbc.close()
-            self._dbc = None
-        
-    def get_connection(self):
-        """Get connection from pool"""
-        # TODO: turn this into a @property
-        if not self._dbc:
-            self._dbc = self._get_pooled_connection()
-        return self._dbc
-
-    def discard_connection(self, conn):
-        """Discard connection from pool"""
-        assert conn  == self._dbc
-        try:
-            self._dbc.close()
-        except:
-            pass
-        self._dbc = None
-    
-    def release_connection(self, conn):
-        """Return connection to pool"""
-        assert conn  == self._dbc
-        self._put_pooled_connection(conn)
-        self._dbc = None
-    
-    def get_model_version(self, conn):
-        cur = conn.cursor()
+    def get_model_version(self, cur):
         cur.execute("""
 SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
 """ % dict(schema=self._SCHEMA_NAME, table=self._MODEL_VERSION_TABLE_NAME))
         self._model_version = cur.next()[0]
-        cur.close()
         return self._model_version
 
-    def get_model(self, conn=None):
+    def get_model(self, cur):
         # TODO: turn this into a @property
-        if conn is None:
-            conn = self.get_connection()
         if not self._model:
-            cache_key = (self.descriptor[self._DBNAME], self.get_model_version(conn))
+            cache_key = (self._dbname, self.get_model_version(cur))
             self._model = self.MODEL_CACHE.get(cache_key)
             if self._model is None:
-                self._model = introspect(conn)
+                self._model = introspect(cur)
                 self.MODEL_CACHE[cache_key] = self._model
         return self._model
     
@@ -236,9 +194,7 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
            Important: THIS OPERATION IS PERMANENT... unless you have backups ;)
         """
         # the database connection must be closed
-        if self._dbc:
-            self._dbc.close()
-            self._dbc = None
+        sanepg2.pools[self._dbname].closeall()
             
         # drop db cannot be called by a connection to the db, so the factory
         # must do it
@@ -253,18 +209,6 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
                 msg = str(ev)
                 continue
         raise RuntimeError(msg)
-    
-    
-    def is_initialized(self):
-        """Tests whether the catalog's database has been initialized.
-        
-           An initialized catalog's database has the ERMREST schema. If not 
-           initialized, the catalog does not have metadata and other policy
-           fields defined.
-        """
-        # TODO: turn this into a @property
-        return table_exists(self._dbc, self._SCHEMA_NAME, self._TABLE_NAME)
-    
     
     def init_meta(self, owner=None):
         """Initializes the Catalog metadata.
@@ -443,7 +387,8 @@ $$ LANGUAGE plpgsql;
         self.add_meta(self.META_CONTENT_WRITE_USER, owner)
         
     
-    def get_meta(self, key=None, value=None):
+    # TODO: change API to pass conn/cur through for request handler hot-path
+    def get_meta(self, cur, key=None, value=None):
         """Gets metadata fields, optionally filtered by attribute key or by 
            key and value pair, to test existence of specific pair.
         """
@@ -453,32 +398,19 @@ $$ LANGUAGE plpgsql;
             if value:
                 if hasattr(value, '__iter__'):
                     where += " AND value IN (%s)" % (
-                                    ','.join([sql_literal(v) for v in value]))
+                        ','.join([sql_literal(v) for v in value]))
                 else:
                     where += " AND value = %s" % sql_literal(value)
         
-        cur = None
-        try:
-            cur = self.get_connection().execute("""
+        cur.execute("""
 SELECT * FROM %(schema)s.%(table)s
 %(where)s
-;"""
-                % dict(schema=self._SCHEMA_NAME,
-                       table=self._TABLE_NAME,
-                       where=where) )
-            
-            meta = list()
-            for k, v in cur:
-                meta.append(dict(key=k, value=v))
-            self._dbc.commit()
-            return meta
-        except psycopg2.ProgrammingError:
-            self._dbc.rollback()
-            return list()
-        # BUG: other exceptions will not rollback??
-        finally:
-            if cur is not None:
-                cur.close()
+;""" % dict(schema=self._SCHEMA_NAME,
+            table=self._TABLE_NAME,
+            where=where) 
+                    )
+        for k, v in cur:
+            yield dict(k=k, v=v)
     
     def add_meta(self, key, value):
         """Adds a metadata (key, value) pair.
@@ -557,40 +489,40 @@ DELETE FROM %(schema)s.%(table)s
                 cur.close()
     
     
-    def _test_perm(self, perm, roles):
+    def _test_perm(self, cur, perm, roles):
         """Tests whether the user roles have a permission.
         """
-        return len(self.get_meta(perm, roles.union(self.ANONYMOUS))) > 0
+        return len(list(self.get_meta(cur, perm, roles.union(self.ANONYMOUS)))) > 0
                                   
-    def has_read(self, roles):
+    def has_read(self, cur, roles):
         """Tests whether the user roles have read permission.
         """
-        return self.is_owner(roles) or self._test_perm(self.META_READ_USER, roles)
+        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_READ_USER, roles)
     
-    def has_write(self, roles):
+    def has_write(self, cur, roles):
         """Tests whether the user roles have write permission.
         """
-        return self.is_owner(roles) or self._test_perm(self.META_WRITE_USER, roles)
+        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_WRITE_USER, roles)
     
-    def has_schema_write(self, roles):
+    def has_schema_write(self, cur, roles):
         """Tests whether the user roles have schema write permission.
         """
-        return self.is_owner(roles) or self._test_perm(self.META_SCHEMA_WRITE_USER, roles)
+        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_SCHEMA_WRITE_USER, roles)
                                   
-    def has_content_read(self, roles):
+    def has_content_read(self, cur, roles):
         """Tests whether the user roles have content read permission.
         """
-        return self.is_owner(roles) or self._test_perm(self.META_CONTENT_READ_USER, roles)
+        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_CONTENT_READ_USER, roles)
     
-    def has_content_write(self, roles):
+    def has_content_write(self, cur, roles):
         """Tests whether the user roles have content write permission.
         """
-        return self.is_owner(roles) or self._test_perm(self.META_CONTENT_WRITE_USER, roles)
+        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_CONTENT_WRITE_USER, roles)
     
-    def is_owner(self, roles):
+    def is_owner(self, cur, roles):
         """Tests whether the user role is owner.
         """
-        return len(self.get_meta(self.META_OWNER, roles))>0
+        return len(list(self.get_meta(cur, self.META_OWNER, roles)))>0
 
 
 def _random_name(prefix=''):

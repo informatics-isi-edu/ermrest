@@ -40,7 +40,8 @@ result before serialization commences.
 """
 
 import psycopg2
-
+import psycopg2.pool
+import web
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.
@@ -74,4 +75,69 @@ def pool(minconn, maxconn, database):
        The connections are from the customized connection factory in this module.
     """
     return psycopg2.pool.ThreadedConnectionPool(minconn, maxconn, database=database, connection_factory=connection)
+
+class PoolManager (object):
+    """Manage a set of database connection pools keyed by database name.
+
+    """
+    def __init__(self):
+        # map databasename -> pool
+        self.pools = dict()
+
+    def __getitem__(self, databasename):
+        """Lookup existing or create new pool for database on demand.
+
+           May fail transiently and caller should retry.
+
+        """
+        try:
+            return self.pools[databasename]
+        except KeyError:
+            # atomically get/set pool
+            newpool = pool(2, 4, databasename)
+            boundpool = self.pools.setdefault(databasename, newpool)
+            if boundpool is not newpool:
+                # someone beat us to it
+                newpool.closeall()
+            return boundpool
+
+pools = PoolManager()       
+
+
+def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x):
+    """Run bodyfunc(conn, cur) using pooling, commit, transform with finalfunc, clean up.
+
+       Automates handling of errors.
+    """
+    conn = None
+    cur = None
+    try:
+        #web.debug('pooled_perform %s %s %s' % (databasename, bodyfunc, finalfunc))
+        conn = pools[databasename].getconn()
+        cur = conn.cursor()
+        try:
+            result = bodyfunc(conn, cur)
+            conn.commit()
+            result = finalfunc(result)
+            if hasattr(result, 'next'):
+                # need to defer cleanup to after result is drained
+                for d in result:
+                    yield d
+            else:
+                yield result
+        except psycopg2.InterfaceError, e:
+            # reset bad connection
+            pools[databasename].putconn(conn, close=True)
+            conn = None
+            raise e
+        except:
+            conn.rollback()
+            web.debug('got e')
+            raise
+    finally:
+        if conn is not None:
+            #conn.commit()
+            if cur is not None:
+                cur.close()
+            pools[databasename].putconn(conn)
 
