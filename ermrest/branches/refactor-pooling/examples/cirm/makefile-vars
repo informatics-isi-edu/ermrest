@@ -1,0 +1,19 @@
+MICROS_SQL_FILES = \
+	setup.sql \
+	testdata.sql
+
+MICROS_EDIT_FILES= \
+	$(MICROS_SQL_FILES) \
+	makefile-rules \
+	makefile-vars 
+
+MICROS_FILES_INSTALL= \
+	$(MICROS_SQL_FILES:%=$(SHAREDIR)/examples/cirm/%)
+
+INSTALL_FILES += $(MICROS_FILES_INSTALL)
+
+INSTALL_DIRS += \
+	$(SHAREDIR)/examples/cirm
+
+EDIT_FILES += $(MICROS_EDIT_FILES:%=test/%)
+
