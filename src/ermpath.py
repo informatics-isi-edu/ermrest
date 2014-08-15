@@ -550,6 +550,47 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
+    def _sql_get_agg_attributes(self, allow_extra=True):
+        """Process attribute lists for aggregation APIs.
+        """
+        aggfunc_templates = dict(
+            min='min(%(attr)s)', 
+            max='max(%(attr)s)', 
+            cnt='count(%(attr)s)', 
+            cnt_d='count(DISTINCT %(attr)s)',
+            array='array_agg(%(attr)s)'
+            )
+
+        aggfunc_star_templates = dict(
+            cnt='count(*)'
+            )
+
+        aggregates = []
+        extras = []
+        
+        for attribute in self.attributes:
+            col, base = attribute.resolve_column(self.epath._model, self.epath)
+            sql_attr = sql_identifier(
+                attribute.alias is not None and str(attribute.alias) or str(col.name)
+                )
+
+            if hasattr(attribute, 'aggfunc'):
+                templates = col.is_star_column() and aggfunc_star_templates or aggfunc_templates
+
+                if attribute.alias is None:
+                    raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
+
+                if str(attribute.aggfunc) not in templates:
+                    raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
+
+                aggregates.append((templates[str(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
+            elif not allow_extra:
+                raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
+            else:
+                extras.append(sql_attr)
+
+        return aggregates, extras
+
     def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None):
         """Fetch resources.
 
@@ -1077,43 +1118,7 @@ class AttributeGroupPath (AnyPath):
             else:
                 groupkeys.append( sql_identifier(str(col.name)) )
 
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
-            if attribute.alias is not None:
-                sql_attr = str(attribute.alias)
-            else:
-                sql_attr = str(col.name)
-
-            sql_attr = sql_identifier(sql_attr)
-
-            if hasattr(attribute, 'aggfunc'):
-                if attribute.alias is None:
-                    raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
-
-                aggfunc_templates = dict(
-                    min='min(%(attr)s) AS %(attr)s', 
-                    max='max(%(attr)s) AS %(attr)s', 
-                    cnt='count(%(attr)s) AS %(attr)s', 
-                    cnt_d='count(DISTINCT %(attr)s) AS %(attr)s',
-                    array='array_agg(%(attr)s) AS %(attr)s'
-                    )
-
-                if str(attribute.aggfunc) not in aggfunc_templates:
-                    raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
-
-                if col.is_star_column():
-                    if str(attribute.aggfunc) == 'cnt':
-                        templ = 'count(*) AS %(attr)s'
-                    else:
-                        raise BadSyntax('Unsupported aggregate function "%s" for psuedo-column "*".' % attribute.aggfunc)
-                else:
-                    templ = aggfunc_templates[str(attribute.aggfunc)] 
-
-                sql_attr = templ % dict(attr=sql_attr)
-
-                aggregates.append(sql_attr)
-            else:
-                extras.append(sql_attr)
+        aggregates, extras = self._sql_get_agg_attributes()
 
         asql, sort = apath.sql_get(split_sort=True)
         if not sort:
@@ -1146,10 +1151,10 @@ GROUP BY %(groupkeys)s
         return sql % dict(
             asql=asql,
             sort=sort,
-            selects=', '.join(['g.%s' % k for k in groupkeys + aggregates]
+            selects=', '.join(['g.%s' % k for k in groupkeys + [ a[1] for a in aggregates]]
                               + [ 'e.%s' % e for e in extras ]),
             groupkeys=', '.join(groupkeys),
-            groupaggs=', '.join(groupkeys + aggregates),
+            groupaggs=', '.join(groupkeys + ["%s AS %s" % a for a in aggregates]),
             groupextras=', '.join(groupkeys + extras),
             joinons=' AND '.join([ 
                     '(g.%s IS NOT DISTINCT FROM e.%s)' % (k, k)
@@ -1276,45 +1281,8 @@ class AggregatePath (AnyPath):
 
         """
         apath = AttributePath(self.epath, self.attributes)
-        
-        aggregates = []
-
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
-            sql_attr = str(attribute.alias)
-            sql_attr = sql_identifier(sql_attr)
-
-            if hasattr(attribute, 'aggfunc'):
-                if attribute.alias is None:
-                    raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
-
-                aggfunc_templates = dict(
-                    min='min(%(attr)s) AS %(attr)s', 
-                    max='max(%(attr)s) AS %(attr)s', 
-                    cnt='count(%(attr)s) AS %(attr)s', 
-                    cnt_d='count(DISTINCT %(attr)s) AS %(attr)s',
-                    array='array_agg(%(attr)s) AS %(attr)s'
-                    )
-
-                if str(attribute.aggfunc) not in aggfunc_templates:
-                    raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
-
-                if col.is_star_column():
-                    if str(attribute.aggfunc) == 'cnt':
-                        templ = 'count(*) AS %(attr)s'
-                    else:
-                        raise BadSyntax('Unsupported aggregate function "%s" for psuedo-column "*".' % attribute.aggfunc)
-                else:
-                    templ = aggfunc_templates[str(attribute.aggfunc)]
-
-                sql_attr = templ % dict(attr=sql_attr)
-
-                aggregates.append(sql_attr)
-            else:
-                raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
-
+        aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
         asql, sort = apath.sql_get(split_sort=True)
-
         
         # a pure aggregate query has only group keys and aggregates
         sql = """
@@ -1323,7 +1291,7 @@ FROM ( %(asql)s ) s
 """
         return sql % dict(
             asql=asql,
-            aggs=', '.join(aggregates),
+            aggs=', '.join([ '%s AS %s' % a for a in aggregates]),
             )
 
 class QueryPath (object):
