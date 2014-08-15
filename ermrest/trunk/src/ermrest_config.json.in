@@ -16,7 +16,7 @@
       "clients_provider": "database", 
       "attributes_provider": "database", 
             
-      "handler_uri_usersession": null, 
+      "handler_uri_usersession": "/ermrest/authn/session", 
             
       "web_cookie_name": "ermrest", 
       "web_cookie_path": "/ermrest", 
