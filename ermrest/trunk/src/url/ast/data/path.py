@@ -311,8 +311,8 @@ class BinaryPredicate (Predicate):
             str(self.right_expr)
             )
     
-    def validate(self, epath):
-        Predicate.validate(self, epath)
+    def validate(self, epath, allow_star=False):
+        Predicate.validate(self, epath, allow_star=allow_star)
         if self.right_expr is None:
             raise TypeError('Operator %s requires right-hand value' % self.op)
 
@@ -340,8 +340,8 @@ class BinaryOrderedPredicate (BinaryPredicate):
 
 class BinaryTextPredicate (BinaryPredicate):
     
-    def validate(self, epath):
-        BinaryPredicate.validate(self, epath)
+    def validate(self, epath, allow_star=False):
+        BinaryPredicate.validate(self, epath, allow_star=allow_star)
         # TODO: test text op/column type type
 
 _ops = dict()
@@ -396,7 +396,7 @@ class TextsearchPredicate (BinaryPredicate):
     sqlop = '@@'
 
     def validate(self, epath):
-        BinaryPredicate.validate(self, epath)
+        BinaryPredicate.validate(self, epath, allow_star=True)
         # TODO: test right-hand expression as tsquery?
 
     def sql_where(self, epath, elem):
