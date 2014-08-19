@@ -340,9 +340,38 @@ class BinaryOrderedPredicate (BinaryPredicate):
 
 class BinaryTextPredicate (BinaryPredicate):
     
-    def validate(self, epath, allow_star=False):
+    def validate(self, epath, allow_star=True):
         BinaryPredicate.validate(self, epath, allow_star=allow_star)
         # TODO: test text op/column type type
+
+    def _sql_left_value(self):
+        """Generate SQL column value expression to allow overriding by subclasses."""
+        if str(self.left_col.type) == 'text':
+            return "t%d.%s" % (
+                self.left_elem.pos,
+                self.left_col.sql_name()
+                )
+        elif str(self.left_col.type) == 'tsvector':
+            if hasattr(self.left_col, 'sql_name_with_talias'):
+                return self.left_col.sql_name_with_talias('t%d' % self.left_elem.pos)
+            else:
+                return "t%d.%s" % (
+                    self.left_elem.pos,
+                    self.left_col.sql_name()
+                    )
+        else:
+            raise NotImplementedError('Operator %s on left column type %s' % (self.op, self.left_col.type))
+
+    def _sql_right_value(self):
+        return self.right_expr.sql_literal(model.Type('text'))
+
+    def sql_where(self, epath, elem):
+        return '%s %s %s' % (
+            self._sql_left_value(),
+            self.sqlop,
+            self._sql_right_value()
+            )
+
 
 _ops = dict()
 
@@ -392,41 +421,14 @@ class RegexpPredicate (BinaryTextPredicate):
     sqlop = '~*'
 
 @op('ts')
-class TextsearchPredicate (BinaryPredicate):
+class TextsearchPredicate (BinaryTextPredicate):
     sqlop = '@@'
 
-    def validate(self, epath):
-        BinaryPredicate.validate(self, epath, allow_star=True)
-        # TODO: test right-hand expression as tsquery?
+    def _sql_left_value(self):
+        return 'to_tsvector(%s)' % BinaryTextPredicate._sql_left_value(self)
 
-    def sql_where(self, epath, elem):
-        # NOTE, build a value index like this to accelerate these operations:
-
-        #   CREATE INDEX ON table USING gin ( (to_tsvector('english', colname)) );
-        
-        #   CREATE INDEX ON table USING gin ( (to_tsvector('english', colname1 || colname2 || ... || colnameN)) );
-        #   sort colnames lexicographically
-
-        if str(self.left_col.type) == 'text':
-            return "to_tsvector('english', t%d.%s) @@ to_tsquery('english', %s)" % (
-                self.left_elem.pos,
-                self.left_col.sql_name(),
-                self.right_expr.sql_literal(self.left_col.type)
-                )
-        elif str(self.left_col.type) == 'tsvector':
-            if hasattr(self.left_col, 'sql_name_with_talias'):
-                return "%s @@ to_tsquery('english'::regconfig, %s)" % (
-                    self.left_col.sql_name_with_talias('t%d' % self.left_elem.pos),
-                    self.right_expr.sql_literal(model.Type('text'))
-                    )
-            else:
-                return "t%d.%s @@ to_tsquery('english'::regconfig, %s)" % (
-                    self.left_elem.pos,
-                    self.left_col.sql_name(),
-                    self.right_expr.sql_literal(self.left_col.type)
-                    )
-        else:
-            raise NotImplementedError('text search on left column type %s' % self.left_col.type)
+    def _sql_right_value(self):
+        return 'to_tsquery(%s)' % BinaryTextPredicate._sql_right_value(self)
 
 def predicatecls(op):
     """Return predicate class corresponding to raw REST operator syntax string."""
