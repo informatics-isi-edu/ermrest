@@ -1061,7 +1061,8 @@ WHERE %(keymatches)s
         cur.execute("SELECT count(*) AS count FROM (%s) s" % equery)
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
-        cur.execut('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
+        table = self.epath.current_entity_table()
+        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(table.schema.name), sql_literal(table.name)))
         cur.execute(dquery)
 
 class AttributeGroupPath (AnyPath):
