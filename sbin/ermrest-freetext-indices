@@ -1,0 +1,86 @@
+#!/usr/bin/python
+
+import sys
+import web
+import psycopg2
+
+import ermrest
+import ermrest.sanepg2
+import ermrest.exception
+
+def catalog_auto_index(catalog, conn, cur, schema_names):
+    cur.execute("SELECT count(*) = 0 FROM pg_catalog.pg_extension WHERE extname = 'pg_trgm';")
+    if cur.next()[0]:
+        raise ValueError('Please run "CREATE EXTENSION pg_trgm" on database "%s" as Postgres superuser.' % catalog._dbname)
+
+    model = catalog.get_model(cur)
+    for sname in schema_names:
+        schema = model.lookup_schema(sname)
+        for table in schema.tables.values():
+            column = table.freetext_column()
+            cur.execute(column.textsearch_index_sql())
+            cur.execute(column.pg_trgm_index_sql())
+
+def usage():
+    sys.stderr.write("""
+usage: ermrest-freetext-indexes <catalog> <schema>...
+
+Run this utility under the deployed ERMrest daemon account to create
+database indices supporting free-text search via the '*' pseudo-column
+in the ERMrest web API.
+
+Required arguments are the catalog number and one or more schema
+names.  This utility will create two free-text search indices on each
+table found in each provided schema.
+
+Exit status:
+
+  0  success
+  1  command-line usage error
+  2  registry not configured
+  3  catalog not found
+  4  schema not found
+  5  other runtime errors
+
+"""
+                     )
+
+def main(argv):
+    if len(argv) >= 2:
+        try:
+            catalog_id = int(argv[0])
+        except ValueError:
+            sys.stderr.write("Invalid catalog ID '%s'.\n" % argv[0])
+            return 1
+
+        schema_names = argv[1:]
+    else:
+        sys.stderr.write("Catalog ID and at least one schema name are required arguments.\n")
+        return 1
+
+    if not ermrest.registry:
+        sys.stderr.write("ERMrest catalog registry not configured.")
+        return 2
+
+    result = ermrest.registry.lookup(catalog_id)
+    if not result:
+        sys.stderr.write("Catalog '%d' not found in registry.\n" % catalog_id)
+        return 3
+    catalog_descriptor = result[0]['descriptor']
+
+    catalog = ermrest.Catalog(ermrest.catalog_factory, catalog_descriptor)
+    
+    try:
+        ermrest.sanepg2.pooled_perform(catalog._dbname, lambda conn, cur: catalog_auto_index(catalog, conn, cur, schema_names), verbose=False).next()
+    except ermrest.exception.ConflictModel, e:
+        sys.stderr.write(str(e) + "\n")
+        return 4
+    except Exception, e:
+        sys.stderr.write(str(e)+ "\n")
+        return 5
+
+    return 0
+    
+
+if __name__ == '__main__':
+    sys.exit( main(sys.argv[1:]) )
