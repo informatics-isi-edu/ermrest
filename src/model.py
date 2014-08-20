@@ -760,7 +760,12 @@ class FreetextColumn (Column):
         self.srccols.sort(key=lambda c: c.position)
 
     def sql_name_with_talias(self, talias):
-        colnames = [ '%s.%s' % (talias, c.sql_name()) for c in self.srccols ]
+        if talias:
+            talias += '.'
+        else:
+            # allow fall-through without talias. prefix
+            talias = ''
+        colnames = [ '%s%s' % (talias, c.sql_name()) for c in self.srccols ]
         if colnames:
             return " || ' ' || ".join([ "COALESCE(%s::text,''::text)" % name for name in colnames ])
         else:
@@ -768,6 +773,32 @@ class FreetextColumn (Column):
 
     def is_star_column(self):
         return True
+
+    def textsearch_index_sql(self):
+        return """
+DROP INDEX IF EXISTS %(index)s ;
+CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin (
+  (to_tsvector('english'::regconfig, %(fulltext)s))
+);
+""" % dict(
+            schema=sql_identifier(self.table.schema.name),
+            table=sql_identifier(self.table.name),
+            index=sql_identifier("%s__tsvector_idx" % self.table.name),
+            fulltext=self.sql_name_with_talias(None)
+           )
+
+    def pg_trgm_index_sql(self):
+        return """
+DROP INDEX IF EXISTS %(index)s ;
+CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin (
+  (%(fulltext)s) gin_trgm_ops
+);
+""" % dict(
+            schema=sql_identifier(self.table.schema.name),
+            table=sql_identifier(self.table.name),
+            index=sql_identifier("%s__pgtrgm_idx" % self.table.name),
+            fulltext=self.sql_name_with_talias(None)
+           )
 
 class Unique (object):
     """A unique constraint."""

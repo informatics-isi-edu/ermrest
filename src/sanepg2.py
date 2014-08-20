@@ -106,7 +106,7 @@ class PoolManager (object):
 pools = PoolManager()       
 
 
-def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x):
+def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x, verbose=True):
     """Run bodyfunc(conn, cur) using pooling, commit, transform with finalfunc, clean up.
 
        Automates handling of errors.
@@ -137,9 +137,10 @@ def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x):
             # happens normally at end of result yielding sequence
             raise
         except:
-            et, ev, tb = sys.exc_info()
-            web.debug('got exception "%s" during sanepg2.pooled_perform()' % str(ev),
-                      traceback.format_exception(et, ev, tb))
+            if verbose:
+                et, ev, tb = sys.exc_info()
+                web.debug('got exception "%s" during sanepg2.pooled_perform()' % str(ev),
+                          traceback.format_exception(et, ev, tb))
             conn.rollback()
             raise
     finally:
