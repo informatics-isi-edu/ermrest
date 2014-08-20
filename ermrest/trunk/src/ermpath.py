@@ -856,7 +856,8 @@ WHERE %(keymatches)s
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
-        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self._path[-1].table.schema.name), sql_literal(self._path[-1].table.name)))
+        table = self.current_entity_table()
+        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(table.schema.name), sql_literal(table.name)))
         cur.execute(self.sql_delete())
         
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
