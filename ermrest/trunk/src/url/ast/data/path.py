@@ -340,27 +340,22 @@ class BinaryOrderedPredicate (BinaryPredicate):
 
 class BinaryTextPredicate (BinaryPredicate):
     
+    _sql_left_type = 'text'
+
     def validate(self, epath, allow_star=True):
         BinaryPredicate.validate(self, epath, allow_star=allow_star)
         # TODO: test text op/column type type
 
     def _sql_left_value(self):
         """Generate SQL column value expression to allow overriding by subclasses."""
-        if str(self.left_col.type) == 'text':
-            return "t%d.%s" % (
+        if hasattr(self.left_col, 'sql_name_with_talias'):
+            name = self.left_col.sql_name_with_talias('t%d' % self.left_elem.pos)
+        else:
+            name = "t%d.%s" % (
                 self.left_elem.pos,
                 self.left_col.sql_name()
                 )
-        elif str(self.left_col.type) == 'tsvector':
-            if hasattr(self.left_col, 'sql_name_with_talias'):
-                return self.left_col.sql_name_with_talias('t%d' % self.left_elem.pos)
-            else:
-                return "t%d.%s" % (
-                    self.left_elem.pos,
-                    self.left_col.sql_name()
-                    )
-        else:
-            raise NotImplementedError('Operator %s on left column type %s' % (self.op, self.left_col.type))
+        return "%s::%s" % (name, self._sql_left_type)
 
     def _sql_right_value(self):
         return self.right_expr.sql_literal(model.Type('text'))
