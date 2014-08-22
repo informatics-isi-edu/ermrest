@@ -581,7 +581,7 @@ class AnyPath (object):
                     raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
 
                 if str(attribute.aggfunc) not in templates:
-                    raise BadSyntax('Unknown aggregate function "%s".' % attribute.aggfunc)
+                    raise BadSyntax('Unknown or unsupported aggregate function "%s" applied to column "%s".' % (attribute.aggfunc, col.name))
 
                 aggregates.append((templates[str(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
             elif not allow_extra:
@@ -956,20 +956,20 @@ class AttributePath (AnyPath):
         
         for attribute in self.attributes:
             col, base = attribute.resolve_column(self.epath._model, self.epath)
-            if col.is_star_column():
-                if hasattr(attribute, 'aggfunc'):
-                    continue
-                else:
-                    raise BadSyntax('Psuedo-column "*" cannot be retrieved.')
-
+            
             if base == self.epath:
                 # column in final entity path element
-                select = "t%d.%s" % (len(self.epath._path) - 1, sql_identifier(col.name))
+                alias = "t%d" % (len(self.epath._path) - 1)
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
-                select = "t%d.%s" % (self.epath[base].pos, sql_identifier(col.name))
+                alias = "t%d" % self.epath[base].pos
             else:
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
+
+            if hasattr(col, 'sql_name_with_talias'):
+                select = col.sql_name_with_talias(alias)
+            else:
+                select = "%s.%s" % (alias, col.sql_name())
 
             if attribute.alias is not None:
                 if str(attribute.alias) in outputs:
@@ -980,7 +980,7 @@ class AttributePath (AnyPath):
                 if str(col.name) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % col.name)
                 outputs.add(str(col.name))
-                selects.append(select)
+                selects.append('%s AS %s' % (select, col.sql_name()))
 
         if self.sort:
             parts = []
