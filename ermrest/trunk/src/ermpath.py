@@ -52,7 +52,8 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
 
         elif content_type in [ 'application/json', 'application/x-json-stream' ]:
             for row in cur:
-                yield row[0] + '\n'
+                if row[0]:
+                    yield row[0] + '\n'
 
         elif content_type is tuple:
             for row in cur:
