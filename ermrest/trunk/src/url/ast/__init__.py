@@ -237,10 +237,13 @@ class Name (object):
              3. a relative 'n0:n1' may be a column in alias n0 of
                 current epath
 
-             4. a relative 'n0:n1' may be a column in a table in the
+             4. a relative 'n0:*' may be a freetext virtual column
+                in alias n0 of current epath
+
+             5. a relative 'n0:n1' may be a column in a table in the
                 model
 
-             5. any 'n0:n1:n2' must be a column in the model
+             6. any 'n0:n1:n2' must be a column in the model
 
            Raises exception.ConflictModel on failed resolution.
         """
@@ -267,6 +270,8 @@ class Name (object):
                 if n0 in epath.aliases:
                     if n1 in epath[n0].table.columns:
                         return (epath[n0].table.columns[n1], n0)
+                    elif self.nameparts[1] == '*':
+                        return (epath[n0].table.freetext_column(), n0)
                     else:
                         raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
 
