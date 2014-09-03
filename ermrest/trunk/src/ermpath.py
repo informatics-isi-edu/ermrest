@@ -523,7 +523,7 @@ RETURNING *
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
             cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
-            web.debug(upsert_sql)
+            #web.debug(upsert_sql)
             cur.execute(upsert_sql)
         except psycopg2.IntegrityError, e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
