@@ -52,8 +52,7 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
 
         elif content_type in [ 'application/json', 'application/x-json-stream' ]:
             for row in cur:
-                if row[0]:
-                    yield row[0] + '\n'
+                yield row[0] + '\n'
 
         elif content_type is tuple:
             for row in cur:
@@ -487,7 +486,7 @@ RETURNING *
             # TODO implement and use row_to_csv() stored procedure?
             pass
         elif content_type == 'application/json':
-            upsert_sql = "WITH %s SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q"
+            upsert_sql = "WITH %s SELECT COALESCE(array_to_json(array_agg(row_to_json(q)), True)::text, '[]') FROM (%s) q"
         elif content_type == 'application/x-json-stream':
             upsert_sql = "WITH %s SELECT row_to_json(q)::text FROM (%s) q"
         elif content_type in [ dict, tuple ]:
@@ -524,6 +523,7 @@ RETURNING *
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
             cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
+            web.debug(upsert_sql)
             cur.execute(upsert_sql)
         except psycopg2.IntegrityError, e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
