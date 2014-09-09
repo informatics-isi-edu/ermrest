@@ -60,7 +60,8 @@ def introspect(cur):
 SELECT
   current_database() AS table_catalog,
   nc.nspname AS table_schema,
-  c.relname AS table_name
+  c.relname AS table_name,
+  c.relkind AS table_kind
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
 LEFT JOIN pg_catalog.pg_attribute a ON (a.attrelid = c.oid)
@@ -68,7 +69,7 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND NOT pg_is_other_temp_schema(nc.oid) 
   AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
-GROUP BY nc.nspname, c.relname
+GROUP BY nc.nspname, c.relname, c.relkind
     '''
     
     SELECT_COLUMNS = '''
@@ -76,6 +77,7 @@ SELECT
   current_database() AS table_catalog,
   nc.nspname AS table_schema,
   c.relname AS table_name,
+  c.relkind AS table_kind,
   array_agg(a.attname::text ORDER BY a.attnum) AS column_names,
   array_agg(pg_get_expr(ad.adbin, ad.adrelid)::text ORDER BY a.attnum) AS default_values,
   array_agg(
@@ -124,7 +126,7 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND NOT a.attisdropped
   AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
-GROUP BY nc.nspname, c.relname
+GROUP BY nc.nspname, c.relname, c.relkind
     '''
     
     # Select the unique or primary key columns
@@ -218,7 +220,7 @@ GROUP BY
             schemas[(dname, sname)] = Schema(model, sname)
 
     cur.execute(SELECT_COLUMNS)
-    for dname, sname, tname, cnames, default_values, data_types, element_types in cur:
+    for dname, sname, tname, tkind, cnames, default_values, data_types, element_types in cur:
 
         cols = []
         for i in range(0, len(cnames)):
@@ -240,15 +242,15 @@ GROUP BY
         if (dname, sname) not in schemas:
             schemas[(dname, sname)] = Schema(model, sname)
         assert (dname, sname, tname) not in tables
-        tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols)
+        tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols, tkind)
 
     # also get empty tables
     cur.execute(SELECT_TABLES)
-    for dname, sname, tname in cur:
+    for dname, sname, tname, tkind in cur:
         if (dname, sname) not in schemas:
             schemas[(dname, sname)] = Schema(model, sname)
         if (dname, sname, tname) not in tables:
-            tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, [])
+            tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, [], tkind)
 
     #
     # Introspect uniques / primary key references, aggregated by constraint
@@ -445,9 +447,10 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns):
+    def __init__(self, schema, name, columns, kind):
         self.schema = schema
         self.name = name
+        self.kind = kind
         self.columns = dict()
         self.uniques = dict()
         self.fkeys = dict()
@@ -472,6 +475,15 @@ class Table (object):
         cols = self.columns.values()
         cols.sort(key=lambda c: c.position)
         return cols
+
+    def writable_kind(self):
+        """Return true if table is writable in SQL.
+
+           TODO: handle writable views some day?
+        """
+        if self.kind == 'r':
+            return True
+        return False
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)

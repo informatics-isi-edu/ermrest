@@ -250,6 +250,9 @@ class EntityElem (object):
         """
         if len(self.filters) > 0:
             raise BadSyntax('Entity filters not allowed during entity PUT.')
+
+        if not self.table.writable_kind():
+            raise ConflictModel('Entity %s is not writable.' % self.table)
         
         input_table = _random_name("input_data_")
         input_json_table = _random_name("input_json_")
@@ -861,10 +864,13 @@ WHERE %(keymatches)s
 
            conn: sanepg2 database connection to catalog
         """
+        table = self.current_entity_table()
+        if not table.writable_kind():
+            raise ConflictModel('Entity %s is not writable.' % table)
+        
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
-        table = self.current_entity_table()
         cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(table.schema.name), sql_literal(table.name)))
         cur.execute(self.sql_delete())
         
@@ -1021,6 +1027,9 @@ class AttributePath (AnyPath):
             equery = self.epath.sql_get()
 
         etable = self.epath.current_entity_table()
+
+        if not etable.writable_kind():
+            raise ConflictModel('Entity %s is not writable.' % etable)
 
         mkcols = set()
         for unique in etable.uniques:
