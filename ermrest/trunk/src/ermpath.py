@@ -792,11 +792,14 @@ WHERE %(pred)s
         selects = selects or ("t%d.*" % (len(self._path) - 1))
 
         pkeys = self._path[-1].table.uniques.keys()
-        pkeys.sort(key=lambda k: len(k))
-        shortest_pkey = self._path[-1].table.uniques[pkeys[0]]
+        if pkeys:
+            pkeys.sort(key=lambda k: len(k))
+            shortest_pkey = self._path[-1].table.uniques[pkeys[0]].columns
+        else:
+            shortest_pkey = self._path[-1].table.columns_in_order()
         distinct_on_cols = [ 
             't%d.%s' % (len(self._path) - 1, sql_identifier(c.name))
-             for c in shortest_pkey.columns
+             for c in shortest_pkey
             ]
 
         tables = [ elem.sql_table_elem() for elem in self._path ]
