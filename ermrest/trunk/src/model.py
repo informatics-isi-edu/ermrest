@@ -609,7 +609,12 @@ SELECT _ermrest.model_change_event();
             foreign_keys=[
                 fkr.prejson()
                 for fk in self.fkeys.values() for fkr in fk.references.values()
-                ]
+                ],
+            kind={
+                'r':'table', 
+                'f':'foreign_table',
+                'v':'view'
+                }.get(self.kind, 'unknown')
             )
 
     def sql_name(self):
