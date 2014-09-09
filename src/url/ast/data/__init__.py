@@ -295,7 +295,7 @@ class AttributeGroup (Api):
         def body(conn, cur):
             input_data.seek(0) # rewinds buffer, in case of retry
             self.catalog.resolve(cur)
-            self.enforce_content_write(uri)
+            self.enforce_content_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
             agpath = self.resolve(model)
             return agpath.put(conn,
