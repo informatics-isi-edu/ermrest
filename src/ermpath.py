@@ -141,7 +141,8 @@ class EntityElem (object):
         """Generate SQL condition for joining this element to the epath.
 
         """
-        assert self.keyref
+        if not self.keyref:
+            raise NotImplementedError('self.keyref')
 
         ltable, lcnames, rcnames, refop = self._link_parts()
 
@@ -277,7 +278,8 @@ class EntityElem (object):
             mkcol_aliases = dict()
             nmkcol_aliases = dict()
 
-        assert len(mkcols) > 0
+        if len(mkcols) == 0:
+            raise ConflictModel('PUT not supported on entities without key constraints.')
         
         skip_key_tests = False
 
@@ -677,7 +679,8 @@ class EntityPath (AnyPath):
 
            Optionally set alias for the root.
         """
-        assert self._path is None
+        if not self._path is None:
+            raise NotImplementedError('self._path')
         self._path = [ EntityElem(self, alias, table, 0) ]
         if alias is not None:
             self.aliases[alias] = 0
@@ -756,7 +759,8 @@ WHERE %(pred)s
            the lalias selects a left-hand table instance other than
            the right-most table prior to extension.
         """
-        assert self._path
+        if not self._path:
+            raise NotImplementedError('self._path')
         rpos = len(self._path)
 
         if refop == '@=':
