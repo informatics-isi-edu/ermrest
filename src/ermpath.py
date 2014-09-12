@@ -625,6 +625,7 @@ class AnyPath (object):
         # TODO: refactor this common code between 
 
         sql = self.sql_get()
+        #web.debug(sql)
 
         if limit is not None:
             sql += (' LIMIT %d' % limit)
@@ -780,7 +781,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, sort=None):
+    def sql_get(self, selects=None, sort=None, distinct_on=True):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -817,11 +818,11 @@ WHERE %(pred)s
 
         sql = """
 SELECT 
-  DISTINCT ON (%(distinct_on)s)
+  %(distinct_on)s
   %(selects)s
 FROM %(tables)s
 %(where)s
-""" % dict(distinct_on = ', '.join(distinct_on_cols),
+""" % dict(distinct_on = distinct_on and ('DISTINCT ON (%s)' % ', '.join(distinct_on_cols)) or '',
            selects     = selects,
            tables      = ' JOIN '.join(tables),
            where       = wheres and ('WHERE ' + ' AND '.join(['(%s)' % w for w in wheres])) or '',
@@ -947,7 +948,7 @@ class AttributePath (AnyPath):
         """
         self.sort = sort
 
-    def sql_get(self, split_sort=False):
+    def sql_get(self, split_sort=False, distinct_on=True):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1013,9 +1014,9 @@ class AttributePath (AnyPath):
 
         if split_sort:
             # let the caller compose the query and the sort clause
-            return (self.epath.sql_get(selects=selects), self.sort)
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on), self.sort)
         else:
-            return self.epath.sql_get(selects=selects, sort=self.sort)
+            return self.epath.sql_get(selects=selects, sort=self.sort, distinct_on=distinct_on)
 
     def sql_delete(self, del_columns, equery=None):
         """Generate SQL statement to delete the attributes described by this apath.
@@ -1139,7 +1140,7 @@ class AttributeGroupPath (AnyPath):
 
         aggregates, extras = self._sql_get_agg_attributes()
 
-        asql, sort = apath.sql_get(split_sort=True)
+        asql, sort = apath.sql_get(split_sort=True, distinct_on=False)
         if not sort:
             sort = ''
 
