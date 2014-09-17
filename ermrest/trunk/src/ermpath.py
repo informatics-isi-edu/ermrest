@@ -72,6 +72,27 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
         
     return row_thunk
 
+def notify_data_change(cur, table):
+    """Update data version information after possible change to table.
+
+       Conservatively updates version for any dependent tables too.
+    """
+    tables = set()
+
+    def expand_table(t1):
+        if t1 in tables:
+            # don't re-expand tables in event of a cyclic foreign key pattern (weird but possible in SQL)
+            return
+        tables.add(t1)
+        for unique in t1.uniques.values():
+            for ftable in unique.table_references:
+                expand_table(ftable)
+
+    expand_table(table)
+
+    for table in tables:
+        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(table.schema.name), sql_literal(table.name)))
+
 
 class EntityElem (object):
     """Wrapper for instance of entity table in path.
@@ -527,7 +548,7 @@ RETURNING *
 
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
-            cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(self.table.schema.name), sql_literal(self.table.name)))
+            notify_data_change(cur, self.table)
             #web.debug(upsert_sql)
             cur.execute(upsert_sql)
         except psycopg2.IntegrityError, e:
@@ -872,7 +893,7 @@ WHERE %(keymatches)s
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
-        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(table.schema.name), sql_literal(table.name)))
+        notify_data_change(cur, table)
         cur.execute(self.sql_delete())
         
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
@@ -1081,7 +1102,7 @@ WHERE %(keymatches)s
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
         table = self.epath.current_entity_table()
-        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(table.schema.name), sql_literal(table.name)))
+        notify_data_change(cur, table)
         cur.execute(dquery)
 
 class AttributeGroupPath (AnyPath):
