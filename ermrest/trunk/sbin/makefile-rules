@@ -2,4 +2,5 @@
 $(SBINDIR)/%: sbin/%
 	$(INSTALL_SCRIPT) -o root -g root -m a+rx -R -D $< $@
 
-
+$(CRONDAILYDIR)/%: $(SBINDIR)/%
+	ln -s $< $@
