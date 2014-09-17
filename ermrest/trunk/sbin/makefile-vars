@@ -6,7 +6,8 @@ SBIN_FILES= \
 	ermrest-registry-deploy \
 	ermrest-registry-manage \
 	ermrest-catalog-manage \
-	ermrest-freetext-indices
+	ermrest-freetext-indices \
+	ermrest-db-work
 
 SBIN_EDIT_FILES= \
 	$(SBIN_FILES) \

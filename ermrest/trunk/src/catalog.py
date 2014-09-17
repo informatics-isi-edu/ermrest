@@ -256,8 +256,6 @@ DECLARE
 
   resultbool boolean;
   trigger_txid bigint;
-  previous_txid bigint;
-  snapshot txid_snapshot;
 
 BEGIN
 
@@ -270,17 +268,8 @@ BEGIN
 
   IF NOT resultbool THEN
 
-    SELECT txid_current_snapshot() INTO snapshot;
-
-    SELECT max(snap_txid) INTO previous_txid
-    FROM %(schema)s.%(table)s
-    WHERE snap_txid < txid_snapshot_xmin(snapshot) ;
-
     INSERT INTO %(schema)s.%(table)s (snap_txid)
       SELECT trigger_txid ;
-
-    DELETE FROM %(schema)s.%(table)s 
-    WHERE snap_txid < previous_txid ;
 
   END IF;
 
@@ -324,8 +313,6 @@ DECLARE
 
   resultbool boolean;
   trigger_txid bigint;
-  previous_txid bigint;
-  snapshot txid_snapshot;
 
 BEGIN
 
@@ -340,21 +327,8 @@ BEGIN
 
   IF NOT resultbool THEN
 
-    SELECT txid_current_snapshot() INTO snapshot;
-
-    SELECT max(snap_txid) INTO previous_txid
-    FROM %(schema)s.%(table)s
-    WHERE "schema" = sname
-      AND "table" = tname
-      AND snap_txid < txid_snapshot_xmin(snapshot) ;
-
     INSERT INTO %(schema)s.%(table)s ("schema", "table", snap_txid)
       SELECT sname, tname, trigger_txid ;
-
-    DELETE FROM %(schema)s.%(table)s 
-    WHERE "schema" = sname
-      AND "table" = tname
-      AND snap_txid < previous_txid ;
 
   END IF;
 
