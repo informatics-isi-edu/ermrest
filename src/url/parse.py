@@ -55,6 +55,7 @@ def p_apis(p):
              | tablecomment
              | columns 
              | column
+             | columncomment
              | keys 
              | key
              | foreignkeys 
@@ -414,6 +415,9 @@ def p_column(p):
         raise ParseError(p[4], 'Qualified column name not allowed: ')
     p[0] = p[1].column(p[4])
 
+def p_columncomment(p):
+    """columncomment : column '/' COMMENT"""
+    p[0] = p[1].comment()
 
 def p_keys(p):
     """keys : tableslash KEY slashopt """

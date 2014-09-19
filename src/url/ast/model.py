@@ -212,23 +212,34 @@ class Tables (Api):
 
         return self.perform(body, post_commit)
 
-class TableComment (Api):
-    """A specific table's comment."""
+def post_commit_200_OK(ignore):
+    web.ctx.status = '200 OK'
+    return ''
+
+class Comment (Api):
+    """A specific object's comment.
+
+       This is a hack to reuse code for Table and Column comment handling.
+    """
     
     supported_content_types = ['text/plain']
     default_content_type = supported_content_types[0]
 
-    def __init__(self, table):
-        Api.__init__(self, table.schema.catalog)
-        self.table = table
-        self.comment = None
+    def __init__(self, catalog):
+        Api.__init__(self, catalog)
+
+    def GET_body(self, conn, cur, uri):
+        """Must return a tuple with final element being object that is commented"""
+        raise NotImplementedError()
 
     def GET(self, uri):
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
 
-        def post_commit(table):
-            if table.comment is None:
-                raise exception.rest.NotFound('comment on table "%s"' % table)
+        def post_commit(results):
+            obj = results[-1]
+
+            if obj.comment is None:
+                raise exception.rest.NotFound('comment on "%s"' % obj)
 
             self.set_http_etag( self.catalog.manager._model_version )
             self.emit_headers()
@@ -237,35 +248,62 @@ class TableComment (Api):
                 return ''
             else:
                 web.header('Content-Type', content_type)
-                response = table.comment and (str(table.comment) + '\n') or ''
+                response = obj.comment is not None and (str(obj.comment) + '\n') or ''
                 web.header('Content-Length', len(response))
                 return response
 
-        return self.perform(lambda conn, cur: self.table.GET_body(conn, cur, uri), post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
+
+    def SET_body(self, conn, cur, getresults, comment):
+        raise NotImplementedError()
 
     def PUT(self, uri):
         comment = web.ctx.env['wsgi.input'].read()
 
         def body(conn, cur):
-            table = self.table.GET_body(conn, cur, uri)
-            table.set_comment(conn, cur, comment)
+            self.SET_body(conn, cur, self.GET_body(conn, cur, uri), comment)
 
-        def post_commit(ignore):
-            web.ctx.status = '200 OK'
-            return ''
-
-        return self.perform(body, post_commit)
+        return self.perform(body, post_commit_200_OK)
     
     def DELETE(self, uri):
         def body(conn, cur):
-            table = self.table.GET_body(conn, cur, uri)
-            table.set_comment(conn, cur, None)
+            self.SET_body(conn, cur, self.GET_body(conn, cur, uri), None)
 
-        def post_commit(ignore):
-            web.ctx.status = '200 OK'
-            return ''
+        return self.perform(body, post_commit_200_OK)       
 
-        return self.perform(body, post_commit)       
+
+class TableComment (Comment):
+    """A specific table's comment."""
+    
+    def __init__(self, table):
+        Comment.__init__(self, table.schema.catalog)
+        self.table = table
+
+    def GET_body(self, conn, cur, uri):
+        return ( self.table.GET_body(conn, cur, uri), )
+
+    def SET_body(self, conn, cur, getresults, comment):
+        table = getresults[0]
+        table.set_comment(conn, cur, comment)
+
+
+class ColumnComment (TableComment):
+    """A specific column's comment."""
+    
+    def __init__(self, column):
+        TableComment.__init__(self, column.table)
+        self.column = column
+
+    def GET_body(self, conn, cur, uri):
+        table = TableComment.GET_body(self, conn, cur, uri)[0]
+        try:
+            return (table, table.columns[str(self.column.name)])
+        except KeyError:
+            raise exception.rest.NotFound('column "%s"' % self.column.name)
+
+    def SET_body(self, conn, cur, getresults, comment):
+        table, column = getresults
+        table.set_column_comment(conn, cur, column, comment)
 
 
 class Table (Api):
@@ -410,6 +448,9 @@ class Column (Columns):
     def __init__(self, table, name):
         Columns.__init__(self, table)
         self.name = name
+
+    def comment(self):
+        return ColumnComment(self)
 
     def GET_post_commit(self, columns):
         columns = dict([ (c.name, c) for c in columns ])
