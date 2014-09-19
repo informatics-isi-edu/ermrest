@@ -198,7 +198,7 @@ class Tables (Api):
         try:
             tabledoc = json.load(web.ctx.env['wsgi.input'])
         except:
-            raise exception.BadData('Could not deserialize JSON input.')
+            raise exception.rest.BadRequest('Could not deserialize JSON input.')
 
         def body(conn, cur):
             self.catalog.resolve(cur)
@@ -391,7 +391,7 @@ class Columns (Api):
         try:
             columndoc = json.load(web.ctx.env['wsgi.input'])
         except:
-            raise exception.BadData('Could not deserialize JSON input.')
+            raise exception.rest.BadRequest('Could not deserialize JSON input.')
 
         def body(conn, cur):
             self.catalog.resolve(cur)
@@ -415,7 +415,7 @@ class Column (Columns):
         columns = dict([ (c.name, c) for c in columns ])
         column_name = str(self.name)
         if column_name not in columns:
-            raise exception.NotFound('column "%s"' % column_name)
+            raise exception.rest.NotFound('column "%s"' % column_name)
         else:
             column = columns[column_name]
 
@@ -440,7 +440,7 @@ class Column (Columns):
         def body(conn, cur):
             self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn)
+            table = self.table.GET_body(conn, cur, uri)
             table.delete_column(conn, cur, str(self.name))
 
         def post_commit(ignore):
@@ -480,7 +480,7 @@ class Keys (Api):
         try:
             keydoc = json.load(web.ctx.env['wsgi.input'])
         except:
-            raise exception.BadData('Could not deserialize JSON input.')
+            raise exception.rest.BadRequest('Could not deserialize JSON input.')
         
         def body(conn, cur):
             self.catalog.resolve(cur)
@@ -505,10 +505,10 @@ class Key (Keys):
         try:
             cols = [ table.columns[str(c)] for c in self.columns ]
         except (KeyError), te:
-            raise exception.NotFound('column "%s"' % str(te))
+            raise exception.rest.NotFound('column "%s"' % str(te))
         fs = frozenset(cols)
         if fs not in table.uniques:
-            raise exception.NotFound('key (%s)' % (','.join([ str(c) for c in cols])))
+            raise exception.rest.NotFound('key (%s)' % (','.join([ str(c) for c in cols])))
         return table, table.uniques[fs]
         
     def GET_post_commit(self, tup):
@@ -574,7 +574,7 @@ class Foreignkeys (Api):
         try:
             keydoc = json.load(web.ctx.env['wsgi.input'])
         except:
-            raise exception.BadData('Could not deserialize JSON input.')
+            raise exception.rest.BadRequest('Could not deserialize JSON input.')
         
         def body(conn, cur):
             self.catalog.resolve(cur)
@@ -606,10 +606,10 @@ class Foreignkey (Api):
         try:
             cols = [ table.columns[str(c)] for c in self.columns ]
         except (KeyError), te:
-            raise exception.NotFound('column "%s"' % str(te))
+            raise exception.rest.NotFound('column "%s"' % str(te))
         fs = frozenset(cols)
         if fs not in table.fkeys:
-            raise exception.NotFound('foreign key (%s)' % (','.join([ str(c) for c in cols])))
+            raise exception.rest.NotFound('foreign key (%s)' % (','.join([ str(c) for c in cols])))
         return table, table.fkeys[fs]
 
     def GET(self, uri):
