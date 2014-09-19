@@ -212,6 +212,62 @@ class Tables (Api):
 
         return self.perform(body, post_commit)
 
+class TableComment (Api):
+    """A specific table's comment."""
+    
+    supported_content_types = ['text/plain']
+    default_content_type = supported_content_types[0]
+
+    def __init__(self, table):
+        Api.__init__(self, table.schema.catalog)
+        self.table = table
+        self.comment = None
+
+    def GET(self, uri):
+        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
+
+        def post_commit(table):
+            if table.comment is None:
+                raise exception.rest.NotFound('comment on table "%s"' % table)
+
+            self.set_http_etag( self.catalog.manager._model_version )
+            self.emit_headers()
+            if self.http_is_cached():
+                web.ctx.status = '304 Not Modified'
+                return ''
+            else:
+                web.header('Content-Type', content_type)
+                response = table.comment and (str(table.comment) + '\n') or ''
+                web.header('Content-Length', len(response))
+                return response
+
+        return self.perform(lambda conn, cur: self.table.GET_body(conn, cur, uri), post_commit)
+
+    def PUT(self, uri):
+        comment = web.ctx.env['wsgi.input'].read()
+
+        def body(conn, cur):
+            table = self.table.GET_body(conn, cur, uri)
+            table.set_comment(conn, cur, comment)
+
+        def post_commit(ignore):
+            web.ctx.status = '200 OK'
+            return ''
+
+        return self.perform(body, post_commit)
+    
+    def DELETE(self, uri):
+        def body(conn, cur):
+            table = self.table.GET_body(conn, cur, uri)
+            table.set_comment(conn, cur, None)
+
+        def post_commit(ignore):
+            web.ctx.status = '200 OK'
+            return ''
+
+        return self.perform(body, post_commit)       
+
+
 class Table (Api):
     """A specific table by name."""
     
@@ -226,6 +282,10 @@ class Table (Api):
         Api.__init__(self, self.catalog)
         self.schema = schema
         self.name = name
+
+    def comment(self):
+        """The comment for this table."""
+        return TableComment(self)
 
     def columns(self):
         """The column set for this table."""
