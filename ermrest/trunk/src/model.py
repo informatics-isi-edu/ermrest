@@ -113,7 +113,10 @@ SELECT
           ELSE 'USER-DEFINED'::text
         END
     END::text
-    ORDER BY a.attnum) AS element_types
+    ORDER BY a.attnum) AS element_types,
+  array_agg(
+    col_description(c.oid, a.attnum)
+    ORDER BY a.attnum) AS comments
 FROM pg_catalog.pg_attribute a
 JOIN pg_catalog.pg_class c ON (a.attrelid = c.oid)
 JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
@@ -222,7 +225,7 @@ GROUP BY
             schemas[(dname, sname)] = Schema(model, sname)
 
     cur.execute(SELECT_COLUMNS)
-    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types in cur:
+    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types, comments in cur:
 
         cols = []
         for i in range(0, len(cnames)):
@@ -236,7 +239,7 @@ GROUP BY
             # Translate default_value
             default_value = pg_default_value(base_type, default_values[i])
 
-            col = Column(cnames[i], i, base_type, default_value)
+            col = Column(cnames[i], i, base_type, default_value, comments[i])
             cols.append( col )
             columns[(dname, sname, tname, cnames[i])] = col
         
@@ -532,15 +535,18 @@ SELECT _ermrest.model_change_event();
 """ % dict(sname=sql_identifier(sname),
            tname=sql_identifier(tname),
            clauses=',\n'.join(clauses),
-           comment=sql_literal(comment)
+           comment=sql_literal(comment),
            )
                     )
 
+        for column in columns:
+            if column.comment is not None:
+                table.set_column_comment(conn, cur, column, column.comment)
+
         return table
 
-    def alter_table(self, conn, alterclause):
+    def alter_table(self, conn, cur, alterclause):
         """Generic ALTER TABLE ... wrapper"""
-        cur = conn.cursor()
         cur.execute("""
 ALTER TABLE %s.%s  %s ;
 SELECT _ermrest.model_change_event();
@@ -549,8 +555,6 @@ SELECT _ermrest.model_change_event();
        alterclause
        )
                     )
-        cur.close()
-        conn.commit()
 
     def set_comment(self, conn, cur, comment):
         """Set comment on table."""
@@ -563,23 +567,36 @@ SELECT _ermrest.model_change_event();
            )
                     )
 
-    def add_column(self, conn, columndoc):
+    def set_column_comment(self, conn, cur, column, comment):
+        """Set comment on table column."""
+        cur.execute("""
+COMMENT ON COLUMN %(sname)s.%(tname)s.%(cname)s IS %(comment)s;
+SELECT _ermrest.model_change_event();
+""" % dict(sname=sql_identifier(str(self.schema.name)),
+           tname=sql_identifier(str(self.name)),
+           cname=sql_identifier(str(column.name)),
+           comment=sql_literal(comment)
+           )
+                    )
+
+    def add_column(self, conn, cur, columndoc):
         """Add column to table."""
         # new column always goes on rightmost position
         position = len(self.columns)
         column = Column.fromjson_single(columndoc, position)
         if column.name in self.columns:
             raise exception.ConflictModel('Column %s already exists in table %s:%s.' % (column.name, self.schema.name, self.name))
-        self.alter_table(conn, 'ADD COLUMN %s' % column.sql_def())
+        self.alter_table(conn, cur, 'ADD COLUMN %s' % column.sql_def())
+        self.set_column_comment(conn, cur, column, column.comment)
         self.columns[column.name] = column
         column.table = self
         return column
 
-    def delete_column(self, conn, cname):
+    def delete_column(self, conn, cur, cname):
         """Delete column from table."""
         if cname not in self.columns:
             raise exception.NotFound('column %s in table %s:%s' % (cname, self.schema.name, self.name))
-        self.alter_table(conn, 'DROP COLUMN %s' % sql_identifier(cname))
+        self.alter_table(conn, cur, 'DROP COLUMN %s' % sql_identifier(cname))
         del self.columns[cname]
                     
     def add_unique(self, conn, udoc):
@@ -694,12 +711,13 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value):
+    def __init__(self, name, position, type, default_value, comment=None):
         self.table = None
         self.name = name
         self.position = position
         self.type = type
         self.default_value = default_value
+        self.comment = comment
     
     def __str__(self):
         return ':%s:%s:%s' % (
@@ -730,11 +748,13 @@ class Column (object):
     @staticmethod
     def fromjson_single(columndoc, position):
         ctype = columndoc['type']
+        comment = columndoc.get('comment', None)
         return Column(
             columndoc['name'],
             position,
             Type(ctype),
-            pg_default_value(ctype, columndoc['default'])
+            pg_default_value(ctype, columndoc['default']),
+            comment
             )
 
     @staticmethod
@@ -748,7 +768,8 @@ class Column (object):
         return dict(
             name=str(self.name), 
             type=str(self.type),
-            default=self.default_value
+            default=self.default_value,
+            comment=self.comment
             )
 
     def prejson_ref(self):
