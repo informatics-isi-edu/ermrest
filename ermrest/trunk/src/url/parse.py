@@ -52,6 +52,7 @@ def p_apis(p):
              | tablesslash
              | table
              | tableslash
+             | tablecomment
              | columns 
              | column
              | keys 
@@ -398,6 +399,10 @@ def p_table(p):
 def p_table2(p):
     """tableslash : table '/' """
     p[0] = p[1]
+
+def p_tablecomment(p):
+    """tablecomment : tableslash COMMENT """
+    p[0] = p[1].comment()
 
 def p_columns(p):
     """columns : tableslash COLUMN slashopt """

@@ -64,6 +64,7 @@ keywords = [
     'catalog',
     'ciregexp',
     'column',
+    'comment',
     'desc',
     'entity',
     'foreignkey',

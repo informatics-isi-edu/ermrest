@@ -61,7 +61,8 @@ SELECT
   current_database() AS table_catalog,
   nc.nspname AS table_schema,
   c.relname AS table_name,
-  c.relkind AS table_kind
+  c.relkind AS table_kind,
+  obj_description(c.oid) AS table_comment
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
 LEFT JOIN pg_catalog.pg_attribute a ON (a.attrelid = c.oid)
@@ -69,7 +70,7 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND NOT pg_is_other_temp_schema(nc.oid) 
   AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
-GROUP BY nc.nspname, c.relname, c.relkind
+GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
     
     SELECT_COLUMNS = '''
@@ -78,6 +79,7 @@ SELECT
   nc.nspname AS table_schema,
   c.relname AS table_name,
   c.relkind AS table_kind,
+  obj_description(c.oid) AS table_comment,
   array_agg(a.attname::text ORDER BY a.attnum) AS column_names,
   array_agg(pg_get_expr(ad.adbin, ad.adrelid)::text ORDER BY a.attnum) AS default_values,
   array_agg(
@@ -126,7 +128,7 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND NOT a.attisdropped
   AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
-GROUP BY nc.nspname, c.relname, c.relkind
+GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
     
     # Select the unique or primary key columns
@@ -220,7 +222,7 @@ GROUP BY
             schemas[(dname, sname)] = Schema(model, sname)
 
     cur.execute(SELECT_COLUMNS)
-    for dname, sname, tname, tkind, cnames, default_values, data_types, element_types in cur:
+    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types in cur:
 
         cols = []
         for i in range(0, len(cnames)):
@@ -242,15 +244,15 @@ GROUP BY
         if (dname, sname) not in schemas:
             schemas[(dname, sname)] = Schema(model, sname)
         assert (dname, sname, tname) not in tables
-        tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols, tkind)
+        tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols, tkind, tcomment)
 
     # also get empty tables
     cur.execute(SELECT_TABLES)
-    for dname, sname, tname, tkind in cur:
+    for dname, sname, tname, tkind, tcomment in cur:
         if (dname, sname) not in schemas:
             schemas[(dname, sname)] = Schema(model, sname)
         if (dname, sname, tname) not in tables:
-            tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, [], tkind)
+            tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, [], tkind, tcomment)
 
     #
     # Introspect uniques / primary key references, aggregated by constraint
@@ -427,17 +429,14 @@ class Schema (object):
                     ])
             )
 
-    def delete_table(self, conn, tname):
+    def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""
         if tname not in self.tables:
             raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
-        cur = conn.cursor()
         cur.execute("""
 DROP TABLE %s.%s ;
 SELECT _ermrest.model_change_event();
 """ % (sql_identifier(self.name), sql_identifier(tname)))
-        cur.close()
-        conn.commit()
         del self.tables[tname]
 
 class Table (object):
@@ -447,10 +446,11 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns, kind):
+    def __init__(self, schema, name, columns, kind, comment=None):
         self.schema = schema
         self.name = name
         self.kind = kind
+        self.comment = comment
         self.columns = dict()
         self.uniques = dict()
         self.fkeys = dict()
@@ -489,7 +489,7 @@ class Table (object):
         return json.dumps(self.prejson(), indent=2)
 
     @staticmethod
-    def create_fromjson(conn, schema, tabledoc):
+    def create_fromjson(conn, cur, schema, tabledoc):
         sname = tabledoc.get('schema_name', str(schema.name))
         if sname != str(schema.name):
             raise exception.ConflictModel('JSON schema name %s does not match URL schema name %s' % (sname, schema.name))
@@ -502,8 +502,13 @@ class Table (object):
         if tname in schema.tables:
             raise exception.ConflictModel('Table %s already exists in schema %s.' % (tname, sname))
 
+        kind = tabledoc.get('kind', 'table')
+        if kind != 'table':
+            raise exception.ConflictData('Kind "%s" not supported in table creation' % kind)
+
         columns = Column.fromjson(tabledoc.get('column_definitions',[]))
-        table = Table(schema, tname, columns)
+        comment = tabledoc.get('comment')
+        table = Table(schema, tname, columns, kind, comment)
         keys = Unique.fromjson(table, tabledoc.get('keys', []))
         fkeys = ForeignKey.fromjson(table, tabledoc.get('foreign_keys', []))
 
@@ -518,19 +523,18 @@ class Table (object):
             for ref in fkey.references.values():
                 clauses.append(ref.sql_def())
 
-        cur = conn.cursor()
         cur.execute("""
 CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
 );
+COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
 SELECT _ermrest.model_change_event();
 """ % dict(sname=sql_identifier(sname),
            tname=sql_identifier(tname),
-           clauses=',\n'.join(clauses)
+           clauses=',\n'.join(clauses),
+           comment=sql_literal(comment)
            )
                     )
-        cur.close()
-        conn.commit()
 
         return table
 
@@ -547,6 +551,17 @@ SELECT _ermrest.model_change_event();
                     )
         cur.close()
         conn.commit()
+
+    def set_comment(self, conn, cur, comment):
+        """Set comment on table."""
+        cur.execute("""
+COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
+SELECT _ermrest.model_change_event();
+""" % dict(sname=sql_identifier(str(self.schema.name)),
+           tname=sql_identifier(str(self.name)),
+           comment=sql_literal(comment)
+           )
+                    )
 
     def add_column(self, conn, columndoc):
         """Add column to table."""
@@ -614,7 +629,8 @@ SELECT _ermrest.model_change_event();
                 'r':'table', 
                 'f':'foreign_table',
                 'v':'view'
-                }.get(self.kind, 'unknown')
+                }.get(self.kind, 'unknown'),
+            comment=self.comment
             )
 
     def sql_name(self):
