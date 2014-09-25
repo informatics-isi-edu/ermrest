@@ -250,6 +250,17 @@ function displayTable(schemaDiv, name, value) {
 	var h2 = $('<h2>');
 	tableDiv.append(h2);
 	h2.html('Table: ' + name);
+	
+	if (value['comment'] != null) {
+		var h3 = $('<h3>');
+		tableDiv.append(h3);
+		h3.html('Description:'); 
+		var ul = $('<ul>');
+		tableDiv.append(ul);
+		var li = $('<li>');
+		ul.append(li);
+		li.html(value['comment']);
+	}
 
 	var h3 = $('<h3>');
 	tableDiv.append(h3);
@@ -318,5 +329,12 @@ function displayColumn(ul, value) {
 	var li = $('<li>');
 	ul.append(li);
 	li.html(value['name'] + ': ' +  value['type']);
+	if (value['comment'] != null) {
+		var comment = $('<ul>');
+		li.append(comment);
+		var li = $('<li>');
+		comment.append(li);
+		li.html(value['comment']);
+	}
 }
 
