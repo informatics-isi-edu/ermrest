@@ -589,7 +589,8 @@ class AnyPath (object):
             )
 
         aggfunc_star_templates = dict(
-            cnt='count(*)'
+            cnt='count(*)',
+            array='array_agg(%(attr)s)'
             )
 
         aggregates = []
@@ -1003,7 +1004,7 @@ class AttributePath (AnyPath):
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
 
             if hasattr(col, 'sql_name_with_talias'):
-                select = col.sql_name_with_talias(alias)
+                select = col.sql_name_with_talias(alias, output=True)
             else:
                 select = "%s.%s" % (alias, col.sql_name())
 
@@ -1323,7 +1324,7 @@ class AggregatePath (AnyPath):
         """
         apath = AttributePath(self.epath, self.attributes)
         aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
-        asql, sort = apath.sql_get(split_sort=True)
+        asql, sort = apath.sql_get(split_sort=True, distinct_on=False)
         
         # a pure aggregate query has only group keys and aggregates
         sql = """
