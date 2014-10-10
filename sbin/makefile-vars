@@ -5,7 +5,6 @@ SBIN_FILES= \
 	ermrest-webauthn2-manage \
 	ermrest-registry-deploy \
 	ermrest-registry-manage \
-	ermrest-catalog-manage \
 	ermrest-freetext-indices \
 	ermrest-db-work
 
