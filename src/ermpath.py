@@ -560,7 +560,7 @@ class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
 
     """
-    def sql_get(self):
+    def sql_get(self, row_content_type='application/json'):
         """Generate SQL query to get the resources described by this path.
 
            The query will be of the form:
@@ -585,12 +585,12 @@ class AnyPath (object):
             max='max(%(attr)s)', 
             cnt='count(%(attr)s)', 
             cnt_d='count(DISTINCT %(attr)s)',
-            array='array_agg(%(attr)s)'
+            array='array_to_json(array_agg(%(attr)s))'
             )
 
         aggfunc_star_templates = dict(
             cnt='count(*)',
-            array='array_agg(%(attr)s)'
+            array='array_to_json(array_agg(%(attr)s))'
             )
 
         aggregates = []
@@ -646,7 +646,7 @@ class AnyPath (object):
         """
         # TODO: refactor this common code between 
 
-        sql = self.sql_get()
+        sql = self.sql_get(row_content_type=content_type)
         #web.debug(sql)
 
         if limit is not None:
@@ -803,7 +803,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, sort=None, distinct_on=True):
+    def sql_get(self, selects=None, sort=None, distinct_on=True, row_content_type='application/json'):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -970,7 +970,7 @@ class AttributePath (AnyPath):
         """
         self.sort = sort
 
-    def sql_get(self, split_sort=False, distinct_on=True):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json'):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -990,7 +990,12 @@ class AttributePath (AnyPath):
         selects = []
 
         outputs = set()
-        
+
+        if row_content_type == 'text/csv':
+            cast = '::text'
+        else:
+            cast = ''
+
         for attribute in self.attributes:
             col, base = attribute.resolve_column(self.epath._model, self.epath)
             
@@ -1007,6 +1012,8 @@ class AttributePath (AnyPath):
                 select = col.sql_name_with_talias(alias, output=True)
             else:
                 select = "%s.%s" % (alias, col.sql_name())
+
+            select = select + cast
 
             if attribute.alias is not None:
                 if str(attribute.alias) in outputs:
@@ -1127,7 +1134,7 @@ class AttributeGroupPath (AnyPath):
         """
         self.sort = sort
 
-    def sql_get(self):
+    def sql_get(self, row_content_type='application/json'):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1161,10 +1168,14 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(str(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
-
         asql, sort = apath.sql_get(split_sort=True, distinct_on=False)
         if not sort:
             sort = ''
+
+        if row_content_type == 'text/csv':
+            groupkeys = map(lambda k: '%s::text' % k, groupkeys)
+            extras = map(lambda k: '%s::text' % k, extras)
+            aggregates = map(lambda a: ('%s::text' % a[0], a[1]), aggregates)
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
@@ -1318,22 +1329,27 @@ class AggregatePath (AnyPath):
         if sort:
             raise BadSyntax('Sort is meaningless for aggregates returning one row.')
 
-    def sql_get(self):
+    def sql_get(self, row_content_type='application/json'):
         """Generate SQL query to get the resources described by this apath.
 
         """
         apath = AttributePath(self.epath, self.attributes)
         aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
         asql, sort = apath.sql_get(split_sort=True, distinct_on=False)
-        
-        # a pure aggregate query has only group keys and aggregates
+
+        if row_content_type == 'text/csv':
+            cast = '::text'
+        else:
+            cast = ''
+
+        # a pure aggregate query has aggregates
         sql = """
 SELECT %(aggs)s
 FROM ( %(asql)s ) s
 """
         return sql % dict(
             asql=asql,
-            aggs=', '.join([ '%s AS %s' % a for a in aggregates]),
+            aggs=', '.join([ '%s%s AS %s' % (a[0], cast, a[1]) for a in aggregates]),
             )
 
 class QueryPath (object):
