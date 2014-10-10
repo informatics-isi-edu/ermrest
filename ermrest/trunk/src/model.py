@@ -813,17 +813,23 @@ class FreetextColumn (Column):
         self.srccols = [ c for c in table.columns.itervalues() if istext(str(c.type)) ]
         self.srccols.sort(key=lambda c: c.position)
 
-    def sql_name_with_talias(self, talias):
+    def sql_name_with_talias(self, talias, output=False):
         if talias:
             talias += '.'
         else:
             # allow fall-through without talias. prefix
             talias = ''
-        colnames = [ '%s%s' % (talias, c.sql_name()) for c in self.srccols ]
-        if colnames:
-            return " || ' ' || ".join([ "COALESCE(%s::text,''::text)" % name for name in colnames ])
+
+        if output:
+            # output column reference as whole-row nested record
+            return 'row_to_json(%s*)' % talias
         else:
-            return "''::text"
+            # internal column reference for predicate evaluation
+            colnames = [ '%s%s' % (talias, c.sql_name()) for c in self.srccols ]
+            if colnames:
+                return " || ' ' || ".join([ "COALESCE(%s::text,''::text)" % name for name in colnames ])
+            else:
+                return "''::text"
 
     def is_star_column(self):
         return True
