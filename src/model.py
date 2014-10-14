@@ -26,7 +26,7 @@ needed by other modules of the ermrest project.
 """
 
 from ermrest import exception
-from ermrest.util import sql_identifier, sql_literal
+from ermrest.util import sql_identifier, sql_literal, table_exists
 
 import urllib
 import json
@@ -199,6 +199,40 @@ GROUP BY
  ;
 '''
 
+    TABLE_ANNOTATIONS = """
+SELECT
+  schema_name,
+  table_name,
+  annotation_uri,
+  annotation_value
+FROM _ermrest.model_table_annotation
+;
+"""
+
+    COLUMN_ANNOTATIONS = """
+SELECT
+  schema_name,
+  table_name,
+  column_name,
+  annotation_uri,
+  annotation_value
+FROM _ermrest.model_column_annotation
+;
+"""
+
+    KEYREF_ANNOTATIONS = """
+SELECT
+  from_schema_name,
+  from_table_name,
+  from_column_names,
+  to_schema_name,
+  to_table_name,
+  to_column_names,
+  annotation_uri,
+  annotation_value
+FROM _ermrest.model_keyref_annotation
+"""
+
     # PostgreSQL denotes array types with the string 'ARRAY'
     ARRAY_TYPE = 'ARRAY'
     
@@ -308,6 +342,44 @@ GROUP BY
         else:
             fk.references[fk_ref_map].constraint_names.add( (fk_schema, fk_name) )
 
+    #
+    # Introspect ERMrest model overlay annotations
+    #
+    if table_exists(cur, '_ermrest', 'model_table_annotation'):
+        cur.execute(TABLE_ANNOTATIONS)
+        for sname, tname, auri, value in cur:
+            try:
+                table = model.lookup_table(sname, tname)
+                table.annotations[auri] = value
+            except exception.ConflictModel:
+                # TODO: prune orphaned annotation?
+                pass
+
+    if table_exists(cur, '_ermrest', 'model_column_annotation'):
+        cur.execute(COLUMN_ANNOTATIONS)
+        for sname, tname, cname, auri, value in cur:
+            try:
+                table = model.lookup_table(sname, tname)
+                try:
+                    column = table.columns[cname]
+                    column.annotations[auri] = value
+                except KeyError:
+                    # TODO: prune orphaned annotation?
+                    pass
+            except exception.ConflictModel:
+                # TODO: prune orphaned annotation?
+                pass        
+
+    if table_exists(cur, '_ermrest', 'model_keyref_annotation'):
+        cur.execute(KEYREF_ANNOTATIONS)
+        for from_sname, from_tname, from_cnames, to_sname, to_tname, to_cnames, auri, value in cur:
+            try:
+                fkr = model.lookup_foreign_key_ref(from_sname, from_tname, from_cnames, to_sname, to_tname, to_cnames)
+                fkr.annotations[auri] = value
+            except exception.ConflictModel:
+                # TODO: prune orphaned annotation?
+                pass        
+
     return model
 
 def pg_default_value(base_type, raw):
@@ -380,6 +452,27 @@ class Model (object):
             else:
                 return tables.pop()
     
+    def lookup_foreign_key_ref(self, fk_sname, fk_tname, fk_cnames, pk_sname, pk_tname, pk_cnames):
+        fk_table = self.lookup_table(fk_sname, fk_tname)
+        pk_table = self.lookup_table(pk_sname, pk_tname)
+
+        fk_columns = [ fk_table.lookup_column(cname) for cname in fk_cnames ]
+        pk_columns = [ pk_table.lookup_column(cname) for cname in pk_cnames ]
+
+        fk_colset = frozenset(fk_columns)
+        pk_colset = frozenset(pk_columns)
+        fk_ref_map = frozendict(dict(map(lambda fc, tc: (fc, tc), fk_columns, pk_columns)))
+
+        if fk_colset not in fk_table.fkeys:
+            raise exception.ConflictModel('Foreign key %s not in table %s.' % (fk_colset, fk_table))
+
+        fk = fk_table.fkeys[fk_colset]
+
+        if fk_ref_map not in fk.references:
+            raise exception.ConflictModel('Foreign key reference %s to %s not in table %s.' % (fk_columns, pk_columns))
+
+        return fk.references[fk_ref_map]
+
     def create_schema(self, conn, sname):
         """Add a schema to the model."""
         if sname in self.schemas:
@@ -457,6 +550,7 @@ class Table (object):
         self.columns = dict()
         self.uniques = dict()
         self.fkeys = dict()
+        self.annotations = dict()
 
         for c in columns:
             self.columns[c.name] = c
@@ -478,6 +572,12 @@ class Table (object):
         cols = self.columns.values()
         cols.sort(key=lambda c: c.position)
         return cols
+
+    def lookup_column(self, cname):
+        if cname in self.columns:
+            return self.columns[cname]
+        else:
+            raise exception.ConflictModel('Requested column %s does not exist in table %s.' % (cname, self))
 
     def writable_kind(self):
         """Return true if table is writable in SQL.
@@ -647,7 +747,8 @@ SELECT _ermrest.model_change_event();
                 'f':'foreign_table',
                 'v':'view'
                 }.get(self.kind, 'unknown'),
-            comment=self.comment
+            comment=self.comment,
+            annotations=self.annotations
             )
 
     def sql_name(self):
@@ -718,6 +819,7 @@ class Column (object):
         self.type = type
         self.default_value = default_value
         self.comment = comment
+        self.annotations = dict()
     
     def __str__(self):
         return ':%s:%s:%s' % (
@@ -769,7 +871,8 @@ class Column (object):
             name=str(self.name), 
             type=str(self.type),
             default=self.default_value,
-            comment=self.comment
+            comment=self.comment,
+            annotations=self.annotations
             )
 
     def prejson_ref(self):
@@ -973,6 +1076,7 @@ class KeyReference:
         self.constraint_names = set()
         if constraint_name:
             self.constraint_names.add(constraint_name)
+        self.annotations = dict()
 
     def __str__(self):
         return self.verbose()
@@ -1066,7 +1170,8 @@ class KeyReference:
             pcs.append( self.reference_map[fc].prejson_ref() )
         return dict(
             foreign_key_columns=fcs,
-            referenced_columns=pcs
+            referenced_columns=pcs,
+            annotations=self.annotations
             )
 
     def __repr__(self):
