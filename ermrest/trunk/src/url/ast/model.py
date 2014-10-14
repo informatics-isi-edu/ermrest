@@ -216,6 +216,13 @@ def post_commit_200_OK(ignore):
     web.ctx.status = '200 OK'
     return ''
 
+def post_commit_200_or_201(created):
+    if created:
+        web.ctx.status = '201 Created'
+    else:
+        web.ctx.status = '200 OK'
+    return ''
+
 class Comment (Api):
     """A specific object's comment.
 
@@ -271,7 +278,6 @@ class Comment (Api):
 
         return self.perform(body, post_commit_200_OK)       
 
-
 class TableComment (Comment):
     """A specific table's comment."""
     
@@ -305,6 +311,131 @@ class ColumnComment (TableComment):
         table, column = getresults
         table.set_column_comment(conn, cur, column, comment)
 
+class Annotations (Api):
+
+    supported_content_types = ['application/json']
+    default_content_type = supported_content_types[0]
+
+    def __init__(self, catalog, subject):
+        Api.__init__(self, catalog)
+        self.subject = subject
+        self.key = None
+
+    def annotation(self, key):
+        self.key = key
+        return self
+
+    def GET_body(self, conn, cur, uri):
+        """Must return tuple with resolved subject as final element"""
+        raise NotImplementedError()
+
+    def GET(self, uri):
+        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
+
+        def post_commit(results):
+            subject = results[-1]
+
+            if self.key is None:
+                # getting list of all annotations
+                response = json.dumps(subject.annotations)
+            else:
+                # getting single annotation by key
+                if self.key not in subject.annotations:
+                    raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
+                response = json.dumps(subject.annotations[self.key])
+
+            response = response + '\n'
+
+            self.set_http_etag( self.catalog.manager._model_version )
+            self.emit_headers()
+            if self.http_is_cached():
+                web.ctx.status = '304 Not Modified'
+                return ''
+            else:
+                web.header('Content-Type', content_type)
+                web.header('Content-Length', len(response))
+                return response
+
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
+
+    def PUT_body(self, conn, cur, getresults, key, value):
+        """Return True for created or False for updated."""
+        subject = getresults[-1]
+        oldval = subject.set_annotation(conn, cur, key, value)
+        if oldval is None:
+            return True
+        else:
+            return False
+
+    def PUT(self, uri):
+        if self.key is None:
+            raise exception.rest.NoMethod('PUT only supported on individually keyed annotations')
+
+        value = web.ctx.env['wsgi.input'].read()
+
+        try:
+            value = json.loads(value)
+        except:
+            raise exception.BadRequest('invalid JSON input')
+
+        def body(conn, cur):
+            self.PUT_body(conn, cur, self.GET_body(conn, cur, uri), self.key, value)
+
+        return self.perform(body, post_commit_200_or_201)
+    
+    def DELETE_body(self, conn, cur, getresults, key):
+        subject = getresults[-1]
+        subject.delete_annotation(conn, cur, key)
+
+    def DELETE(self, uri):
+        if self.key is None:
+            raise exception.rest.NoMethod('DELETE only supported on individually keyed annotations')
+
+        def body(conn, cur):
+            getresults = self.GET_body(conn, cur, uri)
+            subject = getresults[-1]
+            if self.key not in subject.annotations:
+                raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
+            
+            self.DELETE_body(conn, cur, getresults, self.key)
+
+        return self.perform(body, post_commit_200_OK)       
+
+
+class TableAnnotations (Annotations):
+
+    def __init__(self, table):
+        Annotations.__init__(self, table.schema.catalog, table)
+
+    def GET_body(self, conn, cur, uri):
+        """Must return tuple with resolved subject as final element"""
+        return ( self.subject.GET_body(conn, cur, uri), )
+
+
+class ColumnAnnotations (TableAnnotations):
+
+    def __init__(self, column):
+        TableAnnotations.__init__(self, column.table)
+        self.column = column
+
+    def GET_body(self, conn, cur, uri):
+        """Must return tuple with resolved subject as final element"""
+        table = TableAnnotations.GET_body(self, conn, cur, uri)[-1]
+        try:
+            return (table, table.columns[str(self.column.name)])
+        except KeyError:
+            raise exception.rest.NotFound('column "%s"' % self.column.name)
+
+class ForeignkeyReferenceAnnotations (Annotations):
+
+    def __init__(self, fkrs):
+        Annotations.__init__(self, fkrs.catalog, fkrs)
+
+    def GET_body(self, conn, cur, uri):
+        fkrs = self.subject.GET_body(conn, cur, uri)
+        if len(fkrs) != 1:
+            raise NotImplementedError('ForeignkeyReferencesAnnotations on %d fkrs' % len(fkrs))
+        return (fkrs[0], )
 
 class Table (Api):
     """A specific table by name."""
@@ -324,6 +455,9 @@ class Table (Api):
     def comment(self):
         """The comment for this table."""
         return TableComment(self)
+
+    def annotations(self):
+        return TableAnnotations(self)
 
     def columns(self):
         """The column set for this table."""
@@ -451,6 +585,9 @@ class Column (Columns):
 
     def comment(self):
         return ColumnComment(self)
+
+    def annotations(self):
+        return ColumnAnnotations(self)
 
     def GET_post_commit(self, columns):
         columns = dict([ (c.name, c) for c in columns ])
@@ -733,6 +870,9 @@ class ForeignkeyReferences (Api):
         """Refine reference set with referenced column information."""
         assert self._to_table
         return self.with_to_key( self._to_table.key(to_columns) )
+
+    def annotations(self):
+        return ForeignkeyReferenceAnnotations(self)
 
     def GET_body(self, conn, cur, uri):
         from_table, from_key = None, None

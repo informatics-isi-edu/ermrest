@@ -59,6 +59,7 @@ literals = [
 keywords = [
     'acl',
     'aggregate',
+    'annotation',
     'attribute',
     'attributegroup',
     'catalog',
