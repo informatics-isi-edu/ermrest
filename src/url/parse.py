@@ -1,5 +1,4 @@
 
-
 # 
 # Copyright 2010-2013 University of Southern California
 # 
@@ -53,8 +52,15 @@ def p_apis(p):
              | table
              | tableslash
              | tablecomment
+             | tableannotations
+             | tableannotationsslash
+             | tableannotation
              | columns 
              | column
+             | columnslash
+             | columnannotations
+             | columnannotationsslash
+             | columnannotation
              | columncomment
              | keys 
              | key
@@ -64,6 +70,10 @@ def p_apis(p):
              | foreignkeyreftable 
              | foreignkeyreftableslash
              | foreignkeyref
+             | foreignkeyrefslash
+             | foreignkeyrefannotations
+             | foreignkeyrefannotationsslash
+             | foreignkeyrefannotation
              | meta
              | data
              | datasort"""
@@ -405,6 +415,18 @@ def p_tablecomment(p):
     """tablecomment : tableslash COMMENT """
     p[0] = p[1].comment()
 
+def p_tableannotations(p):
+    """tableannotations : tableslash ANNOTATION """
+    p[0] = p[1].annotations()
+
+def p_tableannotationsslash(p):
+    """tableannotationsslash : tableannotations '/' """
+    p[0] = p[1]
+
+def p_tableannotation(p):
+    """tableannotation : tableannotationsslash string"""
+    p[0] = p[1].annotation(p[2])
+
 def p_columns(p):
     """columns : tableslash COLUMN slashopt """
     p[0] = p[1].columns()
@@ -415,9 +437,25 @@ def p_column(p):
         raise ParseError(p[4], 'Qualified column name not allowed: ')
     p[0] = p[1].column(p[4])
 
+def p_columnslash(p):
+    """columnslash : column '/'"""
+    p[0] = p[1]
+
 def p_columncomment(p):
-    """columncomment : column '/' COMMENT"""
+    """columncomment : columnslash COMMENT"""
     p[0] = p[1].comment()
+
+def p_columnannotations(p):
+    """columnannotations : columnslash ANNOTATION"""
+    p[0] = p[1].annotations()
+
+def p_columnannotationsslash(p):
+    """columnannotationsslash : columnannotations '/'"""
+    p[0] = p[1]
+
+def p_columnannotation(p):
+    """columnannotation : columnannotationsslash string"""
+    p[0] = p[1].annotation(p[2])
 
 def p_keys(p):
     """keys : tableslash KEY slashopt """
@@ -462,6 +500,21 @@ def p_foreignkey_reftable_columns(p):
             raise ParseError(name, 'Qualified key column name not allowed: ')
     p[0] = p[1].with_to_columns(p[2])
 
+def p_foreignkeyrefslash(p):
+    """foreignkeyrefslash : foreignkeyref '/'"""
+    p[0] = p[1]
+
+def p_foreignkeyannotations(p):
+    """foreignkeyrefannotations : foreignkeyrefslash ANNOTATION"""
+    p[0] = p[1].annotations()
+
+def p_foreignkeyannotationsslash(p):
+    """foreignkeyrefannotationsslash : foreignkeyrefannotations '/'"""
+    p[0] = p[1]
+
+def p_foreignkeyannotation(p):
+    """foreignkeyrefannotation : foreignkeyrefannotationsslash string"""
+    p[0] = p[1].annotation(p[2])
 
 def p_queryopts(p):
     """queryopts : queryopts_empty

@@ -656,6 +656,62 @@ SELECT _ermrest.model_change_event();
        )
                     )
 
+    def set_annotation(self, conn, cur, key, value):
+        """Set annotation on table, returning previous value if it is an update or None i."""
+        if value is None:
+            raise exception.BadData('null value is not supported for annotations')
+
+        interp = dict(
+            sname=sql_literal(str(self.schema.name)),
+            tname=sql_literal(str(self.name)),
+            key=sql_literal(key),
+            value=sql_literal(json.dumps(value))
+            )
+
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+UPDATE _ermrest.model_table_annotation
+SET annotation_value = %(value)s
+WHERE schema_name = %(sname)s
+  AND table_name = %(tname)s
+  AND annotation_uri = %(key)s
+RETURNING annotation_value
+;
+""" % interp
+                    )
+        for oldvalue in cur:
+            # happens zero or one time
+            return oldvalue
+
+        # only run this if previous update returned no rows
+        cur.execute("""
+INSERT INTO _ermrest.model_table_annotation
+  (schema_name, table_name, annotation_uri, annotation_value)
+  VALUES (%(sname)s, %(tname)s, %(key)s, %(value)s)
+;
+SELECT _ermrest.model_change_event();
+""" % interp
+                    )
+
+        return None
+
+    def delete_annotation(self, conn, cur, key):
+        interp = dict(
+            sname=sql_literal(str(self.schema.name)),
+            tname=sql_literal(str(self.name)),
+            key=sql_literal(key)
+            )
+
+        cur.execute("""
+DELETE FROM _ermrest.model_table_annotation
+WHERE schema_name = %(sname)s
+  AND table_name = %(tname)s
+  AND annotation_uri = %(key)s
+;
+SELECT _ermrest.model_change_event();
+""" % interp
+                    )
+
     def set_comment(self, conn, cur, comment):
         """Set comment on table."""
         cur.execute("""
@@ -897,6 +953,67 @@ class Column (object):
             sql_identifier(name),
             self.type.sql()
             )
+    
+    def set_annotation(self, conn, cur, key, value):
+        """Set annotation on column, returning previous value if it is an update or None i."""
+        if value is None:
+            raise exception.BadData('null value is not supported for annotations')
+
+        interp = dict(
+            sname=sql_literal(str(self.table.schema.name)),
+            tname=sql_literal(str(self.table.name)),
+            cname=sql_literal(str(self.name)),
+            key=sql_literal(key),
+            value=sql_literal(json.dumps(value))
+            )
+
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+UPDATE _ermrest.model_column_annotation
+SET annotation_value = %(value)s
+WHERE schema_name = %(sname)s
+  AND table_name = %(tname)s
+  AND column_name = %(cname)s
+  AND annotation_uri = %(key)s
+RETURNING annotation_value
+;
+""" % interp
+                    )
+        for oldvalue in cur:
+            # happens zero or one time
+            return oldvalue
+
+        # only run this if previous update returned no rows
+        cur.execute("""
+INSERT INTO _ermrest.model_column_annotation
+  (schema_name, table_name, column_name, annotation_uri, annotation_value)
+  VALUES (%(sname)s, %(tname)s, %(cname)s, %(key)s, %(value)s)
+;
+SELECT _ermrest.model_change_event();
+""" % interp
+                    )
+
+        return None
+
+    def delete_annotation(self, conn, cur, key):
+        interp = dict(
+            sname=sql_literal(str(self.table.schema.name)),
+            tname=sql_literal(str(self.table.name)),
+            cname=sql_literal(str(self.name)),
+            key=sql_literal(key)
+            )
+
+        cur.execute("""
+DELETE FROM _ermrest.model_column_annotation
+WHERE schema_name = %(sname)s
+  AND table_name = %(tname)s
+  AND column_name = %(cname)s
+  AND annotation_uri = %(key)s
+;
+SELECT _ermrest.model_change_event();
+""" % interp
+                    )
+
 
 class FreetextColumn (Column):
     """Represents virtual table column for free text search.
@@ -1079,7 +1196,10 @@ class KeyReference:
         self.annotations = dict()
 
     def __str__(self):
-        return self.verbose()
+        interp = self._interp_annotation(None, sql_wrap=False)
+        interp['f_cnames'] = ','.join(interp['f_cnames'])
+        interp['t_cnames'] = ','.join(interp['t_cnames'])
+        return ':%(f_sname)s:%(f_tname)s(%(f_cnames)s)==>:%(t_sname)s:%(t_tname)s(%(t_cnames)s)' % interp
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
@@ -1094,7 +1214,86 @@ class KeyReference:
                 sql_identifier(self.unique.table.name),
                 ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
                 ))
+
+    def _interp_annotation(self, key, value=None, sql_wrap=True):
+        # canonicalize from column order
+        f_cnames = [ str(col.name) for col in self.foreign_key.columns ]
+        f_cnames.sort()
+
+        # built to column order to match from column order
+        t_cnames = [ str(self.reference_map[self.foreign_key.table.columns[colname]].name) for colname in f_cnames ]
+        
+        interp = dict(
+            f_sname=self.foreign_key.table.schema.name,
+            f_tname=self.foreign_key.table.name,
+            f_cnames=f_cnames,
+            t_sname=self.unique.table.schema.name,
+            t_tname=self.unique.table.name,
+            t_cnames=t_cnames,
+            key=key,
+            value=json.dumps(value)
+            )
+
+        if sql_wrap:
+            interp = dict([ (k, sql_literal(v)) for k, v in interp.items() ])
+
+        return interp
     
+    def set_annotation(self, conn, cur, key, value):
+        """Set annotation on column, returning previous value if it is an update or None i."""
+        if value is None:
+            raise exception.BadData('null value is not supported for annotations')
+
+        interp = self._interp_annotation(key, value)
+
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+UPDATE _ermrest.model_keyref_annotation
+SET annotation_value = %(value)s
+WHERE from_schema_name = %(f_sname)s
+  AND from_table_name = %(f_tname)s
+  AND from_column_names = %(f_cnames)s
+  AND to_schema_name = %(t_sname)s
+  AND to_table_name = %(t_tname)s
+  AND to_column_names = %(t_cnames)s
+  AND annotation_uri = %(key)s
+RETURNING annotation_value
+;
+""" % interp
+                    )
+        for oldvalue in cur:
+            # happens zero or one time
+            return oldvalue
+
+        # only run this if previous update returned no rows
+        cur.execute("""
+INSERT INTO _ermrest.model_keyref_annotation
+  (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, annotation_uri, annotation_value)
+  VALUES (%(f_sname)s, %(f_tname)s, %(f_cnames)s, %(t_sname)s, %(t_tname)s, %(t_cnames)s, %(key)s, %(value)s)
+;
+SELECT _ermrest.model_change_event();
+""" % interp
+                    )
+
+        return None
+
+    def delete_annotation(self, conn, cur, key):
+        interp = self._interp_annotation(key)
+
+        cur.execute("""
+DELETE FROM _ermrest.model_keyref_annotation
+WHERE from_schema_name = %(f_sname)s
+  AND from_table_name = %(f_tname)s
+  AND from_column_names = %(f_cnames)s
+  AND to_schema_name = %(t_sname)s
+  AND to_table_name = %(t_tname)s
+  AND to_column_names = %(t_cnames)s
+  AND annotation_uri = %(key)s
+;
+SELECT _ermrest.model_change_event();
+""" % interp
+                    )
+
     @staticmethod
     def fromjson(model, refdoc, fkey=None, fktable=None, pkey=None, pktable=None, outfkeys=None):
         fk_cols = []

@@ -89,7 +89,9 @@ def sql_identifier(s):
 
 
 def sql_literal(v):
-    if v != None:
+    if type(v) is list:
+        return 'ARRAY[%s]' % (','.join(map(sql_literal, v)))
+    elif v is not None:
         # double ' to protect from SQL
         # double % to protect from web.db
         s = '%s' % v
