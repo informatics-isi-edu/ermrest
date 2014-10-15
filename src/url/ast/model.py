@@ -463,10 +463,6 @@ class Table (Api):
         """The column set for this table."""
         return Columns(self)
 
-    def column(self, name):
-        """A specific column for this table."""
-        return Column(self, name)
-
     def keys(self):
         """The key set for this table."""
         return Keys(self)
@@ -538,6 +534,10 @@ class Columns (Api):
     def __init__(self, table):
         Api.__init__(self, table.schema.catalog)
         self.table = table
+
+    def column(self, name):
+        """A specific column for this table."""
+        return Column(self.table, name)
 
     def GET_body(self, conn, cur, uri):
         return self.table.GET_body(conn, cur, uri).columns_in_order()
@@ -663,7 +663,7 @@ class Keys (Api):
         def body(conn, cur):
             self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn)
+            table = self.table.GET_body(conn, cur, uri)
             return list(table.add_unique(conn, cur, keydoc))
 
         def post_commit(newkeys):
