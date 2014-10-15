@@ -542,7 +542,7 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns, kind, comment=None):
+    def __init__(self, schema, name, columns, kind, comment=None, annotations={}):
         self.schema = schema
         self.name = name
         self.kind = kind
@@ -551,6 +551,7 @@ class Table (object):
         self.uniques = dict()
         self.fkeys = dict()
         self.annotations = dict()
+        self.annotations.update(annotations)
 
         for c in columns:
             self.columns[c.name] = c
@@ -609,9 +610,10 @@ class Table (object):
         if kind != 'table':
             raise exception.ConflictData('Kind "%s" not supported in table creation' % kind)
 
+        annotations = tabledoc.get('annotations', {})
         columns = Column.fromjson(tabledoc.get('column_definitions',[]))
         comment = tabledoc.get('comment')
-        table = Table(schema, tname, columns, kind, comment)
+        table = Table(schema, tname, columns, kind, comment, annotations)
         keys = Unique.fromjson(table, tabledoc.get('keys', []))
         fkeys = ForeignKey.fromjson(table, tabledoc.get('foreign_keys', []))
 
@@ -639,9 +641,19 @@ SELECT _ermrest.model_change_event();
            )
                     )
 
+        for k, v in annotations.items():
+            table.set_annotation(conn, cur, k, v)
+
         for column in columns:
             if column.comment is not None:
                 table.set_column_comment(conn, cur, column, column.comment)
+            for k, v in column.annotations.items():
+                column.set_annotation(conn, cur, k, v)
+
+        for fkey in table.fkeys.values():
+            for fkeyref in fkey.references.values():
+                for k, v in fkeyref.annotations.items():
+                    fkeyref.set_annotation(conn, cur, k, v)
 
         return table
 
@@ -868,7 +880,7 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value, comment=None):
+    def __init__(self, name, position, type, default_value, comment=None, annotations={}):
         self.table = None
         self.name = name
         self.position = position
@@ -876,6 +888,7 @@ class Column (object):
         self.default_value = default_value
         self.comment = comment
         self.annotations = dict()
+        self.annotations.update(annotations)
     
     def __str__(self):
         return ':%s:%s:%s' % (
@@ -907,12 +920,14 @@ class Column (object):
     def fromjson_single(columndoc, position):
         ctype = columndoc['type']
         comment = columndoc.get('comment', None)
+        annotations = columndoc.get('annotations', {})
         return Column(
             columndoc['name'],
             position,
             Type(ctype),
             pg_default_value(ctype, columndoc['default']),
-            comment
+            comment,
+            annotations
             )
 
     @staticmethod
@@ -1176,7 +1191,7 @@ class ForeignKey (object):
 class KeyReference:
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map = dict(fk_ref_map)
@@ -1194,6 +1209,7 @@ class KeyReference:
         if constraint_name:
             self.constraint_names.add(constraint_name)
         self.annotations = dict()
+        self.annotations.update(annotations)
 
     def __str__(self):
         interp = self._interp_annotation(None, sql_wrap=False)
@@ -1352,13 +1368,14 @@ SELECT _ermrest.model_change_event();
 
         fk_columns = list(check_columns(refdoc.get('foreign_key_columns', []), 'foreign-key'))
         pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
+        annotations = refdoc.get('annotations', {})
 
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
         
         if fk_ref_map not in fkey.references:
-            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map)
+            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations)
             yield fkey.references[fk_ref_map]
 
     def prejson(self):
