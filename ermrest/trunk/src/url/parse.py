@@ -56,6 +56,7 @@ def p_apis(p):
              | tableannotationsslash
              | tableannotation
              | columns 
+             | columnsslash
              | column
              | columnslash
              | columnannotations
@@ -428,14 +429,18 @@ def p_tableannotation(p):
     p[0] = p[1].annotation(p[2])
 
 def p_columns(p):
-    """columns : tableslash COLUMN slashopt """
+    """columns : tableslash COLUMN """
     p[0] = p[1].columns()
 
+def p_columns2(p):
+    """columnsslash : columns '/' """
+    p[0] = p[1]
+
 def p_column(p):
-    """column : tableslash COLUMN '/' sname """
-    if len(p[4]) > 1:
-        raise ParseError(p[4], 'Qualified column name not allowed: ')
-    p[0] = p[1].column(p[4])
+    """column : columnsslash sname """
+    if len(p[2]) > 1:
+        raise ParseError(p[2], 'Qualified column name not allowed: ')
+    p[0] = p[1].column(p[2])
 
 def p_columnslash(p):
     """columnslash : column '/'"""
