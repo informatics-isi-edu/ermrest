@@ -529,6 +529,7 @@ class Schema (object):
         """Drop a table from the schema."""
         if tname not in self.tables:
             raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
+        self.tables[tname].pre_delete(conn, cur)
         cur.execute("""
 DROP TABLE %s.%s ;
 SELECT _ermrest.model_change_event();
@@ -657,6 +658,22 @@ SELECT _ermrest.model_change_event();
 
         return table
 
+    def pre_delete(self, conn, cur):
+        """Do any maintenance before table is deleted."""
+        for fkey in self.fkeys.values():
+            fkey.pre_delete(conn, cur)
+        for unique in self.uniques.values():
+            unique.pre_delete(conn, cur)
+        for column in self.columns.values():
+            column.pre_delete(conn, cur)
+
+        cur.execute("""
+DELETE FROM _ermrest.model_table_annotation
+WHERE schema_name = %(sname)s
+  AND table_name = %(tname)s
+""" % self._interp_annotation(None)
+                    )
+
     def alter_table(self, conn, cur, alterclause):
         """Generic ALTER TABLE ... wrapper"""
         cur.execute("""
@@ -668,17 +685,20 @@ SELECT _ermrest.model_change_event();
        )
                     )
 
-    def set_annotation(self, conn, cur, key, value):
-        """Set annotation on table, returning previous value if it is an update or None i."""
-        if value is None:
-            raise exception.BadData('null value is not supported for annotations')
-
-        interp = dict(
+    def _interp_annotation(self, key, value=None):
+        return dict(
             sname=sql_literal(str(self.schema.name)),
             tname=sql_literal(str(self.name)),
             key=sql_literal(key),
             value=sql_literal(json.dumps(value))
             )
+
+    def set_annotation(self, conn, cur, key, value):
+        """Set annotation on table, returning previous value if it is an update or None i."""
+        if value is None:
+            raise exception.BadData('null value is not supported for annotations')
+
+        interp = self._interp_annotation(key, value)
 
         cur.execute("""
 SELECT _ermrest.model_change_event();
@@ -766,6 +786,14 @@ SELECT _ermrest.model_change_event();
         """Delete column from table."""
         if cname not in self.columns:
             raise exception.NotFound('column %s in table %s:%s' % (cname, self.schema.name, self.name))
+        column = self.columns[cname]
+        for unique in self.uniques.values():
+            if column in unique.columns:
+                unique.pre_delete(conn, cur)
+        for fkey in self.fkeys.values():
+            if column in fkey.columns:
+                fkey.pre_delete(conn, cur)
+        column.pre_delete(conn, cur)
         self.alter_table(conn, cur, 'DROP COLUMN %s' % sql_identifier(cname))
         del self.columns[cname]
                     
@@ -780,6 +808,7 @@ SELECT _ermrest.model_change_event();
         """Delete unique constraint(s) from table."""
         if unique.columns not in self.uniques or len(unique.constraint_names) == 0:
             raise exception.ConflictModel('Unique constraint columns %s not understood in table %s:%s.' % (unique.columns, self.schema.name, self.name))
+        unique.pre_delete(conn, cur)
         for pk_schema, pk_name in unique.constraint_names:
             # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
             self.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
@@ -796,6 +825,7 @@ SELECT _ermrest.model_change_event();
     def delete_fkeyref(self, conn, cur, fkr):
         """Delete foreign-key reference constraint(s) from table."""
         assert fkr.foreign_key.table == self
+        fkr.pre_delete(conn, cur)
         for fk_schema, fk_name in fkr.constraint_names:
             # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
             self.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(fk_name))
@@ -920,6 +950,26 @@ class Column (object):
             parts.append(sql_literal(self.default_value))
         return ' '.join(parts)
 
+    def _interp_annotation(self, key, value=None):
+        return dict(
+            sname=sql_literal(str(self.table.schema.name)),
+            tname=sql_literal(str(self.table.name)),
+            cname=sql_literal(str(self.name)),
+            key=sql_literal(key),
+            value=sql_literal(json.dumps(value))
+            )
+
+    def pre_delete(self, conn, cur):
+        """Do any maintenance before column is deleted from table."""
+        cur.execute("""
+DELETE FROM _ermrest.model_column_annotation
+WHERE schema_name = %(sname)s
+  AND table_name = %(tname)s
+  AND column_name = %(cname)s
+;
+""" % self._interp_annotation(None)
+                    )
+        
     @staticmethod
     def fromjson_single(columndoc, position):
         ctype = columndoc['type']
@@ -978,13 +1028,7 @@ class Column (object):
         if value is None:
             raise exception.BadData('null value is not supported for annotations')
 
-        interp = dict(
-            sname=sql_literal(str(self.table.schema.name)),
-            tname=sql_literal(str(self.table.name)),
-            cname=sql_literal(str(self.name)),
-            key=sql_literal(key),
-            value=sql_literal(json.dumps(value))
-            )
+        interp = self._interp_annotation(key, value)
 
         cur.execute("""
 SELECT _ermrest.model_change_event();
@@ -1015,12 +1059,7 @@ SELECT _ermrest.model_change_event();
         return None
 
     def delete_annotation(self, conn, cur, key):
-        interp = dict(
-            sname=sql_literal(str(self.table.schema.name)),
-            tname=sql_literal(str(self.table.name)),
-            cname=sql_literal(str(self.name)),
-            key=sql_literal(key)
-            )
+        interp = self._interp_annotation(key)
 
         cur.execute("""
 DELETE FROM _ermrest.model_column_annotation
@@ -1147,6 +1186,12 @@ class Unique (object):
             for key in Unique.fromjson_single(table, keydoc):
                 yield key
 
+    def pre_delete(self, conn, cur):
+        """Do any maintenance before table is deleted."""
+        for fkeyrefset in self.table_references.values():
+            for fkeyref in fkeyrefset:
+                fkeyref.pre_delete(conn, cur)
+
     def prejson(self):
         return dict(
             unique_columns=[ str(c.name) for c in self.columns ]
@@ -1174,6 +1219,11 @@ class ForeignKey (object):
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
+
+    def pre_delete(self, conn, cur):
+        """Do any maintenance before foreignkey is deleted."""
+        for fkeyref in self.references.values():
+            fkeyref.pre_delete(conn, cur)
 
     @staticmethod
     def fromjson(table, refsdoc):
@@ -1234,6 +1284,20 @@ class KeyReference:
                 sql_identifier(self.unique.table.name),
                 ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
                 ))
+
+    def pre_delete(self, conn, cur):
+        """Do any maintenance before foreignkey reference constraint is deleted from table."""
+        cur.execute("""
+DELETE FROM _ermrest.model_keyref_annotation
+WHERE from_schema_name = %(f_sname)s
+  AND from_table_name = %(f_tname)s
+  AND from_column_names = %(f_cnames)s
+  AND to_schema_name = %(t_sname)s
+  AND to_table_name = %(t_tname)s
+  AND to_column_names = %(t_cnames)s
+;
+""" % self._interp_annotation(None)
+                    )
 
     def _interp_annotation(self, key, value=None, sql_wrap=True):
         # canonicalize from column order
