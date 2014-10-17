@@ -380,6 +380,7 @@ FROM _ermrest.model_keyref_annotation
                 # TODO: prune orphaned annotation?
                 pass        
 
+    del model.schemas['_ermrest']
     return model
 
 def pg_default_value(base_type, raw):
@@ -473,30 +474,26 @@ class Model (object):
 
         return fk.references[fk_ref_map]
 
-    def create_schema(self, conn, sname):
+    def create_schema(self, conn, cur, sname):
         """Add a schema to the model."""
+        if sname == '_ermrest':
+            raise exception.ConflictModel('Requested schema %s is a reserved schema name.' % sname)
         if sname in self.schemas:
             raise exception.ConflictModel('Requested schema %s already exists.' % sname)
-        cur = conn.cursor()
         cur.execute("""
 CREATE SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
-        cur.close()
-        conn.commit()
         return Schema(self, sname)
 
-    def delete_schema(self, conn, sname):
+    def delete_schema(self, conn, cur, sname):
         """Remove a schema from the model."""
         if sname not in self.schemas:
             raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
-        cur = conn.cursor()
         cur.execute("""
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
-        cur.close()
-        conn.commit()
         del self.schemas[sname]
 
 class Schema (object):
