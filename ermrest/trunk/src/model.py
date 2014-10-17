@@ -530,10 +530,17 @@ class Schema (object):
         if tname not in self.tables:
             raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
         self.tables[tname].pre_delete(conn, cur)
+        # we keep around a bumped version for table as a tombstone to invalidate any old cached results
         cur.execute("""
-DROP TABLE %s.%s ;
+DROP TABLE %(sname)s.%(tname)s ;
 SELECT _ermrest.model_change_event();
-""" % (sql_identifier(self.name), sql_identifier(tname)))
+SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
+""" % dict(sname=sql_identifier(self.name), 
+           tname=sql_identifier(tname),
+           snamestr=sql_literal(self.name), 
+           tnamestr=sql_literal(tname)
+           )
+                    )
         del self.tables[tname]
 
 class Table (object):
@@ -628,15 +635,18 @@ class Table (object):
         for fkey in fkeys:
             for ref in fkey.references.values():
                 clauses.append(ref.sql_def())
-
+        
         cur.execute("""
 CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
 );
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
 SELECT _ermrest.model_change_event();
+SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 """ % dict(sname=sql_identifier(sname),
            tname=sql_identifier(tname),
+           snamestr=sql_literal(sname),
+           tnamestr=sql_literal(tname),
            clauses=',\n'.join(clauses),
            comment=sql_literal(comment),
            )
@@ -677,11 +687,14 @@ WHERE schema_name = %(sname)s
     def alter_table(self, conn, cur, alterclause):
         """Generic ALTER TABLE ... wrapper"""
         cur.execute("""
-ALTER TABLE %s.%s  %s ;
+ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
 SELECT _ermrest.model_change_event();
-""" % (sql_identifier(str(self.schema.name)),
-       sql_identifier(str(self.name)),
-       alterclause
+SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
+""" % dict(sname=sql_identifier(self.schema.name), 
+           tname=sql_identifier(self.name),
+           snamestr=sql_literal(self.schema.name), 
+           tnamestr=sql_literal(self.name),
+           alter=alterclause
        )
                     )
 
