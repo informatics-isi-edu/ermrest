@@ -284,10 +284,7 @@ class Dispatcher:
 def web_urls():
     """Builds and returns the web_urls for web.py.
     """
-    urls = list()
-    
-    # add the webauthn urls, first
-    webauthn_urls = (
+    urls = (
         # user authentication via webauthn2
         '/authn/session(/[^/]+)', UserSession,
         '/authn/session/?()', UserSession,
@@ -302,39 +299,9 @@ def web_urls():
         '/authn/user/([^/]+)/attribute(/[^/]+)', AttrAssign,
         '/authn/user/([^/]+)/attribute/?()', AttrAssign,
         '/authn/attribute/([^/]+)/implies(/[^/]+)', AttrNest,
-        '/authn/attribute/([^/]+)/implies/?()', AttrNest
-    )
-    urls.extend(webauthn_urls)
-    
-    # TODO: we can turn this into a dynamically loaded set of URLs from
-    #       the configuration file.
-    #
-    #       at least this keeps ermrest from being br0k3n without the cirm
-    #       package installed
-    if global_env.get('deploy_cirm'):
-        import cirm
-        
-        def printerClass(superClass, printers):
-            class C (superClass):
-                def __init__(self):
-                    self.printers = printers
-                    superClass.__init__(self)
-            return C
+        '/authn/attribute/([^/]+)/implies/?()', AttrNest,
 
-        cirm_urls = (
-            # print job and print control, and zoomify
-            '/printer/([^/]+)/job', printerClass(cirm.printer.PrintJob, global_env.get('printers')),
-            '/printer/([^/]+)/job/([^/]+)/', printerClass(cirm.printer.PrintJob, global_env.get('printers')),
-            '/printer/([^/]+)/control/([^/]+)/', printerClass(cirm.printer.PrintControl, global_env.get('printers')),
-            '/transfer', cirm.transfer.GlobusClient,
-            '/zoomify/(.*)', cirm.zoomify.Zoomify
-        )
-        urls.extend(cirm_urls)
-    
-    # add the "core" urls, e.g., the Dispatcher, last
-    core_urls = (
         # core parser-based REST dispatcher
         '(?s).*', Dispatcher
     )
-    urls.extend(core_urls)
     return tuple(urls)

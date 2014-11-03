@@ -47,7 +47,5 @@
       "database_name": "ermrest"
     },
     
-    "default_limit" : 100,
-
-    "deploy_cirm" : false
+    "default_limit" : 100
 }
