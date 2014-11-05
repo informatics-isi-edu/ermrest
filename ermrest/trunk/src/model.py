@@ -986,6 +986,10 @@ class Type (object):
         m = re.match(r"'(?P<val>.*)'::[a-z ]*", raw)
         if m:
             return m.groupdict()['val']
+
+        m = re.match(r"NULL::[a-z ]*", raw)
+        if m:
+            return None
         
         raise exception.ConflictData('Unhandled scalar default value: %s' % raw)
 
