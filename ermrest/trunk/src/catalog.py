@@ -197,7 +197,7 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
                 try:
                     self._model = introspect(cur, web.ctx.ermrest_config)
                 except Exception, te:
-                    raise ValueError('Introspection on existing catalog "%s" failed (likely a policy mismatch): %s' % str(te))
+                    raise ValueError('Introspection on existing catalog "%s" failed (likely a policy mismatch): %s' % (self._dbname, str(te)))
                 self.MODEL_CACHE[cache_key] = self._model
         return self._model
     
