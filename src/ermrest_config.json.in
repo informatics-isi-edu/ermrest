@@ -46,6 +46,31 @@
       "type" : "database",
       "database_name": "ermrest"
     },
+
+    "column_types": {
+        "boolean": { "aliases": [ "bool" ] },
+        "date": null,
+        "float4": { "aliases": [ "real" ] },
+        "float8": { "aliases": [ "double precision" ] },
+        "int2": { "aliases": [ "smallint" ] },
+        "int4": { "aliases": [ "integer", "int" ] },
+        "int8": { "aliases": [ "bigint" ] },
+        "interval": null,
+        "serial2": { "aliases": [ "smallserial" ] },
+        "serial4": { "aliases": [ "serial" ] },
+        "serial8": { "aliases": [ "bigserial" ] },
+        "text": { "aliases": [ "character varying" ] },
+        "timestamptz": { "aliases": [ "timestamptz", "timestamp with time zone" ] },
+        "uuid": null
+    },
     
+    "column_types_readonly": {
+        "json": null,
+        "text": { 
+            "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
+            },
+        "timestamp": { "aliases": [ "timestamp without time zone" ] }
+    },
+
     "default_limit" : 100
 }

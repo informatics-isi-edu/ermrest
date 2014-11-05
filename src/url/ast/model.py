@@ -204,7 +204,10 @@ class Tables (Api):
             self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             schema = self.schema.GET_body(conn, cur, uri)
-            return ermrest.model.Table.create_fromjson(conn, cur, schema, tabledoc)
+            try:
+                return ermrest.model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
+            except (exception.ConflictData), te:
+                raise exception.rest.Conflict(str(te))
 
         def post_commit(table):
             web.ctx.status = '201 Created'
@@ -569,7 +572,7 @@ class Columns (Api):
             self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             table = self.table.GET_body(conn, cur, uri)
-            return table.add_column(conn, cur, columndoc)
+            return table.add_column(conn, cur, columndoc, web.ctx.ermrest_config)
 
         def post_commit(column):
             web.ctx.status = '201 Created'

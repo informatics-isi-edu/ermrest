@@ -83,8 +83,11 @@ class Catalog (Api):
         entries = web.ctx.ermrest_registry.lookup(catalog_id)
         if not entries:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
-        self.manager = catalog.Catalog(web.ctx.ermrest_catalog_factory, 
-                                       entries[0]['descriptor'])
+        self.manager = catalog.Catalog(
+            web.ctx.ermrest_catalog_factory, 
+            entries[0]['descriptor'],
+            web.ctx.ermrest_config
+            )
 
     def resolve(self, cur):
         """Bootstrap catalog manager state."""
