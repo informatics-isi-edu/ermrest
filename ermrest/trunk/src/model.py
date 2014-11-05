@@ -113,11 +113,17 @@ def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
                     if re.match(pattern, typestr):
                         return rewrite_type(preftype)
 
-    preftype = match_type(typestr, defaultval, config['column_types'])
+    try:
+        preftype = match_type(typestr, defaultval, config['column_types'])
+    except (KeyError), te:
+        raise ValueError('ERMrest config missing required policy: %s' % str(te))
     if preftype is not None:
         return preftype
     elif readonly:
-        preftype = match_type(typestr, defaultval, config['column_types_readonly'])
+        try:
+            preftype = match_type(typestr, defaultval, config['column_types_readonly'])
+        except (KeyError), te:
+            raise ValueError('ERMrest config missing required policy: %s' % str(te))
         if preftype is not None:
             return preftype
                 
