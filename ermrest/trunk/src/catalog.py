@@ -158,14 +158,17 @@ class Catalog (object):
 
     # key cache by (dbname, version)
     MODEL_CACHE = dict()
-    
-    def __init__(self, factory, descriptor):
+
+    def __init__(self, factory, descriptor, config=None):
         """Initializes the catalog.
            
            The 'factory' is the factory used to create this catalog.
            
            The 'descriptor' is a dictionary containing the connection 
            parameters needed to connect to the backend database.
+
+           The 'config' is a full ERMrest config, passed to other
+           delegates that might need it.
            
            Right now, this class uses lazy initialization. Thus it does not
            open a connection until required.
@@ -176,6 +179,7 @@ class Catalog (object):
         self._dbc = None
         self._model = None
         self._dbname = descriptor.get(self._DBNAME)
+        self._config = config
 
     def get_model_version(self, cur):
         cur.execute("""
@@ -190,7 +194,7 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
             cache_key = (self._dbname, self.get_model_version(cur))
             self._model = self.MODEL_CACHE.get(cache_key)
             if self._model is None:
-                self._model = introspect(cur)
+                self._model = introspect(cur, web.ctx.ermrest_config)
                 self.MODEL_CACHE[cache_key] = self._model
         return self._model
     

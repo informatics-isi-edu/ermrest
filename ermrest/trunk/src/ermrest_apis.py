@@ -165,6 +165,7 @@ def request_init():
     web.ctx.ermrest_registry = registry
     web.ctx.ermrest_catalog_factory = catalog_factory
     web.ctx.ermrest_config = global_env
+
     try:
         # get client authentication context
         web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
