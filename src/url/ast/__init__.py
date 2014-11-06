@@ -279,6 +279,15 @@ class Name (object):
 
         raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
 
+    def resolve_context(self, epath):
+        """Resolve self against a specific entity path for which we must be an alias, returning alias string."""
+        if len(self.nameparts) > 1:
+            raise exception.BadSyntax('Context name %s is not a valid syntax for an entity alias.' % self)
+        try:
+            return epath[str(self.nameparts[0])].alias
+        except KeyError:
+            raise exception.BadData('Context name %s is not a bound alias in entity path.' % self)
+
     def resolve_link(self, model, epath):
         """Resolve self against a specific database model and epath context.
 
@@ -338,7 +347,7 @@ class Name (object):
         table = epath.current_entity_table()
         col, base = self.resolve_column(epath._model, epath)
         if base == epath:
-            return col, epath._path[-1]
+            return col, epath._path[epath.current_entity_position()]
         elif base in epath.aliases:
             return col, epath._path[epath.aliases[base]]
 

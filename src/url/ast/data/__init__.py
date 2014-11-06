@@ -60,6 +60,8 @@ class Entity (Api):
         for elem in self.path[1:]:
             if elem.is_filter:
                 epath.add_filter(elem)
+            elif elem.is_context:
+                epath.set_context(elem)
             else:
                 keyref, refop, lalias = elem.resolve_link(model, epath)
                 epath.add_link(keyref, refop, elem.alias, lalias)

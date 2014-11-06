@@ -691,11 +691,15 @@ class EntityPath (AnyPath):
         AnyPath.__init__(self)
         self._model = model
         self._path = None
+        self._context_index = None
         self.sort = None
         self.aliases = {}
 
     def __str__(self):
-        return ' / '.join([ str(e) for e in self._path ])
+        return ' / '.join(
+            [ str(e) for e in self._path ] 
+            + self._context_index >= 0 and [ '$%s' % self._path[self._context_index].alias ] or []
+            )
 
     def __getitem__(self, k):
         return self._path[ self.aliases[k] ]
@@ -708,6 +712,7 @@ class EntityPath (AnyPath):
         if not self._path is None:
             raise NotImplementedError('self._path')
         self._path = [ EntityElem(self, alias, table, 0) ]
+        self._context_index = -1
         if alias is not None:
             self.aliases[alias] = 0
 
@@ -717,7 +722,21 @@ class EntityPath (AnyPath):
            The entity type of the path is the right-most table of the
            path.
         """
-        return self._path[-1].table
+        return self._path[self._context_index].table
+
+    def current_entity_position(self):
+        """Get non-negative integer position of current entity context in path."""
+        if self._context_index == -1:
+            return len(self._path) - 1
+        elif self._context_index >= 0:
+            return self._context_index
+        else:
+            raise NotImplementedError('current_entity_position with index %s' % self._context_index)
+
+    def set_context(self, context):
+        """Change path entity context to existing context referenced by alias."""
+        alias = context.resolve_context(self)
+        self._context_index = self.aliases[alias]
 
     def get_data_version(self, cur):
         """Get data version txid considering all tables in entity path."""
@@ -742,7 +761,7 @@ WHERE %(pred)s
 
            Filters restrict the matched rows of the right-most table.
         """
-        return self._path[-1].add_filter(filt)
+        return self._path[self._context_index].add_filter(filt)
 
     def add_sort(self, sort):
         """Add a sortlist specification for final output.
@@ -786,7 +805,7 @@ WHERE %(pred)s
            the right-most table prior to extension.
         """
         if not self._path:
-            raise NotImplementedError('self._path')
+            raise NotImplementedError('self._path %s' % self._path)
         rpos = len(self._path)
 
         if refop == '@=':
@@ -796,6 +815,7 @@ WHERE %(pred)s
             rtable = keyref.unique.table
 
         self._path.append( EntityElem(self, ralias, rtable, rpos, keyref, refop, lalias) )
+        self._context_index = -1
 
         if ralias is not None:
             if ralias in self.aliases:
@@ -819,16 +839,16 @@ WHERE %(pred)s
            encoding path references and filter conditions.
 
         """
-        selects = selects or ("t%d.*" % (len(self._path) - 1))
+        selects = selects or ("t%d.*" % (self.current_entity_position()))
 
-        pkeys = self._path[-1].table.uniques.keys()
+        pkeys = self._path[self._context_index].table.uniques.keys()
         if pkeys:
             pkeys.sort(key=lambda k: len(k))
-            shortest_pkey = self._path[-1].table.uniques[pkeys[0]].columns
+            shortest_pkey = self._path[self._context_index].table.uniques[pkeys[0]].columns
         else:
-            shortest_pkey = self._path[-1].table.columns_in_order()
+            shortest_pkey = self._path[self._context_index].table.columns_in_order()
         distinct_on_cols = [ 
-            't%d.%s' % (len(self._path) - 1, sql_identifier(c.name))
+            't%d.%s' % (self.current_entity_position(), sql_identifier(c.name))
              for c in shortest_pkey
             ]
 
@@ -863,7 +883,7 @@ FROM %(tables)s
     def sql_delete(self):
         """Generate SQL statement to delete the entities described by this epath.
         """
-        table = self._path[-1].table
+        table = self._path[self._context_index].table
         # find the "meta-key" for this table
         #  -- the union of all columns of all keys
         mkcols = set()
@@ -1001,7 +1021,7 @@ class AttributePath (AnyPath):
             
             if base == self.epath:
                 # column in final entity path element
-                alias = "t%d" % (len(self.epath._path) - 1)
+                alias = "t%d" % self.epath.current_entity_position()
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
                 alias = "t%d" % self.epath[base].pos
