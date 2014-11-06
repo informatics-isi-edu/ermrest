@@ -69,9 +69,7 @@
         "text": { 
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
             },
-        "timestamp": { "aliases": [ "timestamp without time zone" ] },
-        "numeric": null,
-        "time": { "aliases": [ "time without time zone", "time with time zone" ] }
+        "timestamp": { "aliases": [ "timestamp without time zone" ] }
     },
 
     "default_limit" : 100
