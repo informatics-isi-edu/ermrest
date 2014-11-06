@@ -309,6 +309,11 @@ def p_entity_filter(p):
     p[0] = p[1]
     p[0].append( ast.data.path.FilterElem( p[3] ) )
 
+def p_entity_context_reset(p):
+    """entitypath : entitypath '/' '$' sname"""
+    p[0] = p[1]
+    p[0].append( ast.data.path.ContextResetElem( p[4] ) )
+
 def p_filter(p):
     """filter : disjunction
               | conjunction"""

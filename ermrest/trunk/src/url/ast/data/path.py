@@ -29,6 +29,7 @@ import re
 
 class Api (object):
     is_filter = False
+    is_context = False
 
     def __init__(self, catalog):
         self.catalog = catalog
@@ -259,6 +260,17 @@ class FilterElem (Api):
 
     def validate_attribute_update(self, apath):
         return self.pred.validate_attribute_update(apath)
+
+class ContextResetElem (Api):
+    """A path element that resets entity context via reference to earlier element."""
+    is_context = True
+    
+    def __init__(self, name):
+        self.name = name
+
+    def resolve_context(self, epath):
+        """Resolve self.name as an alias in epath, returning alias."""
+        return self.name.resolve_context(epath)
 
 class Predicate (Api):
 
