@@ -1073,6 +1073,48 @@ class Column (object):
     def is_star_column(self):
         return False
 
+    def istext(self):
+        return re.match( r'(text|character)( *varying)?([(]0-9*[)])?', str(self.type))
+
+    def btree_index_sql(self):
+        """Return SQL to construct a single-column btree index or None if not necessary.
+
+           An index is not necessary if the column forms a
+           single-column key already and therefore has an implicitly
+           created index.
+
+        """
+        if self not in self.table.uniques:
+            return """
+DROP INDEX IF EXISTS %(index)s ;
+CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
+""" % dict(schema=sql_identifier(self.table.schema.name),
+           table=sql_identifier(self.table.name),
+           column=sql_identifier(self.name),
+           index=sql_identifier("%s_%s_idx" % (self.table.name, self.name))
+       )
+        else:
+            return None
+
+    def pg_trgm_index_sql(self):
+        """Return SQL to construct single-column tri-gram index or None if not necessary.
+
+           An index is not necessary if the column is not a textual
+           column.
+
+        """
+        if self.istext():
+            return """
+DROP INDEX IF EXISTS %(index)s ;
+CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_ops ) ;
+""" % dict(schema=sql_identifier(self.table.schema.name),
+           table=sql_identifier(self.table.name),
+           column=sql_identifier(self.name),
+           index=sql_identifier("%s_%s_pgtrgm_idx" % (self.table.name, self.name))
+       )
+        else:
+            return None
+
     def sql_def(self):
         """Render SQL column clause for table DDL."""
         parts = [
@@ -1218,10 +1260,7 @@ class FreetextColumn (Column):
 
         self.table = table
         
-        def istext(ctype):
-            return re.match( r'(text|character)( *varying)?([(]0-9*[)])?', ctype)
-            
-        self.srccols = [ c for c in table.columns.itervalues() if istext(str(c.type)) ]
+        self.srccols = [ c for c in table.columns.itervalues() if c.istext() ]
         self.srccols.sort(key=lambda c: c.position)
 
     def sql_name_with_talias(self, talias, output=False):
