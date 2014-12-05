@@ -188,14 +188,16 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
         self._model_version = cur.next()[0]
         return self._model_version
 
-    def get_model(self, cur):
+    def get_model(self, cur, config=None):
         # TODO: turn this into a @property
+        if config is None:
+            config = web.ctx.ermrest_config # TODO: why not self._config?
         if not self._model:
             cache_key = (self._dbname, self.get_model_version(cur))
             self._model = self.MODEL_CACHE.get(cache_key)
             if self._model is None:
                 try:
-                    self._model = introspect(cur, web.ctx.ermrest_config)
+                    self._model = introspect(cur, config)
                 except Exception, te:
                     raise ValueError('Introspection on existing catalog "%s" failed (likely a policy mismatch): %s' % (self._dbname, str(te)))
                 self.MODEL_CACHE[cache_key] = self._model
