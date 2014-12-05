@@ -131,5 +131,5 @@ def t_error(t):
     raise LexicalError()
 
 def make_lexer():
-    return ply.lex.lex(debug=False, optimize=1, lextab='url_lextab')
+    return ply.lex.lex(debug=False, optimize=1, lextab=None)#'url_lextab')
 

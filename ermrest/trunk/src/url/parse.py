@@ -636,7 +636,7 @@ def make_parser():
     # use this to shut it up: errorlog=yacc.NullLogger()
     # NullLogger attribute not supported by Python 2.4
     # return yacc.yacc(debug=False, errorlog=yacc.NullLogger())
-    return yacc.yacc(debug=True, optimize=1, tabmodule='url_parsetab', write_tables=1)
+    return yacc.yacc(debug=False, optimize=1, tabmodule='url_parsetab', write_tables=0)
 #    return yacc.yacc()
 
 def make_parse():
