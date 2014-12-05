@@ -12,6 +12,7 @@ Alias /ermrest/static @HTMLDIR@/static
 
 <Location /ermrest>
 
+    Require all granted
     WSGIProcessGroup @DAEMONUSER@
     
     # site can disable redundant service logging by adding env=!dontlog to their CustomLog or similar directives
@@ -23,6 +24,7 @@ Alias /ermrest/static @HTMLDIR@/static
 
    Satisfy Any
    Allow from all
+   Require all granted
 
    <IfModule mod_expires.c>
       ExpiresActive On
