@@ -275,7 +275,11 @@ class Name (object):
                     else:
                         raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
 
-                return (model.lookup_table(None, n0).columns[n1], None)
+                table = model.lookup_table(None, n0)
+                if n1 not in table.columns:
+                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (n1, table.name))
+
+                return (table.columns[n1], None)
 
         raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
 
