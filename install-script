@@ -114,7 +114,7 @@ dstfile="$2"
 if [[ -n "$context" ]]
 then
     #flags+=( -Z "$context" )
-    semanage fcontext --add --ftype -- --type "$context" "$dstfile" || error Could not install SE-Linux context "$context" for "$dstfile"
+    semanage fcontext --add --type "$context" "$dstfile" || error Could not install SE-Linux context "$context" for "$dstfile"
 fi
 
 TMP=
