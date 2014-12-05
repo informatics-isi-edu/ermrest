@@ -8,7 +8,7 @@ $(SHAREDIR)/ermrest_config.json: src/ermrest_config.json.in
 
 $(HTTPCONFDIR)/wsgi_ermrest.conf: src/wsgi_ermrest.conf.in $(WSGISOCKETDIR)
 	./install-script -M sed -R @PYLIBDIR@=$(PYLIBDIR) @WSGISOCKETPREFIX@=$(WSGISOCKETPREFIX) \
-		@DAEMONUSER@=$(DAEMONUSER) @HTMLDIR@=$(HTMLDIR) \
+		@DAEMONUSER@=$(DAEMONUSER) @HTMLDIR@=$(HTMLDIR) @AUTHDIRECTIVES@="$(AUTHDIRECTIVES)" \
 		-o root -g root -m a+r -p -D $< $@
 
 $(SHAREDIR)/%: src/%
