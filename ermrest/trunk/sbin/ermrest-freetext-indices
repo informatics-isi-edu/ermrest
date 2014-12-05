@@ -6,6 +6,7 @@ import psycopg2
 
 import ermrest
 import ermrest.sanepg2
+import ermrest.ermrest_apis
 import ermrest.exception
 
 def catalog_auto_index(catalog, conn, cur, schema_names):
@@ -13,13 +14,19 @@ def catalog_auto_index(catalog, conn, cur, schema_names):
     if cur.next()[0]:
         raise ValueError('Please run "CREATE EXTENSION pg_trgm" on database "%s" as Postgres superuser.' % catalog._dbname)
 
-    model = catalog.get_model(cur)
+    model = catalog.get_model(cur, ermrest.ermrest_apis.global_env)
     for sname in schema_names:
         schema = model.lookup_schema(sname)
         for table in schema.tables.values():
             column = table.freetext_column()
             cur.execute(column.textsearch_index_sql())
             cur.execute(column.pg_trgm_index_sql())
+            def execute_if(s):
+                if s:
+                    cur.execute(s)
+            for column in table.columns.values():
+                execute_if(column.btree_index_sql())
+                execute_if(column.pg_trgm_index_sql())
 
 def usage():
     sys.stderr.write("""
