@@ -98,11 +98,14 @@ class EntityElem (object):
     """Wrapper for instance of entity table in path.
 
     """
-    def __init__(self, epath, alias, table, pos, keyref=None, refop=None, keyref_alias=None):
+    def __init__(self, epath, alias, table, pos, keyref=None, refop=None, keyref_alias=None, context_pos=None):
         self.epath = epath
         self.alias = alias
         self.table = table
         self.pos = pos
+        if context_pos is None:
+            context_pos = pos - 1
+        self.context_pos = context_pos
         self.keyref = keyref
         self.refop = refop
         self.keyref_alias = keyref_alias
@@ -170,7 +173,7 @@ class EntityElem (object):
         if self.keyref_alias:
             ltnum = self.epath.aliases[self.keyref_alias]
         else:
-            ltnum = self.pos - 1
+            ltnum = self.context_pos
         
         return ' AND '.join([
                 't%d.%s = t%d.%s' % (
@@ -814,7 +817,13 @@ WHERE %(pred)s
             # '=@'
             rtable = keyref.unique.table
 
-        self._path.append( EntityElem(self, ralias, rtable, rpos, keyref, refop, lalias) )
+        assert self._context_index >= -1
+        if self._context_index >= 0:
+            rcontext = self._context_index
+        else:
+            rcontext = rpos - 1
+        
+        self._path.append( EntityElem(self, ralias, rtable, rpos, keyref, refop, lalias, rcontext) )
         self._context_index = -1
 
         if ralias is not None:
