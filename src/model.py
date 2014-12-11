@@ -954,13 +954,16 @@ class Type (object):
         return self.name
 
     def sql_literal(self, v):
-        if self.name in [ 'integer', 'int8', 'bigint' ]:
-            return "%s" % int(v)
-        elif self.name in [ 'float', 'float8' ]:
-            return "%s" % float(v)
-        else:
-            # text and text-like...
-            return "'" + str(v).replace("'", "''") + "'::%s" % self.sql()
+        try:
+            if self.name in [ 'integer', 'int8', 'bigint' ]:
+                return "%s" % int(v)
+            elif self.name in [ 'float', 'float8' ]:
+                return "%s" % float(v)
+            else:
+                # text and text-like...
+                return "'" + str(v).replace("'", "''") + "'::%s" % self.sql()
+        except ValueError:
+            raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 
     def prejson(self):
         return dict(
