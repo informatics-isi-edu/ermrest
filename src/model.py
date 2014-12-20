@@ -66,8 +66,18 @@ _default_config = {
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
             },
         "timestamp": { "aliases": [ "timestamp without time zone" ] }
-        }
+        },
+
+    "column_types_no_index": [ "json" ]
     }
+
+def _get_ermrest_config():
+    """Helper method to return the ERMrest config.
+    """ 
+    if web.ctx and 'ermrest_config' in web.ctx:
+        return web.ctx['ermrest_config']
+    else:
+        return _default_config
 
 _pg_serial_default_pattern = r"nextval[(]'[^']+'::regclass[)]$"
 
@@ -1087,7 +1097,8 @@ class Column (object):
            created index.
 
         """
-        if self not in self.table.uniques:
+        excludes = _get_ermrest_config().get('column_types_no_index', list())
+        if self not in self.table.uniques and str(self.type) not in excludes:
             return """
 DROP INDEX IF EXISTS %(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
