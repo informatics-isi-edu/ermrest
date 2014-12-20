@@ -72,5 +72,7 @@
         "timestamp": { "aliases": [ "timestamp without time zone" ] }
     },
 
+    "column_types_no_index": [ "json" ],
+
     "default_limit" : 100
 }
