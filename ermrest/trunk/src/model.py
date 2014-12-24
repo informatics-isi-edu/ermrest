@@ -66,9 +66,7 @@ _default_config = {
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
             },
         "timestamp": { "aliases": [ "timestamp without time zone" ] }
-        },
-
-    "column_types_no_index": [ "json" ]
+        }
     }
 
 def _get_ermrest_config():
@@ -1089,6 +1087,9 @@ class Column (object):
     def istext(self):
         return re.match( r'(text|character)( *varying)?([(]0-9*[)])?', str(self.type))
 
+    def is_indexable(self):
+        return str(self.type) != 'json'
+
     def btree_index_sql(self):
         """Return SQL to construct a single-column btree index or None if not necessary.
 
@@ -1097,8 +1098,7 @@ class Column (object):
            created index.
 
         """
-        excludes = _get_ermrest_config().get('column_types_no_index', list())
-        if self not in self.table.uniques and str(self.type) not in excludes:
+        if self not in self.table.uniques and self.is_indexable():
             return """
 DROP INDEX IF EXISTS %(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
