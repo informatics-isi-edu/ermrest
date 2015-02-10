@@ -384,7 +384,7 @@ SELECT %(cols)s
 FROM (
   SELECT (rs.r).*
   FROM (
-    SELECT json_populate_recordset( NULL::%(input_table)s, %(input)s::json ) AS r
+    SELECT json_populate_recordset( NULL::%(input_table)s, %(input)s::json, True ) AS r
   ) rs
 ) s
 """ % dict( 
@@ -410,7 +410,7 @@ SELECT %(cols)s
 FROM (
   SELECT (rs.r).*
   FROM (
-    SELECT json_populate_record( NULL::%(input_table)s, i.j ) AS r
+    SELECT json_populate_record( NULL::%(input_table)s, i.j, True ) AS r
     FROM %(input_json)s i
   ) rs
 ) s
