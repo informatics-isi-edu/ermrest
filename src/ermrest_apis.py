@@ -95,7 +95,7 @@ global_env = webauthn2.merge_config(
     )
 
 webauthn2_config = global_env.get('webauthn2', dict(web_cookie_name='ermrest'))
-webauthn2_config.update(dict(web_cookie_path='/ermrest'))
+webauthn2_config.update(dict(web_cookie_path='/'))
 
 ## setup webauthn2 handler
 webauthn2_manager = webauthn2.Manager(overrides=webauthn2_config)
