@@ -1042,7 +1042,7 @@ class ArrayType(Type):
         assert typedoc['is_array']
         base_type = Type.fromjson(typedoc['base_type'], ermrest_config)
         if base_type.is_array:
-            raise ValueError('base type of array cannot be another array type')
+            raise exception.ConflictData('base type of array cannot be another array type')
         return ArrayType( base_type )
 
 class Column (object):
@@ -1164,14 +1164,17 @@ WHERE schema_name = %(sname)s
         ctype = Type.fromjson(columndoc['type'], ermrest_config)
         comment = columndoc.get('comment', None)
         annotations = columndoc.get('annotations', {})
-        return Column(
-            columndoc['name'],
-            position,
-            ctype,
-            columndoc['default'],
-            comment,
-            annotations
+        try:
+            return Column(
+                columndoc['name'],
+                position,
+                ctype,
+                columndoc.get('default'),
+                comment,
+                annotations
             )
+        except KeyError, te:
+            raise exception.BadData('Table document missing required field "%s"' % te)
 
     @staticmethod
     def fromjson(columnsdoc, ermrest_config):
