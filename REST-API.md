@@ -257,12 +257,12 @@ The catalog operations form the basic dataset lifecycle of the multi-tenant ERMr
 
 The POST method is used to create an empty catalog:
 
-    POST /ermrest/catalog
+    POST /ermrest/catalog HTTP/1.1
     Host: www.example.com
     
 On success, this request yields the new catalog identifier, e.g. `42` in this example:
 
-    201 Created
+    HTTP/1.1 201 Created
     Location: /ermrest/catalog/42
     Content-Type: application/json
     
@@ -277,12 +277,12 @@ Typical error response codes include:
 
 The GET method is used to get a short description of a catalog:
 
-    GET /ermrest/catalog/42
+    GET /ermrest/catalog/42 HTTP/1.1
     Host: www.example.com
     
 On success, this request yields a description:
 
-    200 OK
+    HTTP/1.1 200 OK
     Content-Type: application/json
     
     {"id": "1", ...}
@@ -296,12 +296,12 @@ Typical error response codes include:
 
 The DELETE method is used to delete a catalog and all its content:
 
-    DELETE /ermrest/catalog/42
+    DELETE /ermrest/catalog/42 HTTP/1.1
     Host: www.example.com
     
 On success, this request yields a description:
 
-    200 OK
+    HTTP/1.1 200 OK
     Content-Type: text/plain
 
 Typical error response codes include:
@@ -332,7 +332,7 @@ The POST operation is used to create new entity records in a table, using an ent
 
 In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:
 
-    POST /ermrest/catalog/42/entity/schema_name:table_name
+    POST /ermrest/catalog/42/entity/schema_name:table_name HTTP/1.1
     Host: www.example.com
     Content-Type: text/csv
     Accept: text/csv
@@ -347,7 +347,7 @@ The input data MUST observe the table definition including column names and type
 
 On success, the response is:
 
-    200 OK
+    HTTP/1.1 200 OK
     Content-Type: text/csv
 
     column1,column2
@@ -371,7 +371,7 @@ The POST operation is also used to create new entity records in a table where so
 
 In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:
 
-    POST /ermrest/catalog/42/entity/schema_name:table_name?defaults=column1
+    POST /ermrest/catalog/42/entity/schema_name:table_name?defaults=column1 HTTP/1.1
     Host: www.example.com
     Content-Type: text/csv
     Accept: text/csv
@@ -386,7 +386,7 @@ The input data MUST observe the table definition including column names and type
 
 On success, the response is:
 
-    200 OK
+    HTTP/1.1 200 OK
     Content-Type: text/csv
 
     column1,column2
@@ -412,7 +412,7 @@ The PUT operation is used to update entity records in a table, using an entity r
 
 In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:
 
-    POST /ermrest/catalog/42/entity/schema_name:table_name
+    POST /ermrest/catalog/42/entity/schema_name:table_name HTTP/1.1
     Host: www.example.com
     Content-Type: text/csv
     Accept: text/csv
@@ -427,7 +427,7 @@ The input data MUST observe the table definition including column names and type
 
 On success, the response is:
 
-    200 OK
+    HTTP/1.1 200 OK
     Content-Type: text/csv
 
     column1,column2
@@ -448,13 +448,15 @@ The GET operation is used to retrieve entity records, using an entity resource d
 
 - _service_ `/catalog/` _cid_ `/entity/` _path_
 
-In this operation, complex entity paths with filter and linked entity elements are allowed.
+In this operation, complex entity paths with filter and linked entity elements are allowed, for example:
 
-    GET /ermrest/catalog/42/entity/path...
+    GET /ermrest/catalog/42/entity/table1/column1=value1/table2/column2=value2 HTTP/1.1
+    Host: www.example.com
+    Accept: text/csv
 
 On success, the response is:
 
-    200 OK
+    HTTP/1.1 200 OK
     Content-Type: text/csv
 
     column1,column2
@@ -478,11 +480,12 @@ The DELETE operation is used to delete entity records, using an entity resource 
 
 In this operation, complex entity paths with filter and linked entity elements are allowed.
 
-    DELETE /ermrest/catalog/42/entity/path...
+    DELETE /ermrest/catalog/42/entity/table1/column1=value1/table2/column2=value2 HTTP/1.1
+	Host: www.example.com
 
 On success, the response is:
 
-    204 No Content
+    HTTP/1.1 204 No Content
 
 The result of the operation is that each of the entity records denoted by _path_ are deleted from the catalog. This operation only (directly) affects the right-most table instance context of _path_. Additional joined entity context may be used to filter the set of affected rows, but none of the contextual table instances are modified by deletion. However, due to constraints configured in the model, it is possible for a deletion to cause side-effects in another table, e.g. deletion of entities with key values causing foreign key references to those entities to also be processed by a cascading delete or update.
 
