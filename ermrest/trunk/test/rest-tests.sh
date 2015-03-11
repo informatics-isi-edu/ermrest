@@ -149,6 +149,7 @@ ctypes=(
     int8
     text
     timestamptz
+    date
     uuid
     interval
     serial2
@@ -156,8 +157,29 @@ ctypes=(
     serial8
 )
 
-for ctype in "${ctypes[@]}"
+# use corresponding test values (already url-encoded for simplicity)
+cvals=(
+    True
+    1.0
+    1.0
+    1
+    1
+    1
+    one
+    '2015-03-11T11%3A32%3A56-0700'
+    '2015-03-11'
+    '2648a44e-c81d-11e4-b6d7-00221930f5cc'
+    'P1Y2M3DT4H5M6S'
+    1
+    1
+    1
+)
+
+for typeno in "${!ctypes[@]}"
 do
+    ctype="${ctypes[$typeno]}"
+    cval="${cvals[$typeno]}"
+
     cat > ${TEST_DATA} <<EOF
 {
    "kind": "table",
@@ -187,6 +209,9 @@ EOF
         NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
     fi
     NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+
+    # test handling of column-typed literals in filters
+    dotest "200::application/json::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}/column1=${cval}"
 
     # test insertion of rows with server-generated serial ID types
     if [[ "$ctype" == serial* ]]
