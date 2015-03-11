@@ -963,9 +963,9 @@ class Type (object):
 
     def sql_literal(self, v):
         try:
-            if self.name in [ 'integer', 'int8', 'bigint' ]:
+            if self.name in [ 'integer', 'int2', 'int4', 'int8', 'bigint', 'serial2', 'serial4', 'serial8' ]:
                 return "%s" % int(v)
-            elif self.name in [ 'float', 'float8' ]:
+            elif self.name in [ 'float', 'float4', 'float8' ]:
                 return "%s" % float(v)
             else:
                 # text and text-like...
