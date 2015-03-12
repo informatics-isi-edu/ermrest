@@ -1,6 +1,6 @@
 # ERMrest API
 
-[ERMrest](http://example.com/TBD) (rhymes with "earn rest") is a general relational data storage service for web-based, data-oriented collaboration.  See the [ERMrest overview] (README.md) for a general description and motivation.
+[ERMrest](http://example.com/TBD) (rhymes with "earn rest") is a general relational data storage service for web-based, data-oriented collaboration.  See the [ERMrest overview](README.md) for a general description and motivation.
 
 This technical document specifies the web service protocol in terms of resources, resource representations, resource naming, and operations.
 
@@ -92,9 +92,134 @@ For simplicity, ERMrest always uses data formats capable of representing a set o
 
 Other data formats may be supported in future revisions.
 
+### Model Resource Naming
+
+Unlike general web architecture, ERMrest expects clients to understand the URL internal structure and permits (or even encourages) reflection on URL content to understand how one resource name relates to another. To support introspection and management, the data model of a catalog is exposed as a set of model-level resources. These model elements also influence the [naming of data resources](#data-resource-naming) described later.
+
+The ERMrest model resources are named under a root collection of schemata for a particular catalog:
+
+- _service_ `/catalog/` _cid_ `/schema/`
+
+where the components of this root path are:
+
+- _service_: the ERMrest service endpoint such as `https://www.example.com/ermrest`.
+- _cid_: the catalog identifier for one dataset such as `42`.
+
+This root schemata resource has a representation which summarizes the entire data model of the catalog as a single document.
+
+#### Schema Names
+
+Each schema or namespace of tables in a particular catalog is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_
+
+This named schema resource has a representation which summarizes the data model of all tables qualified by the _schema name_ namespace.
+
+#### Table Names
+
+Each table is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_
+
+This named table resource has a representation which summarizes its data model including columns, keys, and foreign keys. Within data resource names, a table may be referenced by _table name_ only if that name is unique within the catalog or by a fully qualified _schema name_ `:` _table name_. Concrete examples of such names might be `table1` or `schema1:table1`.
+
+##### Table Comments
+
+Each table comment is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/comment`
+
+This named resource has a simple representation which is just human readable text in `text/plain` format.
+
+##### Table Annotations
+
+Each table annotation is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/annotation/` _annotation key_
+
+This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
+
+Additionally, a composite resource summarizes all existing annotations on one table for convenient discovery and bulk retrieval:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/annotation`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/annotation/`
+
+#### Column Names
+
+Each column is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_
+
+This named column resource has a representation which summarizes its data model including name and type. Within data resource names, a column may be referenced by:
+
+- _column name_ when resolving within an implicit table context;
+- _table alias_ : _column name_ when resolving against a context where _table alias_ has been bound as an alias to a specific table instance;
+- _table name_ : _column name_ when resolving against the model and _table name_ is unique within the catalog;
+- _schema name_ : _table name_ : _column name_ when resolving against the model and _table name_ might otherwise be ambiguous.
+
+##### Column Comments
+
+Each column comment is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/comment`
+
+This named resource has a simple representation which is just human readable text in `text/plain` format.
+
+##### Column Annotations
+
+Each column annotation is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/annotation/` _annotation key_
+
+This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
+
+Additionally, a composite resource summarizes all existing annotations on one column for convenient discovery and bulk retrieval:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/annotation`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/annotation/`
+
+#### Key Names
+
+Each (composite) key constraint is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ...
+
+This named constraint has a representation which summarizes its set of constituent key columns. The meaning of a key constraint is that the combination of listed columns must be a unique identifier for rows in the table, i.e. no two rows can share the same combination of values for those columns.
+
+Additionally, a composite resource summarizes all existing key constraints on one table for convenient discovery and bulk retrieval:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/`
+
+#### Foreign Key Names
+
+Each (composite) foreign key constraint is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_ `/` _key column_ `,` ...
+
+This named constraint has a representation which summarizes its set of constituent foreign key columns, another referenced table, and the set of key columns that form the composite key being referenced in that other table, including the mapping of each foreign key _column name_ to each composite key _key column_. The _table reference_ can be a qualified table name, e.g. `schema1:table1` or an unqualified table name, e.g. `table1`.  The meaning of this constraint is that each combination of non-NULL values in _schema name_:_table name_ MUST reference an existing combination of values forming a composite key for a row in _table reference_.
+
+Additionally, a composite resource summarizes all foreign key constraints on one table for discovery and bulk retrieval purposes:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey` 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` 
+
+Additionally, a composite resource summarizes all foreign key constraints involving one composite foreign key _column name_ list:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ...
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/`
+
+Finally, a composite resource summarizes all foreign key constraints involving one composite foreign key _column name_ list and one _table reference_:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_
+
+(While highly unusual, it is possible to express more than one foreign key constraint from the same composite foreign key _column name_ list to different composite key _key column_ lists in the same or different _table reference_ tables.)
+
+
 ### Data Resource Naming
 
-Unlike general web architecture, ERMrest expects clients to understand the path notation and permits (or even encourages) reflection on URL content to understand how one data resource name relates to another. The ERMrest data names always have a common structure:
+The ERMrest data names always have a common structure:
 
 - _service_ `/catalog/` _cid_ `/` _api_ `/` _path_
 - _service_ `/catalog/` _cid_ `/` _api_ `/` _path_ _suffix_
@@ -163,6 +288,15 @@ As a special case, the psuedo-column `*` can be used in several idiomatic forms:
   - `array(`_alias_`:*)`: an array of records rather than an array of values is computed
 
 TODO: document other variants?
+
+#### Attribute Group Names
+
+The `attributegroup` resource space denotes groups of entities by arbitrary grouping keys and computed (group-level) aggregates using names of the form:
+
+- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ...
+- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _aggregate_ `,` ...
+
+The _path_ is interpreted slightly differently than in the `attribute` resource space. Rather than denoting a set of entities drawn from the final table instance in _path_, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to groups where each group represents a set of entities sharing the same _group key_ tuple, and optional _aggregate_ list elements are evaluated over this set of entities to produce a group-level aggregate value, using the same aggregate functions documented previously for [Aggregate Names](#aggregate-names). The _group key_ and _aggregate_ list elements may draw upon columns from any _path_ element.
 
 ### Data Paths
 
