@@ -244,6 +244,44 @@ This has no effect on the overall joining structure nor filtering of the _parent
 
 A path can chain a number of entity link elements from left to right to form long, linear joining structures. With the use of path context resets, a path can also form tree-shaped joining structures, i.e. multiple chains of links off a single ancestor table instance within the _parent path_.  It can also be used to "invert" a tree to have several joined structures augmenting the final entity set denoted by the whole path.
 
+### Sort Modifier
+
+An optional sorting modifier can modify the ordering of elements in the set-based resources denoted by `entity`, `attribute`, and `attributegroup` resource names. This modifier applies sorting based on output columns available in the set-based resource representation and may increase service cost significantly. The modifier has the form:
+
+- `@sort(` _output column_ `,` ... `)`
+- `@sort(` _output column_ `::desc::` `,` ... `)`
+
+where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. The list of sort keys goes left-to-right from primary to secondary etc.
+
+The modifier appears as an optional suffix to data names, but before any query parameters in the URL:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)`
+  - Each _sort key_ MUST be a column name in the denoted entities since no column renaming is supported in `entity` resources.
+  - The sort modifies the order of the entity records in the external representation.
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
+  - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
+  - The sort modifies the order of the entity records in the external representation.
+- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
+  - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
+  - The sort modifies the order of the group records in the external representation, i.e. groups are sorted after aggregation has occurred. Sorting by a _projection_ value means sorting by a computed aggregate or an arbitrarily chosen example value when projecting bare columns.
+
+The sort modifier is only meaningful on retrieval requests using the `GET` method.
+
+### Limit Query Parameter
+
+An optional `limit` query parameter can truncate the length of set-based resource representations denoted by `entity`, `attribute`, and `attributegroup` resource names:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `?limit=` _n_
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `?limit=` _n_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `?limit=` _n_
+- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+
+If the set denoted by the resource name (without the limit modifier) has _k_ elements, the denoted limited subset will have _n_ members if _n_ < _k_ and will otherwise have all _k_ members. When combined with a sort modifier, the first _n_ members will be returned, otherwise an arbitrary subset will be chosen.
+
+The `limit` query parameter is only meaningful on retrieval requests using the `GET` method.
+
 ## REST Operations
 
 In the following documentation and examples, the _service_ as described in the previous section on resource naming is assumed to be
