@@ -117,7 +117,7 @@ The `entity` resource space denotes whole entities using names of the form:
 
 - _service_ `/catalog/` _cid_ `/entity/` _path_
 
-The primary naming convention, without query parameters, denotes the final entity set referenced by _path_, as per the data path rules described below. The denoted entity set has the same tuple structure as the final table instance in _path_ and may be a subset of the entities based on joining and filtering criteria encoded in _path_. The set of resulting tuples are distinct according to the key definitions of that table instance, i.e. any joins in the path may be used to filter out rows but do not cause duplicate rows.
+The primary naming convention, without query parameters, denotes the final entity set referenced by _path_, as per the [data path rules](#data-paths). The denoted entity set has the same tuple structure as the final table instance in _path_ and may be a subset of the entities based on joining and filtering criteria encoded in _path_. The set of resulting tuples are distinct according to the key definitions of that table instance, i.e. any joins in the path may be used to filter out rows but do not cause duplicate rows.
 
 #### Attribute Names
 
@@ -265,7 +265,7 @@ The modifier appears as an optional suffix to data names, but before any query p
   - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
   - The sort modifies the order of the group records in the external representation, i.e. groups are sorted after aggregation has occurred. Sorting by a _projection_ value means sorting by a computed aggregate or an arbitrarily chosen example value when projecting bare columns.
 
-The sort modifier is only meaningful on retrieval requests using the `GET` method.
+The sort modifier is only meaningful on retrieval requests using the `GET` method described in [Data Operations](#data-operations).
 
 ### Limit Query Parameter
 
@@ -280,7 +280,65 @@ An optional `limit` query parameter can truncate the length of set-based resourc
 
 If the set denoted by the resource name (without the limit modifier) has _k_ elements, the denoted limited subset will have _n_ members if _n_ < _k_ and will otherwise have all _k_ members. When combined with a sort modifier, the first _n_ members will be returned, otherwise an arbitrary subset will be chosen.
 
-The `limit` query parameter is only meaningful on retrieval requests using the `GET` method.
+The `limit` query parameter is only meaningful on retrieval requests using the `GET` method described in [Data Operations](#data-operations).
+
+### Data Paging
+
+The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [path filters](#path-filters) can be combined to express paged access to set-based data resources:
+
+1. The sort order defines a stable sequence of set elements.
+1. The path filter selects set elements following the last-visited element.
+1. The limit parameter defines the number of set elements in the page.
+
+This allows sequential paging or scrolling of large result sets. Because ERMrest supports concurrent retrieval and modification of data resources by multiple clients, it is not sensible to randomly access set elements by stream offset (whether by element or page count) because you might skip or repeat elements if preceding elements have been inserted or removed from the sequence in between page requests. With element-based page keying, a concurrent insertion may appear in a scrolled set, and a concurrent deletion may disappear from a scrolled set, but all elements that existed throughout the period of scrolling will be visited once.
+
+#### Simple Paging by Entity Key
+
+If the client needs to page through entity records, i.e. `entity` or `attribute` resources, and the client does not need a particular visitation order for the set-based resource elements, it is recommended that paging be performed by the primary key on the entity. Of course, the method described here is also then applicable if the client desired to visit the elements in primary key order.
+
+For example, assuming `table1` has a single key column `keycol`, fetch the first page of results using a sorted and limited data resource:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(keycol)?limit=` _page size_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(keycol)?limit=` _page size_
+
+Fetch additional pages by sorting and limiting a filtered data resource that only includes elements with key value following the _previous key_ value encountered in the last element of the preceding page:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `/keycol::gt::` _previous key_ `@sort(keycol)?limit=` _page size_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/keycol::gt::` _previous key_ `/` _projection_ `,` ... `@sort(keycol)?limit=` _page size_
+
+These examples use the `::gt::` or "greater than" filter operator which means only records where `keycol` > _previous key_ are included in the results. A reverse order scroll can be achieved by using the `::desc::` sort direction and the `::lt::` or "less than" filter operator.
+
+Because sort is applied after projection, such paging is only possible for `attribute` resources if the key column(s) are included in the projection list.
+
+#### Paging with Application Sort Order
+
+If the client needs sort elements by a column other than the primary key, a more complex data name is required to simultaneously provide the application sort and a secondary sort that allows page-based segmentation by unique row keys. Two complications are introduced here: the application sort values may be shared by multiple rows and they may also be absent (NULL) for some rows.
+
+For example, assuming `table1` has a single key column `keycol` and the client wants to sort by an application-specific column `appcol`, fetch the first page of results using a sorted and limited data resource:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(appcol,keycol)?limit=` _page size_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(appcol,keycol)?limit=` _page size_
+
+Fetch additional pages by sorting and limiting a filtered data resource that only includes elements with application value and key value following the _V0_ and _K0_ encountered in the last element of the preceding page:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `/appcol=` _V0_ `&keycol::gt::` _K0_ `;appcol::gt::` _V0_ `;appcol::null::` `@sort(appcol,keycol)?limit=` _page size_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/appcol=` _V0_ `&keycol::gt::` _K0_ `;appcol::gt::` _V0_ `;appcol::null::` `/` _projection_ `,` ... `@sort(appcol,keycol)?limit=` _page size_
+
+The subsequent page filters express conditions for three kinds of row which might appear in the next page:
+
+1. A set of rows sharing the same `appcol` value _V0_ and subsequent `keycol` keys
+1. A set of rows with subsequent `appcol` values
+1. A set of rows with `NULL` `appcol`
+
+these logical cases are rewritten into conjunctive normal form using the available filter syntax of ERMrest.  If the last encountered element has a `NULL` `appcol` value, a different page request is needed:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ `/appcol::null::/keycol::gt::` _K0_ `@sort(appcol,keycol)?limit=` _page size_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/appcol::null::/keycol::gt::` _K0_`/` _projection_ `,` ... `@sort(appcol,keycol)?limit=` _page size_
+
+this alternate resource name is required because `NULL` is not a value which can be used in `::gt::` or `::lt::` comparison operations.
+
+Because sort is applied after projection, such paging is only possible for `attribute` resources if the application and key sort column(s) are included in the projection list.
+
 
 ## REST Operations
 
