@@ -189,7 +189,7 @@ A filter element can augment a path with a filter expression:
 
 - _parent path_ `/` _filter_
 
-after which the combined path denotes a filtered subset of the entities denoted by _parent path_ where the _filter_ evaluates to a true value.  The filter expression language is specified later in this document. The accumulative affect of several filter path elements is a logical conjunction of all the filtering criteria in those elements.
+after which the combined path denotes a filtered subset of the entities denoted by _parent path_ where the _filter_ expressed in the [filter language](#filter-language) evaluates to a true value.  The accumulative affect of several filter path elements is a logical conjunction of all the filtering criteria in those elements. It is also intuitive to think of a chain of filter elements as a filtering pipeline or sieve, each eliminating data which does not match the filter criteria.
 
 #### Entity Link
 
@@ -243,6 +243,89 @@ where _alias name_ MUST be a table instance alias already bound by an element wi
 This has no effect on the overall joining structure nor filtering of the _parent path_ but changes the denoted entity set to be that of the aliased table instance. It also changes the column resolution logic to attempt to resolve unqualified column names within the aliased table instance rather than right-most entity link element within _parent path_.
 
 A path can chain a number of entity link elements from left to right to form long, linear joining structures. With the use of path context resets, a path can also form tree-shaped joining structures, i.e. multiple chains of links off a single ancestor table instance within the _parent path_.  It can also be used to "invert" a tree to have several joined structures augmenting the final entity set denoted by the whole path.
+
+### Filter Language
+
+The [filter element](#path-filters) of data paths uses a general filter language described here. There are unary and binary filter predicates, logical combinations, negation, and parenthetic grouping. Together, these language elements allow arbitrarily complex boolean logic functions to be expressed directly, in [conjunctive normal form](#conjunctive-normal-form), or in [disjunctive normal form](#disjunctive-normal-form).
+
+The operator precedence is as follows:
+
+1. Parenthetic grouping overrides precedence, causing the expression inside the parenthetic group to be evaluated and its result used as the value of the parenthetic group.
+1. Negation has the highest precedence, negating the immediately following predicate or parenthetic group.
+1. Conjunction using the `&` operator has the next highest precedence, combining adjacent parenthetic groups, negated predicates, predicates, and conjunctions.
+1. Disjunction using the `;` operator has the next highest precedence, combining adjacent parenthetic groups, negated predicates, predicated, conjunctions, and disjunctions.
+1. The path separator `/` has the lowest precedence, adding complete logical expressions to a path.
+
+#### Unary Filter Predicate
+
+A unary predicate has the form:
+
+- _column reference_ _operator_
+
+There is currently only one unary operator, `::null::`, which evaluates True if and only if the column is NULL for the row being tested.
+
+#### Binary Filter Predicate
+
+A binary predicate as the form:
+
+- _column reference_ _operator_ _literal value_
+
+| operator | meaning | notes |
+|----------|---------|-------|
+| `=`| column equals value | |
+| `::lt::` | column less than value | |
+| `::leq::` | column less than or equal to value | |
+| `::gt::` | column greater than value | |
+| `::geq::` | column greater than or equal to value | |
+| `::regexp::` | column matches regular expression value | also allowed on `*` free-text psuedo column |
+| `::ciregexp::` | column matches regular expression value case-insensitively | also allowed on `*` free-text psuedo column |
+| `::ts::` | column matches text-search query value | also allowed on `*` free-text psuedo column |
+
+#### Negated Filter
+
+Any predicate or parenthetic filter may be prefixed with the `!` negation operator to invert its logical value:
+
+- `!` _predicate_
+- `!` `(` _logical expression_ `)`
+
+The negation operator has higher precedence than conjunctive or disjunctive operators, meaning it negates the nearest predicate or parenthetic expression on the right-hand side before logical operators apply.
+
+#### Parenthetic Filter
+
+Any predicate, conjunction, or disjunction may be wrapped in parentheses to override any implicit precedence for logical composition:
+
+- `(` _logical expression_ `)`
+
+#### Conjunctive Filter
+
+A conjunction (logical AND) uses the `&` separator: 
+
+- _predicate_ `&` _conjunction_
+- _predicate_ `&` _predicate_
+- _predicate_ `&` `!` _predicate_
+- _predicate_ `&` `(` _logical expression_ `)`
+- _predicate_ `&` `!` `(` _logical expression_ `)`
+
+Individual filter elements in the path are also conjoined (logical AND), but the path separator `/` cannot appear in a parenthetic group. 
+
+#### Disjunctive Filter
+
+A disjunction (logical OR) uses the `;` separator:
+
+- _predicate_ `;` _disjunction_
+- _predicate_ `;` _conjunction_
+- _predicate_ `;` _predicate_
+- _predicate_ `;` `!` _predicate_
+- _predicate_ `;` `(` _logical expression_ `)`
+- _predicate_ `;` `!` `(` _logical expression_ `)`
+
+#### Conjunctive Normal Form
+
+A filter in conjunctive normal form (CNF) is a conjunction of disjunctions over a set of possibly negated predicate terms. To write a CNF filter in a data resource name, use a sequence of filter path elements, separated by `/`, to express the top-level conjunction.  Use the disjunction separator `;` and optional negation prefix `!` on individual predicate terms in each disjunctive clause.
+
+#### Disjunctive Normal Form
+
+A filter in disjunctive normall form (DNF) is a disjunction of conjunctions over a set of possibly negated predicate terms. To write a DNF filter in a data resource name, use a single filter path element using the `;` separator to express the top-level disjunction. Use the conjunction separator `&` and optional negation prefix `!` on individual predicate terms in each conjunctive clause.
 
 ### Sort Modifier
 
