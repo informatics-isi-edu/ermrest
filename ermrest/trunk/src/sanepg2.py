@@ -44,6 +44,7 @@ import psycopg2.pool
 import web
 import sys
 import traceback
+import datetime
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.
@@ -83,8 +84,9 @@ class PoolManager (object):
 
     """
     def __init__(self):
-        # map databasename -> pool
+        # map databasename -> [pool, timestamp]
         self.pools = dict()
+        self.max_idle_seconds = 60 * 60 # 1 hour
 
     def __getitem__(self, databasename):
         """Lookup existing or create new pool for database on demand.
@@ -92,16 +94,31 @@ class PoolManager (object):
            May fail transiently and caller should retry.
 
         """
+        # abandon old pools so they can be garbage collected
+        for key in self.pools.keys():
+            try:
+                pair = self.pools.pop(key)
+                if (datetime.datetime.now() - pair[1]).total_seconds() < self.max_idle_seconds:
+                    # this pool is sufficiently active so put it back!
+                    boundpair = self.pools.setdefault(key, pair)
+                # if pair is still removed at this point, let garbage collector deal with it
+            except KeyError:
+                # another thread could have purged key before we got to it
+                pass
+
         try:
-            return self.pools[databasename]
+            pair = self.pools[databasename]
+            pair[1] = datetime.datetime.now() # update timestamp
+            return pair[0]
         except KeyError:
             # atomically get/set pool
-            newpool = pool(2, 4, databasename)
-            boundpool = self.pools.setdefault(databasename, newpool)
-            if boundpool is not newpool:
+            newpool = pool(1, 4, databasename)
+            boundpair = self.pools.setdefault(databasename, [newpool, datetime.datetime.now()])
+            if boundpair[0] is not newpool:
                 # someone beat us to it
                 newpool.closeall()
-            return boundpool
+            return boundpair[0]
+            
 
 pools = PoolManager()       
 
@@ -113,9 +130,9 @@ def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x, verbose=True):
     """
     conn = None
     cur = None
+    used_pool = pools[databasename]
     try:
-        #web.debug('pooled_perform %s %s %s' % (databasename, bodyfunc, finalfunc))
-        conn = pools[databasename].getconn()
+        conn = used_pool.getconn()
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
         cur = conn.cursor()
         try:
@@ -130,7 +147,7 @@ def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x, verbose=True):
                 yield result
         except psycopg2.InterfaceError, e:
             # reset bad connection
-            pools[databasename].putconn(conn, close=True)
+            used_pool.putconn(conn, close=True)
             conn = None
             raise e
         except GeneratorExit, e:
@@ -148,5 +165,5 @@ def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x, verbose=True):
             #conn.commit()
             if cur is not None:
                 cur.close()
-            pools[databasename].putconn(conn)
+            used_pool.putconn(conn)
 
