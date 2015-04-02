@@ -1,0 +1,156 @@
+#!/bin/bash
+
+# usage: install-script [opt]... srcfile dst
+
+inopts=true
+
+owner=
+group=
+mode=
+flags=()
+
+replace_mode=assign
+replacement_keys=()
+replacement_values=()
+
+error()
+{
+    cat >&2 <<EOF
+$0: $@
+usage: $(basename "$0") [<opt>]... [--] <srcfile> <dst>
+
+Options:
+   -o owner        set owner of dstfile
+   -g group        set group ownership of dstfile
+   -m mode         set mode of dstfile
+   -Z context      set SE-Linux context and rule for dstfile
+   -p              preserve timestamp on dstfile
+   -D              create parent directories of dstfile
+   -M mode         replacement mode: assign (default), ref, sed
+   -R key=value... apply replacements, e.g.
+                      "s/^key=.*/key=value/" (assign mode)
+
+When using pattern replacement, srcfile is rewritten to a temporary
+before being installed to dstfile.  The replacment modes correspond
+to:
+
+   assign: replace shell script variable assignments such as
+      "key=rest-of-line" with "key=value"
+
+   ref: replace shell script variable references such as
+      "\${key}" with "value"
+
+   sed: replace using arbitrary sed pattern/value expressions
+
+The final mode specification applies to all replacements.
+
+Installation is handled by the regular "install" utility, which
+supports a target filepath or a target directory path for the
+destination argument. However, this script does not support the 
+
+EOF
+    exit 1
+}
+
+while [[ $# -gt 0 ]] && [[ -n "$inopts" ]]
+do
+    case "$1" in
+	-o) owner="$2" ; shift 2 ;;
+	-g) group="$2" ; shift 2 ;;
+	-m) mode="$2" ; shift 2 ;;
+	-Z) context="$2" ; shift 2 ;;
+	-p|-D) flags+=( "$1" ) ;  shift 1 ;;
+	-M)
+	    case "$2" in
+		assign|ref|sed)
+		    replace_mode="$2"
+		    ;;
+		*)
+		    error Unrecognized replacement mode "\"$2\"".
+		    ;;
+	    esac
+	    shift 2
+	    ;;
+	-R) 
+	    shift 1
+	    inreplace=true
+	    while [[ $# -gt 0 ]] && [[ -n "$inreplace" ]]
+	    do
+		case "$1" in
+		    --) inreplace= ; shift 1 ;;
+		    ?*=*)
+			key="${1%%=*}"
+			value="${1##${key}=}"
+			key="${key//\//\\/}"
+			value="${value//\//\\/}"
+
+			replacement_keys+=( "$key" )
+			replacement_values+=( "$value" )
+
+			shift 1
+			;;
+		    *) inreplace= ;;
+		esac
+	    done
+	    ;;
+	-*)
+	    error Unrecognized option "\"$1\"".
+	    exit 1
+	    ;;
+	--) inopts= ; shift 1 ;;
+	*) inopts= ;;
+    esac
+done
+
+[[ $# -lt 2 ]] && error Require srcfile and dst arguments after options.
+[[ ! -r "$1" ]] && error Cannot read srcfile "\"$1\"".
+
+srcfile="$1"
+dstfile="$2"
+
+[[ -n "$owner" ]] && flags+=( -o "$owner" )
+[[ -n "$group" ]] && flags+=( -g "$group" )
+[[ -n "$mode" ]] && flags+=( -m "$mode" )
+if [[ -n "$context" ]]
+then
+    #flags+=( -Z "$context" )
+    semanage fcontext --add --type "$context" "$dstfile" || error Could not install SE-Linux context "$context" for "$dstfile"
+fi
+
+TMP=
+
+cleanup()
+{
+    [[ -n "$TMP" ]] && [[ -e "$TMP" ]] && rm -f "$TMP"
+}
+
+trap cleanup 0
+
+replacements=()
+
+for i in ${!replacement_keys[@]}
+do
+    case "${replace_mode}" in
+	assign) replacements+=( -e "s/^${replacement_keys[$i]}=.*/${replacement_keys[$i]}=\"${replacement_values[$i]}\"/" ) ;;
+	ref) replacements+=( -e "s/\${${replacement_keys[$i]}}/${replacement_values[$i]}/g" ) ;;
+	sed) replacements+=( -e "s/${replacement_keys[$i]}/${replacement_values[$i]}/g" ) ;;
+    esac
+done
+
+#echo --  "${replacements[@]}"
+
+if [[ "${#replacements[@]}" -gt 0 ]]
+then
+    TMP=$(mktemp)
+    [[ -w "$TMP" ]] || error Could not create temporary file.
+    sed "${replacements[@]}" < "$srcfile" > "$TMP" && {
+	touch -r "$srcfile" "$TMP"
+	install "${flags[@]}" "$TMP" "$dstfile"
+    } || {
+	echo replacement "${replacements[@]}" failed >&2
+	exit 1
+    }
+else
+    install "${flags[@]}" "$srcfile" "$dstfile"
+fi
+

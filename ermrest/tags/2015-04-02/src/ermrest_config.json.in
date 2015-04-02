@@ -1,0 +1,76 @@
+{
+    "webauthn2" : {
+      "require_client": true,
+      "require_attributes": true, 
+      "listusers_permit": ["admin"], 
+      "listattributes_permit": ["admin"], 
+      "manageusers_permit": ["admin"], 
+      "manageattributes_permit": ["admin"], 
+            
+      "session_expiration_minutes": 30, 
+      "def_passwd_len": 10, 
+      "hash_passwd_reps": 1000,
+            
+      "sessionids_provider": "webcookie", 
+      "sessionstates_provider": "database", 
+      "clients_provider": "database", 
+      "attributes_provider": "database", 
+            
+      "handler_uri_usersession": "/ermrest/authn/session", 
+            
+      "web_cookie_name": "ermrest", 
+      "web_cookie_path": "/", 
+      "web_cookie_secure": true, 
+      "setheader": false,
+
+      "database_schema": "webauthn2", 
+      "database_type": "postgres", 
+      "database_name": "", 
+      "database_max_retries": 5, 
+
+      "crowd_home_uri": "https://YOUR CROWD2 HOST:8445/crowd/", 
+      "crowd_app_name": "YOUR CROWD APP NAME", 
+      "crowd_app_passwd": "YOUR CROWD APP PASSWD", 
+      "crowd_max_retries": 5, 
+      "crowd_listusers_scope": ["YOUR APP GROUP"],
+      "crowd_listgroups_scope": []
+    },
+    
+    "registry" : {
+      "type" : "database",
+      "database_name": "ermrest",
+      "database_schema": "ermrest"
+    },
+    
+    "catalog_factory" : {
+      "type" : "database",
+      "database_name": "ermrest"
+    },
+
+    "column_types": {
+        "boolean": { "aliases": [ "bool" ] },
+        "date": null,
+        "float4": { "aliases": [ "real" ] },
+        "float8": { "aliases": [ "double precision" ] },
+        "int2": { "aliases": [ "smallint" ] },
+        "int4": { "aliases": [ "integer", "int" ] },
+        "int8": { "aliases": [ "bigint" ] },
+        "interval": null,
+        "serial2": { "aliases": [ "smallserial" ] },
+        "serial4": { "aliases": [ "serial" ] },
+        "serial8": { "aliases": [ "bigserial" ] },
+        "text": { "aliases": [ "character varying" ] },
+        "timestamptz": { "aliases": [ "timestamptz", "timestamp with time zone" ] },
+        "uuid": null
+    },
+    
+    "column_types_readonly": {
+        "json": null,
+        "text": { 
+            "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
+            },
+        "timestamp": { "aliases": [ "timestamp without time zone" ] }
+    },
+
+    "default_limit" : 100
+}

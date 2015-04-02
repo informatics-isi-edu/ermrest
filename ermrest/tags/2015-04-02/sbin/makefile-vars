@@ -1,0 +1,22 @@
+SBIN_FILES= \
+	ermrest-deploy \
+	ermrest-undeploy \
+	ermrest-webauthn2-deploy \
+	ermrest-webauthn2-manage \
+	ermrest-registry-deploy \
+	ermrest-registry-manage \
+	ermrest-freetext-indices \
+	ermrest-db-work
+
+SBIN_EDIT_FILES= \
+	$(SBIN_FILES) \
+	makefile-rules \
+	makefile-vars 
+
+SBIN_FILES_INSTALL=$(SBIN_FILES:%=$(SBINDIR)/%)
+
+INSTALL_FILES += $(SBIN_FILES_INSTALL) \
+	      $(CRONDAILYDIR)/ermrest-db-work
+
+EDIT_FILES += $(SBIN_EDIT_FILES:%=sbin/%)
+
