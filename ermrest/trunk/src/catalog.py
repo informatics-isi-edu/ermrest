@@ -32,17 +32,33 @@ import uuid
 import base64
 import psycopg2
 import sanepg2
-from webauthn2.util import PooledConnection
 import web
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists
 from ermrest.model import introspect
 
-__all__ = ['CatalogFactory', 'Catalog']
+__all__ = ['get_catalog_factory']
+
+_POSTGRES_FACTORY = "postgres"
+_SUPPORTED_FACTORY_TYPES = (_POSTGRES_FACTORY)
+
+
+def get_catalog_factory(config):
+    """Returns an instance of the catalog factory based on config.
+    """
+    if config.get("type") not in _SUPPORTED_FACTORY_TYPES:
+        raise NotImplementedError()
+
+    return CatalogFactory(
+        dsn=config.get("dsn"),
+        template=config.get('template')
+        )
 
 
 class CatalogFactory (object):
     """The catalog factory.
+
+       This is a "simple" implementation based on a PostgreSQL backend.
     
        Single Host
        -----------
@@ -60,16 +76,19 @@ class CatalogFactory (object):
 
     _KEY_DBNAME = 'dbname'  # descriptor dbname key
 
-    def __init__(self, config=None):
+    def __init__(self, dsn='dbname=', template={}):
         """Initialize the Catalog Factory.
         
-           config : configuration parameters for the factory.
+           dsn : database DSN of the factory.
+
+           template : descriptor template for new catalogs.
            
            The database user must be a super user or have CREATEDB permissions.
         """
-        self._descriptor_template = config.get('template')
+        self._dsn = dsn
+        self._template = template
 
-    def create(self, conn, ignored_cur):
+    def create(self):
         """Create a Catalog.
         
            This operation creates a catalog (i.e., it creates a database) on 
@@ -78,29 +97,35 @@ class CatalogFactory (object):
            
            Returns the new catalog object representing the catalog.
         """
-        # create catalog descriptor
-        descriptor = dict(self._descriptor_template)
-        descriptor[self._KEY_DBNAME] = _random_name(prefix='_ermrest_')
+        # generate a random database name
+        dbname = _random_name(prefix='_ermrest_')
 
-        # create database
-        cur = None
-        try:
-            conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-            cur = conn.cursor()
-            cur.execute("CREATE DATABASE " + sql_identifier(descriptor[self._KEY_DBNAME]))
-        except psycopg2.Error, ev:
-            msg = str(ev)
-            idx = msg.find("\n") # DETAIL starts after the first line feed
-            if idx > -1:
-                msg = msg[0:idx]
-            raise RuntimeError(msg)
-        finally:
-            if cur:
-                cur.close()
-            # just in case caller didn't use sanepg2 which resets this already...
-            conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
-        
-        return Catalog(self, descriptor)
+        def body(conn, ignored_cur):
+            # create database
+            cur = None
+            try:
+                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+                cur = conn.cursor()
+                cur.execute("CREATE DATABASE " + sql_identifier(dbname))
+            except psycopg2.Error, ev:
+                msg = str(ev)
+                idx = msg.find("\n")  # DETAIL starts after the first line feed
+                if idx > -1:
+                    msg = msg[0:idx]
+                raise RuntimeError(msg)
+            finally:
+                if cur:
+                    cur.close()
+                # just in case caller didn't use sanepg2 which resets this already...
+                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
+
+        def post_commit(ignored):
+            # create catalog
+            descriptor = dict(self._template)
+            descriptor[self._KEY_DBNAME] = dbname
+            return Catalog(self, descriptor)
+
+        return sanepg2.pooled_perform(self._dsn, body, post_commit).next()
     
     
     def _destroy_catalog(self, conn, ignored_cur, catalog):

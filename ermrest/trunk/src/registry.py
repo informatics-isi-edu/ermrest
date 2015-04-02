@@ -32,12 +32,12 @@ from util import *
 
 import json
 from ermrest import sanepg2
-import psycopg2
 
-__all__ = ["get_registry"]
+__all__ = ['get_registry']
 
 _POSTGRES_REGISTRY = "postgres"
 _SUPPORTED_REGISTRY_TYPES = (_POSTGRES_REGISTRY)
+
 
 def get_registry(config):
     """Returns an instance of the registry based on config.
@@ -49,6 +49,7 @@ def get_registry(config):
         dsn=config.get("dsn"),
         schema=config.get("schema")
         )
+
 
 class Registry (object):
     """A registry of ERMREST catalogs.

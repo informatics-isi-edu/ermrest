@@ -43,6 +43,8 @@
     },
     
     "catalog_factory": {
+      "type" : "postgres",
+      "dsn": "dbname=",
       "_comment": "Postgres template params are based on libpq args (e.g., host, user, password)]",
       "template": {
         "type": "postgres",
