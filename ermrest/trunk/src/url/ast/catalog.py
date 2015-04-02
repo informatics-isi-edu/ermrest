@@ -46,9 +46,9 @@ class Catalogs (Api):
                                                     self.default_content_type)
 
         # HACK: use registry's db when creating new catalog DB
-        master_dbname = web.ctx.ermrest_registry.database
-        catalog = sanepg2.pooled_perform(master_dbname, web.ctx.ermrest_catalog_factory.create ).next()
-        sanepg2.pooled_perform(catalog._dbname, lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+        master_dsn = web.ctx.ermrest_registry.dsn
+        catalog = sanepg2.pooled_perform(master_dsn, web.ctx.ermrest_catalog_factory.create).next()
+        sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
         entry = web.ctx.ermrest_registry.register(catalog.descriptor)
         catalog_id = entry['id']
         

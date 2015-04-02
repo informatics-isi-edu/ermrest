@@ -72,23 +72,23 @@ class connection (psycopg2.extensions.connection):
         cur.execute(stmt, vars=vars)
         return cur
 
-def pool(minconn, maxconn, database):
+def pool(minconn, maxconn, dsn):
     """Open a thread-safe connection pool with minconn <= N <= maxconn connections to database.
 
        The connections are from the customized connection factory in this module.
     """
-    return psycopg2.pool.ThreadedConnectionPool(minconn, maxconn, database=database, connection_factory=connection)
+    return psycopg2.pool.ThreadedConnectionPool(minconn, maxconn, dsn=dsn, connection_factory=connection)
 
 class PoolManager (object):
     """Manage a set of database connection pools keyed by database name.
 
     """
     def __init__(self):
-        # map databasename -> [pool, timestamp]
+        # map dsn -> [pool, timestamp]
         self.pools = dict()
         self.max_idle_seconds = 60 * 60 # 1 hour
 
-    def __getitem__(self, databasename):
+    def __getitem__(self, dsn):
         """Lookup existing or create new pool for database on demand.
 
            May fail transiently and caller should retry.
@@ -107,13 +107,13 @@ class PoolManager (object):
                 pass
 
         try:
-            pair = self.pools[databasename]
+            pair = self.pools[dsn]
             pair[1] = datetime.datetime.now() # update timestamp
             return pair[0]
         except KeyError:
             # atomically get/set pool
-            newpool = pool(1, 4, databasename)
-            boundpair = self.pools.setdefault(databasename, [newpool, datetime.datetime.now()])
+            newpool = pool(1, 4, dsn)
+            boundpair = self.pools.setdefault(dsn, [newpool, datetime.datetime.now()])
             if boundpair[0] is not newpool:
                 # someone beat us to it
                 newpool.closeall()
@@ -123,14 +123,14 @@ class PoolManager (object):
 pools = PoolManager()       
 
 
-def pooled_perform(databasename, bodyfunc, finalfunc=lambda x: x, verbose=True):
+def pooled_perform(dsn, bodyfunc, finalfunc=lambda x: x, verbose=True):
     """Run bodyfunc(conn, cur) using pooling, commit, transform with finalfunc, clean up.
 
        Automates handling of errors.
     """
     conn = None
     cur = None
-    used_pool = pools[databasename]
+    used_pool = pools[dsn]
     try:
         conn = used_pool.getconn()
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)

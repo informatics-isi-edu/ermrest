@@ -87,10 +87,11 @@ __all__ = [
 global_env = webauthn2.merge_config(
     jsonFileName='ermrest_config.json', 
     built_ins={
-        "default_limit": 100,
-        "db": "ermrest", 
-        "dbn": "postgres", 
-        "dbmaxconnections": 8
+        # TODO: are these used?
+        # "default_limit": 100,
+        # "db": "ermrest", 
+        # "dbn": "postgres", 
+        # "dbmaxconnections": 8
         }
     )
 

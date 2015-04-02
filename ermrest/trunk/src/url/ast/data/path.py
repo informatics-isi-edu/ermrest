@@ -203,7 +203,7 @@ class Api (object):
             except UnsupportedMediaType, e:
                 raise rest.UnsupportedMediaType
 
-        return sanepg2.pooled_perform(self.catalog.manager._dbname, wrapbody, finish)
+        return sanepg2.pooled_perform(self.catalog.manager.dsn, wrapbody, finish)
     
     def final(self):
         pass

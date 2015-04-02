@@ -25,7 +25,7 @@
 
       "database_schema": "webauthn2", 
       "database_type": "postgres", 
-      "database_name": "", 
+      "database_dsn": "dbname=", 
       "database_max_retries": 5, 
 
       "crowd_home_uri": "https://YOUR CROWD2 HOST:8445/crowd/", 
@@ -37,14 +37,17 @@
     },
     
     "registry" : {
-      "type" : "database",
-      "database_name": "ermrest",
-      "database_schema": "ermrest"
+      "type" : "postgres",
+      "dsn": "dbname=",
+      "schema": "ermrest"
     },
     
-    "catalog_factory" : {
-      "type" : "database",
-      "database_name": "ermrest"
+    "catalog_factory": {
+      "_comment": "Postgres template params are based on libpq args (e.g., host, user, password)]",
+      "template": {
+        "type": "postgres",
+        "dbname": "PROVIDED BY FACTORY"
+      }
     },
 
     "column_types": {
