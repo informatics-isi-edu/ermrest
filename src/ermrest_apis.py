@@ -74,7 +74,7 @@ from url import url_parse_func
 from ermrest.exception import *
 
 from ermrest.registry import get_registry
-from ermrest.catalog import CatalogFactory
+from ermrest.catalog import get_catalog_factory
 from ermrest.util import negotiated_content_type, urlquote
 
 __all__ = [
@@ -98,7 +98,7 @@ global_env = webauthn2.merge_config(
 webauthn2_config = global_env.get('webauthn2', dict(web_cookie_name='ermrest'))
 webauthn2_config.update(dict(web_cookie_path='/'))
 
-## setup webauthn2 handler
+# setup webauthn2 handler
 webauthn2_manager = webauthn2.Manager(overrides=webauthn2_config)
 webauthn2_handler_factory = webauthn2.RestHandlerFactory(manager=webauthn2_manager)
 UserSession = webauthn2_handler_factory.UserSession
@@ -108,18 +108,21 @@ AttrManage = webauthn2_handler_factory.AttrManage
 AttrAssign = webauthn2_handler_factory.AttrAssign
 AttrNest = webauthn2_handler_factory.AttrNest
 
-## setup registry
+# setup registry
 registry_config = global_env.get('registry')
 if registry_config:
     registry = get_registry(registry_config)
 else:
     registry = None
 
-## setup catalog factory
+# setup catalog factory
 catalog_factory_config = global_env.get('catalog_factory')
-catalog_factory = CatalogFactory(catalog_factory_config)
+if catalog_factory_config:
+    catalog_factory = get_catalog_factory(catalog_factory_config)
+else:
+    catalog_factory = None
 
-## setup logger and web request log helpers
+# setup logger and web request log helpers
 logger = logging.getLogger('ermrest')
 sysloghandler = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_LOCAL1)
 syslogformatter = logging.Formatter('%(name)s[%(process)d.%(thread)d]: %(message)s')
@@ -131,6 +134,7 @@ logger.setLevel(logging.INFO)
 log_template = "%(elapsed_s)d.%(elapsed_ms)3.3ds %(client_ip)s user=%(client_identity)s req=%(reqid)s"
 log_trace_template = log_template + " -- %(tracedata)s"
 log_final_template = log_template + " (%(status)s) %(method)s %(proto)s://%(host)s/%(uri)s %(range)s %(type)s"
+
 
 def log_parts():
     """Generate a dictionary of interpolation keys used by our logging template."""
@@ -144,7 +148,8 @@ def log_parts():
         reqid = web.ctx.ermrest_request_guid
         )
     return parts
-    
+
+
 def request_trace(tracedata):
     """Log one tracedata event as part of a request's audit trail.
 
@@ -153,6 +158,7 @@ def request_trace(tracedata):
     parts = log_parts()
     parts['tracedata'] = tracedata
     logger.info( (log_trace_template % parts).encode('utf-8') )
+
 
 def request_init():
     """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
@@ -185,6 +191,7 @@ def request_init():
     except (webauthn2.exc.AuthnFailed):
         raise rest.Forbidden('Authentication failed')
 
+
 def request_final():
     """Log final request handler state to finalize a request's audit trail."""
     parts = log_parts()
@@ -198,6 +205,7 @@ def request_final():
             type = web.ctx.ermrest_content_type
             ))
     logger.info( (log_final_template % parts).encode('utf-8') )
+
 
 class Dispatcher:
     """Helper class to handle parser-based URL dispatch
