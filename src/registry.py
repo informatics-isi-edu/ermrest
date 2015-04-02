@@ -36,16 +36,18 @@ import psycopg2
 
 __all__ = ["get_registry"]
 
+_POSTGRES_REGISTRY = "postgres"
+_SUPPORTED_REGISTRY_TYPES = (_POSTGRES_REGISTRY)
 
 def get_registry(config):
     """Returns an instance of the registry based on config.
     """
-    if config.get("type") != "database":
+    if config.get("type") not in _SUPPORTED_REGISTRY_TYPES:
         raise NotImplementedError()
     
     return SimpleRegistry(
-        database=config.get("database_name"),
-        schema=config.get("database_schema")
+        dsn=config.get("dsn"),
+        schema=config.get("schema")
         )
 
 class Registry (object):
@@ -108,13 +110,13 @@ class SimpleRegistry (Registry):
     
     TABLE_NAME = "simple_registry"
     
-    def __init__(self, database, schema):
+    def __init__(self, dsn, schema):
         """Initialized the SimpleRegistry.
         """
         super(SimpleRegistry, self).__init__()
-        self.database = database
+        self.dsn = dsn
         self._schema_name = schema
-        
+
     def deploy(self):
         """Deploy the SimpleRegistry.
         
@@ -137,7 +139,7 @@ CREATE TABLE %(schema)s.%(table)s (
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
 
-        return sanepg2.pooled_perform(self.database, body).next()
+        return sanepg2.pooled_perform(self.dsn, body).next()
                 
     def lookup(self, id=None):
         def body(conn, cur):
@@ -153,15 +155,15 @@ FROM %(schema)s.%(table)s
 """         % dict(schema=self._schema_name,
                    table=self.TABLE_NAME,
                    where=where
-                   ) );
+                   ) )
             
             # return results as a list of dictionaries
             for eid, descriptor in cur:
                 yield dict(id=eid, descriptor=json.loads(descriptor))
 
-        return list(sanepg2.pooled_perform(self.database, body))
+        return list(sanepg2.pooled_perform(self.dsn, body))
     
-    def register(self, descriptor):
+    def register(self, descriptor, id=None):
         assert isinstance(descriptor, dict)
         entry = dict(descriptor=json.dumps(descriptor))
         
@@ -190,14 +192,16 @@ WHERE descriptor = %(descriptor)s;
         def post_commit(id):
             return dict(id=id, descriptor=descriptor)
 
-        return sanepg2.pooled_perform(self.database, body, post_commit).next()
-    
+        return sanepg2.pooled_perform(self.dsn, body, post_commit).next()
+
     def unregister(self, id, destroy=False):
         """Unregister a catalog description.
         
            'id' : the id of the catalog to unregister.
+
+           NOTE: This method looks b0rken
         """
-        cur = self._conn.cursor()
+        cur = self._conn.cursor() # TODO: what self._conn? not defined.
         cur.execute("""
 DELETE FROM %(schema)s.%(table)s
 WHERE id = %(id)s;
@@ -205,7 +209,7 @@ WHERE id = %(id)s;
             % dict(schema=self._schema_name,
                    table=self.TABLE_NAME,
                    id=sql_literal(id)
-                   ) );
+                   ) )
         
         self._conn.commit()
         if not cur.rowcount:

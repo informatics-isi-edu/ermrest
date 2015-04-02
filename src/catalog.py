@@ -57,16 +57,18 @@ class CatalogFactory (object):
        This factory does not enforce any application level authorization 
        policies. Those should be checked before invoking factory methods.
     """
-    
+
+    _KEY_DBNAME = 'dbname'  # descriptor dbname key
+
     def __init__(self, config=None):
         """Initialize the Catalog Factory.
         
            config : configuration parameters for the factory.
            
-           The database (config['database_name']) dbuser must be a 
-           super user or have CREATEDB permissions.
+           The database user must be a super user or have CREATEDB permissions.
         """
-        
+        self._descriptor_template = config.get('template')
+
     def create(self, conn, ignored_cur):
         """Create a Catalog.
         
@@ -76,13 +78,16 @@ class CatalogFactory (object):
            
            Returns the new catalog object representing the catalog.
         """
+        # create catalog descriptor
+        descriptor = dict(self._descriptor_template)
+        descriptor[self._KEY_DBNAME] = _random_name(prefix='_ermrest_')
+
         # create database
-        dbname = _random_name(prefix='_ermrest_')
         cur = None
         try:
             conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
             cur = conn.cursor()
-            cur.execute("CREATE DATABASE " + sql_identifier(dbname))
+            cur.execute("CREATE DATABASE " + sql_identifier(descriptor[self._KEY_DBNAME]))
         except psycopg2.Error, ev:
             msg = str(ev)
             idx = msg.find("\n") # DETAIL starts after the first line feed
@@ -95,13 +100,15 @@ class CatalogFactory (object):
             # just in case caller didn't use sanepg2 which resets this already...
             conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
         
-        return Catalog(self, dict(dbname=dbname))
+        return Catalog(self, descriptor)
     
     
     def _destroy_catalog(self, conn, ignored_cur, catalog):
         """Destroys a catalog.
         
            Do not call this method directly.
+
+           NOTE: This code looks b0rken; notice reference to _dbc which is never defined
         """
         cur = None
         try:
@@ -115,13 +122,13 @@ FROM pg_stat_activity
 WHERE datname = %(dbname)s
   AND pid <> pg_backend_pid()
 ;"""
-                % dict(dbname=sql_literal(catalog.descriptor['dbname'])))
+                % dict(dbname=sql_literal(catalog.descriptor[self._KEY_DBNAME])))
             
             #TODO: note that a client could reconnect ...now... and prevent the drop
             
             # then, drop database
             cur.execute("DROP DATABASE " + 
-                        sql_identifier(catalog.descriptor['dbname']))
+                        sql_identifier(catalog.descriptor[self._KEY_DBNAME]))
 
             cur.close()
             
@@ -143,11 +150,12 @@ class Catalog (object):
     """Provides basic catalog management.
     """
     
+    _POSTGRES_REGISTRY = "postgres"
+    _SUPPORTED_REGISTRY_TYPES = (_POSTGRES_REGISTRY)
     _SCHEMA_NAME = '_ermrest'
     _TABLE_NAME = 'meta'
     _MODEL_VERSION_TABLE_NAME = 'model_version'
     _DATA_VERSION_TABLE_NAME = 'data_version'
-    _DBNAME = 'dbname'
     META_OWNER = 'owner'
     META_READ_USER = 'read_user'
     META_WRITE_USER = 'write_user'
@@ -156,7 +164,7 @@ class Catalog (object):
     META_CONTENT_WRITE_USER = 'content_write_user'
     ANONYMOUS = '*'
 
-    # key cache by (dbname, version)
+    # key cache by (str(descriptor), version)
     MODEL_CACHE = dict()
 
     def __init__(self, factory, descriptor, config=None):
@@ -173,19 +181,30 @@ class Catalog (object):
            Right now, this class uses lazy initialization. Thus it does not
            open a connection until required.
         """
-        assert descriptor.get(self._DBNAME) is not None
+        assert factory is not None
+        assert descriptor is not None
         self.descriptor = descriptor
+        self.dsn = self._serialize_descriptor(descriptor)
         self._factory = factory
-        self._dbc = None
         self._model = None
-        self._dbname = descriptor.get(self._DBNAME)
-        self._config = config
+        self._config = config  # Not sure we need to tuck away the config
+
+    def _serialize_descriptor(self, descriptor):
+        """Serializes the descriptor.
+
+           For postgres, currently the only supported form, the serialized 
+           form follows the libpq format.
+        """
+        if 'type' not in descriptor or descriptor['type'] == self._POSTGRES_REGISTRY:
+            return " ".join([ "%s=%s" % (key, descriptor[key]) for key in descriptor if key != 'type' ])
+        else:
+            raise KeyError("Catalog descriptor type not supported: %(type)s" % descriptor)
 
     def get_model_version(self, cur):
         cur.execute("""
 SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
 """ % dict(schema=self._SCHEMA_NAME, table=self._MODEL_VERSION_TABLE_NAME))
-        self._model_version = cur.next()[0]
+        self._model_version = cur.next()[0]  # TODO: do we need self._model_version to be an instance var?
         return self._model_version
 
     def get_model(self, cur, config=None):
@@ -193,13 +212,13 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
         if config is None:
             config = web.ctx.ermrest_config # TODO: why not self._config?
         if not self._model:
-            cache_key = (self._dbname, self.get_model_version(cur))
+            cache_key = (str(self.descriptor), self.get_model_version(cur))
             self._model = self.MODEL_CACHE.get(cache_key)
             if self._model is None:
                 try:
                     self._model = introspect(cur, config)
                 except Exception, te:
-                    raise ValueError('Introspection on existing catalog "%s" failed (likely a policy mismatch): %s' % (self._dbname, str(te)))
+                    raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
                 self.MODEL_CACHE[cache_key] = self._model
         return self._model
     
@@ -210,9 +229,11 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
            the database.
            
            Important: THIS OPERATION IS PERMANENT... unless you have backups ;)
+
+           NOTE: This code is clearly b0rken
         """
         # the database connection must be closed
-        sanepg2.pools[self._dbname].closeall()
+        sanepg2.pools[self._dbname].closeall() # TODO: this should reference the pool key not dbname
             
         # drop db cannot be called by a connection to the db, so the factory
         # must do it
