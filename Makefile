@@ -31,7 +31,6 @@ PREDEPLOY=$(VARLIBDIR)/predeploy.r5055
 DEPLOYLOCK=$(VARLIBDIR)/deploy.lock
 
 # get sub-directory variables (e.g. modular file groups)
-include examples/makefile-vars
 include sbin/makefile-vars
 include src/makefile-vars
 include src/exception/makefile-vars
@@ -68,11 +67,8 @@ uninstall: force
 include config/make-rules-$(PLATFORM)
 
 # get sub-directory rules (e.g. extra modular targets)
-include examples/makefile-rules
 include sbin/makefile-rules
 include src/makefile-rules
-#include src/url/makefile-rules
-#include src/url/ast/makefile-rules
 include test/makefile-rules
 
 predeploy: $(PREDEPLOY)
