@@ -45,6 +45,7 @@ import web
 import sys
 import traceback
 import datetime
+import math
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.
@@ -98,7 +99,13 @@ class PoolManager (object):
         for key in self.pools.keys():
             try:
                 pair = self.pools.pop(key)
-                if (datetime.datetime.now() - pair[1]).total_seconds() < self.max_idle_seconds:
+                delta = (datetime.datetime.now() - pair[1])
+                try:
+                    delta_seconds = delta.total_seconds()
+                except:
+                    delta_seconds = delta.seconds + delta.microseconds * math.pow(10,-6)
+                    
+                if delta_seconds < self.max_idle_seconds:
                     # this pool is sufficiently active so put it back!
                     boundpair = self.pools.setdefault(key, pair)
                 # if pair is still removed at this point, let garbage collector deal with it
