@@ -2,19 +2,19 @@
 $(WSGISOCKETDIR):
 	mkdir -p $(WSGISOCKETDIR)
 
-$(SHAREDIR)/ermrest_config.json: src/ermrest_config.json.in
+$(SHAREDIR)/ermrest_config.json: ermrest/ermrest_config.json.in
 	./install-script -M ref -R HOSTNAME=$(shell hostname) \
 		-o root -g root -m a+r -Z "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" -p -D $< $@
 
-$(HTTPCONFDIR)/wsgi_ermrest.conf: src/wsgi_ermrest.conf.in $(WSGISOCKETDIR)
+$(HTTPCONFDIR)/wsgi_ermrest.conf: ermrest/wsgi_ermrest.conf.in $(WSGISOCKETDIR)
 	./install-script -M sed -R @PYLIBDIR@=$(PYLIBDIR) @WSGISOCKETPREFIX@=$(WSGISOCKETPREFIX) \
 		@DAEMONUSER@=$(DAEMONUSER) @HTMLDIR@=$(HTMLDIR) @AUTHDIRECTIVES@="$(AUTHDIRECTIVES)" \
 		-o root -g root -m a+r -p -D $< $@
 
-$(SHAREDIR)/%: src/%
+$(SHAREDIR)/%: ermrest/%
 	install -o root -g root -m a=r -p -D $< $@
 
-$(PYLIBDIR)/ermrest/%: src/%
+$(PYLIBDIR)/ermrest/%: ermrest/%
 	install -o root -g root -m a=rx -p -D $< $@
 
 install-ermrest: $(ERMREST_FILES_INSTALL)
