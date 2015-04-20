@@ -11,12 +11,12 @@ INSTALL_FILES += $(ERMREST_URL_PYTHON_FILES_INSTALL)
 INSTALL_DIRS += $(PYLIBDIR)/ermrest/url
 
 CLEAN_FILES += \
-	$(ERMREST_URL_PYTHON_FILES:%=src/url/%c) \
-	$(ERMREST_URL_PYTHON_FILES:%=src/url/%o) \
-	src/url/url_lextab.py \
-	src/url/url_parsetab.py \
-	src/url/parser.out
+	$(ERMREST_URL_PYTHON_FILES:%=ermrest/url/%c) \
+	$(ERMREST_URL_PYTHON_FILES:%=ermrest/url/%o) \
+	ermrest/url/url_lextab.py \
+	ermrest/url/url_parsetab.py \
+	ermrest/url/parser.out
 
-EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=src/url/%) \
-	src/url/makefile-vars
+EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=ermrest/url/%) \
+	ermrest/url/makefile-vars
 

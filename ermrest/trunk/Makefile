@@ -32,11 +32,11 @@ DEPLOYLOCK=$(VARLIBDIR)/deploy.lock
 
 # get sub-directory variables (e.g. modular file groups)
 include sbin/makefile-vars
-include src/makefile-vars
-include src/exception/makefile-vars
-include src/url/makefile-vars
-include src/url/ast/makefile-vars
-include src/url/ast/data/makefile-vars
+include ermrest/makefile-vars
+include ermrest/exception/makefile-vars
+include ermrest/url/makefile-vars
+include ermrest/url/ast/makefile-vars
+include ermrest/url/ast/data/makefile-vars
 include test/makefile-vars
 
 # turn off annoying built-ins
@@ -68,7 +68,7 @@ include config/make-rules-$(PLATFORM)
 
 # get sub-directory rules (e.g. extra modular targets)
 include sbin/makefile-rules
-include src/makefile-rules
+include ermrest/makefile-rules
 include test/makefile-rules
 
 predeploy: $(PREDEPLOY)

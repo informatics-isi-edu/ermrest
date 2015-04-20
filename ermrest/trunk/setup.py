@@ -20,7 +20,6 @@ setup(
     name='ermrest',
     description='Entity Relationship Management via REpresentational State Transfer',
     version='0.1-prerelease',
-    package_dir={'ermrest': 'src'},
     packages=['ermrest', 'ermrest.exception', 'ermrest.url', 'ermrest.url.ast', 'ermrest.url.ast.data'],
     install_requires=['webauthn2', 'web.py', 'psycopg2', 'simplejson', 'python-dateutil'],
     maintainer_email='support@misd.isi.edu',

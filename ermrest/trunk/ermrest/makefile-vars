@@ -24,12 +24,12 @@ INSTALL_FILES += $(ERMREST_PYTHON_FILES_INSTALL) \
 INSTALL_DIRS += $(PYLIBDIR)/ermrest
 
 CLEAN_FILES += \
-	$(ERMREST_PYTHON_FILES:%=src/%c) \
-	$(ERMREST_PYTHON_FILES:%=src/%o)
+	$(ERMREST_PYTHON_FILES:%=ermrest/%c) \
+	$(ERMREST_PYTHON_FILES:%=ermrest/%o)
 
-EDIT_FILES += $(ERMREST_PYTHON_FILES:%=src/%) \
-	$(ERMREST_SHARE_FILES:%=src/%) \
-	src/wsgi_ermrest.conf.in \
-	src/makefile-rules \
-	src/makefile-vars
+EDIT_FILES += $(ERMREST_PYTHON_FILES:%=ermrest/%) \
+	$(ERMREST_SHARE_FILES:%=ermrest/%) \
+	ermrest/wsgi_ermrest.conf.in \
+	ermrest/makefile-rules \
+	ermrest/makefile-vars
 
