@@ -138,7 +138,7 @@ def p_meta_key_value(p):
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """
     p[0] = p[1].textfacet(
-        ast.data.path.predicatecls('regexp')(
+        ast.data.path.predicatecls('ciregexp')(
             ast.Name().with_suffix('value'),
             ast.Value(p[4])
         ),
