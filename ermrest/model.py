@@ -346,6 +346,9 @@ FROM _ermrest.model_keyref_annotation
     # Introspect schemas, tables, columns
     #
     #cur = conn.cursor()
+    
+    if not table_exists(cur, '_ermrest', 'valuemap'):
+        model.recreate_value_map(cur.connection, cur)
 
     # get schemas (including empty ones)
     cur.execute("SELECT catalog_name, schema_name FROM information_schema.schemata")
@@ -480,10 +483,6 @@ FROM _ermrest.model_keyref_annotation
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
     
-    if 'valuemap' not in model.ermrest_schema.tables:
-        # valuemap can be cascade deleted by other requests?
-        model.recreate_value_map(cur.connection, cur)
-
     return model
 
 class Model (object):
