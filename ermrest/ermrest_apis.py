@@ -107,6 +107,7 @@ UserManage = webauthn2_handler_factory.UserManage
 AttrManage = webauthn2_handler_factory.AttrManage
 AttrAssign = webauthn2_handler_factory.AttrAssign
 AttrNest = webauthn2_handler_factory.AttrNest
+Preauth = webauthn2_handler_factory.Preauth
 
 # setup registry
 registry_config = global_env.get('registry')
@@ -310,6 +311,8 @@ def web_urls():
         '/authn/user/([^/]+)/attribute/?()', AttrAssign,
         '/authn/attribute/([^/]+)/implies(/[^/]+)', AttrNest,
         '/authn/attribute/([^/]+)/implies/?()', AttrNest,
+        '/authn/preauth(/[^/]+)', Preauth,
+        '/authn/preauth/?()', Preauth,
 
         # core parser-based REST dispatcher
         '(?s).*', Dispatcher
