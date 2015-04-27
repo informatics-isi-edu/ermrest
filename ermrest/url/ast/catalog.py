@@ -108,6 +108,10 @@ class Catalog (Api):
     def meta(self, key=None, value=None):
         """A metadata set for this catalog."""
         return Meta(self, key, value)
+
+    def textfacet(self, filterelem, facetkeys, facetvals):
+        """A textfacet set for this catalog."""
+        return data.TextFacet(self, filterelem, facetkeys, facetvals)
     
     def entity(self, epath):
         """An entity set for this catalog."""

@@ -29,6 +29,62 @@ from ermrest.exception import rest, BadData
 import ermrest.model
 from ermrest.util import negotiated_content_type
 
+class TextFacet (Api):
+    """A specific text facet by textfragment.
+
+       HACK: Parameters for the corresponding AttributeGroupPath query
+       are built by the URL parser to avoid circular dependencies in
+       the AST sub-modules.
+
+    """
+
+    default_content_type = 'application/json'
+
+    def __init__(self, catalog, filterelem, facetkeys, facetvals):
+        Api.__init__(self, catalog)
+        self.filterelem = filterelem
+        self.facetkeys = facetkeys
+        self.facetvals = facetvals
+        self.http_vary.add('accept')
+
+    def resolve(self, model):
+        """Resolve self against a specific database model.
+
+        """
+        epath = ermpath.EntityPath(model)
+        epath.set_base_entity(model.ermrest_schema.tables['valuemap'])
+        epath.add_filter(self.filterelem)
+        return ermpath.AttributeGroupPath(epath, self.facetkeys, self.facetvals)
+
+    def GET(self, uri):
+        """Perform HTTP GET of text facet.
+        """
+        content_type = negotiated_content_type(default=self.default_content_type)
+        limit = self.negotiated_limit()
+        
+        def body(conn, cur):
+            self.catalog.resolve(cur)
+            self.enforce_content_read(cur, uri)
+            model = self.catalog.manager.get_model(cur)
+            agpath = self.resolve(model)
+            epath = agpath.epath
+            self.set_http_etag( epath.get_data_version(cur) )
+            if self.http_is_cached():
+                web.ctx.status = '304 Not Modified'
+                return None
+            return agpath.get(conn, cur, content_type=content_type, limit=limit)
+
+        def post_commit(lines):
+            self.emit_headers()
+            if lines is None:
+                return
+            web.header('Content-Type', content_type)
+            web.ctx.ermrest_content_type = content_type
+            for line in lines:
+                yield line
+
+        return self.perform(body, post_commit)
+
 class Entity (Api):
     """A specific entity set by entitypath."""
 

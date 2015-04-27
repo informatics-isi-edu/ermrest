@@ -75,6 +75,7 @@ def p_apis(p):
              | foreignkeyrefannotations
              | foreignkeyrefannotationsslash
              | foreignkeyrefannotation
+             | textfacet
              | meta
              | data
              | datasort"""
@@ -134,6 +135,21 @@ def p_meta_key_value(p):
     """meta : catalogslash META '/' string '/' string slashopt """
     p[0] = p[1].meta(p[4], p[6])
 
+def p_textfacet(p):
+    """textfacet : catalogslash TEXTFACET '/' string """
+    p[0] = p[1].textfacet(
+        ast.data.path.predicatecls('regexp')(
+            ast.Name().with_suffix('value'),
+            ast.Value(p[4])
+        ),
+        ast.NameList([
+            ast.Name().with_suffix('schema'),
+            ast.Name().with_suffix('table'),
+            ast.Name().with_suffix('column')
+        ]),
+        ast.NameList()
+    )
+    
 def p_entity(p):
     """entity : catalogslash ENTITY '/' entitypath """
     p[0] = p[1].entity(p[4])

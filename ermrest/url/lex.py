@@ -83,6 +83,7 @@ keywords = [
     'schema',
     'sort',
     'table',
+    'textfacet',
     'ts'
 ]
 keywords = dict([
