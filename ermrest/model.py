@@ -476,7 +476,14 @@ FROM _ermrest.model_keyref_annotation
                 # TODO: prune orphaned annotation?
                 pass        
 
+    # save our private schema in case we want to unhide it later...
+    model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
+    
+    if 'valuemap' not in model.ermrest_schema.tables:
+        # valuemap can be cascade deleted by other requests?
+        model.recreate_value_map(cur.connection, cur)
+
     return model
 
 class Model (object):
@@ -571,6 +578,28 @@ SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
         del self.schemas[sname]
 
+    def recreate_value_map(self, conn, cur):
+        vmap_parts = []
+        for schema in self.schemas.values():
+            for table in schema.tables.values():
+                for column in table.columns.values():
+                    part = column.ermrest_value_map_sql()
+                    if part:
+                        vmap_parts.append(part)
+
+        if not vmap_parts:
+            # create a dummy/empty view if no data sources exist
+            vmap_parts.append( "SELECT 's'::text, 't'::text, 'c'::text, 'v'::text WHERE False" )
+                        
+        cur.execute("""
+DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap ;
+CREATE MATERIALIZED VIEW _ermrest.valuemap ("schema", "table", "column", "value")
+AS %s ;
+CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "table", "column");
+CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
+""" % ' UNION '.join(vmap_parts)
+                )
+        
 class Schema (object):
     """Represents a database schema.
     
@@ -1129,6 +1158,27 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
         else:
             return None
 
+    def ermrest_value_map_sql(self):
+        """Return SQL to construct reversed value map rows or None if not necessary.
+
+           A reverse map is not necessary if the column type doesn't have text values.
+        """
+        if self.istext():
+            colref = sql_identifier(self.name)
+            if self.type.is_array:
+                colref = 'unnest(%s)' % colref
+
+            return 'SELECT %s::text, %s::text, %s::text, %s::text FROM %s.%s' % (
+                sql_literal(self.table.schema.name),
+                sql_literal(self.table.name),
+                sql_literal(self.name),
+                colref,
+                sql_identifier(self.table.schema.name),
+                sql_identifier(self.table.name)
+                )
+        else:
+            return None
+        
     def sql_def(self):
         """Render SQL column clause for table DDL."""
         parts = [
