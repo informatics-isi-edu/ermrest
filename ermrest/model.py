@@ -164,7 +164,7 @@ JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
 LEFT JOIN pg_catalog.pg_attribute a ON (a.attrelid = c.oid)
 WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND NOT pg_is_other_temp_schema(nc.oid) 
-  AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
+  AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'm'::"char"]))
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
@@ -225,7 +225,7 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND NOT pg_is_other_temp_schema(nc.oid) 
   AND a.attnum > 0
   AND NOT a.attisdropped
-  AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
+  AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'm'::"char"]))
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
