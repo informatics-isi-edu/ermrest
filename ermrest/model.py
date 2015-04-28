@@ -347,9 +347,6 @@ FROM _ermrest.model_keyref_annotation
     #
     #cur = conn.cursor()
     
-    if not table_exists(cur, '_ermrest', 'valuemap'):
-        model.recreate_value_map(cur.connection, cur)
-
     # get schemas (including empty ones)
     cur.execute("SELECT catalog_name, schema_name FROM information_schema.schemata")
 
@@ -483,6 +480,14 @@ FROM _ermrest.model_keyref_annotation
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
     
+    if not table_exists(cur, '_ermrest', 'valuemap'):
+        # rebuild missing view and add it to model manually since we already introspected
+        model.recreate_value_map(cur.connection, cur)
+        valuemap_columns = ['schema', 'table', 'column', 'value']
+        for i in range(len(valuemap_columns)):
+            valuemap_columns[i] = Column(valuemap_columns[i], i, Type(canonicalize_column_type('text', 'NULL', config, True)), None)
+        model.ermrest_schema.tables['valuemap'] = Table(model.ermrest_schema, 'valuemap', valuemap_columns, 'm')
+
     return model
 
 class Model (object):
