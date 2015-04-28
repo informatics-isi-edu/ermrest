@@ -1,6 +1,6 @@
 # ERMrest Model Resource Naming
 
-Unlike general web architecture, [ERMrest](http://example.com/TBD) expects clients to understand the URL internal structure and permits (or even encourages) reflection on URL content to understand how one resource name relates to another. To support introspection and management, the data model of a catalog is exposed as a set of model-level resources. These model elements also influence the [naming of data resources](../data/naming.md).
+Unlike general web architecture, [ERMrest](http://github.com/informatics-isi-edu/ermrest) expects clients to understand the URL internal structure and permits (or even encourages) reflection on URL content to understand how one resource name relates to another. To support introspection and management, the data model of a catalog is exposed as a set of model-level resources. These model elements also influence the [naming of data resources](../data/naming.md).
 
 ## Schemata Names
 

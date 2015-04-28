@@ -1,6 +1,6 @@
 # ERMrest Model Operations
 
-The model operations configure the entity-relationship model that will be used to structure tabular data in the [ERMrest](http://example.com/TBD) catalog.  The model must be configured before use, but it may continue to be adjusted throughout the lifecycle of the catalog, interleaved with data operations.
+The model operations configure the entity-relationship model that will be used to structure tabular data in the [ERMrest](http://github.com/informatics-isi-edu/ermrest) catalog.  The model must be configured before use, but it may continue to be adjusted throughout the lifecycle of the catalog, interleaved with data operations.
 
 ## Schemata Retrieval
 

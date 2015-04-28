@@ -1,6 +1,6 @@
 # ERMrest Data Operations
 
-The [ERMrest](http://example.com/TBD) data operations manipulate tabular data structured according to the existing entity-relationship model already configured as schemata resources in the catalog.
+The [ERMrest](http://github.com/informatics-isi-edu/ermrest) data operations manipulate tabular data structured according to the existing entity-relationship model already configured as schemata resources in the catalog.
 
 In the following examples, we illustrate the use of specific data formats. However, content negotiation allows any of the supported tabular data formats to be used in any request or response involving tabular data.
 

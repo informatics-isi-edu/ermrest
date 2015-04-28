@@ -1,6 +1,6 @@
 # ERMrest Data Resource Naming
 
-The [ERMrest](http://example.com/TBD) data resource names always have a common structure:
+The [ERMrest](http://github.com/informatics-isi-edu/ermrest) data resource names always have a common structure:
 
 - _service_ `/catalog/` _cid_ `/` _api_ `/` _path_
 - _service_ `/catalog/` _cid_ `/` _api_ `/` _path_ _suffix_
