@@ -120,17 +120,20 @@ EOF
     NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
 }
 
-###### setup test catalog
-dotest "201::application/json::*" /catalog -X POST
-
-cid=$(grep "^Location" ${RESPONSE_HEADERS} | sed -e "s|^Location: /ermrest/catalog/\([0-9]\+\).*|\1|")
-
-if [[ -n "$cid" ]]
+if [[ -z "${TEST_CID}" ]]
 then
-    echo "Using catalog \"${cid}\" for testing." >&2
+    ###### setup test catalog
+    dotest "201::application/json::*" /catalog -X POST
+
+    cid=$(grep "^Location" ${RESPONSE_HEADERS} | sed -e "s|^Location: /ermrest/catalog/\([0-9]\+\).*|\1|")
+    [[ -n "$cid" ]] || error "failed to create catalog, testing aborted."
 else
-    error "failed to create catalog, testing aborted."
+    cid=${TEST_CID}
+    DESTROY_CATALOG=false
 fi
+
+echo "Using catalog \"${cid}\" for testing." >&2
+
 
 ###### do tests on catalog
 
@@ -232,9 +235,11 @@ EOF
     dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_ctype_${ctype} -X DELETE
 done
 
-###### tear down test catalog
-dotest "20?::*::*" /catalog/${cid} -X DELETE
-
+if [[ "${DESTROY_CATALOG}" = "true" ]]
+then
+    ###### tear down test catalog
+    dotest "20?::*::*" /catalog/${cid} -X DELETE
+fi
 
 if [[ ${NUM_FAILURES} -gt 0 ]]
 then
