@@ -577,6 +577,7 @@ SELECT _ermrest.model_change_event();
         if sname not in self.schemas:
             raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
         cur.execute("""
+DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap;
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
@@ -637,6 +638,7 @@ class Schema (object):
         self.tables[tname].pre_delete(conn, cur)
         # we keep around a bumped version for table as a tombstone to invalidate any old cached results
         cur.execute("""
+DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap;
 DROP TABLE %(sname)s.%(tname)s ;
 SELECT _ermrest.model_change_event();
 SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
@@ -792,6 +794,7 @@ WHERE schema_name = %(sname)s
     def alter_table(self, conn, cur, alterclause):
         """Generic ALTER TABLE ... wrapper"""
         cur.execute("""
+DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap;
 ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
 SELECT _ermrest.model_change_event();
 SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
