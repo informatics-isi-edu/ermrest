@@ -580,6 +580,35 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
+    def _preprocess_attributes(self, attributes):
+        results = []
+        for item in attributes:
+            if type(item) is tuple:
+                # make preprocessing resolution idempotent
+                attribute, col, base = item
+            else:
+                attribute = item
+                col, base = attribute.resolve_column(self.epath._model, self.epath)
+
+            if col.is_star_column():
+                # expand '*' wildcard sugar as if user referenced each column
+                if attribute.alias is not None:
+                    raise BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
+                if base == self.epath:
+                    # columns from final entity path element
+                    for col in self.epath._path[self.epath.current_entity_position()].table.columns_in_order():
+                        results.append((Name([col.name]), col, base))
+                elif base in self.epath.aliases:
+                    # columns from interior path referenced by alias
+                    for col in self.epath[base].table.columns_in_order():
+                        results.append((Name([base, col.name]).set_alias('%s:%s' % (base, col.name)), col, base))
+                else:
+                    raise NotImplementedError('Unresolvable * column violates program invariants!')
+            else:
+                results.append((attribute, col, base))
+
+        return results
+                
     def _sql_get_agg_attributes(self, allow_extra=True):
         """Process attribute lists for aggregation APIs.
         """
@@ -599,8 +628,7 @@ class AnyPath (object):
         aggregates = []
         extras = []
         
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
+        for attribute, col, base in self.attributes:
             sql_attr = sql_identifier(
                 attribute.alias is not None and str(attribute.alias) or str(col.name)
                 )
@@ -989,7 +1017,7 @@ class AttributePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = attributes
+        self.attributes = self._preprocess_attributes(attributes)
         self.sort = None
 
     def add_sort(self, sort):
@@ -1025,9 +1053,7 @@ class AttributePath (AnyPath):
         else:
             cast = ''
 
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
-            
+        for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
                 alias = "t%d" % self.epath.current_entity_position()
@@ -1122,8 +1148,7 @@ WHERE %(keymatches)s
         nmkcols = set()
         
         # delete columns are named explicitly
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
+        for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
                 nmkcols.add(col)
@@ -1149,8 +1174,8 @@ class AttributeGroupPath (AnyPath):
     def __init__(self, epath, groupkeys, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.groupkeys = groupkeys
-        self.attributes = attributes
+        self.groupkeys = self._preprocess_attributes(groupkeys)
+        self.attributes = self._preprocess_attributes(attributes)
         self.sort = None
 
         if not groupkeys:
@@ -1189,8 +1214,7 @@ class AttributeGroupPath (AnyPath):
         aggregates = []
         extras = []
 
-        for key in self.groupkeys:
-            col, base = key.resolve_column(self.epath._model, self.epath)
+        for key, col, base in self.groupkeys:
             if key.alias is not None:
                 groupkeys.append( sql_identifier(str(key.alias)) )
             else:
@@ -1295,8 +1319,7 @@ GROUP BY %(groupkeys)s
         """
         mkcols = set()
         mkcol_aliases = dict()
-        for groupkey in self.groupkeys:
-            col, base = groupkey.resolve_column(self.epath._model, self.epath)
+        for groupkey, col, base in self.groupkeys:
             if col in mkcols:
                 raise BadSyntax('Group key column %s cannot be bound more than once.' % col)
             if groupkey.alias:
@@ -1312,11 +1335,10 @@ GROUP BY %(groupkeys)s
 
         nmkcols = set()
         nmkcol_aliases = dict()
-        for attribute in self.attributes:
+        for attribute, col, base in self.attributes:
             if hasattr(attribute, 'aggfunc'):
                 raise BadSyntax('Aggregated column %s not allowed in PUT.' % attribute)
 
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
             if col in nmkcols:
                 raise BadSyntax('Update column %s cannot be bound more than once.' % col)
             if attribute.alias:
@@ -1345,7 +1367,7 @@ class AggregatePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = attributes
+        self.attributes = self._preprocess_attributes(attributes)
 
         if not attributes:
             raise BadSyntax('Aggregate requires at least one attribute.')
