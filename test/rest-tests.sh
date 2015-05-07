@@ -235,6 +235,75 @@ EOF
     dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_ctype_${ctype} -X DELETE
 done
 
+# create linked tables for basic tests
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_level1",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "text" }, "name": "name" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
+
+cat > ${TEST_DATA} <<EOF
+id,name
+1,foo
+2,bar
+3,baz
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_level2",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "level1_id"},
+      { "type": { "typename": "text" }, "name": "name" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ],
+   "foreign_keys": [
+      { 
+        "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2", "column_name": "level1_id"}],
+        "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
+      }
+   ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2"
+
+cat > ${TEST_DATA} <<EOF
+id,name,level1_id
+1,foo 1,1
+2,foo 2,1
+3,bar 1,2
+4,baz 1,3
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# test basic table-linking
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/test1:test_level2"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/test1:test_level2/test_level1"
+dotest "200::*::*" "/catalog/${cid}/entity/A:=test1:test_level1/B:=test1:test_level2/test_level1"
+
+# test joined path projections
+dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/id,B:name"
+dotest "200::*::*" "/catalog/${cid}/aggregate/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/count:=cnt(id)"
+dotest "200::*::*" "/catalog/${cid}/aggregate/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/count:=cnt(*)"
+dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/id,B:name"
+dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/B:id;name"
+
+
+
 if [[ "${DESTROY_CATALOG}" = "true" ]]
 then
     ###### tear down test catalog
