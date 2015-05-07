@@ -825,7 +825,7 @@ class AnyPath (object):
                 attribute = item
                 col, base = attribute.resolve_column(self.epath._model, self.epath)
 
-            if col.is_star_column():
+            if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
                 # expand '*' wildcard sugar as if user referenced each column
                 if attribute.alias is not None:
                     raise BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
