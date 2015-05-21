@@ -44,7 +44,7 @@ The _path_ is interpreted identically to the `entity` resource space. However, r
   - An optional _out alias_ can be assigned to rename the output column, and by default the output column will be named by the unqualified _column name_.
 - _alias_ `:` `*`
   - A wildcard that expands to all of the columns from a table instance bound to _alias_ in _path_.
-  - The output columns are automatically named by their _alias_ qualified column names to prevent collisions between the multiple wildcard-expansions that are possible within one complex _path_.
+  - The output columns are automatically named by their _alias_ qualified column names to prevent collisions between the multiple wildcard-expansions that are possible within one complex _path_. If a projection `A:*` is used for a table instance with a column named `foo` in it, the output data will then have a column with the literal name `A:foo`. Special attention must be paid when trying to reference such columns using the [sort modifier](#sort-modifier), as this modifier uses the output name `A:foo` as a user-supplied literal and therefore the `:` must be escaped as in `@sort(A%3Afoo)`.
 
 Like in the `entity` resource space, joined tables may cause filtering but not duplication of rows in the final entity set. Thus, when projecting fields from aliased table instances in _path_, values are arbitrarily selected from one of the joined contextual rows if more than one such row was joined to the same final entity.
 
@@ -259,7 +259,7 @@ An optional sorting modifier can modify the ordering of elements in the set-base
 - `@sort(` _output column_ `,` ... `)`
 - `@sort(` _output column_ `::desc::` `,` ... `)`
 
-where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. The list of sort keys goes left-to-right from primary to secondary etc.
+where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. The list of sort keys goes left-to-right from primary to secondary etc.  The individual _output column_ names are user-supplied values and therefore must be URL-escaped if they contain any special characters, including the `:` character in implicitly named output columns introduced using the _alias_ `:` `*` wildcard syntax in projected [attribute names](#attribute-names) or [aggregate names](#aggregate-names).
 
 The modifier appears as an optional suffix to data names, but before any query parameters in the URL:
 
