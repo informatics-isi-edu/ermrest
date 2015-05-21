@@ -25,7 +25,7 @@ needed by other modules of the ermrest project.
 """
 
 from ermrest import exception
-from ermrest.util import sql_identifier, sql_literal, table_exists
+from ermrest.util import sql_identifier, sql_literal, table_exists, view_exists
 
 import urllib
 import json
@@ -480,8 +480,9 @@ FROM _ermrest.model_keyref_annotation
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
     
-    if not table_exists(cur, '_ermrest', 'valuemap'):
+    if not view_exists(cur, '_ermrest', 'valuemap'):
         # rebuild missing view and add it to model manually since we already introspected
+        web.debug('NOTICE: rebuilding valuemap during model introspection')
         model.recreate_value_map(cur.connection, cur)
         valuemap_columns = ['schema', 'table', 'column', 'value']
         for i in range(len(valuemap_columns)):

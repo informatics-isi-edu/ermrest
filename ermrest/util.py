@@ -74,6 +74,27 @@ AND table_name = %(table)s
     exists = cur.rowcount > 0
     return exists
 
+def view_exists(cur, schemaname, tablename):
+    """Return True or False depending on whether (schema.)tablename view exists in our database."""
+
+    cur.execute("""
+SELECT True 
+FROM pg_namespace nc, pg_class c
+WHERE c.relnamespace = nc.oid 
+  AND nc.nspname::text = %(schema)s
+  AND c.relname::text = %(table)s
+  AND c.relkind IN ('v'::"char", 'm'::"char") 
+  AND NOT pg_is_other_temp_schema(nc.oid) 
+  AND (pg_has_role(c.relowner, 'USAGE'::text) 
+     OR has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) 
+     OR has_any_column_privilege(c.oid, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
+"""
+                % dict(schema=sql_literal(schemaname),
+                       table=sql_literal(tablename))
+    )
+    exists = cur.rowcount > 0
+    return exists
+
 
 def _string_wrap(s, escape='\\', protect=[]):
     s = s.replace(escape, escape + escape)
