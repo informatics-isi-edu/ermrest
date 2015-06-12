@@ -31,6 +31,241 @@ from model import Type
 from ermrest.exception import *
 from ermrest.catalog import _random_name
 
+def _default_link_table2table(left, right):
+    """Find default reference link between left and right tables.
+
+       Returns (keyref, refop).
+
+       Raises exception.ConflictModel if no default can be found.
+    """
+    if left == right:
+        raise exception.ConflictModel('Ambiguous self-link for table %s' % left)
+
+    links = []
+
+    # look for right-to-left references
+    for pk in left.uniques.values():
+        if right in pk.table_references:
+            links.extend([
+                    (ref, '@=')
+                    for ref in pk.table_references[right]
+                    ])
+
+    # look for left-to-right references
+    for fk in left.fkeys.values():
+        if right in fk.table_references:
+            links.extend([
+                    (ref, '=@')
+                    for ref in fk.table_references[right]
+                    ])
+
+    if len(links) == 0:
+        raise exception.ConflictModel('No link found between tables %s and %s' % (left, right))
+    elif len(links) == 1:
+        return links[0]
+    else:
+        raise exception.ConflictModel('Ambiguous links found between tables %s and %s' % (left, right))
+
+class Name (object):
+    """Represent a qualified or unqualified name in an ERMREST URL.
+
+    """
+    def __init__(self, nameparts=None):
+        """Initialize a zero-element name container.
+        """
+        self.nameparts = nameparts and list(nameparts) or []
+        self.alias = None
+
+    def set_alias(self, alias):
+        self.alias = alias
+        return self
+
+    def __str__(self):
+        return ':'.join(map(urllib.quote, self.nameparts))
+    
+    def __repr__(self):
+        return '<ermrest.url.ast.Name %s>' % str(self)
+
+    def __len__(self):
+        return len(self.nameparts)
+
+    def __iter__(self):
+        return iter(self.nameparts)
+
+    def with_suffix(self, namepart):
+        """Append a namepart to a qualifying prefix, returning full name.
+
+           This method mutates the name and returns it as a
+           convenience for composing more calls.
+        """
+        self.nameparts.append(namepart)
+        return self
+        
+    def resolve_column(self, model, epath, table=None):
+        """Resolve self against a specific database model and epath context.
+
+           Returns (column, base) where base is one of:
+
+            -- a left table alias string if column is relative to alias
+            -- epath if column is relative to epath or table arg
+            -- None if column is relative to model
+        
+           The name must be resolved in this preferred order:
+
+             1. a relative 'n0' must be a column in the current epath
+                table type or the provided table arg if not None
+
+             2. a relative '*' may be a freetext virtual column
+                on the current epath table
+
+             3. a relative 'n0:n1' may be a column in alias n0 of
+                current epath
+
+             4. a relative 'n0:*' may be a freetext virtual column
+                in alias n0 of current epath
+
+             5. a relative 'n0:n1' may be a column in a table in the
+                model
+
+             6. any 'n0:n1:n2' must be a column in the model
+
+           Raises exception.ConflictModel on failed resolution.
+        """
+        ptable = epath.current_entity_table()
+
+        if table is None:
+            table = ptable
+        
+        if len(self.nameparts) == 3:
+            n0, n1, n2 = self.nameparts
+            return (model.lookup_table(n0, n1).columns[n2], None)
+        
+        else:
+            if len(self.nameparts) == 1:
+                if self.nameparts[0] in table.columns:
+                    return (table.columns[self.nameparts[0]], epath)
+                elif self.nameparts[0] == '*':
+                    return (ptable.freetext_column(), epath)
+                else:
+                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(table)))
+
+            elif len(self.nameparts) == 2:
+                n0, n1 = self.nameparts
+                if n0 in epath.aliases:
+                    if n1 in epath[n0].table.columns:
+                        return (epath[n0].table.columns[n1], n0)
+                    elif self.nameparts[1] == '*':
+                        return (epath[n0].table.freetext_column(), n0)
+                    else:
+                        raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
+
+                table = model.lookup_table(None, n0)
+                if n1 not in table.columns:
+                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (n1, table.name))
+
+                return (table.columns[n1], None)
+
+        raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
+
+    def resolve_context(self, epath):
+        """Resolve self against a specific entity path for which we must be an alias, returning alias string."""
+        if len(self.nameparts) > 1:
+            raise exception.BadSyntax('Context name %s is not a valid syntax for an entity alias.' % self)
+        try:
+            return epath[str(self.nameparts[0])].alias
+        except KeyError:
+            raise exception.BadData('Context name %s is not a bound alias in entity path.' % self)
+
+    def resolve_link(self, model, epath):
+        """Resolve self against a specific database model and epath context.
+
+           Returns (keyref, refop, lalias) as resolved key reference
+           configuration.
+        
+           A name 'n0' must be an unambiguous table in the model
+
+           A name 'n0:n1' must be a table in the model
+
+           The named table must have an unambiguous implicit reference
+           to the epath context.
+
+           Raises exception.ConflictModel on failed resolution.
+        """
+        ptable = epath.current_entity_table()
+        
+        if len(self.nameparts) == 1:
+            name = self.nameparts[0]
+            table = self.resolve_table(model)
+            keyref, refop = _default_link_table2table(ptable, table)
+            return keyref, refop, None
+
+        elif len(self.nameparts) == 2:
+            n0, n1 = self.nameparts
+
+            table = model.lookup_table(n0, n1)
+            keyref, refop = _default_link_table2table(ptable, table)
+            return keyref, refop, None
+
+        raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
+
+    def resolve_table(self, model):
+        """Resolve self as table name.
+        
+           Qualified names 'n0:n1' can only be resolved from the model
+           as schema:table.  Bare names 'n0' can be resolved as table
+           if that is unambiguous across all schemas in the model.
+
+           Raises exception.ConflictModel on failed resolution.
+        """
+        if len(self.nameparts) == 2:
+            sname, tname = self.nameparts
+            return model.lookup_table(sname, tname)
+        elif len(self.nameparts) == 1:
+            tname = self.nameparts[0]
+            return model.lookup_table(None, tname)
+
+        raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
+            
+    def validate(self, epath):
+        """Validate name in epath context, raising exception on problems.
+
+           Name must be a column of path's current entity type 
+           or alias-qualified column of ancestor path entity type.
+        """
+        table = epath.current_entity_table()
+        col, base = self.resolve_column(epath._model, epath)
+        if base == epath:
+            return col, epath._path[epath.current_entity_position()]
+        elif base in epath.aliases:
+            return col, epath._path[epath.aliases[base]]
+
+        raise exception.ConflictModel('Referenced column %s not bound in entity path.' % (col.table))
+
+    def sql_column(self, epath, elem):
+        """Generate SQL column reference for name in epath elem context.
+
+           TODO: generalize to ancestor references later.
+        """
+        return 't%d.%s' % (
+            elem.pos,
+            sql_identifier(self.nameparts[-1])
+            )
+
+    def sql_literal(self, etype):
+        if len(self.nameparts) == 1:
+            return Value(self.nameparts[0]).sql_literal(etype)
+        else:
+            raise exception.BadSyntax('Names such as "%s" not supported in filter expressions.' % self)
+        
+    def validate_attribute_update(self):
+        """Return icolname for valid input column reference.
+           
+        """
+        if len(self.nameparts) == 1:
+            return self.nameparts[0]
+        else:
+            raise exception.BadSyntax('Name "%s" is not a valid input column reference.' % self)
+
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
         """Allow caller to lazily expand cursor after commit.
@@ -580,6 +815,35 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
+    def _preprocess_attributes(self, attributes):
+        results = []
+        for item in attributes:
+            if type(item) is tuple:
+                # make preprocessing resolution idempotent
+                attribute, col, base = item
+            else:
+                attribute = item
+                col, base = attribute.resolve_column(self.epath._model, self.epath)
+
+            if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
+                # expand '*' wildcard sugar as if user referenced each column
+                if attribute.alias is not None:
+                    raise BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
+                if base == self.epath:
+                    # columns from final entity path element
+                    for col in self.epath._path[self.epath.current_entity_position()].table.columns_in_order():
+                        results.append((Name([col.name]), col, base))
+                elif base in self.epath.aliases:
+                    # columns from interior path referenced by alias
+                    for col in self.epath[base].table.columns_in_order():
+                        results.append((Name([base, col.name]).set_alias('%s:%s' % (base, col.name)), col, base))
+                else:
+                    raise NotImplementedError('Unresolvable * column violates program invariants!')
+            else:
+                results.append((attribute, col, base))
+
+        return results
+                
     def _sql_get_agg_attributes(self, allow_extra=True):
         """Process attribute lists for aggregation APIs.
         """
@@ -599,8 +863,7 @@ class AnyPath (object):
         aggregates = []
         extras = []
         
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
+        for attribute, col, base in self.attributes:
             sql_attr = sql_identifier(
                 attribute.alias is not None and str(attribute.alias) or str(col.name)
                 )
@@ -989,7 +1252,7 @@ class AttributePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = attributes
+        self.attributes = self._preprocess_attributes(attributes)
         self.sort = None
 
     def add_sort(self, sort):
@@ -1025,9 +1288,7 @@ class AttributePath (AnyPath):
         else:
             cast = ''
 
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
-            
+        for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
                 alias = "t%d" % self.epath.current_entity_position()
@@ -1122,8 +1383,7 @@ WHERE %(keymatches)s
         nmkcols = set()
         
         # delete columns are named explicitly
-        for attribute in self.attributes:
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
+        for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
                 nmkcols.add(col)
@@ -1149,8 +1409,8 @@ class AttributeGroupPath (AnyPath):
     def __init__(self, epath, groupkeys, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.groupkeys = groupkeys
-        self.attributes = attributes
+        self.groupkeys = self._preprocess_attributes(groupkeys)
+        self.attributes = self._preprocess_attributes(attributes)
         self.sort = None
 
         if not groupkeys:
@@ -1189,8 +1449,7 @@ class AttributeGroupPath (AnyPath):
         aggregates = []
         extras = []
 
-        for key in self.groupkeys:
-            col, base = key.resolve_column(self.epath._model, self.epath)
+        for key, col, base in self.groupkeys:
             if key.alias is not None:
                 groupkeys.append( sql_identifier(str(key.alias)) )
             else:
@@ -1295,8 +1554,7 @@ GROUP BY %(groupkeys)s
         """
         mkcols = set()
         mkcol_aliases = dict()
-        for groupkey in self.groupkeys:
-            col, base = groupkey.resolve_column(self.epath._model, self.epath)
+        for groupkey, col, base in self.groupkeys:
             if col in mkcols:
                 raise BadSyntax('Group key column %s cannot be bound more than once.' % col)
             if groupkey.alias:
@@ -1312,11 +1570,10 @@ GROUP BY %(groupkeys)s
 
         nmkcols = set()
         nmkcol_aliases = dict()
-        for attribute in self.attributes:
+        for attribute, col, base in self.attributes:
             if hasattr(attribute, 'aggfunc'):
                 raise BadSyntax('Aggregated column %s not allowed in PUT.' % attribute)
 
-            col, base = attribute.resolve_column(self.epath._model, self.epath)
             if col in nmkcols:
                 raise BadSyntax('Update column %s cannot be bound more than once.' % col)
             if attribute.alias:
@@ -1345,7 +1602,7 @@ class AggregatePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = attributes
+        self.attributes = self._preprocess_attributes(attributes)
 
         if not attributes:
             raise BadSyntax('Aggregate requires at least one attribute.')

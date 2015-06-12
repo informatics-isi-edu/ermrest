@@ -31,13 +31,21 @@ The `attribute` resource space denotes projected attributes of entities using na
 
 - _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _column reference_ `,` ...
 
-The _path_ is interpreted identically to the `entity` resource space. However, rather than denoting a set of whole entities, the `attribute` resource space denotes specific fields *projected* from that set of entities.  The projected _column reference_ list elements can be in one of two forms:
+The _path_ is interpreted identically to the `entity` resource space. However, rather than denoting a set of whole entities, the `attribute` resource space denotes specific fields *projected* from that set of entities.  The projected _column reference_ list elements can be in one of several forms:
 
-- _column name_
-  - A field is projected from the final table instance of _path_
-- _alias_ `:` _column name_
+- [ _out alias_ `:=` ] _column name_
+  - A field is projected from the final table instance of _path_.
+  - An optional _out alias_ can be assigned to rename the output column, and by default the output column will be named by the unqualified _column name_.
+- `*`
+  - A wildcard that expands to all of the columns from the final table instance of _path_.
+  - The output columns are automatically named by their unqualified column names.
+- [ _out alias_ `:=` ] _alias_ `:` _column name_
   - A field is projected from a table instance bound to _alias_ in _path_.
-  
+  - An optional _out alias_ can be assigned to rename the output column, and by default the output column will be named by the unqualified _column name_.
+- _alias_ `:` `*`
+  - A wildcard that expands to all of the columns from a table instance bound to _alias_ in _path_.
+  - The output columns are automatically named by their _alias_ qualified column names to prevent collisions between the multiple wildcard-expansions that are possible within one complex _path_. If a projection `A:*` is used for a table instance with a column named `foo` in it, the output data will then have a column with the literal name `A:foo`. Special attention must be paid when trying to reference such columns using the [sort modifier](#sort-modifier), as this modifier uses the output name `A:foo` as a user-supplied literal and therefore the `:` must be escaped as in `@sort(A%3Afoo)`.
+
 Like in the `entity` resource space, joined tables may cause filtering but not duplication of rows in the final entity set. Thus, when projecting fields from aliased table instances in _path_, values are arbitrarily selected from one of the joined contextual rows if more than one such row was joined to the same final entity.
 
 ## Aggregate Names
@@ -51,7 +59,7 @@ The _path_ is interpreted identically to the `attribute` resource space. However
 - _out alias_ `:=` _function_ `(` _column name_ `)`
 - _out alias_ `:=` _function_ `(*)`
 - _out alias_ `:=` _function_ `(` _in alias_ `:` _column name_ `)`
-- _out alias_ `:=` _function_ `(` _in alias_ `:*)`
+- _out alias_ `:=` _function_ `(` _in alias_ `:` `*` `)`
 
 The _out alias_ is the name given to the computed field. The _function_ is one of a limited set of aggregate functions supported by ERMrest:
 
@@ -77,7 +85,9 @@ The `attributegroup` resource space denotes groups of entities by arbitrary grou
 - _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ...
 - _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _aggregate_ `,` ...
 
-The _path_ is interpreted slightly differently than in the `attribute` resource space. Rather than denoting a set of entities drawn from the final table instance in _path_, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to groups where each group represents a set of entities sharing the same _group key_ tuple, and optional _aggregate_ list elements are evaluated over this set of entities to produce a group-level aggregate value, using the same aggregate functions documented previously for [Aggregate Names](#aggregate-names). The _group key_ and _aggregate_ list elements may draw upon columns from any _path_ element.
+The _path_ is interpreted slightly differently than in the `attribute` resource space. Rather than denoting a set of entities drawn from the final table instance in _path_, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to groups where each group represents a set of entities sharing the same _group key_ tuple, and optional _aggregate_ list elements are evaluated over this set of entities to produce a group-level aggregate value.
+
+The _group key_ list elements use the same notation as the _column reference_ elements in the `attribute` resource space. The _aggregate_ list elements use the same notation as the _aggregate_ elements in the `aggregate` resource space or the _column reference_ elements in the `attribute` resource space. An _aggregate_ using _column reference_ notation denotes an example value chosen from an arbitrary member of each group.
 
 ## Data Paths
 
@@ -249,7 +259,7 @@ An optional sorting modifier can modify the ordering of elements in the set-base
 - `@sort(` _output column_ `,` ... `)`
 - `@sort(` _output column_ `::desc::` `,` ... `)`
 
-where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. The list of sort keys goes left-to-right from primary to secondary etc.
+where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. The list of sort keys goes left-to-right from primary to secondary etc.  The individual _output column_ names are user-supplied values and therefore must be URL-escaped if they contain any special characters, including the `:` character in implicitly named output columns introduced using the _alias_ `:` `*` wildcard syntax in projected [attribute names](#attribute-names) or [aggregate names](#aggregate-names).
 
 The modifier appears as an optional suffix to data names, but before any query parameters in the URL:
 
