@@ -170,7 +170,7 @@ The script updates files under `/usr/lib/python2*/site-packages/ermrest` and
 `/var/www/html/ermrest`. It then restarts `httpd` to force reload of all service
 code.
 
-## Basic Configuration
+## Setup User Accounts
 
 The WebAuthn framework allows for pluggable security providers for
 authenticating clients. The simplest configuration assumes [basic authentication]
@@ -199,6 +199,52 @@ against an internal database of usernames and passwords and attributes.
    ```
    $ ermrest-webauthn2-manage adduser testuser
    $ ermrest-webauthn2-manage passwd testuser 'your password here'
+   ```
+
+## Create Your First Catalog
+
+A quick sanity check of the above configuration is to login to ERMrest, create
+a catalog, and read its meta properties. The following commands can be run as
+any local user.
+
+1. Login to ERMrest using an account previously created with
+   `ermrest-webauthn-manage`.
+
+   ```
+   $ curl -k -b cookie -c cookie -d username=testuser \
+   > -d password='your password here' https://localhost/ermrest/authn/session
+   ```
+
+2. Create a catalog.
+
+   ```
+   $ curl -k -b cookie -c cookie -XPOST https://localhost/ermrest/catalog/
+   ```
+
+3. Inspect the catalog metadata.
+
+   ```
+   $ curl -k -b cookie -c cookie -H "Accept: application/json" \
+   > https://localhost/ermrest/catalog/1
+   {
+      "meta": [
+         {"value": "*", "key": "read_user"},
+         {"value": "*", "key": "content_read_user"},
+         {"value": "*", "key": "content_write_user"},
+         {"value": "testuser", "key": "owner"}],
+      "id": "1"
+   }
+   ```
+
+4. Inspect the catalog schema.
+
+   ```
+   $ curl -k -b cookie -c cookie -H "Accept: application/json" \
+   > https://localhost/ermrest/catalog/1/schema
+   {
+      "schemas": {
+      ...
+   }
    ```
 
 
