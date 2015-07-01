@@ -20,7 +20,7 @@ normal user.
 
 ### Extended Packages for Enterprise Linux (EPEL)
 
-Run the following command to install the EPEL repository.
+Run the following commands to install the EPEL repository.
 
 ```
 # rsync -v rsync://mirrors.kernel.org/fedora-epel/6/x86_64/epel-release*.rpm .
@@ -30,7 +30,7 @@ Run the following command to install the EPEL repository.
 ### PostgreSQL 9.2 or above
 
 PostgreSQL must be installed and configured to operate within the [SE-Linux]
-access control environment.
+access control mechanism.
 
 1. Install the PostgreSQL 9.4 repository
 
@@ -60,7 +60,7 @@ access control environment.
    # restorecon -rv /usr/pgsql-9.*
    ```
 
-4. Initialize and enable `postgresql` service.
+4. Initialize and enable the `postgresql` service.
 
    ```
    # service postgresql-9.4 initdb
@@ -138,12 +138,12 @@ After installing the prerequisite, you are ready to install ERMrest.
    # make deploy
    ```
 
-   The deploy script:
+   The deployment script:
    - attempts a `yum install` of essential dependencies
    - runs install target
-   - prepares service environment: makes ERMrest daemon user, creates directories
+   - prepares service environment (makes ERMrest daemon user, creates directories)
    - creates and initializes ERMrest-specific database, owned by daemon user
-   - creates default service config as /etc/httpd/conf.d/zz_ermrest.conf.
+   - creates default service config as `/etc/httpd/conf.d/zz_ermrest.conf`.
 
    CentOS notes:
    - you may need to uninstall mod_python to use mod_wsgi
