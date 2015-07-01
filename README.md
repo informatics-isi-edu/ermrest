@@ -25,7 +25,7 @@ As a protocol, the [ERMrest REST API](api-doc/index.md) can be easily accessed b
 
 ERMrest is developed and tested primarily on an enterprise Linux distribution with Python 2.6. It has a conventional web service stack:
 - Apache HTTPD
-- mod_wsgi 
+- mod_wsgi
 - web.py lightweight web framework
 - psycopg2 database driver
 - PostgreSQL 9.2 or later
@@ -33,7 +33,7 @@ ERMrest is developed and tested primarily on an enterprise Linux distribution wi
 
 ### Installation
 
-Documentation TODO.
+See [ERMrest Installation (CentOS 6)](user-doc/install-centos6.md).
 
 ### Operational Model
 
