@@ -7,6 +7,8 @@
 
 ERMrest is research software, but its core features have proven stable enough to use in several production science projects.
 
+**Known Issues**: See our list of [known issues](https://github.com/informatics-isi-edu/ermrest/issues?q=is%3Aopen+is%3Aissue+label%3Abug) at GitHub.
+
 ## Using ERMrest
 
 As a protocol, the [ERMrest REST API](api-doc/index.md) can be easily accessed by browser-based applications or any basic HTTP client library. Its main features:
