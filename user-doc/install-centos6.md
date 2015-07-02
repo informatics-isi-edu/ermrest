@@ -208,7 +208,7 @@ a catalog, and read its meta properties. The following commands can be run as
 any local user.
 
 1. Login to ERMrest using an account previously created with
-   `ermrest-webauthn-manage`.
+   `ermrest-webauthn-manage`. Do not include the single quotes in the parameter.
 
    ```
    $ curl -k -b cookie -c cookie -d username=testuser \
@@ -221,18 +221,20 @@ any local user.
    $ curl -k -b cookie -c cookie -XPOST https://localhost/ermrest/catalog/
    ```
 
-3. Inspect the catalog metadata.
+3. Inspect the catalog metadata. (Readable indentation added here.)
 
    ```
    $ curl -k -b cookie -c cookie -H "Accept: application/json" \
    > https://localhost/ermrest/catalog/1
    {
-      "meta": [
-         {"value": "*", "key": "read_user"},
-         {"value": "*", "key": "content_read_user"},
-         {"value": "*", "key": "content_write_user"},
-         {"value": "testuser", "key": "owner"}],
-      "id": "1"
+     "meta": [
+       {"k": "owner", "v": "testuser"},
+       {"k": "write_user", "v": "testuser"},
+       {"k": "read_user", "v": "testuser"},
+       {"k": "schema_write_user", "v": "testuser"},
+       {"k": "content_read_user", "v": "testuser"},
+       {"k": "content_write_user", "v": "testuser"}],
+     "id": "1"
    }
    ```
 
@@ -246,6 +248,18 @@ any local user.
       ...
    }
    ```
+
+## Firewall
+
+You will need to edit your firewall rules if you want to access the ERMrest
+service from remote hosts. There are multiple ways to do this.
+
+https://fedoraproject.org/wiki/How_to_edit_iptables_rules
+
+The `system-config-firewall-tui` is one simple utility for making basic
+modifications to a CentOS 6 firewall configuration.
+
+https://fedoraproject.org/wiki/How_to_edit_iptables_rules#TUI_.28text-based_user_interface.29
 
 
 [Basic authentication]: https://en.wikipedia.org/wiki/Basic_access_authentication (Basic authentication)
