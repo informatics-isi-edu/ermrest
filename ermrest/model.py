@@ -595,9 +595,11 @@ SELECT _ermrest.model_change_event();
         if empty or not vmap_parts:
             # create a dummy/empty view if no data sources exist (or empty table is requested)
             vmap_parts.append( "SELECT 's'::text, 't'::text, 'c'::text, 'v'::text WHERE False" )
+
+        if view_exists(cur, '_ermrest', 'valuemap'):
+            cur.execute("DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap ;")
                         
         cur.execute("""
-DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap ;
 DROP TABLE IF EXISTS _ermrest.valuemap ;
 CREATE TABLE _ermrest.valuemap ("schema", "table", "column", "value")
 AS %s ;
