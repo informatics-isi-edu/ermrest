@@ -7,6 +7,7 @@ SBIN_FILES= \
 	ermrest-registry-manage \
 	ermrest-freetext-indices \
 	ermrest-valuemap-recreate \
+	ermrest-valuemap-work \
 	ermrest-db-work
 
 SBIN_EDIT_FILES= \
