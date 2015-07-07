@@ -1,0 +1,74 @@
+#!/usr/bin/python
+
+import sys
+import web
+import psycopg2
+
+import ermrest
+import ermrest.sanepg2
+import ermrest.ermrest_apis
+import ermrest.exception
+
+def recreate_valuemap(catalog, conn, cur):
+    cur.execute("SELECT count(*) = 0 FROM pg_catalog.pg_extension WHERE extname = 'pg_trgm';")
+    if cur.next()[0]:
+        raise ValueError('Please run "CREATE EXTENSION pg_trgm" on database "%s" as Postgres superuser.' % catalog._dbname)
+
+    model = catalog.get_model(cur, ermrest.ermrest_apis.global_env)
+    model.recreate_value_map(conn, cur)
+
+def usage():
+    sys.stderr.write("""
+usage: ermrest-valuemap-recreate <catalog>
+
+Run this utility under the deployed ERMrest daemon account to recreate
+inverted _ermrest.valuemap table supporting the /textfacet/ API.
+
+Required argument is the catalog number.
+
+Exit status:
+
+  0  success
+  1  command-line usage error
+  2  registry not configured
+  3  catalog not found
+  5  other runtime errors
+
+"""
+                     )
+
+def main(argv):
+    if len(argv) == 1:
+        try:
+            catalog_id = int(argv[0])
+        except ValueError:
+            sys.stderr.write("Invalid catalog ID '%s'.\n" % argv[0])
+            return 1
+
+    else:
+        sys.stderr.write("Catalog ID is sole argument.\n")
+        return 1
+
+    if not ermrest.registry:
+        sys.stderr.write("ERMrest catalog registry not configured.")
+        return 2
+
+    result = ermrest.registry.lookup(catalog_id)
+    if not result:
+        sys.stderr.write("Catalog '%d' not found in registry.\n" % catalog_id)
+        return 3
+    catalog_descriptor = result[0]['descriptor']
+
+    catalog = ermrest.Catalog(ermrest.catalog_factory, catalog_descriptor)
+    
+    try:
+        ermrest.sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: recreate_valuemap(catalog, conn, cur), verbose=False).next()
+    except Exception, e:
+        sys.stderr.write(str(e)+ "\n")
+        return 5
+
+    return 0
+    
+
+if __name__ == '__main__':
+    sys.exit( main(sys.argv[1:]) )

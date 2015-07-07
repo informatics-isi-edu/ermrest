@@ -480,14 +480,14 @@ FROM _ermrest.model_keyref_annotation
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
     
-    if not view_exists(cur, '_ermrest', 'valuemap'):
-        # rebuild missing view and add it to model manually since we already introspected
-        web.debug('NOTICE: rebuilding valuemap during model introspection')
-        model.recreate_value_map(cur.connection, cur)
+    if not table_exists(cur, '_ermrest', 'valuemap'):
+        # rebuild missing table and add it to model manually since we already introspected
+        web.debug('NOTICE: adding empty valuemap during model introspection')
+        model.recreate_value_map(cur.connection, cur, empty=True)
         valuemap_columns = ['schema', 'table', 'column', 'value']
         for i in range(len(valuemap_columns)):
             valuemap_columns[i] = Column(valuemap_columns[i], i, Type(canonicalize_column_type('text', 'NULL', config, True)), None)
-        model.ermrest_schema.tables['valuemap'] = Table(model.ermrest_schema, 'valuemap', valuemap_columns, 'm')
+        model.ermrest_schema.tables['valuemap'] = Table(model.ermrest_schema, 'valuemap', valuemap_columns, 't')
 
     return model
 
@@ -578,13 +578,12 @@ SELECT _ermrest.model_change_event();
         if sname not in self.schemas:
             raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
         cur.execute("""
-DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap;
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
         del self.schemas[sname]
 
-    def recreate_value_map(self, conn, cur):
+    def recreate_value_map(self, conn, cur, empty=False):
         vmap_parts = []
         for schema in self.schemas.values():
             for table in schema.tables.values():
@@ -593,13 +592,16 @@ SELECT _ermrest.model_change_event();
                     if part:
                         vmap_parts.append(part)
 
-        if not vmap_parts:
-            # create a dummy/empty view if no data sources exist
+        if empty or not vmap_parts:
+            # create a dummy/empty view if no data sources exist (or empty table is requested)
             vmap_parts.append( "SELECT 's'::text, 't'::text, 'c'::text, 'v'::text WHERE False" )
+
+        if view_exists(cur, '_ermrest', 'valuemap'):
+            cur.execute("DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap ;")
                         
         cur.execute("""
-DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap ;
-CREATE MATERIALIZED VIEW _ermrest.valuemap ("schema", "table", "column", "value")
+DROP TABLE IF EXISTS _ermrest.valuemap ;
+CREATE TABLE _ermrest.valuemap ("schema", "table", "column", "value")
 AS %s ;
 CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "table", "column");
 CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
@@ -639,7 +641,6 @@ class Schema (object):
         self.tables[tname].pre_delete(conn, cur)
         # we keep around a bumped version for table as a tombstone to invalidate any old cached results
         cur.execute("""
-DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap;
 DROP TABLE %(sname)s.%(tname)s ;
 SELECT _ermrest.model_change_event();
 SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
@@ -795,7 +796,6 @@ WHERE schema_name = %(sname)s
     def alter_table(self, conn, cur, alterclause):
         """Generic ALTER TABLE ... wrapper"""
         cur.execute("""
-DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap;
 ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
 SELECT _ermrest.model_change_event();
 SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
