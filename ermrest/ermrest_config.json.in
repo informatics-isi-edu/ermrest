@@ -71,9 +71,11 @@
     
     "column_types_readonly": {
         "json": null,
-        "text": { 
+        "numeric": null,
+        "text": {
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
             },
+        "time": { "aliases": [ "time with time zone", "time without time zone" ] },
         "timestamp": { "aliases": [ "timestamp without time zone" ] }
     },
 

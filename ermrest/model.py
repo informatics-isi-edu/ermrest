@@ -367,7 +367,11 @@ FROM _ermrest.model_keyref_annotation
                 base_type = Type(canonicalize_column_type(data_types[i], default_values[i], config, True))
         
             # Translate default_value
-            default_value = base_type.default_value(default_values[i])
+            try:
+                default_value = base_type.default_value(default_values[i])
+            except ValueError:
+                # TODO: raise informative exception instead of masking error
+                default_value = None
 
             col = Column(cnames[i], i, base_type, default_value, comments[i])
             cols.append( col )
@@ -1018,6 +1022,7 @@ class Type (object):
     def default_value(self, raw):
         """Converts raw default value with base_type hints.
         """
+        # BUG: raw default value may have SQL cast syntax, e.g. '(0)::smallint', which is not a valid Python literal
         if not raw:
             return raw
         elif re.match(_pg_serial_default_pattern, raw) \
