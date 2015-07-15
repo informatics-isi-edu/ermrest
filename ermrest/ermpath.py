@@ -28,6 +28,7 @@ import web
 
 from util import sql_identifier, sql_literal
 from model import Type
+from ermrest import exception
 from ermrest.exception import *
 from ermrest.catalog import _random_name
 
