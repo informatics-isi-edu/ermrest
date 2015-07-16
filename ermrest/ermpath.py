@@ -828,6 +828,10 @@ class AnyPath (object):
                 attribute, col, base = item
             else:
                 attribute = item
+                if len(attribute.nameparts) > 2:
+                    raise BadSyntax('Column name %s, qualified by schema and table names, not allowed as attribute.' % attribute)
+                elif len(attribute.nameparts) > 1 and attribute.nameparts[0] not in self.epath.aliases:
+                    raise BadSyntax('Alias %s, qualifying column name %s, not bound in path.' % (attribute.nameparts[0], attribute))
                 col, base = attribute.resolve_column(self.epath._model, self.epath)
 
             if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
