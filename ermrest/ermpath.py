@@ -139,7 +139,11 @@ class Name (object):
         
         if len(self.nameparts) == 3:
             n0, n1, n2 = self.nameparts
-            return (model.lookup_table(n0, n1).columns[n2], None)
+            table = model.lookup_table(n0, n1)
+            if n2 in table.columns:
+                return (table.columns[n2], None)
+            else:
+                raise exception.ConflictModel('Column %s does not exist in table %s.' % (n2, str(table)))
         
         else:
             if len(self.nameparts) == 1:
