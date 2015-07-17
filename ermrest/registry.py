@@ -199,8 +199,6 @@ WHERE descriptor = %(descriptor)s;
         """Unregister a catalog description.
         
            'id' : the id of the catalog to unregister.
-
-           NOTE: This method looks b0rken
         """
         assert id is not None
 
