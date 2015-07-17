@@ -151,6 +151,18 @@ def introspect(cur, config=None):
     # this postgres-specific code borrows bits from its information_schema view definitions
     # but is trimmed down to be a cheaper query to execute
 
+    # Select all schemas from database, excluding system schemas
+    SELECT_SCHEMAS = '''
+SELECT
+  current_database() AS catalog_name,
+  nc.nspname AS schema_name
+FROM 
+  pg_catalog.pg_namespace nc
+WHERE
+  nc.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  AND NOT pg_is_other_temp_schema(nc.oid);
+    '''
+
     # Select all column metadata from database, excluding system schemas
     SELECT_TABLES = '''
 SELECT
@@ -345,15 +357,14 @@ FROM _ermrest.model_keyref_annotation
     #
     # Introspect schemas, tables, columns
     #
-    #cur = conn.cursor()
     
     # get schemas (including empty ones)
-    cur.execute("SELECT catalog_name, schema_name FROM information_schema.schemata")
-
+    cur.execute(SELECT_SCHEMAS);
     for dname, sname in cur:
         if (dname, sname) not in schemas:
             schemas[(dname, sname)] = Schema(model, sname)
 
+    # get columns
     cur.execute(SELECT_COLUMNS)
     for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types, comments in cur:
 
