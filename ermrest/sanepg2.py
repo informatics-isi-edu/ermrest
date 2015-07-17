@@ -130,7 +130,7 @@ class PoolManager (object):
 pools = PoolManager()       
 
 
-def pooled_perform(dsn, bodyfunc, finalfunc=lambda x: x, verbose=True):
+def pooled_perform(dsn, bodyfunc, finalfunc=lambda x: x, verbose=False):
     """Run bodyfunc(conn, cur) using pooling, commit, transform with finalfunc, clean up.
 
        Automates handling of errors.
