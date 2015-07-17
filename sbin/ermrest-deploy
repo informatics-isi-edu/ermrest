@@ -51,7 +51,8 @@ export DAEMONUSER
 [[ "$DROPDB" = "true" ]] && runuser -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
 [[ "$CREATEDB" = "true" ]] && {
     runuser -c "createdb -O \"$DAEMONUSER\" \"$DAEMONUSER\"" - "${PGADMIN}"
-    runuser -c "createlang -d $DAEMONUSER plpgsql" - "${PGADMIN}"
+    runuser -c "createlang -d \"$DAEMONUSER\" plpgsql" - "${PGADMIN}"
+    runuser -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - "${PGADMIN}"
     runuser -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
     runuser -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
     runuser -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
