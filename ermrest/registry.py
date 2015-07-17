@@ -163,7 +163,7 @@ FROM %(schema)s.%(table)s
                 yield dict(id=eid, descriptor=json.loads(descriptor))
 
         return list(sanepg2.pooled_perform(self.dsn, body))
-    
+
     def register(self, descriptor, id=None):
         assert isinstance(descriptor, dict)
         entry = dict(descriptor=json.dumps(descriptor))
@@ -202,16 +202,20 @@ WHERE descriptor = %(descriptor)s;
 
            NOTE: This method looks b0rken
         """
-        cur = self._conn.cursor() # TODO: what self._conn? not defined.
-        cur.execute("""
+        assert id is not None
+
+        def body(conn, cur):
+            cur.execute("""
 DELETE FROM %(schema)s.%(table)s
 WHERE id = %(id)s;
-"""
-            % dict(schema=self._schema_name,
+"""          % dict(schema=self._schema_name,
                    table=self.TABLE_NAME,
                    id=sql_literal(id)
                    ) )
-        
-        self._conn.commit()
-        if not cur.rowcount:
-            raise KeyError("catalog identifier ("+id+") does not exist")
+            return cur.rowcount > 0
+
+        def post_commit(deleted):
+            if not deleted:
+                raise KeyError("catalog identifier ("+id+") does not exist")
+
+        return sanepg2.pooled_perform(self.dsn, body, post_commit).next()
