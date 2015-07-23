@@ -163,7 +163,7 @@ commands.
 
 ```
 # cd path/to/ermrest
-# make reinstall
+# make install
 ```
 
 The script updates files under `/usr/lib/python2*/site-packages/ermrest` and
