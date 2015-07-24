@@ -130,14 +130,21 @@ class PoolManager (object):
 pools = PoolManager()       
 
 
+def pooled_connection(dsn):
+    used_pool = pools[dsn]
+    conn = used_pool.getconn()
+    conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
+    cur = conn.cursor()
+    return used_pool, conn, cur
+
 def pooled_perform(dsn, bodyfunc, finalfunc=lambda x: x, verbose=False):
     """Run bodyfunc(conn, cur) using pooling, commit, transform with finalfunc, clean up.
 
        Automates handling of errors.
     """
-    conn = None
-    cur = None
-    used_pool = pools[dsn]
+    if not isinstance(dsn, tuple):
+        dsn = pooled_connection(dsn)
+    used_pool, conn, cur = dsn
     try:
         conn = used_pool.getconn()
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)

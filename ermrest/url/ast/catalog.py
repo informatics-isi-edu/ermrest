@@ -91,6 +91,8 @@ class Catalog (Api):
             entries[0]['descriptor'],
             web.ctx.ermrest_config
             )
+        web.ctx.ermrest_catalog_dsn = sanepg2.pooled_connection(self.manager.dsn)
+        self.resolve(web.ctx.ermrest_catalog_dsn[2])
 
     def resolve(self, cur):
         """Bootstrap catalog manager state."""
@@ -143,7 +145,6 @@ class Catalog (Api):
         web.ctx.ermrest_request_content_type = content_type
         
         def body(conn, cur):
-            self.resolve(cur)
             return list(self.manager.get_meta(cur))
 
         def post_commit(meta):
@@ -162,7 +163,6 @@ class Catalog (Api):
         """Perform HTTP DELETE of catalog.
         """
         def body(conn, cur):
-            self.resolve(cur)
             self.enforce_owner(cur, uri)
             return True
 
@@ -192,7 +192,6 @@ class Meta (Api):
         content_type = data.negotiated_content_type(self.supported_types, 
                                                     self.default_content_type)
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_read(cur, uri)
             return self.catalog.manager.get_meta(cur, self.key, self.value)
 
@@ -213,7 +212,6 @@ class Meta (Api):
             raise exception.rest.NoMethod(uri)
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_write(cur, uri)
         
             if self.key == self.catalog.manager.META_OWNER:
@@ -246,7 +244,6 @@ class Meta (Api):
             raise exception.rest.NoMethod(uri)
             
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_write(cur, uri)
 
             meta = self.catalog.manager.get_meta(cur, self.key, self.value)

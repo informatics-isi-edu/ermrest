@@ -62,7 +62,6 @@ class TextFacet (Api):
         limit = self.negotiated_limit()
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_read(cur, uri)
             model = self.catalog.manager.get_model(cur)
             agpath = self.resolve(model)
@@ -130,7 +129,6 @@ class Entity (Api):
         limit = self.negotiated_limit()
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_read(cur, uri)
             model = self.catalog.manager.get_model(cur)
             epath = self.resolve(model)
@@ -167,7 +165,6 @@ class Entity (Api):
         
         def body(conn, cur):
             input_data.seek(0) # rewinds buffer, in case of retry
-            self.catalog.resolve(cur)
             self.enforce_content_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
             epath = self.resolve(model)
@@ -204,7 +201,6 @@ class Entity (Api):
         """Perform HTTP DELETE of entities.
         """
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
             epath = self.resolve(model)
@@ -246,7 +242,6 @@ class Attribute (Api):
         limit = self.negotiated_limit()
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_read(cur, uri)
             model = self.catalog.manager.get_model(cur)
             apath = self.resolve(model)
@@ -272,7 +267,6 @@ class Attribute (Api):
         """Perform HTTP DELETE of entity attribute.
         """
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
             apath = self.resolve(model)
@@ -314,7 +308,6 @@ class AttributeGroup (Api):
         limit = self.negotiated_limit()
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_read(cur, uri)
             model = self.catalog.manager.get_model(cur)
             agpath = self.resolve(model)
@@ -351,7 +344,6 @@ class AttributeGroup (Api):
         
         def body(conn, cur):
             input_data.seek(0) # rewinds buffer, in case of retry
-            self.catalog.resolve(cur)
             self.enforce_content_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
             agpath = self.resolve(model)
@@ -398,7 +390,6 @@ class Aggregate (Api):
         limit = self.negotiated_limit()
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_read(cur, uri)
             model = self.catalog.manager.get_model(cur)
             agpath = self.resolve(model)

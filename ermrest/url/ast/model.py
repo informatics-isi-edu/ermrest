@@ -64,7 +64,6 @@ class Schemas (Api):
         content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
 
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_content_read(cur, uri)
             return self.catalog.manager.get_model(cur)
 
@@ -107,7 +106,6 @@ class Schema (Api):
         return Table(self, name)
 
     def GET_body(self, conn, cur, uri):
-        self.catalog.resolve(cur)
         self.enforce_content_read(cur, uri)
         model = self.catalog.manager.get_model(cur)
         return model.lookup_schema(str(self.name))
@@ -138,7 +136,6 @@ class Schema (Api):
     def POST(self, uri):
         """Create a new empty schema."""
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
             model.create_schema(conn, cur, str(self.name))
@@ -152,7 +149,6 @@ class Schema (Api):
     def DELETE(self, uri):
         """Delete an existing schema."""
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
             model.delete_schema(conn, cur, str(self.name))
@@ -201,7 +197,6 @@ class Tables (Api):
             raise exception.rest.BadRequest('Could not deserialize JSON input.')
 
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             schema = self.schema.GET_body(conn, cur, uri)
             try:
@@ -483,7 +478,6 @@ class Table (Api):
         return Foreignkey(self, column_set, catalog=self.catalog)
 
     def GET_body(self, conn, cur, uri):
-        self.catalog.resolve(cur)
         self.enforce_content_read(cur, uri)
         model = self.catalog.manager.get_model(cur)
         return model.lookup_table(
@@ -521,7 +515,6 @@ class Table (Api):
     def DELETE(self, uri):
         """Delete a table from the schema."""
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             table = self.GET_body(conn, cur, uri)
             table.schema.delete_table(conn, cur, str(self.name))
@@ -569,7 +562,6 @@ class Columns (Api):
             raise exception.rest.BadRequest('Could not deserialize JSON input.')
 
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             table = self.table.GET_body(conn, cur, uri)
             return table.add_column(conn, cur, columndoc, web.ctx.ermrest_config)
@@ -619,7 +611,6 @@ class Column (Columns):
         """Delete column from table."""
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             table = self.table.GET_body(conn, cur, uri)
             table.delete_column(conn, cur, str(self.name))
@@ -664,7 +655,6 @@ class Keys (Api):
             raise exception.rest.BadRequest('Could not deserialize JSON input.')
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             table = self.table.GET_body(conn, cur, uri)
             return list(table.add_unique(conn, cur, keydoc))
@@ -709,7 +699,6 @@ class Key (Keys):
         """Delete a key constraint from a table."""
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             table, key = self.GET_body(conn, cur, uri)
             table.delete_unique(conn, cur, key)
@@ -758,7 +747,6 @@ class Foreignkeys (Api):
             raise exception.rest.BadRequest('Could not deserialize JSON input.')
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             table = self.table.GET_body(conn, cur, uri)
             return list(table.add_fkeyref(conn, cur, keydoc))
@@ -949,7 +937,6 @@ class ForeignkeyReferences (Api):
         """Delete foreign-key reference constraint from table."""
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_schema_write(cur, uri)
             fkrs = self.GET_body(conn, cur, uri)
             for fkr in fkrs:
