@@ -187,7 +187,6 @@ class Api (object):
         
     def perform(self, body, finish):
         def wrapbody(conn, cur):
-            # TODO: implement backoff/retry on transient exceptions?
             try:
                 return body(conn, cur)
             except psycopg2.InterfaceError, e:

@@ -42,8 +42,8 @@ start = 'start'
 
 # there are multiple productions for most APIs depending on level of detail encoded in URL
 def p_apis(p):
-    """api   : catalogs 
-             | catalog
+    """api   : catalog
+             | catalogslash
              | schemas 
              | schema
              | schemaslash
@@ -89,10 +89,6 @@ def p_slashopt(p):
     """slashopt : '/' 
                 | """
     p[0] = None
-
-def p_catalogs(p):
-    """catalogs : '/' string '/' CATALOG slashopt """
-    p[0] = ast.Catalogs()
 
 def p_catalog(p):
     """catalog : '/' string '/' CATALOG '/' NUMSTRING """ 
