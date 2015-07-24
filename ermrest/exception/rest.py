@@ -26,8 +26,8 @@ urlquote = urllib.quote
 
 class WebException (web.HTTPError):
     def __init__(self, status, data=u'', headers={}, desc=u'%s'):
-        self.detail = urlquote(desc % data)
-        #web.debug(self.detail, desc, data, desc % data)
+        if isinstance(data, str):
+            data = data.decode('utf8')
         data = ('%s\n%s\n' % (status, desc)) % data
         headers['Content-Type'] = 'text/plain'
         web.HTTPError.__init__(self, status, headers=headers, data=data)
