@@ -1,0 +1,19 @@
+
+ERMREST_ERMPATH_PYTHON_FILES= \
+	__init__.py \
+	name.py \
+	resource.py
+
+ERMREST_ERMPATH_PYTHON_FILES_INSTALL=$(ERMREST_ERMPATH_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/ermpath/%)
+
+INSTALL_FILES += $(ERMREST_ERMPATH_PYTHON_FILES_INSTALL)
+
+INSTALL_DIRS += $(PYLIBDIR)/ermrest/ermpath
+
+CLEAN_FILES += \
+	$(ERMREST_ERMPATH_PYTHON_FILES:%=ermrest/url/%c) \
+	$(ERMREST_ERMPATH_PYTHON_FILES:%=ermrest/url/%o)
+
+EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=ermrest/ermpath/%) \
+	ermrest/ermpath/makefile-vars
+

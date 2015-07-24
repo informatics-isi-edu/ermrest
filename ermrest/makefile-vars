@@ -5,7 +5,6 @@ ERMREST_SHARE_FILES= \
 
 ERMREST_PYTHON_FILES= \
 	__init__.py \
-	ermpath.py \
 	ermrest_apis.py \
 	ermrest.wsgi \
 	model.py \

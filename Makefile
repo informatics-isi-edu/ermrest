@@ -34,6 +34,7 @@ DEPLOYLOCK=$(VARLIBDIR)/deploy.lock
 include sbin/makefile-vars
 include ermrest/makefile-vars
 include ermrest/exception/makefile-vars
+include ermrest/ermpath/makefile-vars
 include ermrest/url/makefile-vars
 include ermrest/url/ast/makefile-vars
 include ermrest/url/ast/data/makefile-vars
