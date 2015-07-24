@@ -265,6 +265,18 @@ class Dispatcher (object):
                 # exceptions signal normal REST response scenarios
                 request_trace( str(e) )
                 raise e
+            except (ConflictModel, ConflictData), e:
+                request_trace(str(e))
+                raise rest.Conflict(e.message)
+            except NotFound, e:
+                request_trace(str(e))
+                raise rest.NotFound(e.message)
+            except BadData, e:
+                request_trace(str(e))
+                raise rest.BadRequest(e.message)
+            except UnsupportedMediaType, e:
+                request_trace(str(e))
+                raise rest.UnsupportedMediaType
             except psycopg2.Error, e:
                 request_trace( str(e) )
                 et, ev, tb = sys.exc_info()

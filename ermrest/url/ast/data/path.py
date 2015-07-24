@@ -191,18 +191,7 @@ class Api (object):
                 return body(conn, cur)
             except psycopg2.InterfaceError, e:
                 raise rest.ServiceUnavailable("Please try again.")
-            except NotFound, e:
-                raise rest.NotFound(e.message)
-            except BadData, e:
-                raise rest.BadRequest(e.message)
-            except ConflictData, e:
-                et, ev, tb = sys.exc_info()
-                web.debug('got exception "%s" during Api.perform()' % str(ev),
-                      traceback.format_exception(et, ev, tb))
-                raise rest.Conflict(e.message)
-            except UnsupportedMediaType, e:
-                raise rest.UnsupportedMediaType
-
+            
         return sanepg2.pooled_perform(web.ctx.ermrest_catalog_dsn, wrapbody, finish)
     
     def final(self):
