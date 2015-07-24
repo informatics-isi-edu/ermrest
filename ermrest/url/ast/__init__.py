@@ -26,15 +26,15 @@ once an appropriate database connection is available.
 
 """
 
-from catalog import Catalogs, Catalog
-import model
-import data
-
-from ermrest.util import sql_identifier
-from ermrest import exception
-from ermrest.ermpath import Name
-
 import urllib
+
+from .catalog import Catalogs, Catalog
+from . import model
+from . import data
+
+from ... import exception
+from ...util import sql_identifier
+from ...ermpath import Name
 
 def _default_link_cols(cols, left=True, reftable=None):
     """Find default reference link anchored at cols list.

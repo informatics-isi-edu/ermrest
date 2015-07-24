@@ -22,10 +22,10 @@
 import json
 import web
 
-from ermrest import exception
-import ermrest.model
-from data import Api
-from ermrest.util import negotiated_content_type
+from ... import exception
+from ... import model
+from .data import Api
+from ...util import negotiated_content_type
 
 schema_html = """
 <html>

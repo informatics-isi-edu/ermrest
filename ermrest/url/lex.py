@@ -38,8 +38,8 @@ any request bearing escaped slashes meant to be user data.
 import ply.lex
 import web
 
-from ermrest.exception import *
-from ermrest.util import urlunquote
+from ..exception import *
+from ..util import urlunquote
 
 # except '%' which we do not want to recognize
 

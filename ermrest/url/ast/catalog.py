@@ -24,7 +24,7 @@ import web
 import model
 import data
 from data import Api
-from ermrest import exception, catalog, sanepg2
+from ... import exception, catalog, sanepg2
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'

@@ -70,12 +70,12 @@ import itertools
 import psycopg2
 import webauthn2
 
-from url import url_parse_func
-from ermrest.exception import *
+from .url import url_parse_func
+from .exception import *
 
-from ermrest.registry import get_registry
-from ermrest.catalog import get_catalog_factory
-from ermrest.util import negotiated_content_type, urlquote
+from .registry import get_registry
+from .catalog import get_catalog_factory
+from .util import negotiated_content_type, urlquote
 
 __all__ = [
     'web_urls',

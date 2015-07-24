@@ -37,7 +37,7 @@ import sanepg2
 import web
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists
-from ermrest.model import introspect
+from .model import introspect
 
 __all__ = ['get_catalog_factory']
 

@@ -22,12 +22,11 @@
 import cStringIO
 import web
 
-import path
-from path import Api
-from ermrest import ermpath
-from ermrest.exception import rest, BadData
-import ermrest.model
-from ermrest.util import negotiated_content_type
+from .path import Api
+from .... import ermpath
+from .... import model
+from ....exception import rest, BadData
+from ....util import negotiated_content_type
 
 class TextFacet (Api):
     """A specific text facet by textfragment.

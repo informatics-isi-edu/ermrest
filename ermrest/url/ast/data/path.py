@@ -18,14 +18,15 @@
 """ERMREST URL abstract syntax tree (AST) for data resource path-addressing.
 
 """
-from ermrest.exception import *
-from ermrest import model
 import psycopg2
-from ermrest import sanepg2
 import web
 import traceback
 import sys
 import re
+
+from ....exception import *
+from .... import model
+from .... import sanepg2
 
 class Api (object):
     is_filter = False

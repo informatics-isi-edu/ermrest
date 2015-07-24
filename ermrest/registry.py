@@ -28,10 +28,10 @@ distribute cache) but we will begin with a simple implementation using a
 database backend.
 """
 
-from util import *
-
 import json
-from ermrest import sanepg2
+
+from .util import *
+from . import sanepg2
 
 __all__ = ['get_registry']
 

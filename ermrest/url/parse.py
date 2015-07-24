@@ -28,7 +28,7 @@ import threading
 import web
 import urllib
 
-from ermrest.exception import *
+from ..exception import *
 
 from lex import make_lexer, tokens, keywords
 import ast
