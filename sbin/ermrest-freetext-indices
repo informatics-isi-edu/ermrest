@@ -78,7 +78,7 @@ def main(argv):
     catalog = ermrest.Catalog(ermrest.catalog_factory, catalog_descriptor)
     
     try:
-        ermrest.sanepg2.pooled_perform(catalog._dbname, lambda conn, cur: catalog_auto_index(catalog, conn, cur, schema_names), verbose=False).next()
+        ermrest.sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: catalog_auto_index(catalog, conn, cur, schema_names), verbose=False).next()
     except ermrest.exception.ConflictModel, e:
         sys.stderr.write(str(e) + "\n")
         return 4
