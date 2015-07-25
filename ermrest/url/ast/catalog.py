@@ -115,9 +115,9 @@ class Catalog (Api):
         """A textfacet set for this catalog."""
         return data.TextFacet(self, filterelem, facetkeys, facetvals)
     
-    def entity(self, epath):
+    def entity(self, elem):
         """An entity set for this catalog."""
-        return data.Entity(self, epath)
+        return data.Entity(self, elem)
 
     def attribute(self, apath):
         """An attribute set for this catalog."""

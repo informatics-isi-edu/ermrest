@@ -22,9 +22,8 @@
 import cStringIO
 import web
 
-from .path import Api
+from .path import Api, Path
 from .... import ermpath
-from .... import model
 from ....exception import rest, BadData
 from ....util import negotiated_content_type
 
@@ -88,40 +87,27 @@ class Entity (Api):
 
     default_content_type = 'application/json'
 
-    def __init__(self, catalog, path):
+    def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
-        self.path = path
+        cur = web.ctx.ermrest_catalog_dsn[2]
+        self.enforce_content_read(cur)
+        self.model = self.catalog.manager.get_model(cur)
+        self.epath = ermpath.EntityPath(self.model)
+        self.epath.set_base_entity( 
+            elem.name.resolve_table(self.model),
+            elem.alias
+        )
         self.http_vary.add('accept')
 
-    def resolve(self, model):
-        """Resolve self against a specific database model.
-
-           The path is validated against the model and any unqualified
-           names or implicit entity referencing patterns are resolved
-           to a canonical ermrest.ermpath.EntityPath instance that can
-           be used to perform entity-level data access.
-        """
-        epath = ermpath.EntityPath(model)
-
-        if not hasattr(self.path[0], 'resolve_table'):
-            raise BadData('Entity paths must start with table syntax.')
-
-        epath.set_base_entity( 
-            self.path[0].name.resolve_table(model),
-            self.path[0].alias
-            )
-
-        for elem in self.path[1:]:
-            if elem.is_filter:
-                epath.add_filter(elem)
-            elif elem.is_context:
-                epath.set_context(elem)
-            else:
-                keyref, refop, lalias = elem.resolve_link(model, epath)
-                epath.add_link(keyref, refop, elem.alias, lalias)
-
-        return epath
-
+    def append(self, elem):
+        if elem.is_filter:
+            self.epath.add_filter(elem)
+        elif elem.is_context:
+            self.epath.set_context(elem)
+        else:
+            keyref, refop, lalias = elem.resolve_link(self.model, self.epath)
+            self.epath.add_link(keyref, refop, elem.alias, lalias)
+            
     def GET(self, uri):
         """Perform HTTP GET of entities.
         """
@@ -129,15 +115,12 @@ class Entity (Api):
         limit = self.negotiated_limit()
         
         def body(conn, cur):
-            self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            epath = self.resolve(model)
-            self.set_http_etag( epath.get_data_version(cur) )
+            self.set_http_etag( self.epath.get_data_version(cur) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
-            epath.add_sort(self.sort)
-            return epath.get(conn, cur, content_type=content_type, limit=limit)
+            self.epath.add_sort(self.sort)
+            return self.epath.get(conn, cur, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -166,15 +149,15 @@ class Entity (Api):
         def body(conn, cur):
             input_data.seek(0) # rewinds buffer, in case of retry
             self.enforce_content_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            epath = self.resolve(model)
-            return epath.put(conn,
-                             cur,
-                             input_data, 
-                             in_content_type=in_content_type,
-                             content_type=content_type, 
-                             allow_existing = not post_method,
-                             use_defaults = post_defaults)
+            return self.epath.put(
+                conn,
+                cur,
+                input_data, 
+                in_content_type=in_content_type,
+                content_type=content_type, 
+                allow_existing = not post_method,
+                use_defaults = post_defaults
+            )
 
         def post_commit(lines):
             web.header('Content-Type', content_type)
@@ -202,9 +185,7 @@ class Entity (Api):
         """
         def body(conn, cur):
             self.enforce_content_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            epath = self.resolve(model)
-            epath.delete(conn, cur)
+            self.epath.delete(conn, cur)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -218,23 +199,18 @@ class Attribute (Api):
 
     default_content_type = 'application/json'
 
-    def __init__(self, catalog, path):
+    def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
-        self.attributes = path[-1]
-        self.epath = Entity(catalog, path[0:-1])
+        self.Entity = Entity(catalog, elem)
+        self.apath = None
         self.http_vary.add('accept')
 
-    def resolve(self, model):
-        """Resolve self against a specific database model.
+    def append(self, elem):
+        self.Entity.append(elem)
 
-           The path is validated against the model and any unqualified
-           names or implicit entity referencing patterns are resolved
-           to a canonical ermrest.ermpath.AttributePath instance that
-           can be used to perform attribute-level data access.
-        """
-        epath = self.epath.resolve(model)
-        return ermpath.AttributePath(epath, self.attributes)
-    
+    def set_projection(self, attributes):
+        self.apath = ermpath.AttributePath(self.Entity.epath, attributes)
+        
     def GET(self, uri):
         """Perform HTTP GET of attributes.
         """
@@ -243,14 +219,12 @@ class Attribute (Api):
         
         def body(conn, cur):
             self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            apath = self.resolve(model)
-            self.set_http_etag( apath.epath.get_data_version(cur) )
+            self.set_http_etag( self.apath.epath.get_data_version(cur) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
-            apath.add_sort(self.sort)
-            return apath.get(conn, cur, content_type=content_type, limit=limit)
+            self.apath.add_sort(self.sort)
+            return self.apath.get(conn, cur, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -268,9 +242,7 @@ class Attribute (Api):
         """
         def body(conn, cur):
             self.enforce_content_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            apath = self.resolve(model)
-            apath.delete(conn, cur)
+            self.apath.delete(conn, cur)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -283,23 +255,17 @@ class AttributeGroup (Api):
 
     default_content_type = 'application/json'
 
-    def __init__(self, catalog, path):
+    def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
-        self.attributes = path[-1]
-        self.groupkeys = path[-2]
-        self.epath = Entity(catalog, path[0:-2])
+        self.Entity = Entity(catalog, elem)
+        self.agpath = None
         self.http_vary.add('accept')
 
-    def resolve(self, model):
-        """Resolve self against a specific database model.
+    def append(self, elem):
+        self.Entity.append(elem)
 
-           The path is validated against the model and any unqualified
-           names or implicit entity referencing patterns are resolved
-           to a canonical ermrest.ermpath.AttributePath instance that
-           can be used to perform attribute-level data access.
-        """
-        epath = self.epath.resolve(model)
-        return ermpath.AttributeGroupPath(epath, self.groupkeys, self.attributes)
+    def set_projection(self, groupkeys, attributes):
+        self.agpath = ermpath.AttributeGroupPath(self.Entity.epath, groupkeys, attributes)
     
     def GET(self, uri):
         """Perform HTTP GET of attribute groups.
@@ -309,14 +275,12 @@ class AttributeGroup (Api):
         
         def body(conn, cur):
             self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            agpath = self.resolve(model)
-            self.set_http_etag( agpath.epath.get_data_version(cur) )
+            self.set_http_etag( self.agpath.epath.get_data_version(cur) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
-            agpath.add_sort(self.sort)
-            return agpath.get(conn, cur, content_type=content_type, limit=limit)
+            self.agpath.add_sort(self.sort)
+            return self.agpath.get(conn, cur, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -345,12 +309,12 @@ class AttributeGroup (Api):
         def body(conn, cur):
             input_data.seek(0) # rewinds buffer, in case of retry
             self.enforce_content_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            agpath = self.resolve(model)
-            return agpath.put(conn,
-                              cur,
-                              input_data, 
-                              in_content_type=in_content_type)
+            return self.agpath.put(
+                conn,
+                cur,
+                input_data, 
+                in_content_type=in_content_type
+            )
 
         def post_commit(lines):
             web.header('Content-Type', content_type)
@@ -366,22 +330,17 @@ class Aggregate (Api):
 
     default_content_type = 'application/json'
 
-    def __init__(self, catalog, path):
+    def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
-        self.attributes = path[-1]
-        self.epath = Entity(catalog, path[0:-1])
+        self.Entity = Entity(catalog, elem)
+        self.agpath = None
         self.http_vary.add('accept')
 
-    def resolve(self, model):
-        """Resolve self against a specific database model.
+    def append(self, elem):
+        self.Entity.append(elem)
 
-           The path is validated against the model and any unqualified
-           names or implicit entity referencing patterns are resolved
-           to a canonical ermrest.ermpath.AttributePath instance that
-           can be used to perform attribute-level data access.
-        """
-        epath = self.epath.resolve(model)
-        return ermpath.AggregatePath(epath, self.attributes)
+    def set_projection(self, attributes):
+        self.agpath = ermpath.AggregatePath(self.Entity.epath, attributes)
     
     def GET(self, uri):
         """Perform HTTP GET of attribute groups.
@@ -391,14 +350,12 @@ class Aggregate (Api):
         
         def body(conn, cur):
             self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            agpath = self.resolve(model)
-            self.set_http_etag( agpath.epath.get_data_version(cur) )
+            self.set_http_etag( self.agpath.epath.get_data_version(cur) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
-            agpath.add_sort(self.sort)
-            return agpath.get(conn, cur, content_type=content_type, limit=limit)
+            self.agpath.add_sort(self.sort)
+            return self.agpath.get(conn, cur, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()
@@ -410,11 +367,4 @@ class Aggregate (Api):
                 yield line
 
         return self.perform(body, post_commit)
-
-class Query (Api):
-    """A specific query set by querypath."""
-    def __init__(self, catalog, path):
-        Api.__init__(self, catalog)
-        self.expressions = path[-1]
-        self.epath = Entity(catalog, path[0:-1])
 

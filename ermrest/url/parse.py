@@ -106,8 +106,7 @@ def p_data(p):
     """data : entity
             | attribute
             | attributegroup
-            | aggregate
-            | query"""
+            | aggregate"""
     p[0] = p[1]
 
 def p_data_sort(p):
@@ -147,40 +146,63 @@ def p_textfacet(p):
     )
     
 def p_entity(p):
-    """entity : catalogslash ENTITY '/' entitypath """
+    """entity : catalogslash ENTITY '/' entityelem2 """
     p[0] = p[1].entity(p[4])
 
 def p_attribute(p):
-    """attribute : catalogslash ATTRIBUTE '/' entitypath '/' attributeleaf """
-    path = p[4]
-    path.append(p[6])
-    p[0] = p[1].attribute(path)
+    """attribute : attribute_epath '/' attributeleaf """
+    p[0] = p[1]
+    p[0].set_projection(p[3])
 
 def p_attributegroup(p):
-    """attributegroup : catalogslash ATTRIBUTEGROUP '/' entitypath '/' groupkeys ';' groupleaf """
-    path = p[4]
-    path.append(p[6])
-    path.append(p[8])
-    p[0] = p[1].attributegroup(path)
-
+    """attributegroup : attributegroup_epath '/' groupkeys ';' groupleaf """
+    p[0] = p[1]
+    p[0].set_projection(p[3], p[5])
+    
 def p_attributegroup_keysonly(p):
-    """attributegroup : catalogslash ATTRIBUTEGROUP '/' entitypath '/' groupkeys"""
-    path = p[4]
-    path.append(p[6])
-    path.append(ast.NameList())
-    p[0] = p[1].attributegroup(path)
-
+    """attributegroup : attributegroup_epath '/' groupkeys"""
+    p[0] = p[1]
+    p[0].set_projection(p[3], ast.NameList())
+    
 def p_aggregate(p):
-    """aggregate : catalogslash AGGREGATE '/' entitypath '/' groupleaf"""
-    path = p[4]
-    path.append(p[6])
-    p[0] = p[1].aggregate(path)
+    """aggregate : aggregate_epath '/' groupleaf"""
+    p[0] = p[1]
+    p[0].set_projection(p[3])
 
-def p_query(p):
-    """query : catalogslash QUERY '/' entitypath '/' attributeleaf """
-    path = p[4]
-    path.append(p[5])
-    p[0] = p[1].query(path)
+
+def p_attribute_epath(p):
+    """attribute_epath : catalogslash ATTRIBUTE '/' entityelem2 """
+    p[0] = p[1].attribute(p[4])
+    
+def p_attributegroup_epath(p):
+    """attributegroup_epath : catalogslash ATTRIBUTEGROUP '/' entityelem2 """
+    p[0] = p[1].attributegroup(p[4])
+    
+def p_aggregate_epath(p):
+    """aggregate_epath : catalogslash AGGREGATE '/' entityelem2 """
+    p[0] = p[1].aggregate(p[4])
+
+
+def p_entity_grow(p):
+    """entity : entity '/' entityelem2 """
+    p[0] = p[1]
+    p[0].append(p[3])
+
+def p_attribute_grow(p):
+    """attribute_epath : attribute_epath '/' entityelem2 """
+    p[0] = p[1]
+    p[0].append(p[3])
+
+def p_attributegroup_grow(p):
+    """attributegroup_epath : attributegroup_epath '/' entityelem2 """
+    p[0] = p[1]
+    p[0].append(p[3])
+
+def p_attribute_grow(p):
+    """aggregate_epath : aggregate_epath '/' entityelem2 """
+    p[0] = p[1]
+    p[0].append(p[3])
+
 
 def p_aleaf(p):
     """attributeleaf : attrlist1"""
@@ -194,28 +216,6 @@ def p_groupleaf(p):
     """groupleaf : leafattrlist1"""
     p[0] = p[1]
 
-def p_entityroot(p):
-    """entitypath : entityelem """
-    p[0] = ast.data.path.Path()
-    p[0].append( p[1] )
-
-def p_entityroot_alias(p):
-    """entitypath : string ASSIGN entityelem """
-    p[0] = ast.data.path.Path()
-    p[3].set_alias(p[1])
-    p[0].append( p[3] )
-
-def p_entitypath(p):
-    """entitypath : entitypath '/' entityelem """
-    p[0] = p[1]
-    p[0].append( p[3] )
-
-def p_entitypath_alias(p):
-    """entitypath : entitypath '/' string ASSIGN entityelem """
-    p[0] = p[1]
-    p[5].set_alias(p[3])
-    p[0].append( p[5] )
-
 
 def p_entityelem_single(p):
     """entityelem : sname """
@@ -225,6 +225,23 @@ def p_entityelem_cols(p):
     """entityelem : '(' snamelist1 ')' """
     p[0] = ast.data.path.ColumnsElem(p[2])
 
+def p_entityelem2(p):
+    """entityelem2 : entityelem"""
+    p[0] = p[1]
+
+def p_entityelem2_bind(p):
+    """entityelem2 : string ASSIGN entityelem"""
+    p[3].set_alias(p[1])
+    p[0] = p[3]
+
+def p_entityelem2_filter(p):
+    """entityelem2 : filter"""
+    p[0] = ast.data.path.FilterElem(p[1]) 
+
+def p_entityelem2_context(p):
+    """entityelem2 : '$' sname"""
+    p[0] = ast.data.path.ContextResetElem(p[2])
+    
 def p_bname(p):
     """bname : string"""
     p[0] = ast.Name().with_suffix(p[1])
@@ -315,16 +332,6 @@ def p_namelist2_grow(p):
 #             | REFR2L
 #             | '@' """
 #    p[0] = p[1]
-
-def p_entity_filter(p):
-    """entitypath : entitypath '/' filter """
-    p[0] = p[1]
-    p[0].append( ast.data.path.FilterElem( p[3] ) )
-
-def p_entity_context_reset(p):
-    """entitypath : entitypath '/' '$' sname"""
-    p[0] = p[1]
-    p[0].append( ast.data.path.ContextResetElem( p[4] ) )
 
 def p_filter(p):
     """filter : disjunction
