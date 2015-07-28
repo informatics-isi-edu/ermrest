@@ -24,8 +24,8 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
-from . import exception
-from .util import sql_identifier, sql_literal, table_exists, view_exists
+from .. import exception
+from ..util import sql_identifier, sql_literal, table_exists, view_exists
 
 import urllib
 import json
