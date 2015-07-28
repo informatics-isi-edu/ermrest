@@ -11,9 +11,9 @@ INSTALL_FILES += $(ERMREST_ERMPATH_PYTHON_FILES_INSTALL)
 INSTALL_DIRS += $(PYLIBDIR)/ermrest/ermpath
 
 CLEAN_FILES += \
-	$(ERMREST_ERMPATH_PYTHON_FILES:%=ermrest/url/%c) \
-	$(ERMREST_ERMPATH_PYTHON_FILES:%=ermrest/url/%o)
+	$(ERMREST_ERMPATH_PYTHON_FILES:%=ermrest/ermpath/%c) \
+	$(ERMREST_ERMPATH_PYTHON_FILES:%=ermrest/ermpath/%o)
 
-EDIT_FILES += $(ERMREST_URL_PYTHON_FILES:%=ermrest/ermpath/%) \
+EDIT_FILES += $(ERMREST_ERMPATH_PYTHON_FILES:%=ermrest/ermpath/%) \
 	ermrest/ermpath/makefile-vars
 

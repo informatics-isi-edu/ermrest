@@ -10,8 +10,8 @@ INSTALL_FILES += $(ERMREST_URL_AST_DATA_PYTHON_FILES_INSTALL)
 INSTALL_DIRS += $(PYLIBDIR)/ermrest/url/ast/data
 
 CLEAN_FILES += \
-	$(ERMREST_URL_AST_DATA_PYTHON_FILES:%=ermrest/url/data/%c) \
-	$(ERMREST_URL_AST_DATA_PYTHON_FILES:%=ermrest/url/data/%o)
+	$(ERMREST_URL_AST_DATA_PYTHON_FILES:%=ermrest/url/ast/data/%c) \
+	$(ERMREST_URL_AST_DATA_PYTHON_FILES:%=ermrest/url/ast/data/%o)
 
 EDIT_FILES += $(ERMREST_URL_AST_DATA_PYTHON_FILES:%=ermrest/url/ast/data/%) \
 	ermrest/url/ast/data/makefile-vars
