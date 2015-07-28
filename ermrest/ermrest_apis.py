@@ -277,6 +277,9 @@ class Dispatcher (object):
             except UnsupportedMediaType, e:
                 request_trace(str(e))
                 raise rest.UnsupportedMediaType
+            except psycopg2.pool.PoolError, e:
+                request_trace(str(e))
+                raise rest.ServiceUnavailable(e.message)
             except psycopg2.Error, e:
                 request_trace( str(e) )
                 et, ev, tb = sys.exc_info()
