@@ -7,7 +7,6 @@ ERMREST_PYTHON_FILES= \
 	__init__.py \
 	ermrest_apis.py \
 	ermrest.wsgi \
-	model.py \
 	sanepg2.py \
 	registry.py \
 	catalog.py \
