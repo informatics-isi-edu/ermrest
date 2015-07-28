@@ -198,7 +198,7 @@ def p_attributegroup_grow(p):
     p[0] = p[1]
     p[0].append(p[3])
 
-def p_attribute_grow(p):
+def p_aggregate_grow(p):
     """aggregate_epath : aggregate_epath '/' entityelem2 """
     p[0] = p[1]
     p[0].append(p[3])
