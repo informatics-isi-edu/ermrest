@@ -1,0 +1,23 @@
+
+ERMREST_MODEL_PYTHON_FILES= \
+	__init__.py \
+	column.py \
+	introspect.py \
+	key.py \
+	misc.py \
+	table.py \
+	type.py
+
+ERMREST_MODEL_PYTHON_FILES_INSTALL=$(ERMREST_MODEL_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/model/%)
+
+INSTALL_FILES += $(ERMREST_MODEL_PYTHON_FILES_INSTALL)
+
+INSTALL_DIRS += $(PYLIBDIR)/ermrest/model
+
+CLEAN_FILES += \
+	$(ERMREST_MODEL_PYTHON_FILES:%=ermrest/model/%c) \
+	$(ERMREST_MODEL_PYTHON_FILES:%=ermrest/model/%o)
+
+EDIT_FILES += $(ERMREST_MODEL_PYTHON_FILES:%=ermrest/model/%) \
+	ermrest/model/makefile-vars
+
