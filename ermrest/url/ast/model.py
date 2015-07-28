@@ -200,7 +200,7 @@ class Tables (Api):
             self.enforce_schema_write(cur, uri)
             schema = self.schema.GET_body(conn, cur, uri)
             try:
-                return ermrest.model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
+                return model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
             except (exception.ConflictData), te:
                 raise exception.rest.Conflict(str(te))
 

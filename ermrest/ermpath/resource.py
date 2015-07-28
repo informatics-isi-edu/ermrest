@@ -26,6 +26,7 @@ import urllib
 import csv
 import web
 
+from ..exception import *
 from ..util import sql_identifier, sql_literal
 from ..model import Type
 from ..catalog import _random_name
