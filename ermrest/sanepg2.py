@@ -146,9 +146,7 @@ def pooled_perform(dsn, bodyfunc, finalfunc=lambda x: x, verbose=False):
         dsn = pooled_connection(dsn)
     used_pool, conn, cur = dsn
     try:
-        conn = used_pool.getconn()
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
-        cur = conn.cursor()
         try:
             result = bodyfunc(conn, cur)
             conn.commit()
