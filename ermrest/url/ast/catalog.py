@@ -91,7 +91,8 @@ class Catalog (Api):
             entries[0]['descriptor'],
             web.ctx.ermrest_config
             )
-        web.ctx.ermrest_catalog_dsn = sanepg2.pooled_connection(self.manager.dsn)
+        if web.ctx.ermrest_catalog_dsn is None:
+            web.ctx.ermrest_catalog_dsn = sanepg2.pooled_connection(self.manager.dsn)
         self.resolve(web.ctx.ermrest_catalog_dsn[2])
 
     def resolve(self, cur):

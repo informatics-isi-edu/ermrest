@@ -173,6 +173,7 @@ def request_init():
     web.ctx.ermrest_registry = registry
     web.ctx.ermrest_catalog_factory = catalog_factory
     web.ctx.ermrest_config = global_env
+    web.ctx.ermrest_catalog_dsn = None
 
     try:
         # get client authentication context
