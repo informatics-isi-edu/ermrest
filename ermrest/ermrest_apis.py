@@ -315,6 +315,9 @@ class Dispatcher (object):
     def POST(self):
         return self.METHOD('POST')
 
+# HACK: break circular dependency due to partial refactoring
+ast.Catalogs.request_init = lambda self: request_init()
+ast.Catalogs.request_final = lambda self: request_final()
 
 def web_urls():
     """Builds and returns the web_urls for web.py.

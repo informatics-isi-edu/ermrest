@@ -15,7 +15,7 @@
 #
 
 from .. import exception
-from ..util import sql_identifier, sql_literal
+from ..util import sql_identifier, sql_literal, view_exists
 from .type import _default_config
 
 import json
