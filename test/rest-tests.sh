@@ -127,6 +127,7 @@ then
 
     cid=$(grep "^Location" ${RESPONSE_HEADERS} | sed -e "s|^Location: /ermrest/catalog/\([0-9]\+\).*|\1|")
     [[ -n "$cid" ]] || error "failed to create catalog, testing aborted."
+    DESTROY_CATALOG=true
 else
     cid=${TEST_CID}
     DESTROY_CATALOG=false
@@ -313,6 +314,7 @@ if [[ "${DESTROY_CATALOG}" = "true" ]]
 then
     ###### tear down test catalog
     dotest "20?::*::*" /catalog/${cid} -X DELETE
+    dotest "404::*::*" /catalog/${cid} -X DELETE
 fi
 
 if [[ ${NUM_FAILURES} -gt 0 ]]
