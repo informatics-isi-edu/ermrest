@@ -25,57 +25,48 @@ import model
 import data
 from data import Api
 from ... import exception, catalog, sanepg2
+from ...apicore import web_method
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
 
-class Catalogs (Api):
+class Catalogs (object):
+    """A multi-tenant catalog set."""
 
     default_content_type = _application_json
     supported_types = [default_content_type, _text_plain]
-    request_init = lambda self: None
-    request_final = lambda self: None
-    
-    """A multi-tenant catalog set."""
-    def __init__(self):
-        self.request_init()
-        Api.__init__(self, None)
-    
+
+    @web_method()
     def POST(self):
         """Perform HTTP POST of catalogs.
         """
-        try:
-            
-            # content negotiation
-            content_type = data.negotiated_content_type(self.supported_types, 
-                                                        self.default_content_type)
+        # content negotiation
+        content_type = data.negotiated_content_type(self.supported_types, 
+                                                    self.default_content_type)
 
-            # create the catalog instance
-            catalog = web.ctx.ermrest_catalog_factory.create()
+        # create the catalog instance
+        catalog = web.ctx.ermrest_catalog_factory.create()
 
-            # initialize the catalog instance
-            sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+        # initialize the catalog instance
+        sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
 
-            # register the catalog descriptor
-            entry = web.ctx.ermrest_registry.register(catalog.descriptor)
-            catalog_id = entry['id']
+        # register the catalog descriptor
+        entry = web.ctx.ermrest_registry.register(catalog.descriptor)
+        catalog_id = entry['id']
         
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_request_content_type = content_type
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_request_content_type = content_type
         
-            # set location header and status
-            location = '/ermrest/catalog/%s' % catalog_id
-            web.header('Location', location)
-            web.ctx.status = '201 Created'
+        # set location header and status
+        location = '/ermrest/catalog/%s' % catalog_id
+        web.header('Location', location)
+        web.ctx.status = '201 Created'
         
-            if content_type == _text_plain:
-                return str(catalog_id)
-            else:
-                assert content_type == _application_json
-                return json.dumps(dict(id=catalog_id))
-        finally:
-            self.request_final()
-            self.final()
+        if content_type == _text_plain:
+            return str(catalog_id)
+        else:
+            assert content_type == _application_json
+            return json.dumps(dict(id=catalog_id))
 
 class Catalog (Api):
 
