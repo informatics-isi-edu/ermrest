@@ -352,10 +352,10 @@ class EntityElem (object):
                     if cn in csvcol_names:
                         raise BadData('CSV column %s appears more than once.' % cn)
                     else:
-                        raise BadData('CSV column %s not recognized.' % cn)
+                        raise ConflictModel('CSV column %s not recognized.' % cn)
 
             if len(inputcol_names) > 0:
-                raise BadData('CSV input missing required columns: %s' 
+                raise ConflictModel('CSV input missing required columns: %s' 
                               % ', '.join([ '"%s"' % cn for cn in inputcol_names ]))
 
             try:
@@ -373,7 +373,7 @@ FROM STDIN WITH (
                 input_data
                 )
             except psycopg2.DataError, e:
-                raise BadData('Bad CSV input. ' + e.pgerror)
+                raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
 
         elif in_content_type == 'application/json':
             buf = input_data.read()
