@@ -143,6 +143,7 @@ dotest "409::*::*" /catalog/${cid}/schema/public -X POST
 dotest "201::*::*" /catalog/${cid}/schema/test1 -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema
 
+
 # create tables using each core column type
 ctypes=(
     boolean
@@ -308,6 +309,82 @@ dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test
 dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/C:*"
 dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*,B:*,C:*"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*;B:*,C:*"
+
+# create table for unicode tests... use unusual unicode characters to test proper pass-through
+dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s" -X POST
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "ɐɯǝɥɔs",
+   "table_name": "ǝlqɐʇ",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "text" }, "name": "ǝɯɐu" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ]
+}
+EOF
+dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s/table" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+
+# make sure weird column name is OK in CSV
+cat > ${TEST_DATA} <<EOF
+id,ǝɯɐu
+1,foo 1
+2,foo 2
+3,bar 1
+4,baz 1
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# make sure weird column name is OK in JSON
+cat > ${TEST_DATA} <<EOF
+[{"id":5,"ǝɯɐu": "baz 2"}]
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+# make sure weird data is OK in CSV
+cat > ${TEST_DATA} <<EOF
+id,ǝɯɐu
+6,foo ǝɯɐu
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# make sure weird data is OK in JSON
+cat > ${TEST_DATA} <<EOF
+[{"id":7,"ǝɯɐu": "foo ǝɯɐu 2"}]
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+# test access to data in CSV and JSON
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: text/csv"
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: application/json"
+
+# test CSV error cases including that unicode data passes through OK
+cat > ${TEST_DATA} <<EOF
+id,ǝɯɐu
+10
+EOF
+dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# test CSV error cases including that unicode data passes through OK
+cat > ${TEST_DATA} <<EOF
+ǝɯɐu,id
+ǝlqɐʇ
+EOF
+dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id
+10
+EOF
+dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id,ǝlqɐʇ
+10,foo 10
+EOF
+dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 
 if [[ "${DESTROY_CATALOG}" = "true" ]]
