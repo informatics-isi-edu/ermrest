@@ -211,7 +211,7 @@ def web_method():
                 except NotFound, e:
                     raise rest.NotFound(e.message)
                 except BadData, e:
-                    raise rest.NotFound(e.message)
+                    raise rest.BadRequest(e.message)
                 except UnsupportedMediaType, e:
                     raise rest.UnsupportedMediaType
                 except psycopg2.pool.PoolError, e:
