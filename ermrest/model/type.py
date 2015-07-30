@@ -127,7 +127,7 @@ class Type (object):
                 return "%s" % float(v)
             else:
                 # text and text-like...
-                return "'" + str(v).replace("'", "''") + "'::%s" % self.sql()
+                return u"'" + unicode(v).replace(u"'", u"''") + u"'::%s" % self.sql()
         except ValueError:
             raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 

@@ -130,7 +130,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
     def sql_def(self):
         """Render SQL column clause for table DDL."""
         parts = [
-            sql_identifier(str(self.name)),
+            sql_identifier(unicode(self.name)),
             str(self.type.name)
             ]
         if self.default_value:
@@ -139,9 +139,9 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
 
     def _interp_annotation(self, key, value=None):
         return dict(
-            sname=sql_literal(str(self.table.schema.name)),
-            tname=sql_literal(str(self.table.name)),
-            cname=sql_literal(str(self.name)),
+            sname=sql_literal(unicode(self.table.schema.name)),
+            tname=sql_literal(unicode(self.table.name)),
+            cname=sql_literal(unicode(self.name)),
             key=sql_literal(key),
             value=sql_literal(json.dumps(value))
             )
@@ -183,7 +183,7 @@ WHERE schema_name = %(sname)s
 
     def prejson(self):
         return dict(
-            name=str(self.name), 
+            name=self.name, 
             type=self.type.prejson(),
             default=self.default_value,
             comment=self.comment,
@@ -192,9 +192,9 @@ WHERE schema_name = %(sname)s
 
     def prejson_ref(self):
         return dict(
-            schema_name=str(self.table.schema.name),
-            table_name=str(self.table.name),
-            column_name=str(self.name)
+            schema_name=self.table.schema.name,
+            table_name=self.table.name,
+            column_name=self.name
             )
 
     def sql_name(self, alias=None):
@@ -208,7 +208,7 @@ WHERE schema_name = %(sname)s
             name = alias
         else:
             name = self.name
-        return "%s %s" % (
+        return u"%s %s" % (
             sql_identifier(name),
             self.type.sql()
             )

@@ -281,7 +281,7 @@ FROM _ermrest.model_keyref_annotation
                 # TODO: raise informative exception instead of masking error
                 default_value = None
 
-            col = Column(cnames[i], i, base_type, default_value, comments[i])
+            col = Column(cnames[i].decode('utf8'), i, base_type, default_value, comments[i])
             cols.append( col )
             columns[(dname, sname, tname, cnames[i])] = col
         

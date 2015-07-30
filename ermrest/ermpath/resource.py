@@ -130,7 +130,7 @@ class EntityElem (object):
         return ltable, lcnames, rcnames, refop
 
     def __str__(self):
-        s = str(self.table)
+        s = unicode(self.table)
 
         if self.alias:
             s += ' AS %s' % self.alias
@@ -149,12 +149,12 @@ class EntityElem (object):
             s += ' ON (%s %s %s)' % (lcols, refop, rcols)
 
         if self.filters:
-            s += ' WHERE ' + ' AND '.join([ str(f) for f in self.filters ])
+            s += ' WHERE ' + ' AND '.join([ unicode(f) for f in self.filters ])
 
         return s
 
     def __repr__(self):
-        return '<ermrest.ermpath.EntityElem %s>' % str(self)
+        return '<ermrest.ermpath.EntityElem %s>' % unicode(self)
 
     def add_filter(self, filt):
         """Add a filtersql_name condition to this path element.
@@ -338,12 +338,13 @@ class EntityElem (object):
             hdr = csv.reader([ input_data.readline() ]).next()
 
             inputcol_names = set(
-                [ str(mkcol_aliases.get(c, c.name)) for c in mkcols ]
-                + [ str(mkcol_aliases.get(c, c.name)) for c in nmkcols ]
+                [ unicode(mkcol_aliases.get(c, c.name)) for c in mkcols ]
+                + [ unicode(mkcol_aliases.get(c, c.name)) for c in nmkcols ]
                 )
             csvcol_names = set()
             csvcol_names_ordered = []
             for cn in hdr:
+                cn = cn.decode('utf8')
                 try:
                     inputcol_names.remove(cn)
                     csvcol_names.add(cn)
@@ -376,10 +377,10 @@ FROM STDIN WITH (
                 raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
 
         elif in_content_type == 'application/json':
-            buf = input_data.read()
+            buf = input_data.read().decode('utf8')
             try:
                 cur.execute( 
-                """
+                u"""
 INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s 
 FROM (
@@ -390,7 +391,7 @@ FROM (
 ) s
 """ % dict( 
                         input_table = sql_identifier(input_table),
-                        cols = ','.join(
+                        cols = u','.join(
                             [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
                             + [ c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols ]
                             ),
@@ -456,7 +457,7 @@ FROM (
             for sql in correlating_sql
             ])
         
-        update_sql = """
+        update_sql = u"""
 UPDATE %(table)s AS t SET %(assigns)s
 FROM %(input_table)s AS i
 WHERE %(keymatches)s 
@@ -465,12 +466,12 @@ RETURNING %(tcols)s
 """ % dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
-            assigns = ','.join([ "%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
-            keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]),
-            valnonmatches = ' OR '.join([ "t.%s IS DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]),
-            tcols = ','.join(
-        [ 'i.%s AS %s' % (c.sql_name(mkcol_aliases.get(c)), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
-        + [ 't.%s AS %s' % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
+            assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
+            keymatches = u' AND '.join([ u"t.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]),
+            valnonmatches = u' OR '.join([ u"t.%s IS DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]),
+            tcols = u','.join(
+        [ u'i.%s AS %s' % (c.sql_name(mkcol_aliases.get(c)), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+        + [ u't.%s AS %s' % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
         )
             )
 
@@ -543,12 +544,12 @@ RETURNING *
         if allow_existing is False and not skip_key_tests:
             cur.execute("%s INTERSECT ALL %s" % correlating_sql)
             for row in cur:
-                raise ConflictData('Input row key (%s) collides with existing entity.' % str(row))
+                raise ConflictData('Input row key (%s) collides with existing entity.' % unicode(row))
 
         if allow_missing is False:
             cur.execute("%s EXCEPT ALL %s" % correlating_sql)
             for row in cur:
-                raise ConflictData('Input row key (%s) does not match existing entity.' % str(row))
+                raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
 
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
@@ -635,7 +636,7 @@ class AnyPath (object):
         
         for attribute, col, base in self.attributes:
             sql_attr = sql_identifier(
-                attribute.alias is not None and str(attribute.alias) or str(col.name)
+                attribute.alias is not None and unicode(attribute.alias) or unicode(col.name)
                 )
 
             if hasattr(attribute, 'aggfunc'):
@@ -644,10 +645,10 @@ class AnyPath (object):
                 if attribute.alias is None:
                     raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
 
-                if str(attribute.aggfunc) not in templates:
+                if unicode(attribute.aggfunc) not in templates:
                     raise BadSyntax('Unknown or unsupported aggregate function "%s" applied to column "%s".' % (attribute.aggfunc, col.name))
 
-                aggregates.append((templates[str(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
+                aggregates.append((templates[unicode(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
             elif not allow_extra:
                 raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
             else:
@@ -733,7 +734,7 @@ class EntityPath (AnyPath):
 
     def __str__(self):
         return ' / '.join(
-            [ str(e) for e in self._path ] 
+            [ unicode(e) for e in self._path ] 
             + self._context_index >= 0 and [ '$%s' % self._path[self._context_index].alias ] or []
             )
 
@@ -1076,14 +1077,14 @@ class AttributePath (AnyPath):
             select = select + cast
 
             if attribute.alias is not None:
-                if str(attribute.alias) in outputs:
+                if unicode(attribute.alias) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
-                outputs.add(str(attribute.alias))
+                outputs.add(unicode(attribute.alias))
                 selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
             else:
-                if str(col.name) in outputs:
+                if unicode(col.name) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % col.name)
-                outputs.add(str(col.name))
+                outputs.add(unicode(col.name))
                 selects.append('%s AS %s' % (select, col.sql_name()))
 
         if self.sort:
@@ -1221,9 +1222,9 @@ class AttributeGroupPath (AnyPath):
 
         for key, col, base in self.groupkeys:
             if key.alias is not None:
-                groupkeys.append( sql_identifier(str(key.alias)) )
+                groupkeys.append( sql_identifier(unicode(key.alias)) )
             else:
-                groupkeys.append( sql_identifier(str(col.name)) )
+                groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
         asql, sort = apath.sql_get(split_sort=True, distinct_on=False)
@@ -1424,24 +1425,30 @@ def row_to_dict(cur, row):
 
 def val_to_csv(v):
     def condquote(v):
-        if v.find(',') > 0 or v.find('"') > 0:
-            return '"%s"' % (v.replace('"', '""'))
+        if v.find(u',') > 0 or v.find(u'"') > 0:
+            return u'"%s"' % (v.replace(u'"', u'""'))
         else:
             return v
 
     if v is None:
-        return ''
+        return u''
 
     if type(v) in [ int, float, long ]:
-        return '%s' % v
+        return u'%s' % v
 
     if type(v) is list:
-        return condquote('{%s}' % ",".join([ val_to_csv(e) for e in v ]))
+        return condquote(u'{%s}' % u",".join([ val_to_csv(e) for e in v ]))
 
+    elif type(v) is str:
+        return condquote(v.decode('utf8'))
+    
     else:
-        return condquote(str(v))
+        return condquote(unicode(v))
 
 def row_to_csv(row):
-    return ','.join([ val_to_csv(v) for v in row ])
+    try:
+        return (u','.join([ val_to_csv(v) for v in row ])).encode('utf8')
+    except Exception, e:
+        web.debug('row_to_csv', row, e)
 
        

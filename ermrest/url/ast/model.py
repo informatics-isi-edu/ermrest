@@ -108,7 +108,7 @@ class Schema (Api):
     def GET_body(self, conn, cur, uri):
         self.enforce_content_read(cur, uri)
         model = self.catalog.manager.get_model(cur)
-        return model.lookup_schema(str(self.name))
+        return model.lookup_schema(unicode(self.name))
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
@@ -138,7 +138,7 @@ class Schema (Api):
         def body(conn, cur):
             self.enforce_schema_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
-            model.create_schema(conn, cur, str(self.name))
+            model.create_schema(conn, cur, unicode(self.name))
             
         def post_commit(ignore):
             web.ctx.status = '201 Created'
@@ -151,7 +151,7 @@ class Schema (Api):
         def body(conn, cur):
             self.enforce_schema_write(cur, uri)
             model = self.catalog.manager.get_model(cur)
-            model.delete_schema(conn, cur, str(self.name))
+            model.delete_schema(conn, cur, unicode(self.name))
             
         def post_commit(ignore):
             web.ctx.status = '204 No Content'

@@ -90,9 +90,9 @@ logger.addHandler(sysloghandler)
 logger.setLevel(logging.INFO)
 
 # some log message templates
-log_template = "%(elapsed_s)d.%(elapsed_ms)3.3ds %(client_ip)s user=%(client_identity)s req=%(reqid)s"
-log_trace_template = log_template + " -- %(tracedata)s"
-log_final_template = log_template + " (%(status)s) %(method)s %(proto)s://%(host)s/%(uri)s %(range)s %(type)s"
+log_template = u"%(elapsed_s)d.%(elapsed_ms)3.3ds %(client_ip)s user=%(client_identity)s req=%(reqid)s"
+log_trace_template = log_template + u" -- %(tracedata)s"
+log_final_template = log_template + u" (%(status)s) %(method)s %(proto)s://%(host)s/%(uri)s %(range)s %(type)s"
 
 
 def log_parts():
@@ -116,8 +116,7 @@ def request_trace(tracedata):
     """
     parts = log_parts()
     if isinstance(tracedata, Exception):
-        parts['tracedata'] = str(tracedata)
-        
+        parts['tracedata'] = u'%s' % tracedata
     else:
         parts['tracedata'] = tracedata
         

@@ -53,7 +53,7 @@ class Model (object):
     def prejson(self):
         return dict(
             schemas=dict([ 
-                    (str(s), self.schemas[s].prejson()) for s in self.schemas 
+                    (s, self.schemas[s].prejson()) for s in self.schemas 
                     ])
             )
         
@@ -61,11 +61,13 @@ class Model (object):
         if sname in self.schemas:
             return self.schemas[sname]
         else:
+            web.debug(sname)
             raise exception.ConflictModel('Schema %s does not exist.' % sname)
 
     def lookup_table(self, sname, tname):
         if sname is not None:
-            if str(sname) not in self.schemas:
+            if sname not in self.schemas:
+                web.debug(sname, self.schemas)
                 raise exception.ConflictModel('Schema %s does not exist.' % sname)
             if tname not in self.schemas[sname].tables:
                 raise exception.ConflictModel('Table %s does not exist in schema %s.' % (tname, sname))
@@ -172,9 +174,9 @@ class Schema (object):
 
     def prejson(self):
         return dict(
-            schema_name=str(self.name),
+            schema_name=self.name.encode('utf8'),
             tables=dict([
-                    (str(t), self.tables[t].prejson()) for t in self.tables
+                    (t, self.tables[t].prejson()) for t in self.tables
                     ])
             )
 

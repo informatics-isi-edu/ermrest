@@ -78,8 +78,11 @@ class Name (object):
         self.alias = alias
         return self
 
+    def __unicode__(self):
+        return ':'.join(self.nameparts)
+
     def __str__(self):
-        return ':'.join(map(urllib.quote, self.nameparts))
+        return (unicode(self)).encode('utf8')
     
     def __repr__(self):
         return '<ermrest.url.ast.Name %s>' % str(self)

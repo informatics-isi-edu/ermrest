@@ -76,7 +76,7 @@ class Unique (object):
 
     def prejson(self):
         return dict(
-            unique_columns=[ str(c.name) for c in self.columns ]
+            unique_columns=[ c.name for c in self.columns ]
             )
 
 class ForeignKey (object):

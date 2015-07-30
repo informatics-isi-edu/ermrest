@@ -91,8 +91,8 @@ class Table (object):
 
     @staticmethod
     def create_fromjson(conn, cur, schema, tabledoc, ermrest_config):
-        sname = tabledoc.get('schema_name', str(schema.name))
-        if sname != str(schema.name):
+        sname = tabledoc.get('schema_name', unicode(schema.name))
+        if sname != unicode(schema.name):
             raise exception.ConflictModel('JSON schema name %s does not match URL schema name %s' % (sname, schema.name))
 
         if 'table_name' not in tabledoc:
@@ -189,8 +189,8 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
     def _interp_annotation(self, key, value=None):
         return dict(
-            sname=sql_literal(str(self.schema.name)),
-            tname=sql_literal(str(self.name)),
+            sname=sql_literal(unicode(self.schema.name)),
+            tname=sql_literal(unicode(self.name)),
             key=sql_literal(key),
             value=sql_literal(json.dumps(value))
             )
@@ -231,8 +231,8 @@ SELECT _ermrest.model_change_event();
 
     def delete_annotation(self, conn, cur, key):
         interp = dict(
-            sname=sql_literal(str(self.schema.name)),
-            tname=sql_literal(str(self.name)),
+            sname=sql_literal(unicode(self.schema.name)),
+            tname=sql_literal(unicode(self.name)),
             key=sql_literal(key)
             )
 
@@ -251,8 +251,8 @@ SELECT _ermrest.model_change_event();
         cur.execute("""
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
 SELECT _ermrest.model_change_event();
-""" % dict(sname=sql_identifier(str(self.schema.name)),
-           tname=sql_identifier(str(self.name)),
+""" % dict(sname=sql_identifier(unicode(self.schema.name)),
+           tname=sql_identifier(unicode(self.name)),
            comment=sql_literal(comment)
            )
                     )
@@ -262,9 +262,9 @@ SELECT _ermrest.model_change_event();
         cur.execute("""
 COMMENT ON COLUMN %(sname)s.%(tname)s.%(cname)s IS %(comment)s;
 SELECT _ermrest.model_change_event();
-""" % dict(sname=sql_identifier(str(self.schema.name)),
-           tname=sql_identifier(str(self.name)),
-           cname=sql_identifier(str(column.name)),
+""" % dict(sname=sql_identifier(unicode(self.schema.name)),
+           tname=sql_identifier(unicode(self.name)),
+           cname=sql_identifier(unicode(column.name)),
            comment=sql_literal(comment)
            )
                     )
@@ -334,8 +334,8 @@ SELECT _ermrest.model_change_event();
 
     def prejson(self):
         return dict(
-            schema_name=str(self.schema.name),
-            table_name=str(self.name),
+            schema_name=self.schema.name,
+            table_name=self.name,
             column_definitions=[
                 c.prejson() for c in self.columns_in_order()
                 ],
