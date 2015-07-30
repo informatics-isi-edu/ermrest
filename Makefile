@@ -1,5 +1,3 @@
-RELEASE=$(shell svn info  | grep "Revision:" | awk  '{print $$2}')
-
 # arguments that can be set via make target params or environment?
 PLATFORM=centos6
 
