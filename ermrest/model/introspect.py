@@ -383,7 +383,7 @@ FROM _ermrest.model_keyref_annotation
                     from_table.columns[from_cname]: to_table.columns[to_cname]
                     for from_cname, to_cname in zip(from_cnames, to_cnames)
                 })
-                fkr = fkt.fkeys[frozenset(refmap.keys())].references[refmap]
+                fkr = from_table.fkeys[frozenset(refmap.keys())].references[refmap]
                 fkr.annotations[auri] = value
             except exception.ConflictModel:
                 # TODO: prune orphaned annotation?
