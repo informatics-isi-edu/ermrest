@@ -483,7 +483,7 @@ class Table (Api):
         if self.schema:
             return model.schemas[unicode(self.schema.name)].tables[unicode(self.name)]
         else:
-            return model.lookup_table(unicode(selfname))
+            return model.lookup_table(unicode(self.name))
 
 
     def GET_post_commit(self, table):
