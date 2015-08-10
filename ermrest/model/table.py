@@ -26,6 +26,7 @@ needed by other modules of the ermrest project.
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
+from .misc import AltDict
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -44,9 +45,9 @@ class Table (object):
         self.name = name
         self.kind = kind
         self.comment = comment
-        self.columns = dict()
-        self.uniques = dict()
-        self.fkeys = dict()
+        self.columns = AltDict(lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)))
+        self.uniques = AltDict(lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (k, self)))
+        self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (k, self)))
         self.annotations = dict()
         self.annotations.update(annotations)
 
@@ -57,25 +58,19 @@ class Table (object):
         if name not in self.schema.tables:
             self.schema.tables[name] = self
 
-    def __str__(self):
-        return ':%s:%s' % (
+    def __unicode__(self):
+        return u':%s:%s' % (
             urllib.quote(self.schema.name),
             urllib.quote(self.name)
             )
 
     def __repr__(self):
-        return '<ermrest.model.Table %s>' % str(self)
+        return u'<ermrest.model.Table %s>' % unicode(self)
 
     def columns_in_order(self):
         cols = self.columns.values()
         cols.sort(key=lambda c: c.position)
         return cols
-
-    def lookup_column(self, cname):
-        if cname in self.columns:
-            return self.columns[cname]
-        else:
-            raise exception.ConflictModel('Requested column %s does not exist in table %s.' % (cname, self))
 
     def writable_kind(self):
         """Return true if table is writable in SQL.

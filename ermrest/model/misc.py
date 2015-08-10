@@ -35,6 +35,18 @@ def _get_ermrest_config():
     else:
         return _default_config
 
+class AltDict (dict):
+    """Alternative dict that raises custom errors."""
+    def __init__(self, keyerror):
+        dict.__init__(self)
+        self._keyerror = keyerror
+
+    def __getitem__(self, k):
+        try:
+            return dict.__getitem__(self, k)
+        except KeyError:
+            raise self._keyerror(k)
+    
 class Model (object):
     """Represents a database model.
     
@@ -44,7 +56,7 @@ class Model (object):
     
     def __init__(self, schemas=None):
         if schemas is None:
-            schemas = dict()
+            schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
         self.schemas = schemas
     
     def verbose(self):
@@ -57,56 +69,21 @@ class Model (object):
                     ])
             )
         
-    def lookup_schema(self, sname):
-        if sname in self.schemas:
-            return self.schemas[sname]
+    def lookup_table(self, tname):
+        """Lookup an unqualified table name if and only if it is unambiguous across schemas."""
+        tables = set()
+
+        for schema in self.schemas.values():
+            if tname in schema.tables:
+                tables.add( schema.tables[tname] )
+
+        if len(tables) == 0:
+            raise exception.ConflictModel('Table %s does not exist.' % tname)
+        elif len(tables) > 1:
+            raise exception.ConflictModel('Table name %s is ambiguous.' % tname)
         else:
-            web.debug(sname)
-            raise exception.ConflictModel('Schema %s does not exist.' % sname)
-
-    def lookup_table(self, sname, tname):
-        if sname is not None:
-            if sname not in self.schemas:
-                web.debug(sname, self.schemas)
-                raise exception.ConflictModel('Schema %s does not exist.' % sname)
-            if tname not in self.schemas[sname].tables:
-                raise exception.ConflictModel('Table %s does not exist in schema %s.' % (tname, sname))
-            return self.schemas[sname].tables[tname]
-        else:
-            tables = set()
-
-            for schema in self.schemas.values():
-                if tname in schema.tables:
-                    tables.add( schema.tables[tname] )
-
-            if len(tables) == 0:
-                raise exception.ConflictModel('Table %s does not exist.' % tname)
-            elif len(tables) > 1:
-                raise exception.ConflictModel('Table name %s is ambiguous.' % tname)
-            else:
-                return tables.pop()
+            return tables.pop()
     
-    def lookup_foreign_key_ref(self, fk_sname, fk_tname, fk_cnames, pk_sname, pk_tname, pk_cnames):
-        fk_table = self.lookup_table(fk_sname, fk_tname)
-        pk_table = self.lookup_table(pk_sname, pk_tname)
-
-        fk_columns = [ fk_table.lookup_column(cname) for cname in fk_cnames ]
-        pk_columns = [ pk_table.lookup_column(cname) for cname in pk_cnames ]
-
-        fk_colset = frozenset(fk_columns)
-        pk_colset = frozenset(pk_columns)
-        fk_ref_map = frozendict(dict(map(lambda fc, tc: (fc, tc), fk_columns, pk_columns)))
-
-        if fk_colset not in fk_table.fkeys:
-            raise exception.ConflictModel('Foreign key %s not in table %s.' % (fk_colset, fk_table))
-
-        fk = fk_table.fkeys[fk_colset]
-
-        if fk_ref_map not in fk.references:
-            raise exception.ConflictModel('Foreign key reference %s to %s not in table %s.' % (fk_columns, pk_columns))
-
-        return fk.references[fk_ref_map]
-
     def create_schema(self, conn, cur, sname):
         """Add a schema to the model."""
         if sname == '_ermrest':
@@ -164,10 +141,13 @@ class Schema (object):
     def __init__(self, model, name):
         self.model = model
         self.name = name
-        self.tables = dict()
+        self.tables = AltDict(lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, self)))
         
         if name not in self.model.schemas:
             self.model.schemas[name] = self
+
+    def __unicode__(self):
+        return u"%s" % self.name
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)

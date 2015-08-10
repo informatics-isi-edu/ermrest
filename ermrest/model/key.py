@@ -16,7 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
-from .misc import frozendict
+from .misc import frozendict, AltDict
 
 import json
 
@@ -87,7 +87,7 @@ class ForeignKey (object):
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
-        self.references = dict()
+        self.references = AltDict(lambda k: exception.ConflictModel(u"Primary key %s not referenced by foreign key %s." % (k, self)))
         self.table_references = dict()
         
         if cols not in self.table.fkeys:
@@ -271,7 +271,7 @@ SELECT _ermrest.model_change_event();
             if len(tnames) != 1:
                 raise exception.BadData('All %s columns must come from one table.' % kind)
             sname, tname = tnames.pop()
-            table = model.lookup_table(sname, tname)
+            table = model.schemas[sname].tables[tname]
             for cname in map(lambda d: d.get('column_name'), cols):
                 if cname in table.columns:
                     yield table.columns[cname]
@@ -343,11 +343,3 @@ SELECT _ermrest.model_change_event();
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
-
-if __name__ == '__main__':
-    import os, sanepg2
-    connstr = "dbname=%s user=%s" % \
-        (os.getenv('TEST_DBNAME', 'test'), os.getenv('TEST_USER', 'test'))
-    m = introspect(sanepg2.connection(connstr))
-    print m.verbose()
-    exit(0)

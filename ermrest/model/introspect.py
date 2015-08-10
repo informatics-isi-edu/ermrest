@@ -357,7 +357,7 @@ FROM _ermrest.model_keyref_annotation
         cur.execute(TABLE_ANNOTATIONS)
         for sname, tname, auri, value in cur:
             try:
-                table = model.lookup_table(sname, tname)
+                table = model.schemas[sname].tables[tname]
                 table.annotations[auri] = value
             except exception.ConflictModel:
                 # TODO: prune orphaned annotation?
@@ -367,13 +367,8 @@ FROM _ermrest.model_keyref_annotation
         cur.execute(COLUMN_ANNOTATIONS)
         for sname, tname, cname, auri, value in cur:
             try:
-                table = model.lookup_table(sname, tname)
-                try:
-                    column = table.columns[cname]
-                    column.annotations[auri] = value
-                except KeyError:
-                    # TODO: prune orphaned annotation?
-                    pass
+                column = model.schemas[sname].tables[tname].columns[cname]
+                column.annotations[auri] = value
             except exception.ConflictModel:
                 # TODO: prune orphaned annotation?
                 pass        
@@ -382,7 +377,13 @@ FROM _ermrest.model_keyref_annotation
         cur.execute(KEYREF_ANNOTATIONS)
         for from_sname, from_tname, from_cnames, to_sname, to_tname, to_cnames, auri, value in cur:
             try:
-                fkr = model.lookup_foreign_key_ref(from_sname, from_tname, from_cnames, to_sname, to_tname, to_cnames)
+                from_table = model.schemas[from_sname].tables[from_tname]
+                to_table = model.schemas[to_sname].tables[to_tname]
+                refmap = frozendict({
+                    from_table.columns[from_cname]: to_table.columns[to_cname]
+                    for from_cname, to_cname in zip(from_cnames, to_cnames)
+                })
+                fkr = fkt.fkeys[frozenset(refmap.keys())].references[refmap]
                 fkr.annotations[auri] = value
             except exception.ConflictModel:
                 # TODO: prune orphaned annotation?

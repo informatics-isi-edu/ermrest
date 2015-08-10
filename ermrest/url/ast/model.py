@@ -108,7 +108,7 @@ class Schema (Api):
     def GET_body(self, conn, cur, uri):
         self.enforce_content_read(cur, uri)
         model = self.catalog.manager.get_model(cur)
-        return model.lookup_schema(unicode(self.name))
+        return model.schemas[unicode(self.name)]
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
@@ -480,10 +480,11 @@ class Table (Api):
     def GET_body(self, conn, cur, uri):
         self.enforce_content_read(cur, uri)
         model = self.catalog.manager.get_model(cur)
-        return model.lookup_table(
-            self.schema and str(self.schema.name) or None, 
-            str(self.name)
-            )
+        if self.schema:
+            return model.schemas[unicode(self.schema.name)].tables[unicode(self.name)]
+        else:
+            return model.lookup_table(unicode(selfname))
+
 
     def GET_post_commit(self, table):
         self.set_http_etag( self.catalog.manager._model_version )

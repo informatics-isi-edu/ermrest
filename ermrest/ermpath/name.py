@@ -139,11 +139,7 @@ class Name (object):
         
         if len(self.nameparts) == 3:
             n0, n1, n2 = self.nameparts
-            table = model.lookup_table(n0, n1)
-            if n2 in table.columns:
-                return (table.columns[n2], None)
-            else:
-                raise exception.ConflictModel('Column %s does not exist in table %s.' % (n2, str(table)))
+            return model.schemas[n0].tables[n1].columns[n2]
         
         else:
             if len(self.nameparts) == 1:
@@ -164,10 +160,7 @@ class Name (object):
                     else:
                         raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
 
-                table = model.lookup_table(None, n0)
-                if n1 not in table.columns:
-                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (n1, table.name))
-
+                table = model.lookup_table(n0)
                 return (table.columns[n1], None)
 
         raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
@@ -207,7 +200,7 @@ class Name (object):
         elif len(self.nameparts) == 2:
             n0, n1 = self.nameparts
 
-            table = model.lookup_table(n0, n1)
+            table = model.schemas[n0].tables[n1]
             keyref, refop = _default_link_table2table(ptable, table)
             return keyref, refop, None
 
@@ -224,10 +217,10 @@ class Name (object):
         """
         if len(self.nameparts) == 2:
             sname, tname = self.nameparts
-            return model.lookup_table(sname, tname)
+            return model.schemas[sname].tables[tname]
         elif len(self.nameparts) == 1:
             tname = self.nameparts[0]
-            return model.lookup_table(None, tname)
+            return model.lookup_table(tname)
 
         raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
             
