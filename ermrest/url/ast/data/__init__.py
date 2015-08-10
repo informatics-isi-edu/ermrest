@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2015 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,15 +44,13 @@ class TextFacet (Api):
         self.facetkeys = facetkeys
         self.facetvals = facetvals
         self.http_vary.add('accept')
-
-    def resolve(self, model):
-        """Resolve self against a specific database model.
-
-        """
-        epath = ermpath.EntityPath(model)
-        epath.set_base_entity(model.ermrest_schema.tables['valuemap'])
+        cur = web.ctx.ermrest_catalog_dsn[2]
+        self.enforce_content_read(cur)
+        self.model = self.catalog.manager.get_model(cur)
+        epath = ermpath.EntityPath(self.model)
+        epath.set_base_entity(self.model.ermrest_schema.tables['valuemap'])
         epath.add_filter(self.filterelem)
-        return ermpath.AttributeGroupPath(epath, self.facetkeys, self.facetvals)
+        self.agpath = ermpath.AttributeGroupPath(epath, self.facetkeys, self.facetvals)
 
     def GET(self, uri):
         """Perform HTTP GET of text facet.
@@ -61,15 +59,12 @@ class TextFacet (Api):
         limit = self.negotiated_limit()
         
         def body(conn, cur):
-            self.enforce_content_read(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            agpath = self.resolve(model)
-            epath = agpath.epath
+            epath = self.agpath.epath
             self.set_http_etag( epath.get_data_version(cur) )
             if self.http_is_cached():
                 web.ctx.status = '304 Not Modified'
                 return None
-            return agpath.get(conn, cur, content_type=content_type, limit=limit)
+            return self.agpath.get(conn, cur, content_type=content_type, limit=limit)
 
         def post_commit(lines):
             self.emit_headers()

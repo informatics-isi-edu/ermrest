@@ -88,13 +88,11 @@ class Catalog (Api):
             )
         if web.ctx.ermrest_catalog_dsn is None:
             web.ctx.ermrest_catalog_dsn = sanepg2.pooled_connection(self.manager.dsn)
-        self.resolve(web.ctx.ermrest_catalog_dsn[2])
 
-    def resolve(self, cur):
-        """Bootstrap catalog manager state."""
         # now enforce read permission
+        cur = web.ctx.ermrest_catalog_dsn[2]
         self.enforce_read(cur, 'catalog/' + str(self.catalog_id))
-        
+
     def schemas(self):
         """The schema set for this catalog."""
         return model.Schemas(self)
