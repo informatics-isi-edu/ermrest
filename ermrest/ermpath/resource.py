@@ -27,9 +27,8 @@ import csv
 import web
 
 from ..exception import *
-from ..util import sql_identifier, sql_literal
+from ..util import sql_identifier, sql_literal, random_name
 from ..model import Type
-from ..catalog import _random_name
 from .name import Name
 
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
@@ -279,8 +278,8 @@ class EntityElem (object):
         if not self.table.writable_kind():
             raise ConflictModel('Entity %s is not writable.' % self.table)
         
-        input_table = _random_name("input_data_")
-        input_json_table = _random_name("input_json_")
+        input_table = random_name("input_data_")
+        input_json_table = random_name("input_json_")
 
         drop_tables = []
 

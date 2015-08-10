@@ -23,6 +23,8 @@ __all__ = ['table_exists', 'schema_exists', 'sql_identifier', 'sql_literal', 'ne
 
 import web
 import urllib
+import uuid
+import base64
 from webauthn2.util import urlquote, negotiated_content_type
 
 def urlunquote(url):
@@ -122,4 +124,15 @@ def sql_literal(v):
         return "'%s'" % _string_wrap(_string_wrap(s, u'%'), u"'")
     else:
         return 'NULL'
+
+def random_name(prefix=''):
+    """Generates and returns a random name in URL-safe base64 minus '=' padding.
+
+       An optional prefix is prepended to the random bits.  The random
+       bits are encoded using base64 so the suffix characters will be
+       drawn from 'a'-'z', 'A'-'Z', '0'-'9', '-', and '_'.
+
+    """
+    # TODO: trim out uuid version 4 static bits?  Is 122 random bits overkill?
+    return prefix + base64.urlsafe_b64encode(uuid.uuid4().bytes).replace('=','')
 

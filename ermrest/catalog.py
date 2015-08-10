@@ -36,7 +36,7 @@ import psycopg2
 import sanepg2
 import web
 
-from util import sql_identifier, sql_literal, schema_exists, table_exists
+from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model import introspect
 
 __all__ = ['get_catalog_factory']
@@ -100,7 +100,7 @@ class CatalogFactory (object):
            Returns the new catalog object representing the catalog.
         """
         # generate a random database name
-        dbname = _random_name(prefix='_ermrest_')
+        dbname = random_name(prefix='_ermrest_')
 
         def body(conn, ignored_cur):
             # create database
@@ -577,8 +577,3 @@ DELETE FROM %(schema)s.%(table)s
         return len(list(self.get_meta(cur, self.META_OWNER, roles)))>0
 
 
-def _random_name(prefix=''):
-    """Generates and returns a random name safe for use in the database.
-    """
-    ## This might be useful as a general utility
-    return prefix + base64.urlsafe_b64encode(uuid.uuid4().bytes).replace('=','')

@@ -25,8 +25,6 @@
 import logging
 from logging.handlers import SysLogHandler
 import web
-import random
-import base64
 import datetime
 import pytz
 import struct
@@ -41,7 +39,7 @@ from .exception import *
 
 from .registry import get_registry
 from .catalog import get_catalog_factory
-from .util import negotiated_content_type, urlquote
+from .util import negotiated_content_type, urlquote, random_name
 
 __all__ = [
     'web_urls',
@@ -125,7 +123,7 @@ def request_trace(tracedata):
 
 def request_init():
     """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
-    web.ctx.ermrest_request_guid = base64.b64encode( struct.pack('Q', random.getrandbits(64)) )
+    web.ctx.ermrest_request_guid = random_name()
     web.ctx.ermrest_start_time = datetime.datetime.now(pytz.timezone('UTC'))
     web.ctx.ermrest_request_content_range = '-/-'
     web.ctx.ermrest_content_type = 'unknown'
