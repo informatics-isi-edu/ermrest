@@ -386,6 +386,10 @@ id,ǝlqɐʇ
 EOF
 dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
+for pattern in foo bar "foo.%2A"
+do
+    dotest "200::*::*" "/catalog/${cid}/textfacet/${pattern}"
+done
 
 if [[ "${DESTROY_CATALOG}" = "true" ]]
 then
