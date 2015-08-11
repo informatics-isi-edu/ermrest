@@ -22,7 +22,8 @@
 import cStringIO
 import web
 
-from .path import Api
+from ..api import Api
+from . import path
 from ..name import Name
 from .... import ermpath, exception
 from ....util import negotiated_content_type

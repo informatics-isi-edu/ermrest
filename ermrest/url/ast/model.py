@@ -24,7 +24,7 @@ import web
 
 from ... import exception
 from ... import model
-from .data import Api
+from .api import Api
 from ...util import negotiated_content_type
 
 schema_html = """

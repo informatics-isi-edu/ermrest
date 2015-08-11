@@ -1,6 +1,7 @@
 
 ERMREST_URL_AST_PYTHON_FILES= \
 	__init__.py \
+	api.py \
 	catalog.py \
 	model.py \
 	name.py

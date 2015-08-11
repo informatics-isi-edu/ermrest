@@ -23,7 +23,7 @@ import web
 
 import model
 import data
-from data import Api
+from .api import Api
 from ... import exception, catalog, sanepg2
 from ...apicore import web_method
 
