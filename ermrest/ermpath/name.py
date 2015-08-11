@@ -165,15 +165,6 @@ class Name (object):
 
         raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
 
-    def resolve_context(self, epath):
-        """Resolve self against a specific entity path for which we must be an alias, returning alias string."""
-        if len(self.nameparts) > 1:
-            raise exception.BadSyntax('Context name %s is not a valid syntax for an entity alias.' % self)
-        try:
-            return epath[str(self.nameparts[0])].alias
-        except KeyError:
-            raise exception.BadData('Context name %s is not a bound alias in entity path.' % self)
-
     def resolve_link(self, model, epath):
         """Resolve self against a specific database model and epath context.
 
@@ -193,7 +184,7 @@ class Name (object):
         
         if len(self.nameparts) == 1:
             name = self.nameparts[0]
-            table = self.resolve_table(model)
+            table = model.lookup_table(name)
             keyref, refop = _default_link_table2table(ptable, table)
             return keyref, refop, None
 
@@ -206,24 +197,6 @@ class Name (object):
 
         raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
 
-    def resolve_table(self, model):
-        """Resolve self as table name.
-        
-           Qualified names 'n0:n1' can only be resolved from the model
-           as schema:table.  Bare names 'n0' can be resolved as table
-           if that is unambiguous across all schemas in the model.
-
-           Raises exception.ConflictModel on failed resolution.
-        """
-        if len(self.nameparts) == 2:
-            sname, tname = self.nameparts
-            return model.schemas[sname].tables[tname]
-        elif len(self.nameparts) == 1:
-            tname = self.nameparts[0]
-            return model.lookup_table(tname)
-
-        raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
-            
     def validate(self, epath):
         """Validate name in epath context, raising exception on problems.
 

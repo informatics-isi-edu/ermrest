@@ -22,7 +22,7 @@
 import cStringIO
 import web
 
-from .path import Api, Path
+from .path import Api
 from .... import ermpath
 from ....exception import rest, BadData
 from ....util import negotiated_content_type
@@ -88,17 +88,27 @@ class Entity (Api):
         self.enforce_content_read(cur)
         self.model = self.catalog.manager.get_model(cur)
         self.epath = ermpath.EntityPath(self.model)
-        self.epath.set_base_entity( 
-            elem.name.resolve_table(self.model),
-            elem.alias
-        )
+        if len(elem.name.nameparts) == 2:
+            table = self.model.schemas[elem.name.nameparts[0]].tables[elem.name.nameparts[1]]
+        elif len(elem.name.nameparts) == 1:
+            table = self.model.lookup_table(elem.name.nameparts[0])
+        else:
+            raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % elem.name)
+        self.epath.set_base_entity(table, elem.alias)
         self.http_vary.add('accept')
 
     def append(self, elem):
         if elem.is_filter:
             self.epath.add_filter(elem)
         elif elem.is_context:
-            self.epath.set_context(elem)
+            if len(elem.name.nameparts) > 1:
+                raise exception.BadSyntax('Context name %s is not a valid syntax for an entity alias.' % elem.name)
+            try:
+                alias = self.epath[unicode(elem.name.nameparts[0])].alias
+            except KeyError:
+                raise exception.BadData('Context name %s is not a bound alias in entity path.' % elem.name)
+                
+            self.epath.set_context(alias)
         else:
             keyref, refop, lalias = elem.resolve_link(self.model, self.epath)
             self.epath.add_link(keyref, refop, elem.alias, lalias)

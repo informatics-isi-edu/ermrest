@@ -197,9 +197,6 @@ class Api (object):
     def final(self):
         pass
 
-class Path (list):
-    pass
-
 class TableElem (Api):
     """A path element with a single name must be a table."""
     def __init__(self, name):
@@ -208,10 +205,6 @@ class TableElem (Api):
 
     def set_alias(self, alias):
         self.alias = alias
-
-    def resolve_table(self, model):
-        """Resolve self.name as a table in the model."""
-        return self.name.resolve_table(model)
 
     def resolve_link(self, model, epath):
         """Resolve self.name as a link in the model and epath context."""
@@ -256,10 +249,6 @@ class ContextResetElem (Api):
     
     def __init__(self, name):
         self.name = name
-
-    def resolve_context(self, epath):
-        """Resolve self.name as an alias in epath, returning alias."""
-        return self.name.resolve_context(epath)
 
 class Predicate (Api):
 

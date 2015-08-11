@@ -769,9 +769,8 @@ class EntityPath (AnyPath):
         else:
             raise NotImplementedError('current_entity_position with index %s' % self._context_index)
 
-    def set_context(self, context):
+    def set_context(self, alias):
         """Change path entity context to existing context referenced by alias."""
-        alias = context.resolve_context(self)
         self._context_index = self.aliases[alias]
 
     def get_data_version(self, cur):
