@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2015 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,42 +27,14 @@ from ... import model
 from .api import Api
 from ...util import negotiated_content_type
 
-schema_html = """
-<html>
-  <head>
-    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
-    <link type="text/css" rel="stylesheet" href="/ajax/css/ermrest.css" />
-    <script type="text/javascript" src="/ajax/js/jquery.js"></script>
-   <script type="text/javascript" src="/ajax/js/ermrest.js"></script>
-
-    <script type="text/javascript">
-    $(document).ready(function () {
-        %(ready)s();
-    });
-    </script>
-
-  </head>
-  <body>
-    <div id="ermrest">
-    </div>
-  </body>
-</html>
-"""
-
 class Schemas (Api):
     """A schema set."""
-
-    supported_content_types = ['application/json', 'text/html']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, catalog):
         Api.__init__(self, catalog)
         self.http_vary.add('accept')
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-
         def body(conn, cur):
             self.enforce_content_read(cur, uri)
             return self.catalog.manager.get_model(cur)
@@ -74,24 +46,15 @@ class Schemas (Api):
                 web.ctx.status = '304 Not Modified'
                 return ''
             else:
-                web.header('Content-Type', content_type)
+                web.header('Content-Type', 'application/json')
                 response = json.dumps(model.prejson(), indent=2) + '\n'
                 web.header('Content-Length', len(response))
                 return response
-
-        if content_type == 'text/html':
-            # return static AJAX page
-            web.header('Content-Type', content_type)
-            return schema_html % (dict(ready='initSchemas'))
-        else:
-            return self.perform(body, post_commit)
+            
+        return self.perform(body, post_commit)
 
 class Schema (Api):
     """A specific schema by name."""
-
-    supported_content_types = ['application/json', 'text/html']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, catalog, name):
         Api.__init__(self, catalog)
         self.name = name
@@ -112,8 +75,6 @@ class Schema (Api):
 
     def GET(self, uri):
         """HTTP GET for Schemas of a Catalog."""
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-
         def post_commit(schema):
             self.set_http_etag( self.catalog.manager._model_version )
             self.emit_headers()
@@ -121,17 +82,12 @@ class Schema (Api):
                 web.ctx.status = '304 Not Modified'
                 return ''
             else:
-                web.header('Content-Type', content_type)
+                web.header('Content-Type', 'application/json')
                 response = json.dumps(schema.prejson(), indent=2) + '\n'
                 web.header('Content-Length', len(response))
                 return response
 
-        if content_type == 'text/html':
-            # return static AJAX page
-            web.header('Content-Type', content_type)
-            return schema_html % (dict(ready='initSchema'))
-        else:
-            return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
 
     def POST(self, uri):
         """Create a new empty schema."""
@@ -226,10 +182,6 @@ class Comment (Api):
 
        This is a hack to reuse code for Table and Column comment handling.
     """
-    
-    supported_content_types = ['text/plain']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, catalog):
         Api.__init__(self, catalog)
 
@@ -238,8 +190,6 @@ class Comment (Api):
         raise NotImplementedError()
 
     def GET(self, uri):
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-
         def post_commit(results):
             obj = results[-1]
 
@@ -252,7 +202,7 @@ class Comment (Api):
                 web.ctx.status = '304 Not Modified'
                 return ''
             else:
-                web.header('Content-Type', content_type)
+                web.header('Content-Type', 'text/plain')
                 response = obj.comment is not None and (str(obj.comment) + '\n') or ''
                 web.header('Content-Length', len(response))
                 return response
@@ -310,10 +260,6 @@ class ColumnComment (TableComment):
         table.set_column_comment(conn, cur, column, comment)
 
 class Annotations (Api):
-
-    supported_content_types = ['application/json']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
         self.subject = subject
@@ -328,8 +274,6 @@ class Annotations (Api):
         raise NotImplementedError()
 
     def GET(self, uri):
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-
         def post_commit(results):
             subject = results[-1]
 
@@ -350,7 +294,7 @@ class Annotations (Api):
                 web.ctx.status = '304 Not Modified'
                 return ''
             else:
-                web.header('Content-Type', content_type)
+                web.header('Content-Type', 'application/json')
                 web.header('Content-Length', len(response))
                 return response
 
@@ -437,10 +381,6 @@ class ForeignkeyReferenceAnnotations (Annotations):
 
 class Table (Api):
     """A specific table by name."""
-    
-    supported_content_types = ['application/json', 'text/html']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, schema, name, catalog=None):
         if catalog is None:
             self.catalog = schema.catalog
@@ -499,15 +439,8 @@ class Table (Api):
             return response
 
     def GET(self, uri):
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-        
         """Get table resource representation."""
-        if content_type == 'text/html':
-            # return static AJAX page
-            web.header('Content-Type', content_type)
-            return schema_html % (dict(ready='initTable'))
-        else:
-            return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
+        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
 
     def POST(self, uri):
         # give more helpful error message
