@@ -466,9 +466,9 @@ a model-level resource name of the following forms:
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey` 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ...
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_
 
 These names differ in how many constraints are applied to filter the set of retrieved foreign key references:
 1. The list is always constrained to foreign keys stored in _schema name_ : _table name_
@@ -559,11 +559,11 @@ Typical error response codes include:
 
 The GET operation is used to retrieve a document describing one foreign key constraint in the data model using a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_ `/` _key column_ `,` ...
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
-    GET /ermrest/catalog/42/schema/schema_name/table/table_name/foreignkey/column_name,.../references/table-reference/key_column,... HTTP/1.1
+    GET /ermrest/catalog/42/schema/schema_name/table/table_name/foreignkey/column_name,.../reference/table-reference/key_column,... HTTP/1.1
 	Host: www.example.com
 	Accept: application/json
 
@@ -588,10 +588,10 @@ The DELETE method is used to remove a foreign key constraint from a table using 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey` 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ...
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_ `/` _key column_ `,` ...
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
 
 These names differ in how many constraints are applied to filter the set of retrieved foreign key references:
 1. The list is always constrained to foreign keys stored in _schema name_ : _table name_
@@ -601,7 +601,7 @@ These names differ in how many constraints are applied to filter the set of retr
 
 This example uses a completely specified foreign key constraint name:
 
-    DELETE /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,.../references/table_reference/key_column,... HTTP/1.1
+    DELETE /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,.../reference/table_reference/key_column,... HTTP/1.1
     Host: www.example.com
     
 On success, this request yields a description:

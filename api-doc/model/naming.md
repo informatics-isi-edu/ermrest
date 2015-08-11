@@ -103,7 +103,7 @@ Additionally, a composite resource summarizes all existing key constraints on on
 
 Each (composite) foreign key constraint is reified as a model-level resource:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_ `/` _key column_ `,` ...
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
 
 This named constraint has a representation which summarizes its set of constituent foreign key columns, another referenced table, and the set of key columns that form the composite key being referenced in that other table, including the mapping of each foreign key _column name_ to each composite key _key column_. The _table reference_ can be a qualified table name, e.g. `schema1:table1` or an unqualified table name, e.g. `table1`.  The meaning of this constraint is that each combination of non-NULL values in _schema name_:_table name_ MUST reference an existing combination of values forming a composite key for a row in _table reference_.
 
@@ -115,12 +115,13 @@ Additionally, a composite resource summarizes all foreign key constraints on one
 Additionally, a composite resource summarizes all foreign key constraints involving one composite foreign key _column name_ list:
 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ...
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/`
 
 Finally, a composite resource summarizes all foreign key constraints involving one composite foreign key _column name_ list and one _table reference_:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/references/` _table reference_
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_
 
 (While highly unusual, it is possible to express more than one foreign key constraint from the same composite foreign key _column name_ list to different composite key _key column_ lists in the same or different _table reference_ tables.)
+
 
