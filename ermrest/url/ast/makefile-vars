@@ -2,7 +2,8 @@
 ERMREST_URL_AST_PYTHON_FILES= \
 	__init__.py \
 	catalog.py \
-	model.py
+	model.py \
+	name.py
 
 ERMREST_URL_AST_PYTHON_FILES_INSTALL=$(ERMREST_URL_AST_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/url/ast/%)
 

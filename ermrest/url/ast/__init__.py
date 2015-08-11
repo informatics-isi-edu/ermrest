@@ -31,10 +31,10 @@ import urllib
 from .catalog import Catalogs, Catalog
 from . import model
 from . import data
+from .name import Name
 
 from ... import exception
 from ...util import sql_identifier
-from ...ermpath import Name
 
 def _default_link_cols(cols, left=True, reftable=None):
     """Find default reference link anchored at cols list.

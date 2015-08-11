@@ -23,8 +23,8 @@ import cStringIO
 import web
 
 from .path import Api
+from ..name import Name
 from .... import ermpath, exception
-from ....ermpath.name import Name
 from ....util import negotiated_content_type
     
 def _preprocess_attributes(epath, attributes):

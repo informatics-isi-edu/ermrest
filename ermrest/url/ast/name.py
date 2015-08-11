@@ -26,8 +26,8 @@ import urllib
 import csv
 import web
 
-from ..util import sql_identifier, sql_literal
-from .. import exception
+from ...util import sql_identifier, sql_literal
+from ... import exception
 
 def _default_link_table2table(left, right):
     """Find default reference link between left and right tables.

@@ -1,7 +1,6 @@
 
 ERMREST_ERMPATH_PYTHON_FILES= \
 	__init__.py \
-	name.py \
 	resource.py
 
 ERMREST_ERMPATH_PYTHON_FILES_INSTALL=$(ERMREST_ERMPATH_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/ermpath/%)
