@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2013 University of Southern California
+# Copyright 2010-2015 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ def p_meta_key_value(p):
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """
     p[0] = p[1].textfacet(
-        ast.data.path.predicatecls('ciregexp')(
+        ast.data.predicatecls('ciregexp')(
             ast.Name().with_suffix('value'),
             ast.Value(p[4])
         ),
@@ -340,11 +340,11 @@ def p_filter(p):
 
 def p_predicate2(p):
     """predicate : sname op expr """
-    p[0] = ast.data.path.predicatecls(p[2])(p[1], p[3])
+    p[0] = ast.data.predicatecls(p[2])(p[1], p[3])
 
 def p_predicate1(p):
     """predicate : sname opnull """
-    p[0] = ast.data.path.predicatecls(p[2])(p[1])
+    p[0] = ast.data.predicatecls(p[2])(p[1])
 
 def p_neg_predicate1(p):
     """npredicate : predicate """
@@ -352,7 +352,7 @@ def p_neg_predicate1(p):
 
 def p_neg_predicate2(p):
     """npredicate : '!' predicate """
-    p[0] = ast.data.path.Negation( p[2] )
+    p[0] = ast.data.predicate.Negation( p[2] )
 
 def p_paren_predicate(p):
     """predicate : '(' filter ')' """
@@ -360,7 +360,7 @@ def p_paren_predicate(p):
 
 def p_conjunction_base(p):
     """conjunction : npredicate """
-    p[0] = ast.data.path.Conjunction([p[1]])
+    p[0] = ast.data.predicate.Conjunction([p[1]])
 
 def p_conjunction_grow(p):
     """conjunction : conjunction '&' npredicate"""
@@ -369,7 +369,7 @@ def p_conjunction_grow(p):
 
 def p_disjunction_base(p):
     """disjunction : conjunction ';' conjunction"""
-    p[0] = ast.data.path.Disjunction([p[1], p[3]])
+    p[0] = ast.data.predicate.Disjunction([p[1], p[3]])
 
 def p_disjunction_grow(p):
     """disjunction : disjunction ';' conjunction"""

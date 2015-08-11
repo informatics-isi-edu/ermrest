@@ -24,6 +24,7 @@ import web
 
 from ..api import Api
 from . import path
+from .predicate import predicatecls
 from ..name import Name
 from .... import ermpath, exception
 from ....util import negotiated_content_type
