@@ -29,6 +29,58 @@ import web
 from ...util import sql_identifier, sql_literal
 from ... import exception
 
+def _default_link_cols(cols, left=True, reftable=None):
+    """Find default reference link anchored at cols list.
+
+       Returns (keyref, refop).
+
+       Raises exception.ConflictModel if no default can be found.
+    """
+    constraint_key = frozenset(cols)
+    table = cols[0].table # any column will do for this
+
+    links = []
+
+    # look for references ending at leftcol
+    if constraint_key in table.uniques:
+        refs = set()
+        if reftable:
+            if reftable in table.uniques[constraint_key].table_references:
+                refs.update( table.uniques[constraint_key].table_references[reftable] )
+        else:
+            for rs in table.uniques[constraint_key].table_references.values():
+                refs.update(rs)
+        links.extend([ (ref, left and '@=' or '=@') for ref in refs ])
+    
+    # look for references starting at leftcol
+    if constraint_key in table.fkeys:
+        refs = set()
+        if reftable:
+            if reftable in table.fkeys[constraint_key].table_references:
+                refs.update( table.fkeys[constraint_key].table_references[reftable] )
+        else:
+            for rs in table.fkeys[constraint_key].table_references.values():
+                refs.update(rs)
+        links.extend([ (ref, left and '=@' or '@=') for ref in refs ])
+    
+    if len(links) == 0:
+        raise exception.ConflictModel('No link found involving columns %s' % [ str(c) for c in cols ])
+    elif len(links) == 1:
+        return links[0]
+    else:
+        raise exception.ConflictModel('Ambiguous links found involving columns %s' % [ str(c) for c in cols ])
+
+
+def _default_link_col(col, left=True, reftable=None):
+    """Find default reference link anchored at col.
+
+       Returns (keyref, refop).
+
+       Raises exception.ConflictModel if no default can be found.
+    """
+    return _default_link_cols([col], left, reftable)
+
+
 def _default_link_table2table(left, right):
     """Find default reference link between left and right tables.
 
@@ -236,4 +288,50 @@ class Name (object):
             return self.nameparts[0]
         else:
             raise exception.BadSyntax('Name "%s" is not a valid input column reference.' % self)
+
+class NameList (list):
+    """Represent a list of Name instances.
+
+    """
+    
+    def resolve_link(self, model, epath):
+        """Resolve self against a specific database model and epath context.
+
+           Returns (keyref, refop, lalias) as resolved key reference
+           configuration.
+        
+           The first name must be resolved as a normal column name.
+
+           All remaining columns must either be relative 'n0' and must
+           be in the same table resolved for the first name.
+
+           The identified column set must be involved in one reference
+           as either foreign key or primary key.
+        
+           Raises exception.ConflictModel on failed resolution.
+        """
+        lalias = None
+        left = True
+        reftable = None
+
+        c0, base = self[0].resolve_column(model, epath)
+        if base in epath.aliases:
+            lalias = base
+        elif base == epath:
+            pass
+        else:
+            left = False
+            reftable = epath.current_entity_table()
+
+        cols = [ c0 ]
+
+        for n in self[1:]:
+            c, b = n.resolve_column(model, epath, c0.table)
+            if c.table != c0.table or base != b and not lalias:
+                raise exception.ConflictModel('Linking columns must belong to the same table.')
+            cols.append( c )
+
+        keyref, refop = _default_link_cols(cols, left, reftable)
+
+        return keyref, refop, lalias
 
