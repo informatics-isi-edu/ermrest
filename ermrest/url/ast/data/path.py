@@ -28,7 +28,11 @@ from ..api import Api
 from ....exception import *
 from .... import model
 
-class TableElem (Api):
+class PathElem (object):
+    is_filter = False
+    is_context = False
+
+class TableElem (PathElem):
     """A path element with a single name must be a table."""
     def __init__(self, name):
         self.name = name
@@ -41,7 +45,7 @@ class TableElem (Api):
         """Resolve self.name as a link in the model and epath context."""
         return self.name.resolve_link(model, epath)
 
-class ColumnsElem (Api):
+class ColumnsElem (PathElem):
     """A path element with parenthetic name list must be columns."""
     def __init__(self, names):
         self.names = names
@@ -54,8 +58,7 @@ class ColumnsElem (Api):
         """Resolve self.name as a link in the model and epath context."""
         return self.names.resolve_link(model, epath)
 
-
-class FilterElem (Api):
+class FilterElem (PathElem):
     """A path element that applies a filter."""
     is_filter = True
 
@@ -74,14 +77,14 @@ class FilterElem (Api):
     def validate_attribute_update(self, apath):
         return self.pred.validate_attribute_update(apath)
 
-class ContextResetElem (Api):
+class ContextResetElem (PathElem):
     """A path element that resets entity context via reference to earlier element."""
     is_context = True
     
     def __init__(self, name):
         self.name = name
 
-class Predicate (Api):
+class Predicate (object):
 
     def __init__(self, left_name, op):
         self.left_name = left_name
@@ -252,7 +255,7 @@ def predicatecls(op):
 
 
 
-class Negation (Api):
+class Negation (object):
     def __init__(self, predicate):
         self.predicate = predicate
 
