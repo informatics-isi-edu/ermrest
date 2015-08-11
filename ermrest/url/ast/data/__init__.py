@@ -23,9 +23,43 @@ import cStringIO
 import web
 
 from .path import Api
-from .... import ermpath
-from ....exception import rest, BadData
+from .... import ermpath, exception
+from ....ermpath.name import Name
 from ....util import negotiated_content_type
+    
+def _preprocess_attributes(epath, attributes):
+    """Expand '*' wildcards in attributes into explicit projections understood by ermpath."""
+    results = []
+    for item in attributes:
+        if type(item) is tuple:
+            # make preprocessing resolution idempotent
+            attribute, col, base = item
+        else:
+            attribute = item
+            if len(attribute.nameparts) > 2:
+                raise exception.BadSyntax('Column name %s, qualified by schema and table names, not allowed as attribute.' % attribute)
+            elif len(attribute.nameparts) > 1 and attribute.nameparts[0] not in epath.aliases:
+                raise exception.BadSyntax('Alias %s, qualifying column name %s, not bound in path.' % (attribute.nameparts[0], attribute))
+            col, base = attribute.resolve_column(epath._model, epath)
+
+        if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
+            # expand '*' wildcard sugar as if user referenced each column
+            if attribute.alias is not None:
+                raise exception.BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
+            if base == epath:
+                # columns from final entity path element
+                for col in epath._path[epath.current_entity_position()].table.columns_in_order():
+                    results.append((Name([col.name]), col, base))
+            elif base in epath.aliases:
+                # columns from interior path referenced by alias
+                for col in epath[base].table.columns_in_order():
+                    results.append((Name([base, col.name]).set_alias('%s:%s' % (base, col.name)), col, base))
+            else:
+                raise NotImplementedError('Unresolvable * column violates program invariants!')
+        else:
+            results.append((attribute, col, base))
+            
+    return results
 
 class TextFacet (Api):
     """A specific text facet by textfragment.
@@ -50,7 +84,11 @@ class TextFacet (Api):
         epath = ermpath.EntityPath(self.model)
         epath.set_base_entity(self.model.ermrest_schema.tables['valuemap'])
         epath.add_filter(self.filterelem)
-        self.agpath = ermpath.AttributeGroupPath(epath, self.facetkeys, self.facetvals)
+        self.agpath = ermpath.AttributeGroupPath(
+            epath,
+            _preprocess_attributes(epath, self.facetkeys),
+            _preprocess_attributes(epath, self.facetvals)
+        )
 
     def GET(self, uri):
         """Perform HTTP GET of text facet.
@@ -214,7 +252,7 @@ class Attribute (Api):
         self.Entity.append(elem)
 
     def set_projection(self, attributes):
-        self.apath = ermpath.AttributePath(self.Entity.epath, attributes)
+        self.apath = ermpath.AttributePath(self.Entity.epath, _preprocess_attributes(self.Entity.epath, attributes))
         
     def GET(self, uri):
         """Perform HTTP GET of attributes.
@@ -270,7 +308,11 @@ class AttributeGroup (Api):
         self.Entity.append(elem)
 
     def set_projection(self, groupkeys, attributes):
-        self.agpath = ermpath.AttributeGroupPath(self.Entity.epath, groupkeys, attributes)
+        self.agpath = ermpath.AttributeGroupPath(
+            self.Entity.epath,
+            _preprocess_attributes(self.Entity.epath, groupkeys),
+            _preprocess_attributes(self.Entity.epath, attributes)
+        )
     
     def GET(self, uri):
         """Perform HTTP GET of attribute groups.
@@ -345,7 +387,7 @@ class Aggregate (Api):
         self.Entity.append(elem)
 
     def set_projection(self, attributes):
-        self.agpath = ermpath.AggregatePath(self.Entity.epath, attributes)
+        self.agpath = ermpath.AggregatePath(self.Entity.epath, _preprocess_attributes(self.Entity.epath, attributes))
     
     def GET(self, uri):
         """Perform HTTP GET of attribute groups.

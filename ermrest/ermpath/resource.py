@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2015 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import web
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
 from ..model import Type
-from .name import Name
 
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
@@ -581,39 +580,6 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
-    def _preprocess_attributes(self, attributes):
-        results = []
-        for item in attributes:
-            if type(item) is tuple:
-                # make preprocessing resolution idempotent
-                attribute, col, base = item
-            else:
-                attribute = item
-                if len(attribute.nameparts) > 2:
-                    raise BadSyntax('Column name %s, qualified by schema and table names, not allowed as attribute.' % attribute)
-                elif len(attribute.nameparts) > 1 and attribute.nameparts[0] not in self.epath.aliases:
-                    raise BadSyntax('Alias %s, qualifying column name %s, not bound in path.' % (attribute.nameparts[0], attribute))
-                col, base = attribute.resolve_column(self.epath._model, self.epath)
-
-            if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
-                # expand '*' wildcard sugar as if user referenced each column
-                if attribute.alias is not None:
-                    raise BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
-                if base == self.epath:
-                    # columns from final entity path element
-                    for col in self.epath._path[self.epath.current_entity_position()].table.columns_in_order():
-                        results.append((Name([col.name]), col, base))
-                elif base in self.epath.aliases:
-                    # columns from interior path referenced by alias
-                    for col in self.epath[base].table.columns_in_order():
-                        results.append((Name([base, col.name]).set_alias('%s:%s' % (base, col.name)), col, base))
-                else:
-                    raise NotImplementedError('Unresolvable * column violates program invariants!')
-            else:
-                results.append((attribute, col, base))
-
-        return results
-                
     def _sql_get_agg_attributes(self, allow_extra=True):
         """Process attribute lists for aggregation APIs.
         """
@@ -1021,7 +987,7 @@ class AttributePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = self._preprocess_attributes(attributes)
+        self.attributes = attributes
         self.sort = None
 
     def add_sort(self, sort):
@@ -1178,8 +1144,8 @@ class AttributeGroupPath (AnyPath):
     def __init__(self, epath, groupkeys, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.groupkeys = self._preprocess_attributes(groupkeys)
-        self.attributes = self._preprocess_attributes(attributes)
+        self.groupkeys = groupkeys
+        self.attributes = attributes
         self.sort = None
 
         if not groupkeys:
@@ -1371,7 +1337,7 @@ class AggregatePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = self._preprocess_attributes(attributes)
+        self.attributes = attributes
 
         if not attributes:
             raise BadSyntax('Aggregate requires at least one attribute.')
