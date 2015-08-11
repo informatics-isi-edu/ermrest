@@ -71,16 +71,6 @@ def _default_link_cols(cols, left=True, reftable=None):
         raise exception.ConflictModel('Ambiguous links found involving columns %s' % [ str(c) for c in cols ])
 
 
-def _default_link_col(col, left=True, reftable=None):
-    """Find default reference link anchored at col.
-
-       Returns (keyref, refop).
-
-       Raises exception.ConflictModel if no default can be found.
-    """
-    return _default_link_cols([col], left, reftable)
-
-
 def _default_link_table2table(left, right):
     """Find default reference link between left and right tables.
 
