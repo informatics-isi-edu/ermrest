@@ -63,6 +63,77 @@ def _preprocess_attributes(epath, attributes):
             
     return results
 
+def _GET(handler, uri, dresource, vresource):
+    """Perform HTTP GET of generic data resources.
+    """
+    content_type = negotiated_content_type(default=handler.default_content_type)
+    limit = handler.negotiated_limit()
+        
+    def body(conn, cur):
+        handler.set_http_etag( vresource.get_data_version(cur) )
+        if handler.http_is_cached():
+            web.ctx.status = '304 Not Modified'
+            return None
+        dresource.add_sort(handler.sort)
+        return dresource.get(conn, cur, content_type=content_type, limit=limit)
+
+    def post_commit(lines):
+        handler.emit_headers()
+        if lines is None:
+            return
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_content_type = content_type
+        for line in lines:
+            yield line
+
+    return handler.perform(body, post_commit)
+
+def _PUT(handler, uri, put_thunk):
+    """Perform HTTP PUT of generic data resources.
+    """
+    try:
+        in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
+        in_content_type = in_content_type.split(";", 1)[0].strip()
+    except:
+        in_content_type = handler.default_content_type
+
+    content_type = negotiated_content_type(default=in_content_type)
+
+    input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
+
+    def body(conn, cur):
+        input_data.seek(0) # rewinds buffer, in case of retry
+        handler.enforce_content_write(cur, uri)
+        return put_thunk([
+            conn,
+            cur,
+            input_data, 
+            in_content_type,
+            content_type
+        ])
+
+    def post_commit(lines):
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_request_content_type = content_type
+        for line in lines:
+            yield line
+
+    return handler.perform(body, post_commit)
+
+def _DELETE(handler, uri, resource):
+    """Perform HTTP DELETE of generic data resources.
+    """
+    def body(conn, cur):
+        handler.enforce_content_write(cur, uri)
+        resource.delete(conn, cur)
+
+    def post_commit(ignore):
+        web.ctx.status = '204 No Content'
+        return ''
+
+    return handler.perform(body, post_commit)
+
+
 class TextFacet (Api):
     """A specific text facet by textfragment.
 
@@ -95,27 +166,7 @@ class TextFacet (Api):
     def GET(self, uri):
         """Perform HTTP GET of text facet.
         """
-        content_type = negotiated_content_type(default=self.default_content_type)
-        limit = self.negotiated_limit()
-        
-        def body(conn, cur):
-            epath = self.agpath.epath
-            self.set_http_etag( epath.get_data_version(cur) )
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return None
-            return self.agpath.get(conn, cur, content_type=content_type, limit=limit)
-
-        def post_commit(lines):
-            self.emit_headers()
-            if lines is None:
-                return
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_content_type = content_type
-            for line in lines:
-                yield line
-
-        return self.perform(body, post_commit)
+        return _GET(self, uri, self.agpath, self.agpath.epath)
 
 class Entity (Api):
     """A specific entity set by entitypath."""
@@ -156,61 +207,12 @@ class Entity (Api):
     def GET(self, uri):
         """Perform HTTP GET of entities.
         """
-        content_type = negotiated_content_type(default=self.default_content_type)
-        limit = self.negotiated_limit()
-        
-        def body(conn, cur):
-            self.set_http_etag( self.epath.get_data_version(cur) )
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return None
-            self.epath.add_sort(self.sort)
-            return self.epath.get(conn, cur, content_type=content_type, limit=limit)
-
-        def post_commit(lines):
-            self.emit_headers()
-            if lines is None:
-                return
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_content_type = content_type
-            for line in lines:
-                yield line
-
-        return self.perform(body, post_commit)
+        return _GET(self, uri, self.epath, self.epath)
 
     def PUT(self, uri, post_method=False, post_defaults=None):
         """Perform HTTP PUT of entities.
         """
-        try:
-            in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
-            in_content_type = in_content_type.split(";", 1)[0].strip()
-        except:
-            in_content_type = self.default_content_type
-
-        content_type = negotiated_content_type(default=in_content_type)
-
-        input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
-        
-        def body(conn, cur):
-            input_data.seek(0) # rewinds buffer, in case of retry
-            self.enforce_content_write(cur, uri)
-            return self.epath.put(
-                conn,
-                cur,
-                input_data, 
-                in_content_type=in_content_type,
-                content_type=content_type, 
-                allow_existing = not post_method,
-                use_defaults = post_defaults
-            )
-
-        def post_commit(lines):
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_request_content_type = content_type
-            for line in lines:
-                yield line
-
-        return self.perform(body, post_commit)
+        return _PUT(self, uri, lambda args: self.epath.put(*args, allow_existing=not post_method, use_defaults=post_defaults))
 
     def POST(self, uri):
         """Perform HTTP POST of entities.
@@ -228,16 +230,7 @@ class Entity (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
         """
-        def body(conn, cur):
-            self.enforce_content_write(cur, uri)
-            self.epath.delete(conn, cur)
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
-
+        return _DELETE(self, uri, self.epath)
 
 class Attribute (Api):
     """A specific attribute set by attributepath."""
@@ -259,41 +252,12 @@ class Attribute (Api):
     def GET(self, uri):
         """Perform HTTP GET of attributes.
         """
-        content_type = negotiated_content_type(default=self.default_content_type)
-        limit = self.negotiated_limit()
-        
-        def body(conn, cur):
-            self.enforce_content_read(cur, uri)
-            self.set_http_etag( self.apath.epath.get_data_version(cur) )
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return None
-            self.apath.add_sort(self.sort)
-            return self.apath.get(conn, cur, content_type=content_type, limit=limit)
-
-        def post_commit(lines):
-            self.emit_headers()
-            if lines is None:
-                return
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_content_type = content_type
-            for line in lines:
-                yield line
-
-        return self.perform(body, post_commit)
+        return _GET(self, uri, self.apath, self.apath.epath)
 
     def DELETE(self, uri):
         """Perform HTTP DELETE of entity attribute.
         """
-        def body(conn, cur):
-            self.enforce_content_write(cur, uri)
-            self.apath.delete(conn, cur)
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+        return _DELETE(self, uri, self.apath)
 
 class AttributeGroup (Api):
     """A specific group set by entity path, group keys, and group attributes."""
@@ -319,59 +283,12 @@ class AttributeGroup (Api):
     def GET(self, uri):
         """Perform HTTP GET of attribute groups.
         """
-        content_type = negotiated_content_type(default=self.default_content_type)
-        limit = self.negotiated_limit()
-        
-        def body(conn, cur):
-            self.enforce_content_read(cur, uri)
-            self.set_http_etag( self.agpath.epath.get_data_version(cur) )
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return None
-            self.agpath.add_sort(self.sort)
-            return self.agpath.get(conn, cur, content_type=content_type, limit=limit)
-
-        def post_commit(lines):
-            self.emit_headers()
-            if lines is None:
-                return
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_content_type = content_type
-            for line in lines:
-                yield line
-
-        return self.perform(body, post_commit)
+        return _GET(self, uri, self.agpath, self.agpath.epath)
 
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of attribute groups.
         """
-        try:
-            in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
-            in_content_type = in_content_type.split(";", 1)[0].strip()
-        except:
-            in_content_type = self.default_content_type
-
-        content_type = negotiated_content_type(default=in_content_type)
-
-        input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
-        
-        def body(conn, cur):
-            input_data.seek(0) # rewinds buffer, in case of retry
-            self.enforce_content_write(cur, uri)
-            return self.agpath.put(
-                conn,
-                cur,
-                input_data, 
-                in_content_type=in_content_type
-            )
-
-        def post_commit(lines):
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_request_content_type = content_type
-            for line in lines:
-                yield line
-
-        return self.perform(body, post_commit)
+        return _PUT(self, uri, lambda args: self.agpath.put(*args))
 
 
 class Aggregate (Api):
@@ -394,26 +311,4 @@ class Aggregate (Api):
     def GET(self, uri):
         """Perform HTTP GET of attribute groups.
         """
-        content_type = negotiated_content_type(default=self.default_content_type)
-        limit = self.negotiated_limit()
-        
-        def body(conn, cur):
-            self.enforce_content_read(cur, uri)
-            self.set_http_etag( self.agpath.epath.get_data_version(cur) )
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return None
-            self.agpath.add_sort(self.sort)
-            return self.agpath.get(conn, cur, content_type=content_type, limit=limit)
-
-        def post_commit(lines):
-            self.emit_headers()
-            if lines is None:
-                return
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_content_type = content_type
-            for line in lines:
-                yield line
-
-        return self.perform(body, post_commit)
-
+        return _GET(self, uri, self.agpath, self.agpath.epath)
