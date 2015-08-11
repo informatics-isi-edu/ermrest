@@ -31,7 +31,7 @@ import urllib
 from .catalog import Catalogs, Catalog
 from . import model
 from . import data
-from .name import Name
+from .name import Name, NameList
 
 from ... import exception
 from ...util import sql_identifier
