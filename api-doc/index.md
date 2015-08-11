@@ -41,6 +41,7 @@ The ERMrest web service model exposes resources to support management of dataset
         1. [Column annotation](model/naming.md#column-annotations): machine-readable documentation for a column
       1. [Key definition](model/naming.md#key-names): a composite key constraint (in one table)
       1. [Foreign key definition](model/naming.md#foreign-key-names): a composite foreign key constraint (in one table)
+        1. [Foreign key annotation](model/naming.md#foreign-key-annotations): machine-readable documentation for a foreign key constraint
 1. [Data resources](data/naming.md)
   1. [Entity](data/naming.md#entity-names): a set of data tuples corresponding to a (possibly filtered) table
   1. [Attribute](data/naming.md#attribute-names): a set of data tuples corresponding to a (possibly filtered) projection of a table

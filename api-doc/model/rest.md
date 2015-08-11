@@ -507,8 +507,8 @@ The POST operation is used to add a foreign key reference constraint to an exist
 In this operation, the `application/json` _foreign key reference representation_ is supplied as input:
 
     POST /ermrest/catalog/42/schema/schema_name/table/table_name/foreignkey HTTP/1.1
-	Host: www.example.com
-	Content-Type: application/json
+    Host: www.example.com
+    Content-Type: application/json
 
     {
       "foreign_key_columns": [
@@ -518,13 +518,16 @@ In this operation, the `application/json` _foreign key reference representation_
           "column_name": column name
         }, ...
       ]
-	  "referenced_columns": [
+      "referenced_columns": [
         {
           "schema_name": schema name,
           "table_name": table name,
           "column_name": column name
         }
-      ]
+      ],
+      "annotations": {
+        annotation key: annotation document, ...
+      }
     }
 
 The input _foreign key reference representation_ is a long JSON document too verbose to show verbatim in this documentation. Its general structure is a single object with the following fields:
@@ -537,6 +540,7 @@ The input _foreign key reference representation_ is a long JSON document too ver
   - `schema_name`: whose value names the schema in which the referenced table resides
   - `table_name`: whose value names the referenced table
   - `column_name`: whose value names the constituent column of the referenced key
+- `annotations`: whose value is a sub-object used as a dictionary where each field field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
 
 The two arrays MUST have the same length and the order is important in that the two composite keys are mapped to one another element-by-element, so the first column of the composite foreign key refers to the first column of the composite referenced key, etc. In the `referenced_columns` list, the _schema name_ and _table name_ values MUST be identical for all referenced columns.
 
