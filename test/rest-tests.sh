@@ -310,6 +310,33 @@ dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test
 dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*,B:*,C:*"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*;B:*,C:*"
 
+# do annotation tests
+tag_key='tag%3Amisd.isi.edu%2C2015%3Atest1' # tag:misd.isi.edu,2015:test1
+resources=(
+    /schema/test1/table/test_level2/foreignkey/level1_id/reference/test_level1/id
+    /schema/test1/table/test_level2
+    /schema/test1/table/test_level2/column/name
+)
+for resource in ${resources[@]}
+do
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation"
+    dotest "404::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
+    cat > ${TEST_DATA} <<EOF
+{"dummy": "value"}
+EOF
+    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -T ${TEST_DATA}
+    dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    dotest "200::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    cat > ${TEST_DATA} <<EOF
+{"dummy": "value", "malformed"
+EOF
+    dotest "400::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -X DELETE
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
+    dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -X DELETE
+done
+
+
 # create table for unicode tests... use unusual unicode characters to test proper pass-through
 dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s" -X POST
 cat > ${TEST_DATA} <<EOF
