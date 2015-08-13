@@ -58,14 +58,14 @@ class Table (object):
         if name not in self.schema.tables:
             self.schema.tables[name] = self
 
-    def __unicode__(self):
-        return u':%s:%s' % (
-            urllib.quote(self.schema.name),
-            urllib.quote(self.name)
+    def __str__(self):
+        return ':%s:%s' % (
+            urllib.quote(unicode(self.schema.name).encode('utf8')),
+            urllib.quote(unicode(self.name).encode('utf8'))
             )
 
     def __repr__(self):
-        return u'<ermrest.model.Table %s>' % unicode(self)
+        return '<ermrest.model.Table %s>' % str(self)
 
     def columns_in_order(self):
         cols = self.columns.values()
