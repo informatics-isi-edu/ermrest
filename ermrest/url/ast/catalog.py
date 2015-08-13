@@ -48,7 +48,11 @@ class Catalogs (object):
         catalog = web.ctx.ermrest_catalog_factory.create()
 
         # initialize the catalog instance
-        sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+        pc = sanepg2.PooledConnection(catalog.dsn)
+        try:
+            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+        finally:
+            pc.final()
 
         # register the catalog descriptor
         entry = web.ctx.ermrest_registry.register(catalog.descriptor)
@@ -86,13 +90,16 @@ class Catalog (Api):
             entries[0]['descriptor'],
             web.ctx.ermrest_config
             )
-        if web.ctx.ermrest_catalog_dsn is None:
-            web.ctx.ermrest_catalog_dsn = sanepg2.pooled_connection(self.manager.dsn)
+        
+        assert web.ctx.ermrest_catalog_pc is None
+        web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
 
         # now enforce read permission
-        cur = web.ctx.ermrest_catalog_dsn[2]
-        self.enforce_read(cur, 'catalog/' + str(self.catalog_id))
+        self.enforce_read(web.ctx.ermrest_catalog_pc.cur, 'catalog/' + str(self.catalog_id))
 
+    def final(self):
+        web.ctx.ermrest_catalog_pc.final()
+            
     def schemas(self):
         """The schema set for this catalog."""
         return model.Schemas(self)

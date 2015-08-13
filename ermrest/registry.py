@@ -118,6 +118,13 @@ class SimpleRegistry (Registry):
         self.dsn = dsn
         self._schema_name = schema
 
+    def pooled_perform(self, body, post_commit=lambda x: x):
+        pc = sanepg2.PooledConnection(self.dsn)
+        try:
+            return list(pc.perform(body, post_commit))
+        finally:
+            pc.final()
+        
     def deploy(self):
         """Deploy the SimpleRegistry.
         
@@ -140,7 +147,7 @@ CREATE TABLE %(schema)s.%(table)s (
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
 
-        return sanepg2.pooled_perform(self.dsn, body).next()
+        return self.pooled_perform(body).next()
                 
     def lookup(self, id=None):
         def body(conn, cur):
@@ -162,7 +169,7 @@ FROM %(schema)s.%(table)s
             for eid, descriptor in cur:
                 yield dict(id=eid, descriptor=json.loads(descriptor))
 
-        return list(sanepg2.pooled_perform(self.dsn, body))
+        return self.pooled_perform(body)
 
     def register(self, descriptor, id=None):
         assert isinstance(descriptor, dict)
@@ -193,7 +200,7 @@ WHERE descriptor = %(descriptor)s;
         def post_commit(id):
             return dict(id=id, descriptor=descriptor)
 
-        return sanepg2.pooled_perform(self.dsn, body, post_commit).next()
+        return self.pooled_perform(body, post_commit)[0]
 
     def unregister(self, id, destroy=False):
         """Unregister a catalog description.
@@ -216,4 +223,4 @@ WHERE id = %(id)s;
             if not deleted:
                 raise KeyError("catalog identifier ("+id+") does not exist")
 
-        return sanepg2.pooled_perform(self.dsn, body, post_commit).next()
+        return self.pooled_perform(body, post_commit)[0]

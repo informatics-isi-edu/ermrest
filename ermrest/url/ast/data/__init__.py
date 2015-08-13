@@ -151,7 +151,7 @@ class TextFacet (Api):
         self.facetkeys = facetkeys
         self.facetvals = facetvals
         self.http_vary.add('accept')
-        cur = web.ctx.ermrest_catalog_dsn[2]
+        cur = web.ctx.ermrest_catalog_pc.cur
         self.enforce_content_read(cur)
         self.model = self.catalog.manager.get_model(cur)
         epath = ermpath.EntityPath(self.model)
@@ -175,7 +175,7 @@ class Entity (Api):
 
     def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
-        cur = web.ctx.ermrest_catalog_dsn[2]
+        cur = web.ctx.ermrest_catalog_pc.cur
         self.enforce_content_read(cur)
         self.model = self.catalog.manager.get_model(cur)
         self.epath = ermpath.EntityPath(self.model)

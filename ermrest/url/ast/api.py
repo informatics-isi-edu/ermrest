@@ -189,8 +189,9 @@ class Api (object):
             except psycopg2.InterfaceError, e:
                 raise rest.ServiceUnavailable("Please try again.")
             
-        return sanepg2.pooled_perform(web.ctx.ermrest_catalog_dsn, wrapbody, finish)
+        return web.ctx.ermrest_catalog_pc.perform(wrapbody, finish)
     
     def final(self):
-        pass
+        if self.catalog is not self:
+            self.catalog.final()
 

@@ -127,8 +127,11 @@ class CatalogFactory (object):
             descriptor[self._KEY_DBNAME] = dbname
             return Catalog(self, descriptor)
 
-        return sanepg2.pooled_perform(self._dsn, body, post_commit).next()
-    
+        pc = sanepg2.PooledConnection(self._dsn)
+        try:
+            return pc.perform(body, post_commit).next()
+        finally:
+            pc.final()
     
     def _destroy_catalog(self, conn, ignored_cur, catalog):
         """Destroys a catalog.
