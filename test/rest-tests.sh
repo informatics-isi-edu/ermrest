@@ -310,6 +310,23 @@ dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test
 dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*,B:*,C:*"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*;B:*,C:*"
 
+# do comment tests
+resources=(
+    /schema/test1/table/test_level2
+    /schema/test1/table/test_level2/column/name
+)
+for resource in ${resources[@]}
+do
+    dotest "404::*::*" "/catalog/${cid}${resource}/comment"
+    cat > ${TEST_DATA} <<EOF
+This is a comment.
+EOF
+    dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
+    dotest "200::text/plain*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
+    dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -X DELETE
+    dotest "404::*::*" "/catalog/${cid}${resource}/comment"
+done
+
 # do annotation tests
 tag_key='tag%3Amisd.isi.edu%2C2015%3Atest1' # tag:misd.isi.edu,2015:test1
 resources=(
