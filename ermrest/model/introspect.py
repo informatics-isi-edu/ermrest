@@ -379,10 +379,10 @@ FROM _ermrest.model_keyref_annotation
             try:
                 from_table = model.schemas[from_sname].tables[from_tname]
                 to_table = model.schemas[to_sname].tables[to_tname]
-                refmap = {
-                    from_table.columns[from_cname]: to_table.columns[to_cname]
+                refmap = dict([
+                    (from_table.columns[from_cname], to_table.columns[to_cname])
                     for from_cname, to_cname in zip(from_cnames, to_cnames)
-                }
+                ])
                 fkr = from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)]
                 fkr.annotations[auri] = value
             except exception.ConflictModel:
