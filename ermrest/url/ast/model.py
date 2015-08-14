@@ -30,7 +30,10 @@ from ...util import negotiated_content_type
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
     handler.emit_headers()
     if resource is None:
-        return
+        return ''
+    if resource is '' and web.ctx.status == '200 OK':
+        web.ctx.status = '204 No Content'
+        return ''
     web.header('Content-Type', content_type)
     response = transform(resource)
     web.header('Content-Length', len(response))
@@ -59,9 +62,23 @@ def _GET(handler, thunk, _post_commit):
             web.ctx.status = '304 Not Modified'
             return None
         return thunk(conn, cur)
-
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
-    
+
+def _MODIFY(handler, thunk, _post_commit):
+    def body(conn, cur):
+        handler.enforce_content_read(cur)
+        handler.enforce_schema_write(cur)
+        handler.catalog.manager.get_model(cur)
+        return thunk(conn, cur)
+    return handler.perform(body, lambda resource: _post_commit(handler, resource))
+
+def _MODIFY_with_json_input(handler, thunk, _post_commit):
+    try:
+        doc = json.load(web.ctx.env['wsgi.input'])
+    except:
+        raise exception.rest.BadRequest('Could not deserialize JSON input.')
+    return _MODIFY(handler, lambda conn, cur: thunk(conn, cur, doc), _post_commit)
+
 class Schemas (Api):
     """A schema set."""
     def __init__(self, catalog):
@@ -98,31 +115,21 @@ class Schema (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
+    def POST_body(self, conn, cur):
+        self.catalog.manager._model.create_schema(conn, cur, unicode(self.name))
+
     def POST(self, uri):
-        """Create a new empty schema."""
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            model.create_schema(conn, cur, unicode(self.name))
-            
-        def post_commit(ignore):
+        def post_commit(self, ignored):
             web.ctx.status = '201 Created'
-            return ''
+            return _post_commit(self, '')
+        return _MODIFY(self, self.POST_body, post_commit)
 
-        return self.perform(body, post_commit)
-
-    def DELETE(self, uri):
-        """Delete an existing schema."""
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            model.delete_schema(conn, cur, unicode(self.name))
+    def DELETE_body(self, conn, cur):
+        self.catalog.manager._model.delete_schema(conn, cur, unicode(self.name))
+        return ''
             
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
         
 
 class Tables (Api):
@@ -141,37 +148,15 @@ class Tables (Api):
     def GET_body(self, conn, cur):
         return self.schema.GET_body(conn, cur).tables.values()
 
+    def POST_body(self, conn, cur, tabledoc):
+        schema = self.schema.GET_body(conn, cur)
+        return model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
+
     def POST(self, uri):
-        """Add a new table to the schema according to input resource representation."""
-        try:
-            tabledoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            schema = self.schema.GET_body(conn, cur)
-            try:
-                return model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
-            except (exception.ConflictData), te:
-                raise exception.rest.Conflict(str(te))
-
-        def post_commit(table):
+        def post_commit(self, table):
             web.ctx.status = '201 Created'
-            return _post_commit(self, [table])
-
-        return self.perform(body, post_commit)
-
-def post_commit_200_OK(ignore):
-    web.ctx.status = '200 OK'
-    return ''
-
-def post_commit_200_or_201(created):
-    if created:
-        web.ctx.status = '201 Created'
-    else:
-        web.ctx.status = '200 OK'
-    return ''
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
 class Comment (Api):
     """A specific object's comment.
@@ -197,18 +182,16 @@ class Comment (Api):
         raise NotImplementedError()
 
     def PUT(self, uri):
-        comment = web.ctx.env['wsgi.input'].read()
-
         def body(conn, cur):
-            self.SET_body(conn, cur, self.GET_subject(conn, cur), comment)
-
-        return self.perform(body, post_commit_200_OK)
+            self.SET_body(conn, cur, self.GET_subject(conn, cur), web.ctx.env['wsgi.input'].read())
+            return ''
+        return _MODIFY(self, body, _post_commit)
     
     def DELETE(self, uri):
         def body(conn, cur):
             self.SET_body(conn, cur, self.GET_subject(conn, cur), None)
-
-        return self.perform(body, post_commit_200_OK)       
+            return ''
+        return _MODIFY(self, body, _post_commit)       
 
 class TableComment (Comment):
     """A specific table's comment."""
@@ -266,46 +249,31 @@ class Annotations (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
-    def PUT_body(self, conn, cur, subject, key, value):
-        """Return True for created or False for updated."""
-        oldval = subject.set_annotation(conn, cur, key, value)
-        if oldval is None:
-            return True
-        else:
-            return False
-
-    def PUT(self, uri):
+    def PUT_body(self, conn, cur, value):
         if self.key is None:
             raise exception.rest.NoMethod('PUT only supported on individually keyed annotations')
+        subject = self.GET_subject(conn, cur)
+        oldval = subject.set_annotation(conn, cur, self.key, value)
+        return oldval is None
 
-        value = web.ctx.env['wsgi.input'].read()
-
-        try:
-            value = json.loads(value)
-        except:
-            raise exception.BadData('invalid JSON input')
-
-        def body(conn, cur):
-            self.PUT_body(conn, cur, self.GET_subject(conn, cur), self.key, value)
-
-        return self.perform(body, post_commit_200_or_201)
+    def PUT(self, uri):
+        def post_commit(self, created):
+            if created:
+                web.ctx.status = '201 Created'
+            return _post_commit(self, '')
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
     
-    def DELETE_body(self, conn, cur, subject, key):
-        subject.delete_annotation(conn, cur, key)
-
-    def DELETE(self, uri):
+    def DELETE_body(self, conn, cur):
         if self.key is None:
             raise exception.rest.NoMethod('DELETE only supported on individually keyed annotations')
+        subject = self.GET_subject(conn, cur)
+        if self.key not in subject.annotations:
+            raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
+        subject.delete_annotation(conn, cur, self.key)
+        return ''
 
-        def body(conn, cur):
-            subject = self.GET_subject(conn, cur)
-            if self.key not in subject.annotations:
-                raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
-            
-            self.DELETE_body(conn, cur, subject, self.key)
-
-        return self.perform(body, post_commit_200_OK)       
-
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 
 class TableAnnotations (Annotations):
 
@@ -397,18 +365,13 @@ class Table (Api):
         # give more helpful error message
         raise exception.rest.NoMethod('create tables at the table collection resource instead')
 
-    def DELETE(self, uri):
-        """Delete a table from the schema."""
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            table = self.GET_body(conn, cur)
-            table.schema.delete_table(conn, cur, str(self.name))
-            
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
+    def DELETE_body(self, conn, cur):
+        table = self.GET_body(conn, cur)
+        table.schema.delete_table(conn, cur, str(self.name))
+        return ''
 
-        return self.perform(body, post_commit)
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
         
 class Columns (Api):
     """A column set."""
@@ -426,24 +389,15 @@ class Columns (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
     
+    def POST_body(self, conn, cur, columndoc):
+        table = self.table.GET_body(conn, cur)
+        return table.add_column(conn, cur, columndoc, web.ctx.ermrest_config)
+
     def POST(self, uri):
-        """Add a new column to the table according to input resource representation."""
-        
-        try:
-            columndoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur)
-            return table.add_column(conn, cur, columndoc, web.ctx.ermrest_config)
-
-        def post_commit(column):
+        def post_commit(self, column):
             web.ctx.status = '201 Created'
-            return _post_commit(self, [column])
-
-        return self.perform(body, post_commit)
+            return _post_commit_json(self, column)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
 class Column (Api):
     """A specific column by name."""
@@ -467,20 +421,14 @@ class Column (Api):
     def POST(self, uri):
         # turn off inherited POST method from Columns superclass
         raise exception.rest.NoMethod('create columns at the column collection resource instead')
+        
+    def DELETE_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        table.delete_column(conn, cur, str(self.name))
+        return ''
 
     def DELETE(self, uri):
-        """Delete column from table."""
-        
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur)
-            table.delete_column(conn, cur, str(self.name))
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 
 class Keys (Api):
     """A set of keys."""
@@ -496,23 +444,15 @@ class Keys (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
         
+    def POST_body(self, conn, cur, keydoc):
+        table = self.table.GET_body(conn, cur)
+        return list(table.add_unique(conn, cur, keydoc))
+
     def POST(self, uri):
-        """Add a new key to the table according to input resource representation."""
-        try:
-            keydoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-        
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur)
-            return list(table.add_unique(conn, cur, keydoc))
-
-        def post_commit(newkeys):
+        def post_commit(self, newkeys):
             web.ctx.status = '201 Created'
-            return _post_commit(self, newkeys)
-
-        return self.perform(body, post_commit)
+            return _post_commit_json(self, newkeys)
+        return _MODIFY(self, self.POST_body, post_commit)
 
 class Key (Keys):
     """A specific key by column set."""
@@ -530,19 +470,15 @@ class Key (Keys):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
+    def DELETE_body(self, conn, cur):
+        table, key = self.GET_body(conn, cur)
+        table.delete_unique(conn, cur, key)
+        return ''
+
     def DELETE(self, uri):
-        """Delete a key constraint from a table."""
-        
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            table, key = self.GET_body(conn, cur)
-            table.delete_unique(conn, cur, key)
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+    # TODO: should superclass POST() method be disabled? is inheritence even useful here?
 
 class Foreignkeys (Api):
     """A set of foreign keys."""
@@ -556,23 +492,15 @@ class Foreignkeys (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
         
-    def POST(self, uri):
-        """Add a new foreign-key reference to table according to input resource representation."""
-        try:
-            keydoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-        
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur)
-            return list(table.add_fkeyref(conn, cur, keydoc))
+    def POST_body(self, conn, cur, keydoc):
+        table = self.table.GET_body(conn, cur)
+        return list(table.add_fkeyref(conn, cur, keydoc))
 
-        def post_commit(newrefs):
+    def POST(self, uri):
+        def post_commit(self, newrefs):
             web.ctx.status = '201 Created'
             return json.dumps([ r.prejson() for r in newrefs ], indent=2) + '\n'
-
-        return self.perform(body, post_commit)
+        return _MODIFY(self, self.POST_body, _post_commit_json)
 
 class Foreignkey (Api):
     """A specific foreign key by column set."""
@@ -717,18 +645,12 @@ class ForeignkeyReferences (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
+    def DELETE_body(self, conn, cur):
+        fkrs = self.GET_body(conn, cur)
+        for fkr in fkrs:
+            fkr.foreign_key.table.delete_fkeyref(conn, cur, fkr)
+        return ''
+
     def DELETE(self, uri):
-        """Delete foreign-key reference constraint from table."""
-        
-        def body(conn, cur):
-            self.enforce_schema_write(cur, uri)
-            fkrs = self.GET_body(conn, cur)
-            for fkr in fkrs:
-                fkr.foreign_key.table.delete_fkeyref(conn, cur, fkr)
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 

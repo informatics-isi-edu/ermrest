@@ -322,7 +322,7 @@ do
 This is a comment.
 EOF
     dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
-    dotest "200::text/plain*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
+    dotest "204::text/plain*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
     dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -X DELETE
     dotest "404::*::*" "/catalog/${cid}${resource}/comment"
 done
@@ -343,7 +343,7 @@ do
 EOF
     dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -T ${TEST_DATA}
     dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
-    dotest "200::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    dotest "204::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
     cat > ${TEST_DATA} <<EOF
 {"dummy": "value", "malformed"
 EOF
