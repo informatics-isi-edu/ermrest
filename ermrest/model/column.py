@@ -21,8 +21,9 @@ import re
 from .. import exception
 from ..util import sql_identifier, sql_literal
 from .type import Type
-from .misc import annotatable
+from .misc import annotatable, commentable
 
+@commentable()
 @annotatable('column', dict(
     schema_name=('text', lambda self: unicode(self.table.schema.name)),
     table_name=('text', lambda self: unicode(self.table.name)),
@@ -56,6 +57,13 @@ class Column (object):
     def introspect_annotation(model=None, schema_name=None, table_name=None, column_name=None, annotation_uri=None, annotation_value=None):
         model.schemas[schema_name].tables[table_name].columns[column_name].annotations[annotation_uri] = annotation_value
 
+    def sql_comment_resource(self):
+        return "COLUMN %s.%s.%s" % (
+            sql_identifier(unicode(self.table.schema.name)),
+            sql_identifier(unicode(self.table.name)),
+            sql_identifier(unicode(self.name))
+        )
+        
     def __str__(self):
         return ':%s:%s:%s' % (
             urllib.quote(self.table.schema.name),

@@ -163,11 +163,12 @@ class Comment (Api):
 
        This is a hack to reuse code for Table and Column comment handling.
     """
-    def __init__(self, catalog):
+    def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
+        self.subject = subject
 
     def GET_subject(self, conn, cur):
-        raise NotImplementedError()
+        return self.subject.GET_body(conn, cur)
 
     def GET_body(self, conn, cur):
         subject = self.GET_subject(conn, cur)
@@ -179,7 +180,8 @@ class Comment (Api):
         return _GET(self, self.GET_body, lambda response: _post_commit(self, response, 'text/plain'))
 
     def SET_body(self, conn, cur, getresults, comment):
-        raise NotImplementedError()
+        subject = self.GET_subject(conn, cur)
+        subject.set_comment(conn, cur, comment)
 
     def PUT(self, uri):
         def body(conn, cur):
@@ -197,32 +199,13 @@ class TableComment (Comment):
     """A specific table's comment."""
     
     def __init__(self, table):
-        Comment.__init__(self, table.schema.catalog)
-        self.table = table
+        Comment.__init__(self, table.schema.catalog, table)
 
-    def GET_subject(self, conn, cur):
-        return self.table.GET_body(conn, cur)
-
-    def SET_body(self, conn, cur, table, comment):
-        table.set_comment(conn, cur, comment)
-
-
-class ColumnComment (TableComment):
+class ColumnComment (Comment):
     """A specific column's comment."""
     
     def __init__(self, column):
-        TableComment.__init__(self, column.table)
-        self.column = column
-
-    def GET_subject(self, conn, cur):
-        table = TableComment.GET_subject(self, conn, cur)
-        try:
-            return table.columns[unicode(self.column.name)]
-        except exception.ConflictModel:
-            raise exception.rest.NotFound(u'column "%s"' % self.column.name)
-
-    def SET_body(self, conn, cur, column, comment):
-        column.table.set_column_comment(conn, cur, column, comment)
+        Comment.__init__(self, column.table.schema.catalog, column)
 
 class Annotations (Api):
     def __init__(self, catalog, subject):

@@ -26,13 +26,14 @@ needed by other modules of the ermrest project.
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
-from .misc import AltDict, annotatable
+from .misc import AltDict, annotatable, commentable
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
 import urllib
 import json
 
+@commentable()
 @annotatable('table', dict(
     schema_name=('text', lambda self: unicode(self.schema.name)),
     table_name=('text', lambda self: unicode(self.name))
@@ -150,7 +151,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
         for column in columns:
             if column.comment is not None:
-                table.set_column_comment(conn, cur, column, column.comment)
+                column.set_comment(conn, cur, column.comment)
             for k, v in column.annotations.items():
                 column.set_annotation(conn, cur, k, v)
 
@@ -185,28 +186,11 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
        )
                     )
 
-    def set_comment(self, conn, cur, comment):
-        """Set comment on table."""
-        cur.execute("""
-COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
-SELECT _ermrest.model_change_event();
-""" % dict(sname=sql_identifier(unicode(self.schema.name)),
-           tname=sql_identifier(unicode(self.name)),
-           comment=sql_literal(comment)
-           )
-                    )
-
-    def set_column_comment(self, conn, cur, column, comment):
-        """Set comment on table column."""
-        cur.execute("""
-COMMENT ON COLUMN %(sname)s.%(tname)s.%(cname)s IS %(comment)s;
-SELECT _ermrest.model_change_event();
-""" % dict(sname=sql_identifier(unicode(self.schema.name)),
-           tname=sql_identifier(unicode(self.name)),
-           cname=sql_identifier(unicode(column.name)),
-           comment=sql_literal(comment)
-           )
-                    )
+    def sql_comment_resource(self):
+        return "TABLE %s.%s" % (
+            sql_identifier(unicode(self.schema.name)),
+            sql_identifier(unicode(self.name))
+        )
 
     def add_column(self, conn, cur, columndoc, ermrest_config):
         """Add column to table."""
@@ -216,7 +200,7 @@ SELECT _ermrest.model_change_event();
         if column.name in self.columns:
             raise exception.ConflictModel('Column %s already exists in table %s:%s.' % (column.name, self.schema.name, self.name))
         self.alter_table(conn, cur, 'ADD COLUMN %s' % column.sql_def())
-        self.set_column_comment(conn, cur, column, column.comment)
+        column.set_comment(conn, cur, column.comment)
         self.columns[column.name] = column
         column.table = self
         for k, v in column.annotations.items():
