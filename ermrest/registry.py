@@ -146,8 +146,8 @@ CREATE TABLE %(schema)s.%(table)s (
 );"""
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
-
-        return self.pooled_perform(body).next()
+            return None
+        return self.pooled_perform(body)
                 
     def lookup(self, id=None):
         def body(conn, cur):
@@ -166,8 +166,10 @@ FROM %(schema)s.%(table)s
                    ) )
             
             # return results as a list of dictionaries
-            for eid, descriptor in cur:
-                yield dict(id=eid, descriptor=json.loads(descriptor))
+            return [
+                dict(id=eid, descriptor=json.loads(descriptor))
+                for eid, descriptor in cur
+            ]
 
         return self.pooled_perform(body)
 
