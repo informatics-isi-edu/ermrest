@@ -46,7 +46,81 @@ class AltDict (dict):
             return dict.__getitem__(self, k)
         except KeyError:
             raise self._keyerror(k)
+
+def annotatable(restype, keying):
+    """Decorator to add annotation storage access interface to model classes.
+
+       restype: the string name for the resource type, used to name storage, 
+       e.g. "table" for annotations on tables.
+
+       keying: dictionary of column names mapped to functions which produce
+         literals for those columns to key the individual annotations.
+    """
+    def _interp_annotation(self, key, sql_wrap=True):
+        if sql_wrap:
+            sql_wrap = sql_literal
+        else:
+            sql_wrap = lambda v: v
+        return dict([
+            (k, sql_wrap(f(self))) for k, f in keying.items()
+        ] + [
+            ('annotation_uri', sql_wrap(key))
+        ])
+        
+    def set_annotation(self, conn, cur, key, value):
+        """Set annotation on %s, returning previous value for updates or None.""" % restype
+        assert key is not None
+        if value is None:
+            raise exception.BadData('Null value is not a valid annotation.')
+        interp = self._interp_annotation(key)
+        where = ' AND '.join([
+            "%s = %s" % (sql_identifier(k), interp[k])
+            for k in keying.keys()
+        ])
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+UPDATE _ermrest.model_%s_annotation 
+SET annotation_value = %s
+WHERE %s 
+RETURNING annotation_value;
+""" % (restype, sql_literal(json.dumps(value)), where)
+        )
+        for oldvalue in cur:
+            # happens zero or one time
+            return oldvalue
+
+        # only run this if update returned empty set
+        columns = ', '.join([sql_identifier(k) for k in interp.keys()] + ['annotation_value'])
+        values = ', '.join([interp[k] for k in interp.keys()] + [sql_literal(json.dumps(value))])
+        cur.execute("""
+INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
+""" % (restype, columns, values)
+        )
+        return None
+
+    def delete_annotation(self, conn, cur, key):
+        """Delete annotation on %s.""" % restype
+        interp = self._interp_annotation(key)
+        if key is None:
+            del interp['annotation_uri']
+        where = ' AND '.join([
+            "%s = %s" % (sql_identifier(k), interp[k])
+            for k in keying.keys()
+        ])
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+DELETE FROM _ermrest.model_%s_annotation WHERE %s;
+""" % (restype, where)
+        )
     
+    def helper(orig_class):
+        setattr(orig_class, '_interp_annotation', _interp_annotation)
+        setattr(orig_class, 'set_annotation', set_annotation)
+        setattr(orig_class, 'delete_annotation', delete_annotation)
+        setattr(orig_class, '_annotation_keying', keying)
+        return orig_class
+    return helper
+
 class Model (object):
     """Represents a database model.
     

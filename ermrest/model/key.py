@@ -16,7 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
-from .misc import frozendict, AltDict
+from .misc import frozendict, AltDict, annotatable
 
 import json
 
@@ -124,7 +124,16 @@ class ForeignKey (object):
                 refs.append( kr.prejson() )
         return refs
 
-class KeyReference:
+@annotatable('keyref', dict(
+    from_schema_name=lambda self: unicode(self.foreign_key.table.schema.name),
+    from_table_name=lambda self: unicode(self.foreign_key.table.name),
+    from_column_names=lambda self: self._from_column_names(),
+    to_schema_name=lambda self: unicode(self.unique.table.schema.name),
+    to_table_name=lambda self: unicode(self.unique.table.name),
+    to_column_names=lambda self: self._to_column_names()
+    )
+)
+class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
     def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}):
@@ -149,9 +158,9 @@ class KeyReference:
 
     def __str__(self):
         interp = self._interp_annotation(None, sql_wrap=False)
-        interp['f_cnames'] = ','.join(interp['f_cnames'])
-        interp['t_cnames'] = ','.join(interp['t_cnames'])
-        return ':%(f_sname)s:%(f_tname)s(%(f_cnames)s)==>:%(t_sname)s:%(t_tname)s(%(t_cnames)s)' % interp
+        interp['from_column_names'] = ','.join(interp['from_column_names'])
+        interp['to_column_names'] = ','.join(interp['to_column_names'])
+        return ':%(from_schema_name)s:%(from_table_name)s(%(from_column_names)s)==>:%(to_schema_name)s:%(to_table_name)s(%(to_column_names)s)' % interp
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
@@ -169,97 +178,21 @@ class KeyReference:
 
     def pre_delete(self, conn, cur):
         """Do any maintenance before foreignkey reference constraint is deleted from table."""
-        cur.execute("""
-DELETE FROM _ermrest.model_keyref_annotation
-WHERE from_schema_name = %(f_sname)s
-  AND from_table_name = %(f_tname)s
-  AND from_column_names = %(f_cnames)s
-  AND to_schema_name = %(t_sname)s
-  AND to_table_name = %(t_tname)s
-  AND to_column_names = %(t_cnames)s
-;
-""" % self._interp_annotation(None)
-                    )
+        self.delete_annotation(conn, cur, None)
 
-    def _interp_annotation(self, key, value=None, sql_wrap=True):
-        # canonicalize from column order
-        f_cnames = [ str(col.name) for col in self.foreign_key.columns ]
+    def _from_column_names(self):
+        """Canonicalized from-column names list."""
+        f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
         f_cnames.sort()
-
-        # built to column order to match from column order
-        t_cnames = [ str(self.reference_map[self.foreign_key.table.columns[colname]].name) for colname in f_cnames ]
+        return f_cnames
         
-        interp = dict(
-            f_sname=self.foreign_key.table.schema.name,
-            f_tname=self.foreign_key.table.name,
-            f_cnames=f_cnames,
-            t_sname=self.unique.table.schema.name,
-            t_tname=self.unique.table.name,
-            t_cnames=t_cnames,
-            key=key,
-            value=json.dumps(value)
-            )
-
-        if sql_wrap:
-            interp = dict([ (k, sql_literal(v)) for k, v in interp.items() ])
-
-        return interp
-    
-    def set_annotation(self, conn, cur, key, value):
-        """Set annotation on column, returning previous value if it is an update or None i."""
-        if value is None:
-            raise exception.BadData('null value is not supported for annotations')
-
-        interp = self._interp_annotation(key, value)
-
-        cur.execute("""
-SELECT _ermrest.model_change_event();
-UPDATE _ermrest.model_keyref_annotation
-SET annotation_value = %(value)s
-WHERE from_schema_name = %(f_sname)s
-  AND from_table_name = %(f_tname)s
-  AND from_column_names = %(f_cnames)s
-  AND to_schema_name = %(t_sname)s
-  AND to_table_name = %(t_tname)s
-  AND to_column_names = %(t_cnames)s
-  AND annotation_uri = %(key)s
-RETURNING annotation_value
-;
-""" % interp
-                    )
-        for oldvalue in cur:
-            # happens zero or one time
-            return oldvalue
-
-        # only run this if previous update returned no rows
-        cur.execute("""
-INSERT INTO _ermrest.model_keyref_annotation
-  (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, annotation_uri, annotation_value)
-  VALUES (%(f_sname)s, %(f_tname)s, %(f_cnames)s, %(t_sname)s, %(t_tname)s, %(t_cnames)s, %(key)s, %(value)s)
-;
-SELECT _ermrest.model_change_event();
-""" % interp
-                    )
-
-        return None
-
-    def delete_annotation(self, conn, cur, key):
-        interp = self._interp_annotation(key)
-
-        cur.execute("""
-DELETE FROM _ermrest.model_keyref_annotation
-WHERE from_schema_name = %(f_sname)s
-  AND from_table_name = %(f_tname)s
-  AND from_column_names = %(f_cnames)s
-  AND to_schema_name = %(t_sname)s
-  AND to_table_name = %(t_tname)s
-  AND to_column_names = %(t_cnames)s
-  AND annotation_uri = %(key)s
-;
-SELECT _ermrest.model_change_event();
-""" % interp
-                    )
-
+    def _to_column_names(self):
+        """Canonicalized to-column names list."""
+        return [
+            unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
+            for colname in self._from_column_names()
+        ]
+        
     @staticmethod
     def fromjson(model, refdoc, fkey=None, fktable=None, pkey=None, pktable=None, outfkeys=None):
         fk_cols = []

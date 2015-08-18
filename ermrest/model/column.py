@@ -21,7 +21,14 @@ import re
 from .. import exception
 from ..util import sql_identifier, sql_literal
 from .type import Type
+from .misc import annotatable
 
+@annotatable('column', dict(
+    schema_name=lambda self: unicode(self.table.schema.name),
+    table_name=lambda self: unicode(self.table.name),
+    column_name=lambda self: unicode(self.name)
+    )
+)
 class Column (object):
     """Represents a table column.
     
@@ -137,25 +144,9 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
             parts.append('DEFAULT %s' % sql_literal(self.default_value))
         return ' '.join(parts)
 
-    def _interp_annotation(self, key, value=None):
-        return dict(
-            sname=sql_literal(unicode(self.table.schema.name)),
-            tname=sql_literal(unicode(self.table.name)),
-            cname=sql_literal(unicode(self.name)),
-            key=sql_literal(key),
-            value=sql_literal(json.dumps(value))
-            )
-
     def pre_delete(self, conn, cur):
         """Do any maintenance before column is deleted from table."""
-        cur.execute("""
-DELETE FROM _ermrest.model_column_annotation
-WHERE schema_name = %(sname)s
-  AND table_name = %(tname)s
-  AND column_name = %(cname)s
-;
-""" % self._interp_annotation(None)
-                    )
+        self.delete_annotation(conn, cur, None)
         
     @staticmethod
     def fromjson_single(columndoc, position, ermrest_config):
@@ -213,55 +204,6 @@ WHERE schema_name = %(sname)s
             self.type.sql()
             )
     
-    def set_annotation(self, conn, cur, key, value):
-        """Set annotation on column, returning previous value if it is an update or None i."""
-        if value is None:
-            raise exception.BadData('null value is not supported for annotations')
-
-        interp = self._interp_annotation(key, value)
-
-        cur.execute("""
-SELECT _ermrest.model_change_event();
-UPDATE _ermrest.model_column_annotation
-SET annotation_value = %(value)s
-WHERE schema_name = %(sname)s
-  AND table_name = %(tname)s
-  AND column_name = %(cname)s
-  AND annotation_uri = %(key)s
-RETURNING annotation_value
-;
-""" % interp
-                    )
-        for oldvalue in cur:
-            # happens zero or one time
-            return oldvalue
-
-        # only run this if previous update returned no rows
-        cur.execute("""
-INSERT INTO _ermrest.model_column_annotation
-  (schema_name, table_name, column_name, annotation_uri, annotation_value)
-  VALUES (%(sname)s, %(tname)s, %(cname)s, %(key)s, %(value)s)
-;
-SELECT _ermrest.model_change_event();
-""" % interp
-                    )
-
-        return None
-
-    def delete_annotation(self, conn, cur, key):
-        interp = self._interp_annotation(key)
-
-        cur.execute("""
-DELETE FROM _ermrest.model_column_annotation
-WHERE schema_name = %(sname)s
-  AND table_name = %(tname)s
-  AND column_name = %(cname)s
-  AND annotation_uri = %(key)s
-;
-SELECT _ermrest.model_change_event();
-""" % interp
-                    )
-
 
 class FreetextColumn (Column):
     """Represents virtual table column for free text search.
