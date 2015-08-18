@@ -253,6 +253,21 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
 
+# test key introspection
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/"
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id"
+dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
+
+cat > ${TEST_DATA} <<EOF
+{ "unique_columns": ["id", "name"] }
+EOF
+dotest "201::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
+dotest "204::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" -X DELETE
+dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" -X DELETE
+dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
+
+
 cat > ${TEST_DATA} <<EOF
 id,name
 1,foo
