@@ -235,7 +235,7 @@ class Annotations (Api):
         return self
 
     def GET_subject(self, conn, cur):
-        raise NotImplementedError()
+        return self.subject.GET_body(conn, cur)
 
     def GET_body(self, conn, cur):
         subject = self.GET_subject(conn, cur)
@@ -280,22 +280,10 @@ class TableAnnotations (Annotations):
     def __init__(self, table):
         Annotations.__init__(self, table.schema.catalog, table)
 
-    def GET_subject(self, conn, cur):
-        return self.subject.GET_body(conn, cur)
-
-
-class ColumnAnnotations (TableAnnotations):
+class ColumnAnnotations (Annotations):
 
     def __init__(self, column):
-        TableAnnotations.__init__(self, column.table)
-        self.column = column
-
-    def GET_subject(self, conn, cur):
-        table = TableAnnotations.GET_subject(self, conn, cur)
-        try:
-            return table.columns[unicode(self.column.name)]
-        except KeyError:
-            raise exception.rest.NotFound(u'column "%s"' % self.column.name)
+        Annotations.__init__(self, column.table.schema.catalog, column)
 
 class ForeignkeyReferenceAnnotations (Annotations):
 
