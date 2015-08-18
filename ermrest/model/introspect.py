@@ -28,7 +28,7 @@ import web
 
 from .. import exception
 from ..util import table_exists, view_exists
-from .misc import frozendict, Model, Schema
+from .misc import frozendict, Model, Schema, annotatable_classes
 from .type import Type, ArrayType, canonicalize_column_type
 from .column import Column
 from .table import Table
@@ -204,40 +204,6 @@ GROUP BY
  ;
 '''
 
-    TABLE_ANNOTATIONS = """
-SELECT
-  schema_name,
-  table_name,
-  annotation_uri,
-  annotation_value
-FROM _ermrest.model_table_annotation
-;
-"""
-
-    COLUMN_ANNOTATIONS = """
-SELECT
-  schema_name,
-  table_name,
-  column_name,
-  annotation_uri,
-  annotation_value
-FROM _ermrest.model_column_annotation
-;
-"""
-
-    KEYREF_ANNOTATIONS = """
-SELECT
-  from_schema_name,
-  from_table_name,
-  from_column_names,
-  to_schema_name,
-  to_table_name,
-  to_column_names,
-  annotation_uri,
-  annotation_value
-FROM _ermrest.model_keyref_annotation
-"""
-
     # PostgreSQL denotes array types with the string 'ARRAY'
     ARRAY_TYPE = 'ARRAY'
     
@@ -353,41 +319,8 @@ FROM _ermrest.model_keyref_annotation
     #
     # Introspect ERMrest model overlay annotations
     #
-    if table_exists(cur, '_ermrest', 'model_table_annotation'):
-        cur.execute(TABLE_ANNOTATIONS)
-        for sname, tname, auri, value in cur:
-            try:
-                table = model.schemas[sname].tables[tname]
-                table.annotations[auri] = value
-            except exception.ConflictModel:
-                # TODO: prune orphaned annotation?
-                pass
-
-    if table_exists(cur, '_ermrest', 'model_column_annotation'):
-        cur.execute(COLUMN_ANNOTATIONS)
-        for sname, tname, cname, auri, value in cur:
-            try:
-                column = model.schemas[sname].tables[tname].columns[cname]
-                column.annotations[auri] = value
-            except exception.ConflictModel:
-                # TODO: prune orphaned annotation?
-                pass        
-
-    if table_exists(cur, '_ermrest', 'model_keyref_annotation'):
-        cur.execute(KEYREF_ANNOTATIONS)
-        for from_sname, from_tname, from_cnames, to_sname, to_tname, to_cnames, auri, value in cur:
-            try:
-                from_table = model.schemas[from_sname].tables[from_tname]
-                to_table = model.schemas[to_sname].tables[to_tname]
-                refmap = dict([
-                    (from_table.columns[from_cname], to_table.columns[to_cname])
-                    for from_cname, to_cname in zip(from_cnames, to_cnames)
-                ])
-                fkr = from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)]
-                fkr.annotations[auri] = value
-            except exception.ConflictModel:
-                # TODO: prune orphaned annotation?
-                pass        
+    for klass in annotatable_classes:
+        klass.introspect_helper(cur, model)
 
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']

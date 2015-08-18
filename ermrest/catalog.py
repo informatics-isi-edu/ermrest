@@ -38,6 +38,7 @@ import web
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model import introspect
+from .model.misc import annotatable_classes
 
 __all__ = ['get_catalog_factory']
 
@@ -308,46 +309,9 @@ CREATE TABLE %(schema)s.%(table)s (
            table=self._TABLE_NAME)
                         )
 
-        if not table_exists(cur, self._SCHEMA_NAME, 'model_table_annotation'):
-            cur.execute("""
-CREATE TABLE %(schema)s.model_table_annotation (
-    schema_name text NOT NULL,
-    table_name text NOT NULL,
-    annotation_uri text NOT NULL,
-    annotation_value json,
-    UNIQUE (schema_name, table_name, annotation_uri)
-);
-""" % dict(schema=self._SCHEMA_NAME)
-                        )
-            
-        if not table_exists(cur, self._SCHEMA_NAME, 'model_column_annotation'):
-            cur.execute("""
-CREATE TABLE %(schema)s.model_column_annotation (
-    schema_name text NOT NULL,
-    table_name text NOT NULL,
-    column_name text NOT NULL,
-    annotation_uri text NOT NULL,
-    annotation_value json,
-    UNIQUE (schema_name, table_name, column_name, annotation_uri)
-);
-""" % dict(schema=self._SCHEMA_NAME)
-                        )
-            
-        if not table_exists(cur, self._SCHEMA_NAME, 'model_keyref_annotation'):
-            cur.execute("""
-CREATE TABLE %(schema)s.model_keyref_annotation (
-    from_schema_name text NOT NULL,
-    from_table_name text NOT NULL,
-    from_column_names text[] NOT NULL,
-    to_schema_name text NOT NULL,
-    to_table_name text NOT NULL,
-    to_column_names text[] NOT NULL,
-    annotation_uri text NOT NULL,
-    annotation_value json,
-    UNIQUE (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, annotation_uri)
-);
-""" % dict(schema=self._SCHEMA_NAME)
-                        )
+        # create annotation storage tables
+        for klass in annotatable_classes:
+            klass.create_storage_table(cur)
             
         if not table_exists(cur, self._SCHEMA_NAME, self._MODEL_VERSION_TABLE_NAME):
             cur.execute("""

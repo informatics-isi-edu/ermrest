@@ -34,8 +34,8 @@ import urllib
 import json
 
 @annotatable('table', dict(
-    schema_name=lambda self: unicode(self.schema.name),
-    table_name=lambda self: unicode(self.name)
+    schema_name=('text', lambda self: unicode(self.schema.name)),
+    table_name=('text', lambda self: unicode(self.name))
     )
 )
 class Table (object):
@@ -62,6 +62,10 @@ class Table (object):
 
         if name not in self.schema.tables:
             self.schema.tables[name] = self
+
+    @staticmethod
+    def introspect_annotation(model=None, schema_name=None, table_name=None, annotation_uri=None, annotation_value=None):
+        model.schemas[schema_name].tables[table_name].annotations[annotation_uri] = annotation_value
 
     def __str__(self):
         return ':%s:%s' % (

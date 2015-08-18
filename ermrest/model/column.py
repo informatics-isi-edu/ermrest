@@ -24,9 +24,9 @@ from .type import Type
 from .misc import annotatable
 
 @annotatable('column', dict(
-    schema_name=lambda self: unicode(self.table.schema.name),
-    table_name=lambda self: unicode(self.table.name),
-    column_name=lambda self: unicode(self.name)
+    schema_name=('text', lambda self: unicode(self.table.schema.name)),
+    table_name=('text', lambda self: unicode(self.table.name)),
+    column_name=('text', lambda self: unicode(self.name))
     )
 )
 class Column (object):
@@ -52,6 +52,10 @@ class Column (object):
         self.annotations = dict()
         self.annotations.update(annotations)
     
+    @staticmethod
+    def introspect_annotation(model=None, schema_name=None, table_name=None, column_name=None, annotation_uri=None, annotation_value=None):
+        model.schemas[schema_name].tables[table_name].columns[column_name].annotations[annotation_uri] = annotation_value
+
     def __str__(self):
         return ':%s:%s:%s' % (
             urllib.quote(self.table.schema.name),

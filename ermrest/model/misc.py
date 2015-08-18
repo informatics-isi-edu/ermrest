@@ -15,7 +15,7 @@
 #
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, view_exists
+from ..util import sql_identifier, sql_literal, view_exists, table_exists
 from .type import _default_config
 
 import json
@@ -47,14 +47,18 @@ class AltDict (dict):
         except KeyError:
             raise self._keyerror(k)
 
+annotatable_classes = []
+        
 def annotatable(restype, keying):
     """Decorator to add annotation storage access interface to model classes.
 
        restype: the string name for the resource type, used to name storage, 
        e.g. "table" for annotations on tables.
 
-       keying: dictionary of column names mapped to functions which produce
+       keying: dictionary of column names mapped to (psql_type, function) pairs
+         which define the Postgres storage type and compute 
          literals for those columns to key the individual annotations.
+
     """
     def _interp_annotation(self, key, sql_wrap=True):
         if sql_wrap:
@@ -62,7 +66,7 @@ def annotatable(restype, keying):
         else:
             sql_wrap = lambda v: v
         return dict([
-            (k, sql_wrap(f(self))) for k, f in keying.items()
+            (k, sql_wrap(v[1](self))) for k, v in keying.items()
         ] + [
             ('annotation_uri', sql_wrap(key))
         ])
@@ -112,12 +116,51 @@ SELECT _ermrest.model_change_event();
 DELETE FROM _ermrest.model_%s_annotation WHERE %s;
 """ % (restype, where)
         )
-    
+
+    @classmethod
+    def create_storage_table(orig_class, cur):
+        keys = keying.keys() + ['annotation_uri']
+        cur.execute("""
+CREATE TABLE _ermrest.model_%s_annotation (%s);
+""" % (
+    restype,
+    ', '.join([ '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0]) for k in keys ]
+              + [
+                  'annotation_value json',
+                  'UNIQUE(%s)' % ', '.join([ sql_identifier(k) for k in keys ])
+              ]
+    )
+)
+            )
+        
+    @classmethod
+    def introspect_helper(orig_class, cur, model):
+        """Introspect annotations on %s, adding them to model.""" % restype
+        keys = keying.keys() + ['annotation_uri', 'annotation_value']
+        cur.execute("""
+SELECT %s FROM _ermrest.model_%s_annotation;
+""" % (
+    ','.join([ sql_identifier(k) for k in keys]),
+    restype
+)
+        )
+        for row in cur:
+            kwargs = dict([ (keys[i], row[i]) for i in range(len(keys)) ])
+            kwargs['model'] = model
+            try:
+                orig_class.introspect_annotation(**kwargs)
+            except exception.ConflictModel:
+                # TODO: prune orphaned annotation?
+                pass
+                
     def helper(orig_class):
         setattr(orig_class, '_interp_annotation', _interp_annotation)
         setattr(orig_class, 'set_annotation', set_annotation)
         setattr(orig_class, 'delete_annotation', delete_annotation)
         setattr(orig_class, '_annotation_keying', keying)
+        setattr(orig_class, 'introspect_helper', introspect_helper)
+        setattr(orig_class, 'create_storage_table', create_storage_table)
+        annotatable_classes.append(orig_class)
         return orig_class
     return helper
 

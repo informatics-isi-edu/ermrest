@@ -125,12 +125,12 @@ class ForeignKey (object):
         return refs
 
 @annotatable('keyref', dict(
-    from_schema_name=lambda self: unicode(self.foreign_key.table.schema.name),
-    from_table_name=lambda self: unicode(self.foreign_key.table.name),
-    from_column_names=lambda self: self._from_column_names(),
-    to_schema_name=lambda self: unicode(self.unique.table.schema.name),
-    to_table_name=lambda self: unicode(self.unique.table.name),
-    to_column_names=lambda self: self._to_column_names()
+    from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+    from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
+    from_column_names=('text[]', lambda self: self._from_column_names()),
+    to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
+    to_table_name=('text', lambda self: unicode(self.unique.table.name)),
+    to_column_names=('text[]', lambda self: self._to_column_names())
     )
 )
 class KeyReference (object):
@@ -155,6 +155,16 @@ class KeyReference (object):
             self.constraint_names.add(constraint_name)
         self.annotations = dict()
         self.annotations.update(annotations)
+
+    @staticmethod
+    def introspect_annotation(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None, annotation_uri=None, annotation_value=None):
+        from_table = model.schemas[from_schema_name].tables[from_table_name]
+        to_table = model.schemas[to_schema_name].tables[to_table_name]
+        refmap = dict([
+            (from_table.columns[from_cname], to_table.columns[to_cname])
+            for from_cname, to_cname in zip(from_column_names, to_column_names)
+        ])
+        from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].annotations[annotation_uri] = annotation_value
 
     def __str__(self):
         interp = self._interp_annotation(None, sql_wrap=False)
