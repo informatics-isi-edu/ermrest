@@ -423,17 +423,18 @@ class Keys (Api):
         def post_commit(self, newkeys):
             web.ctx.status = '201 Created'
             return _post_commit_json(self, newkeys)
-        return _MODIFY(self, self.POST_body, post_commit)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
-class Key (Keys):
+class Key (Api):
     """A specific key by column set."""
     def __init__(self, table, column_set, catalog=None):
-        Keys.__init__(self, table, catalog)
+        Api.__init__(self, catalog)
+        self.table = table
         self.columns = column_set
 
     def GET_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns[str(c)] for c in self.columns ])
+        cols = frozenset([ table.columns[unicode(c)] for c in self.columns ])
         if cols not in table.uniques:
             raise exception.rest.NotFound(u'key (%s)' % (u','.join([ unicode(c) for c in cols])))
         return table.uniques[cols]
@@ -442,14 +443,12 @@ class Key (Keys):
         return _GET(self, self.GET_body, _post_commit_json)
 
     def DELETE_body(self, conn, cur):
-        table, key = self.GET_body(conn, cur)
-        table.delete_unique(conn, cur, key)
+        key = self.GET_body(conn, cur)
+        key.table.delete_unique(conn, cur, key)
         return ''
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
-
-    # TODO: should superclass POST() method be disabled? is inheritence even useful here?
 
 class Foreignkeys (Api):
     """A set of foreign keys."""
