@@ -389,10 +389,6 @@ class Column (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
     
-    def POST(self, uri):
-        # turn off inherited POST method from Columns superclass
-        raise exception.rest.NoMethod('create columns at the column collection resource instead')
-        
     def DELETE_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)
         table.delete_column(conn, cur, str(self.name))
