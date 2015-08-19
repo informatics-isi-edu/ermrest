@@ -47,6 +47,7 @@ def p_apis(p):
              | schemas 
              | schema
              | schemaslash
+             | schemacomment
              | tables 
              | tablesslash
              | table
@@ -417,6 +418,10 @@ def p_schema(p):
 def p_schema2(p):
     """schemaslash : schema '/'"""
     p[0] = p[1]
+
+def p_schemacomment(p):
+    """schemacomment : schemaslash COMMENT """
+    p[0] = p[1].comment()
 
 def p_tables(p):
     """tables : schemaslash TABLE"""

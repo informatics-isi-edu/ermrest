@@ -97,6 +97,10 @@ class Schema (Api):
         self.schemas = Schemas(catalog)
         self.name = name
 
+    def comment(self):
+        """The comment for this schema."""
+        return SchemaComment(self)
+
     def tables(self):
         """The table set for this schema."""
         return Tables(self)
@@ -195,15 +199,18 @@ class Comment (Api):
             return ''
         return _MODIFY(self, body, _post_commit)       
 
+class SchemaComment (Comment):
+    """A specific schema's comment."""
+    def __init__(self, schema):
+        Comment.__init__(self, schema.catalog, schema)
+
 class TableComment (Comment):
     """A specific table's comment."""
-    
     def __init__(self, table):
         Comment.__init__(self, table.schema.catalog, table)
 
 class ColumnComment (Comment):
     """A specific column's comment."""
-    
     def __init__(self, column):
         Comment.__init__(self, column.table.schema.catalog, column)
 

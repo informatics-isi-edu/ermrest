@@ -263,7 +263,8 @@ CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "tabl
 CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
 """ % ' UNION '.join(vmap_parts)
                 )
-        
+
+@commentable()
 class Schema (object):
     """Represents a database schema.
     
@@ -271,9 +272,10 @@ class Schema (object):
     also has a reference to its 'model'.
     """
     
-    def __init__(self, model, name):
+    def __init__(self, model, name, comment=None):
         self.model = model
         self.name = name
+        self.comment = comment
         self.tables = AltDict(lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, self)))
         
         if name not in self.model.schemas:
@@ -282,12 +284,16 @@ class Schema (object):
     def __unicode__(self):
         return u"%s" % self.name
 
+    def sql_comment_resource(self):
+        return u'SCHEMA %s' % sql_identifier(unicode(self.name))
+    
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
         return dict(
-            schema_name=self.name.encode('utf8'),
+            schema_name=self.name,
+            comment=self.comment,
             tables=dict([
                     (t, self.tables[t].prejson()) for t in self.tables
                     ])

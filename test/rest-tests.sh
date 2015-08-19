@@ -327,6 +327,7 @@ dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1
 
 # do comment tests
 resources=(
+    /schema/test1
     /schema/test1/table/test_level2
     /schema/test1/table/test_level2/column/name
 )
