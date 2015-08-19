@@ -34,7 +34,7 @@ On success, this request yields a description:
     HTTP/1.1 200 OK
     Content-Type: application/json
     
-    {"id": "1", ...}
+    {"id": "42", ...}
 
 Typical error response codes include:
 - 404 Not Found

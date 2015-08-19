@@ -2,6 +2,19 @@
 
 Unlike general web architecture, [ERMrest](http://github.com/informatics-isi-edu/ermrest) expects clients to understand the URL internal structure and permits (or even encourages) reflection on URL content to understand how one resource name relates to another. To support introspection and management, the data model of a catalog is exposed as a set of model-level resources. These model elements also influence the [naming of data resources](../data/naming.md).
 
+## Catalog Names
+
+The ERMrest model resources belong a catalog resource:
+
+- _service_ `/catalog/` _cid_
+
+where the components of this root path are:
+
+- _service_: the ERMrest service endpoint such as `https://www.example.com/ermrest`.
+- _cid_: the catalog identifier for one dataset such as `42`.
+
+The catalog resource has a representation which provides basic information about it including access control lists.
+
 ## Schemata Names
 
 The ERMrest model resources are named under a root collection of schemata for a particular catalog:
@@ -109,8 +122,8 @@ This named constraint has a representation which summarizes its set of constitue
 
 Additionally, a composite resource summarizes all foreign key constraints on one table for discovery and bulk retrieval purposes:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey` 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/`
 
 Additionally, a composite resource summarizes all foreign key constraints involving one composite foreign key _column name_ list:
 
@@ -136,4 +149,3 @@ Additionally, a composite resource summarizes all existing annotations on one fo
 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ... `/annotation`
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ... `/annotation/`
-
