@@ -191,7 +191,8 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
             WHEN 'r'::"char" THEN 'RESTRICT'::text
             WHEN 'a'::"char" THEN 'NO ACTION'::text
             ELSE NULL::text
-    END::information_schema.character_data AS rc_update_rule
+    END::information_schema.character_data AS rc_update_rule,
+    obj_description(con.oid) AS constraint_comment
   FROM pg_namespace ncon
   JOIN pg_constraint con ON ncon.oid = con.connamespace
   JOIN pg_class fkcl ON con.conrelid = fkcl.oid AND con.contype = 'f'::"char"
@@ -291,7 +292,7 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     #
     cur.execute(FKEY_COLUMNS)
     for fk_schema, fk_name, fk_table_schema, fk_table_name, fk_column_names, \
-            uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update \
+            uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update, fk_comment \
             in cur:
 
         fk_cols = [ columns[(dname, fk_table_schema, fk_table_name, fk_column_names[i])]
@@ -312,10 +313,12 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
 
         # each reference constraint implies a foreign key reference but might be duplicate
         if fk_ref_map not in fk.references:
-            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name) )
+            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name), comment=fk_comment )
         else:
             fk.references[fk_ref_map].constraint_names.add( (fk_schema, fk_name) )
-
+            if fk_comment:
+                # save at least one comment in case multiple csontraints have same key mapping
+                fk.references[fk_ref_map].comment = fk_comment
     #
     # Introspect ERMrest model overlay annotations
     #

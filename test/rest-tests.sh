@@ -331,6 +331,7 @@ resources=(
     /schema/test1/table/test_level2
     /schema/test1/table/test_level2/column/name
     /schema/test1/table/test_level2/key/id
+    /schema/test1/table/test_level2/foreignkey/level1_id/reference/test_level1/id
 )
 for resource in ${resources[@]}
 do

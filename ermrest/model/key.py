@@ -140,6 +140,7 @@ class ForeignKey (object):
                 refs.append( kr.prejson() )
         return refs
 
+@commentable()
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
     from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
@@ -152,7 +153,7 @@ class ForeignKey (object):
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map = dict(fk_ref_map)
@@ -171,6 +172,7 @@ class KeyReference (object):
             self.constraint_names.add(constraint_name)
         self.annotations = dict()
         self.annotations.update(annotations)
+        self.comment = comment
 
     @staticmethod
     def introspect_annotation(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None, annotation_uri=None, annotation_value=None):
@@ -181,6 +183,18 @@ class KeyReference (object):
             for from_cname, to_cname in zip(from_column_names, to_column_names)
         ])
         from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].annotations[annotation_uri] = annotation_value
+
+    def sql_comment_resource(self):
+        return set([
+            # we treat all fkeyref constraints w/ same cmapping as equivalence class of fkeyref
+            # NOTE: this overwrites comments on multiple constraints that might be different in legacy DB!
+            "CONSTRAINT %s ON %s.%s" % (
+                sql_identifier(unicode(fk_name)),
+                sql_identifier(unicode(self.foreign_key.table.schema.name)),
+                sql_identifier(unicode(self.foreign_key.table.name))
+                )
+            for fk_schema, fk_name in self.constraint_names
+        ])
 
     def __str__(self):
         interp = self._interp_annotation(None, sql_wrap=False)
@@ -278,13 +292,14 @@ class KeyReference (object):
         fk_columns = list(check_columns(refdoc.get('foreign_key_columns', []), 'foreign-key'))
         pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
         annotations = refdoc.get('annotations', {})
+        comment = refdoc.get('comment')
 
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
         
         if fk_ref_map not in fkey.references:
-            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations)
+            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
             yield fkey.references[fk_ref_map]
 
     def prejson(self):
@@ -296,6 +311,7 @@ class KeyReference (object):
         return dict(
             foreign_key_columns=fcs,
             referenced_columns=pcs,
+            comment=self.comment,
             annotations=self.annotations
             )
 

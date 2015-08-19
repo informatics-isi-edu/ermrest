@@ -417,6 +417,7 @@ def p_commentable(p):
                    | tableslash
                    | columnslash
                    | keyslash
+                   | foreignkeyrefslash
     """
     p[0] = p[1]
 

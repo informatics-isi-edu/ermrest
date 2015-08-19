@@ -222,6 +222,17 @@ class KeyComment (Comment):
     def __init__(self, key):
         Comment.__init__(self, key.table.schema.catalog, key)
 
+class ForeignkeyReferencesComment (Comment):
+    """A specific fkey's comment."""
+    def __init__(self, fkey):
+        Comment.__init__(self, fkey.catalog, fkey)
+    
+    def GET_subject(self, conn, cur):
+        fkrs = self.subject.GET_body(conn, cur)
+        if len(fkrs) != 1:
+            raise NotImplementedError('ForeignkeyReferencesComment on %d fkrs' % len(fkrs))
+        return fkrs[0]
+
 class Annotations (Api):
     def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
@@ -577,6 +588,9 @@ class ForeignkeyReferences (Api):
 
     def annotations(self):
         return ForeignkeyReferenceAnnotations(self)
+
+    def comment(self):
+        return ForeignkeyReferencesComment(self)
 
     def GET_body(self, conn, cur):
         from_table, from_key = None, None
