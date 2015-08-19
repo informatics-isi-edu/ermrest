@@ -347,9 +347,10 @@ done
 # do annotation tests
 tag_key='tag%3Amisd.isi.edu%2C2015%3Atest1' # tag:misd.isi.edu,2015:test1
 resources=(
-    /schema/test1/table/test_level2/foreignkey/level1_id/reference/test_level1/id
+    /schema/test1
     /schema/test1/table/test_level2
     /schema/test1/table/test_level2/column/name
+    /schema/test1/table/test_level2/foreignkey/level1_id/reference/test_level1/id
 )
 for resource in ${resources[@]}
 do

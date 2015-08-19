@@ -101,6 +101,9 @@ class Schema (Api):
         """The comment for this schema."""
         return SchemaComment(self)
 
+    def annotations(self):
+        return SchemaAnnotations(self)
+
     def tables(self):
         """The table set for this schema."""
         return Tables(self)
@@ -266,17 +269,18 @@ class Annotations (Api):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
 class TableAnnotations (Annotations):
-
     def __init__(self, table):
         Annotations.__init__(self, table.schema.catalog, table)
 
-class ColumnAnnotations (Annotations):
+class SchemaAnnotations (Annotations):
+    def __init__(self, schema):
+        Annotations.__init__(self, schema.catalog, schema)
 
+class ColumnAnnotations (Annotations):
     def __init__(self, column):
         Annotations.__init__(self, column.table.schema.catalog, column)
 
 class ForeignkeyReferenceAnnotations (Annotations):
-
     def __init__(self, fkrs):
         Annotations.__init__(self, fkrs.catalog, fkrs)
 

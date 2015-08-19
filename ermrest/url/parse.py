@@ -48,6 +48,9 @@ def p_apis(p):
              | schema
              | schemaslash
              | schemacomment
+             | schemaannotations
+             | schemaannotationsslash
+             | schemaannotation
              | tables 
              | tablesslash
              | table
@@ -422,6 +425,18 @@ def p_schema2(p):
 def p_schemacomment(p):
     """schemacomment : schemaslash COMMENT """
     p[0] = p[1].comment()
+
+def p_schemaannotations(p):
+    """schemaannotations : schemaslash ANNOTATION """
+    p[0] = p[1].annotations()
+
+def p_schemaannotationsslash(p):
+    """schemaannotationsslash : schemaannotations '/' """
+    p[0] = p[1]
+
+def p_schemaannotation(p):
+    """schemaannotation : schemaannotationsslash string"""
+    p[0] = p[1].annotation(p[2])
 
 def p_tables(p):
     """tables : schemaslash TABLE"""

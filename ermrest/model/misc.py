@@ -237,6 +237,7 @@ SELECT _ermrest.model_change_event();
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
+        self.schemsa[sname].delete_annotations(conn, cur, None)
         del self.schemas[sname]
 
     def recreate_value_map(self, conn, cur, empty=False):
@@ -265,6 +266,10 @@ CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value
                 )
 
 @commentable()
+@annotatable('schema', dict(
+    schema_name=('text', lambda self: unicode(self.name))
+    )
+)
 class Schema (object):
     """Represents a database schema.
     
@@ -272,14 +277,20 @@ class Schema (object):
     also has a reference to its 'model'.
     """
     
-    def __init__(self, model, name, comment=None):
+    def __init__(self, model, name, comment=None, annotations={}):
         self.model = model
         self.name = name
         self.comment = comment
         self.tables = AltDict(lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, self)))
+        self.annotations = dict()
+        self.annotations.update(annotations)
         
         if name not in self.model.schemas:
             self.model.schemas[name] = self
+
+    @staticmethod
+    def introspect_annotation(model=None, schema_name=None, annotation_uri=None, annotation_value=None):
+        model.schemas[schema_name].annotations[annotation_uri] = annotation_value
 
     def __unicode__(self):
         return u"%s" % self.name
@@ -294,6 +305,7 @@ class Schema (object):
         return dict(
             schema_name=self.name,
             comment=self.comment,
+            annotations=self.annotations,
             tables=dict([
                     (t, self.tables[t].prejson()) for t in self.tables
                     ])
