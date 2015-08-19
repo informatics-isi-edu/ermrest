@@ -61,6 +61,7 @@ def p_apis(p):
              | columnslash
              | keys 
              | key
+             | keyslash
              | foreignkeys 
              | foreignkey
              | foreignkeyrefs 
@@ -415,6 +416,7 @@ def p_commentable(p):
     """commentable : schemaslash
                    | tableslash
                    | columnslash
+                   | keyslash
     """
     p[0] = p[1]
 
@@ -489,6 +491,9 @@ def p_key(p):
             raise ParseError(name, 'Qualified key column name not allowed: ')
     p[0] = p[1].key(p[4])
 
+def p_keyslash(p):
+    """keyslash : key '/' """
+    p[0] = p[1]
 
 def p_foreignkeys(p):
     """foreignkeys : tableslash FOREIGNKEY slashopt """

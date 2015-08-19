@@ -217,6 +217,11 @@ class ColumnComment (Comment):
     def __init__(self, column):
         Comment.__init__(self, column.table.schema.catalog, column)
 
+class KeyComment (Comment):
+    """A specific key's comment."""
+    def __init__(self, key):
+        Comment.__init__(self, key.table.schema.catalog, key)
+
 class Annotations (Api):
     def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
@@ -439,6 +444,9 @@ class Key (Api):
         self.table = table
         self.columns = column_set
 
+    def comment(self):
+        return KeyComment(self)
+        
     def GET_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)
         cols = frozenset([ table.columns[unicode(c)] for c in self.columns ])

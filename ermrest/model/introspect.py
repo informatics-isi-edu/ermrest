@@ -150,7 +150,8 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     (SELECT array_agg(pka.attname ORDER BY i.i)
      FROM generate_subscripts(con.conkey, 1) i
      JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid AND con.conkey[i.i] = pka.attnum
-    ) AS pk_column_names
+    ) AS pk_column_names,
+    obj_description(con.oid) AS constraint_comment
   FROM pg_namespace ncon
   JOIN pg_constraint con ON ncon.oid = con.connamespace
   JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
@@ -269,7 +270,7 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     # Introspect uniques / primary key references, aggregated by constraint
     #
     cur.execute(PKEY_COLUMNS)
-    for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names in cur:
+    for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
 
         pk_cols = [ columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
                     for pk_column_name in pk_column_names ]
@@ -278,9 +279,12 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
 
         # each constraint implies a pkey but might be duplicate
         if pk_colset not in pkeys:
-            pkeys[pk_colset] = Unique(pk_colset, (pk_schema, pk_name) )
+            pkeys[pk_colset] = Unique(pk_colset, (pk_schema, pk_name), pk_comment )
         else:
             pkeys[pk_colset].constraint_names.add( (pk_schema, pk_name) )
+            if pk_comment:
+                # save at least one comment in case multiple constraints have same key columns
+                pkeys[pk_colset].comment = pk_comment
 
     #
     # Introspect foreign keys references, aggregated by reference constraint

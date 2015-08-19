@@ -16,26 +16,40 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
-from .misc import frozendict, AltDict, annotatable
+from .misc import frozendict, AltDict, annotatable, commentable
 
 import json
 
+@commentable()
 class Unique (object):
     """A unique constraint."""
     
-    def __init__(self, cols, constraint_name=None):
+    def __init__(self, cols, constraint_name=None, comment=None):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
         self.constraint_names = set()
+        self.comment = comment
         if constraint_name:
             self.constraint_names.add(constraint_name)
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
         
+    def sql_comment_resource(self):
+        return set([
+            # we treat all unique constraints w/ same column set as equivalence class of key
+            # NOTE: this overwrites comments on multiple constraints that might be different in legacy DB!
+            "CONSTRAINT %s ON %s.%s" % (
+                sql_identifier(unicode(pk_name)),
+                sql_identifier(unicode(self.table.schema.name)),
+                sql_identifier(unicode(self.table.name))
+                )
+            for pk_schema, pk_name in self.constraint_names
+        ])
+
     def __str__(self):
         return ','.join([ str(c) for c in self.columns ])
 
@@ -54,13 +68,14 @@ class Unique (object):
         """Yield Unique instance if and only if keydoc describes a key not already in table."""
         keycolumns = []
         kcnames = keydoc.get('unique_columns', [])
+        comment = keydoc.get('comment')
         for kcname in kcnames:
             if kcname not in table.columns:
                 raise exception.BadData('Key column %s not defined in table.' % kcname)
             keycolumns.append(table.columns[kcname])
         keycolumns = frozenset(keycolumns)
         if keycolumns not in table.uniques:
-            yield Unique(keycolumns)
+            yield Unique(keycolumns, comment=comment)
 
     @staticmethod
     def fromjson(table, keysdoc):
@@ -76,6 +91,7 @@ class Unique (object):
 
     def prejson(self):
         return dict(
+            comment=self.comment,
             unique_columns=[ c.name for c in self.columns ]
             )
 
