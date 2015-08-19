@@ -4,7 +4,7 @@ Unlike general web architecture, [ERMrest](http://github.com/informatics-isi-edu
 
 ## Catalog Names
 
-The ERMrest model resources belong a catalog resource:
+The ERMrest model resources belong to a catalog resource:
 
 - _service_ `/catalog/` _cid_
 
