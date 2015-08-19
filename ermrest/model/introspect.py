@@ -272,8 +272,6 @@ GROUP BY
     cur.execute(PKEY_COLUMNS)
     for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names in cur:
 
-        pk_constraint_key = (pk_schema, pk_name)
-
         pk_cols = [ columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
                     for pk_column_name in pk_column_names ]
 
@@ -292,8 +290,6 @@ GROUP BY
     for fk_schema, fk_name, fk_table_schema, fk_table_name, fk_column_names, \
             uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update \
             in cur:
-
-        fk_constraint_key = (fk_schema, fk_name)
 
         fk_cols = [ columns[(dname, fk_table_schema, fk_table_name, fk_column_names[i])]
                     for i in range(0, len(fk_column_names)) ]
