@@ -21,10 +21,16 @@ from .misc import frozendict, AltDict, annotatable, commentable
 import json
 
 @commentable()
+@annotatable('key', dict(
+    schema_name=('text', lambda self: unicode(self.table.schema.name)),
+    table_name=('text', lambda self: unicode(self.table.name)),
+    column_names=('text[]', lambda self: self._column_names())
+    )
+)
 class Unique (object):
     """A unique constraint."""
     
-    def __init__(self, cols, constraint_name=None, comment=None):
+    def __init__(self, cols, constraint_name=None, comment=None, annotations={}):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
@@ -32,11 +38,19 @@ class Unique (object):
         self.table_references = dict()
         self.constraint_names = set()
         self.comment = comment
+        self.annotations = dict()
+        self.annotations.update(annotations)
         if constraint_name:
             self.constraint_names.add(constraint_name)
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
+        
+    @staticmethod
+    def introspect_annotation(model=None, schema_name=None, table_name=None, column_names=None, annotation_uri=None, annotation_value=None):
+        table = model.schemas[schema_name].tables[table_name]
+        columns = [ table.columns[cname] for cname in column_names ]
+        table.uniques[frozenset(columns)].annotations[annotation_uri] = annotation_value
         
     def sql_comment_resource(self):
         return set([
@@ -63,19 +77,26 @@ class Unique (object):
         """Render SQL table constraint clause for DDL."""
         return 'UNIQUE(%s)' % (','.join([sql_identifier(c.name) for c in self.columns]))
 
+    def _column_names(self):
+        """Canonicalized column names list."""
+        cnames = [ unicode(col.name) for col in self.columns ]
+        cnames.sort()
+        return cnames
+        
     @staticmethod
     def fromjson_single(table, keydoc):
         """Yield Unique instance if and only if keydoc describes a key not already in table."""
         keycolumns = []
         kcnames = keydoc.get('unique_columns', [])
         comment = keydoc.get('comment')
+        annotations = keydoc.get('annotations', {})
         for kcname in kcnames:
             if kcname not in table.columns:
                 raise exception.BadData('Key column %s not defined in table.' % kcname)
             keycolumns.append(table.columns[kcname])
         keycolumns = frozenset(keycolumns)
         if keycolumns not in table.uniques:
-            yield Unique(keycolumns, comment=comment)
+            yield Unique(keycolumns, comment=comment, annotations=annotations)
 
     @staticmethod
     def fromjson(table, keysdoc):
@@ -92,6 +113,7 @@ class Unique (object):
     def prejson(self):
         return dict(
             comment=self.comment,
+            annotations=self.annotations,
             unique_columns=[ c.name for c in self.columns ]
             )
 

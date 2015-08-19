@@ -296,6 +296,10 @@ class ColumnAnnotations (Annotations):
     def __init__(self, column):
         Annotations.__init__(self, column.table.schema.catalog, column)
 
+class KeyAnnotations (Annotations):
+    def __init__(self, key):
+        Annotations.__init__(self, key.table.schema.catalog, key)
+
 class ForeignkeyReferenceAnnotations (Annotations):
     def __init__(self, fkrs):
         Annotations.__init__(self, fkrs.catalog, fkrs)
@@ -457,6 +461,9 @@ class Key (Api):
 
     def comment(self):
         return KeyComment(self)
+
+    def annotations(self):
+        return KeyAnnotations(self)
         
     def GET_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)

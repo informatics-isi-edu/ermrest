@@ -429,6 +429,7 @@ def p_annotatable(p):
     """annotatable : schemaslash
                    | tableslash
                    | columnslash
+                   | keyslash
                    | foreignkeyrefslash
     """
     p[0] = p[1]
