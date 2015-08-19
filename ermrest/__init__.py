@@ -142,22 +142,6 @@ def deploy_registry():
     """
     registry.deploy()
     
-def registry_register(descriptor, id=None):
-    """
-    Register a catalog connection string in the ERMREST registry.
-    
-    Optionally, map the connection string to a specified identifier.
-    
-    Return the catalog identifier.
-    """
-    return registry.register(descriptor, id)
-    
-def registry_unregister(id):
-    """
-    Unregister a catalog from the ERMRESET registry.
-    """
-    registry.unregister(id)
-
 def catalog_create():
     """
     Creates a new catalog.
