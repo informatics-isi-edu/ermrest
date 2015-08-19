@@ -33,6 +33,7 @@ The ERMrest web service model exposes resources to support management of dataset
 1. [Schema or model resources](model/naming.md)
   1. [Schemata](model/naming.md#schemata-names): entire data model of a dataset (in one catalog)
   1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
+    1. [Schema comment](model/naming.md#schema-comments): human-readable documentation for a schema
     1. [Table definition](model/naming.md#table-names): a particular named set of data tuples (in one schema)
       1. [Table comment](model/naming.md#table-comments): human-readable documentation for a table
       1. [Table annotation](model/naming.md#table-annotations): machine-readable documentation for a table

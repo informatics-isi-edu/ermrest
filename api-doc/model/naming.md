@@ -23,6 +23,14 @@ Each schema or namespace of tables in a particular catalog is reified as a model
 
 This named schema resource has a representation which summarizes the data model of all tables qualified by the _schema name_ namespace.
 
+### Schema Comments
+
+Each schema comment is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/comment`
+
+This named resource has a simple representation which is just human readable text in `text/plain` format.
+
 ## Table Names
 
 Each table is reified as a model-level resource:
