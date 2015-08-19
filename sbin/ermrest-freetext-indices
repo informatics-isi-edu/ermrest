@@ -16,7 +16,7 @@ def catalog_auto_index(catalog, conn, cur, schema_names):
 
     model = catalog.get_model(cur, ermrest.ermrest_apis.global_env)
     for sname in schema_names:
-        schema = model.lookup_schema(sname)
+        schema = model.schemas[sname]
         for table in schema.tables.values():
             column = table.freetext_column()
             cur.execute(column.textsearch_index_sql())
@@ -78,7 +78,9 @@ def main(argv):
     catalog = ermrest.Catalog(ermrest.catalog_factory, catalog_descriptor)
     
     try:
-        ermrest.sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: catalog_auto_index(catalog, conn, cur, schema_names), verbose=False).next()
+        pc = ermrest.sanepg2.PooledConnection(catalog.dsn)
+        pc.perform(lambda conn, cur: catalog_auto_index(catalog, conn, cur, schema_names), verbose=False).next()
+        pc.final()
     except ermrest.exception.ConflictModel, e:
         sys.stderr.write(str(e) + "\n")
         return 4

@@ -129,22 +129,22 @@ class PoolManager (object):
 
 pools = PoolManager()       
 
+class PooledConnection (object):
+    def __init__(self, dsn):
+        self.used_pool = pools[dsn]
+        self.conn = self.used_pool.getconn()
+        self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
+        self.cur = self.conn.cursor()
 
-def pooled_perform(dsn, bodyfunc, finalfunc=lambda x: x, verbose=False):
-    """Run bodyfunc(conn, cur) using pooling, commit, transform with finalfunc, clean up.
-
-       Automates handling of errors.
-    """
-    conn = None
-    cur = None
-    used_pool = pools[dsn]
-    try:
-        conn = used_pool.getconn()
-        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
-        cur = conn.cursor()
+    def perform(self, bodyfunc, finalfunc=lambda x: x, verbose=False):
+        """Run bodyfunc(conn, cur) using pooling, commit, transform with finalfunc, clean up.
+        
+           Automates handling of errors.
+        """
+        assert self.conn is not None
         try:
-            result = bodyfunc(conn, cur)
-            conn.commit()
+            result = bodyfunc(self.conn, self.cur)
+            self.conn.commit()
             result = finalfunc(result)
             if hasattr(result, 'next'):
                 # need to defer cleanup to after result is drained
@@ -154,23 +154,24 @@ def pooled_perform(dsn, bodyfunc, finalfunc=lambda x: x, verbose=False):
                 yield result
         except psycopg2.InterfaceError, e:
             # reset bad connection
-            used_pool.putconn(conn, close=True)
-            conn = None
+            self.used_pool.putconn(self.conn, close=True)
+            self.conn = None
             raise e
         except GeneratorExit, e:
             # happens normally at end of result yielding sequence
             raise
         except:
+            if self.conn is not None:
+                self.conn.rollback()
             if verbose:
                 et, ev, tb = sys.exc_info()
-                web.debug('got exception "%s" during sanepg2.pooled_perform()' % str(ev),
+                web.debug(u'got exception "%s" during sanepg2.PooledConnection.perform()' % unicode(ev),
                           traceback.format_exception(et, ev, tb))
-            conn.rollback()
             raise
-    finally:
-        if conn is not None:
-            #conn.commit()
-            if cur is not None:
-                cur.close()
-            used_pool.putconn(conn)
+
+    def final(self):
+        if self.conn is not None:
+            self.cur.close()
+            self.used_pool.putconn(self.conn)
+            self.conn = None
 

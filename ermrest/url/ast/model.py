@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2015 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,81 +22,80 @@
 import json
 import web
 
-from ermrest import exception
-import ermrest.model
-from data import Api
-from ermrest.util import negotiated_content_type
+from ... import exception
+from ... import model
+from .api import Api
+from ...util import negotiated_content_type
 
-schema_html = """
-<html>
-  <head>
-    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
-    <link type="text/css" rel="stylesheet" href="/ajax/css/ermrest.css" />
-    <script type="text/javascript" src="/ajax/js/jquery.js"></script>
-   <script type="text/javascript" src="/ajax/js/ermrest.js"></script>
+def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
+    handler.emit_headers()
+    if resource is None:
+        return ''
+    if resource is '' and web.ctx.status == '200 OK':
+        web.ctx.status = '204 No Content'
+        return ''
+    web.header('Content-Type', content_type)
+    response = transform(resource)
+    web.header('Content-Length', len(response))
+    return response
 
-    <script type="text/javascript">
-    $(document).ready(function () {
-        %(ready)s();
-    });
-    </script>
+def _post_commit_json(handler, resource):
+    def prejson(v):
+        if hasattr(v, 'prejson'):
+            return v.prejson()
+        else:
+            return v
+    def to_json(resource):
+        if isinstance(resource, list):
+            resource = [ prejson(v) for v in resource ]
+        else:
+            resource = prejson(resource)
+        return json.dumps(resource, indent=2) + '\n'
+    return _post_commit(handler, resource, 'application/json', to_json)
 
-  </head>
-  <body>
-    <div id="ermrest">
-    </div>
-  </body>
-</html>
-"""
+def _GET(handler, thunk, _post_commit):
+    def body(conn, cur):
+        handler.enforce_content_read(cur)
+        handler.catalog.manager.get_model(cur)
+        handler.set_http_etag( handler.catalog.manager._model_version )
+        if handler.http_is_cached():
+            web.ctx.status = '304 Not Modified'
+            return None
+        return thunk(conn, cur)
+    return handler.perform(body, lambda resource: _post_commit(handler, resource))
+
+def _MODIFY(handler, thunk, _post_commit):
+    def body(conn, cur):
+        handler.enforce_content_read(cur)
+        handler.enforce_schema_write(cur)
+        handler.catalog.manager.get_model(cur)
+        return thunk(conn, cur)
+    return handler.perform(body, lambda resource: _post_commit(handler, resource))
+
+def _MODIFY_with_json_input(handler, thunk, _post_commit):
+    try:
+        doc = json.load(web.ctx.env['wsgi.input'])
+    except:
+        raise exception.rest.BadRequest('Could not deserialize JSON input.')
+    return _MODIFY(handler, lambda conn, cur: thunk(conn, cur, doc), _post_commit)
 
 class Schemas (Api):
     """A schema set."""
-
-    supported_content_types = ['application/json', 'text/html']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, catalog):
         Api.__init__(self, catalog)
-        self.http_vary.add('accept')
 
+    def GET_body(self, conn, cur):
+        return self.catalog.manager._model
+        
     def GET(self, uri):
-        """HTTP GET for Schemas of a Catalog."""
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_content_read(cur, uri)
-            return self.catalog.manager.get_model(cur)
-
-        def post_commit(model):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                web.header('Content-Type', content_type)
-                response = json.dumps(model.prejson(), indent=2) + '\n'
-                web.header('Content-Length', len(response))
-                return response
-
-        if content_type == 'text/html':
-            # return static AJAX page
-            web.header('Content-Type', content_type)
-            return schema_html % (dict(ready='initSchemas'))
-        else:
-            return self.perform(body, post_commit)
+        return _GET(self, self.GET_body, _post_commit_json)
 
 class Schema (Api):
     """A specific schema by name."""
-
-    supported_content_types = ['application/json', 'text/html']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, catalog, name):
         Api.__init__(self, catalog)
+        self.schemas = Schemas(catalog)
         self.name = name
-        self.http_vary.add('accept')
 
     def tables(self):
         """The table set for this schema."""
@@ -106,62 +105,31 @@ class Schema (Api):
         """A specific table for this schema."""
         return Table(self, name)
 
-    def GET_body(self, conn, cur, uri):
-        self.catalog.resolve(cur)
-        self.enforce_content_read(cur, uri)
+    def GET_body(self, conn, cur):
         model = self.catalog.manager.get_model(cur)
-        return model.lookup_schema(str(self.name))
-
+        try:
+            return model.schemas[unicode(self.name)]
+        except exception.ConflictModel:
+            raise exception.NotFound(u'Schema %s not found.' % unicode(self.name))
+    
     def GET(self, uri):
-        """HTTP GET for Schemas of a Catalog."""
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
+        return _GET(self, self.GET_body, _post_commit_json)
 
-        def post_commit(schema):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                web.header('Content-Type', content_type)
-                response = json.dumps(schema.prejson(), indent=2) + '\n'
-                web.header('Content-Length', len(response))
-                return response
-
-        if content_type == 'text/html':
-            # return static AJAX page
-            web.header('Content-Type', content_type)
-            return schema_html % (dict(ready='initSchema'))
-        else:
-            return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
+    def POST_body(self, conn, cur):
+        self.catalog.manager._model.create_schema(conn, cur, unicode(self.name))
 
     def POST(self, uri):
-        """Create a new empty schema."""
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            model.create_schema(conn, cur, str(self.name))
-            
-        def post_commit(ignore):
+        def post_commit(self, ignored):
             web.ctx.status = '201 Created'
-            return ''
+            return _post_commit(self, '')
+        return _MODIFY(self, self.POST_body, post_commit)
 
-        return self.perform(body, post_commit)
-
-    def DELETE(self, uri):
-        """Delete an existing schema."""
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            model = self.catalog.manager.get_model(cur)
-            model.delete_schema(conn, cur, str(self.name))
+    def DELETE_body(self, conn, cur):
+        self.catalog.manager._model.delete_schema(conn, cur, unicode(self.name))
+        return ''
             
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
         
 
 class Tables (Api):
@@ -174,151 +142,72 @@ class Tables (Api):
         """A specific table for this schema."""
         return self.schema.table(name)
 
-    def GET_body(self, conn, cur, uri):
-        schema = self.schema.GET_body(conn, cur, uri)
-        return schema.tables.values()
-
-    def GET_post_commit(self, tables):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps([ table.prejson() for table in tables ], indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
-
     def GET(self, uri):
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
+        return _GET(self, self.GET_body, _post_commit_json)
+    
+    def GET_body(self, conn, cur):
+        return self.schema.GET_body(conn, cur).tables.values()
+
+    def POST_body(self, conn, cur, tabledoc):
+        schema = self.schema.GET_body(conn, cur)
+        return model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
 
     def POST(self, uri):
-        """Add a new table to the schema according to input resource representation."""
-        try:
-            tabledoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            schema = self.schema.GET_body(conn, cur, uri)
-            try:
-                return ermrest.model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
-            except (exception.ConflictData), te:
-                raise exception.rest.Conflict(str(te))
-
-        def post_commit(table):
+        def post_commit(self, table):
             web.ctx.status = '201 Created'
-            return self.GET_post_commit([table])
-
-        return self.perform(body, post_commit)
-
-def post_commit_200_OK(ignore):
-    web.ctx.status = '200 OK'
-    return ''
-
-def post_commit_200_or_201(created):
-    if created:
-        web.ctx.status = '201 Created'
-    else:
-        web.ctx.status = '200 OK'
-    return ''
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
 class Comment (Api):
     """A specific object's comment.
 
        This is a hack to reuse code for Table and Column comment handling.
     """
-    
-    supported_content_types = ['text/plain']
-    default_content_type = supported_content_types[0]
-
-    def __init__(self, catalog):
+    def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
+        self.subject = subject
 
-    def GET_body(self, conn, cur, uri):
-        """Must return a tuple with final element being object that is commented"""
-        raise NotImplementedError()
+    def GET_subject(self, conn, cur):
+        return self.subject.GET_body(conn, cur)
+
+    def GET_body(self, conn, cur):
+        subject = self.GET_subject(conn, cur)
+        if subject.comment is None:
+            raise exception.rest.NotFound('comment on "%s"' % subject)
+        return unicode(subject.comment) + '\n'
 
     def GET(self, uri):
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-
-        def post_commit(results):
-            obj = results[-1]
-
-            if obj.comment is None:
-                raise exception.rest.NotFound('comment on "%s"' % obj)
-
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                web.header('Content-Type', content_type)
-                response = obj.comment is not None and (str(obj.comment) + '\n') or ''
-                web.header('Content-Length', len(response))
-                return response
-
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
+        return _GET(self, self.GET_body, lambda response: _post_commit(self, response, 'text/plain'))
 
     def SET_body(self, conn, cur, getresults, comment):
-        raise NotImplementedError()
+        subject = self.GET_subject(conn, cur)
+        subject.set_comment(conn, cur, comment)
 
     def PUT(self, uri):
-        comment = web.ctx.env['wsgi.input'].read()
-
         def body(conn, cur):
-            self.SET_body(conn, cur, self.GET_body(conn, cur, uri), comment)
-
-        return self.perform(body, post_commit_200_OK)
+            self.SET_body(conn, cur, self.GET_subject(conn, cur), web.ctx.env['wsgi.input'].read())
+            return ''
+        return _MODIFY(self, body, _post_commit)
     
     def DELETE(self, uri):
         def body(conn, cur):
-            self.SET_body(conn, cur, self.GET_body(conn, cur, uri), None)
-
-        return self.perform(body, post_commit_200_OK)       
+            self.SET_body(conn, cur, self.GET_subject(conn, cur), None)
+            return ''
+        return _MODIFY(self, body, _post_commit)       
 
 class TableComment (Comment):
     """A specific table's comment."""
     
     def __init__(self, table):
-        Comment.__init__(self, table.schema.catalog)
-        self.table = table
+        Comment.__init__(self, table.schema.catalog, table)
 
-    def GET_body(self, conn, cur, uri):
-        return ( self.table.GET_body(conn, cur, uri), )
-
-    def SET_body(self, conn, cur, getresults, comment):
-        table = getresults[0]
-        table.set_comment(conn, cur, comment)
-
-
-class ColumnComment (TableComment):
+class ColumnComment (Comment):
     """A specific column's comment."""
     
     def __init__(self, column):
-        TableComment.__init__(self, column.table)
-        self.column = column
-
-    def GET_body(self, conn, cur, uri):
-        table = TableComment.GET_body(self, conn, cur, uri)[0]
-        try:
-            return (table, table.columns[str(self.column.name)])
-        except KeyError:
-            raise exception.rest.NotFound('column "%s"' % self.column.name)
-
-    def SET_body(self, conn, cur, getresults, comment):
-        table, column = getresults
-        table.set_column_comment(conn, cur, column, comment)
+        Comment.__init__(self, column.table.schema.catalog, column)
 
 class Annotations (Api):
-
-    supported_content_types = ['application/json']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
         self.subject = subject
@@ -328,124 +217,70 @@ class Annotations (Api):
         self.key = key
         return self
 
-    def GET_body(self, conn, cur, uri):
-        """Must return tuple with resolved subject as final element"""
-        raise NotImplementedError()
+    def GET_subject(self, conn, cur):
+        return self.subject.GET_body(conn, cur)
 
-    def GET(self, uri):
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-
-        def post_commit(results):
-            subject = results[-1]
-
-            if self.key is None:
-                # getting list of all annotations
-                response = json.dumps(subject.annotations)
-            else:
-                # getting single annotation by key
-                if self.key not in subject.annotations:
-                    raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
-                response = json.dumps(subject.annotations[self.key])
-
-            response = response + '\n'
-
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                web.header('Content-Type', content_type)
-                web.header('Content-Length', len(response))
-                return response
-
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
-
-    def PUT_body(self, conn, cur, getresults, key, value):
-        """Return True for created or False for updated."""
-        subject = getresults[-1]
-        oldval = subject.set_annotation(conn, cur, key, value)
-        if oldval is None:
-            return True
+    def GET_body(self, conn, cur):
+        subject = self.GET_subject(conn, cur)
+        if self.key is None:
+            return subject.annotations
         else:
-            return False
-
-    def PUT(self, uri):
-        if self.key is None:
-            raise exception.rest.NoMethod('PUT only supported on individually keyed annotations')
-
-        value = web.ctx.env['wsgi.input'].read()
-
-        try:
-            value = json.loads(value)
-        except:
-            raise exception.BadRequest('invalid JSON input')
-
-        def body(conn, cur):
-            self.PUT_body(conn, cur, self.GET_body(conn, cur, uri), self.key, value)
-
-        return self.perform(body, post_commit_200_or_201)
-    
-    def DELETE_body(self, conn, cur, getresults, key):
-        subject = getresults[-1]
-        subject.delete_annotation(conn, cur, key)
-
-    def DELETE(self, uri):
-        if self.key is None:
-            raise exception.rest.NoMethod('DELETE only supported on individually keyed annotations')
-
-        def body(conn, cur):
-            getresults = self.GET_body(conn, cur, uri)
-            subject = getresults[-1]
             if self.key not in subject.annotations:
                 raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
-            
-            self.DELETE_body(conn, cur, getresults, self.key)
+            return subject.annotations[self.key]
 
-        return self.perform(body, post_commit_200_OK)       
+    def GET(self, uri):
+        return _GET(self, self.GET_body, _post_commit_json)
 
+    def PUT_body(self, conn, cur, value):
+        if self.key is None:
+            raise exception.rest.NoMethod('PUT only supported on individually keyed annotations')
+        subject = self.GET_subject(conn, cur)
+        oldval = subject.set_annotation(conn, cur, self.key, value)
+        return oldval is None
+
+    def PUT(self, uri):
+        def post_commit(self, created):
+            if created:
+                web.ctx.status = '201 Created'
+            return _post_commit(self, '')
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+    
+    def DELETE_body(self, conn, cur):
+        if self.key is None:
+            raise exception.rest.NoMethod('DELETE only supported on individually keyed annotations')
+        subject = self.GET_subject(conn, cur)
+        if self.key not in subject.annotations:
+            raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
+        subject.delete_annotation(conn, cur, self.key)
+        return ''
+
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 
 class TableAnnotations (Annotations):
 
     def __init__(self, table):
         Annotations.__init__(self, table.schema.catalog, table)
 
-    def GET_body(self, conn, cur, uri):
-        """Must return tuple with resolved subject as final element"""
-        return ( self.subject.GET_body(conn, cur, uri), )
-
-
-class ColumnAnnotations (TableAnnotations):
+class ColumnAnnotations (Annotations):
 
     def __init__(self, column):
-        TableAnnotations.__init__(self, column.table)
-        self.column = column
-
-    def GET_body(self, conn, cur, uri):
-        """Must return tuple with resolved subject as final element"""
-        table = TableAnnotations.GET_body(self, conn, cur, uri)[-1]
-        try:
-            return (table, table.columns[str(self.column.name)])
-        except KeyError:
-            raise exception.rest.NotFound('column "%s"' % self.column.name)
+        Annotations.__init__(self, column.table.schema.catalog, column)
 
 class ForeignkeyReferenceAnnotations (Annotations):
 
     def __init__(self, fkrs):
         Annotations.__init__(self, fkrs.catalog, fkrs)
 
-    def GET_body(self, conn, cur, uri):
-        fkrs = self.subject.GET_body(conn, cur, uri)
+    def GET_subject(self, conn, cur):
+        fkrs = self.subject.GET_body(conn, cur)
         if len(fkrs) != 1:
             raise NotImplementedError('ForeignkeyReferencesAnnotations on %d fkrs' % len(fkrs))
-        return (fkrs[0], )
+        return fkrs[0]
 
 class Table (Api):
     """A specific table by name."""
-    
-    supported_content_types = ['application/json', 'text/html']
-    default_content_type = supported_content_types[0]
-
     def __init__(self, schema, name, catalog=None):
         if catalog is None:
             self.catalog = schema.catalog
@@ -482,55 +317,32 @@ class Table (Api):
         """A specific foreign key for this table."""
         return Foreignkey(self, column_set, catalog=self.catalog)
 
-    def GET_body(self, conn, cur, uri):
-        self.catalog.resolve(cur)
-        self.enforce_content_read(cur, uri)
-        model = self.catalog.manager.get_model(cur)
-        return model.lookup_table(
-            self.schema and str(self.schema.name) or None, 
-            str(self.name)
-            )
-
-    def GET_post_commit(self, table):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps(table.prejson(), indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
-
     def GET(self, uri):
-        content_type = negotiated_content_type(self.supported_content_types, self.default_content_type)
-        
-        """Get table resource representation."""
-        if content_type == 'text/html':
-            # return static AJAX page
-            web.header('Content-Type', content_type)
-            return schema_html % (dict(ready='initTable'))
-        else:
-            return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
+        return _GET(self, self.GET_body, _post_commit_json)
+    
+    def GET_body(self, conn, cur):
+        model = self.catalog.manager._model
+        if self.schema is not None:
+            schema = self.schema.GET_body(conn, cur)
+        try:
+            if self.schema is not None:
+                return schema.tables[unicode(self.name)]
+            else:
+                return model.lookup_table(unicode(self.name))
+        except exception.ConflictModel, e:
+            raise exception.NotFound(str(e))
 
     def POST(self, uri):
         # give more helpful error message
         raise exception.rest.NoMethod('create tables at the table collection resource instead')
 
-    def DELETE(self, uri):
-        """Delete a table from the schema."""
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            table = self.GET_body(conn, cur, uri)
-            table.schema.delete_table(conn, cur, str(self.name))
-            
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
+    def DELETE_body(self, conn, cur):
+        table = self.GET_body(conn, cur)
+        table.schema.delete_table(conn, cur, str(self.name))
+        return ''
 
-        return self.perform(body, post_commit)
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
         
 class Columns (Api):
     """A column set."""
@@ -542,48 +354,27 @@ class Columns (Api):
         """A specific column for this table."""
         return Column(self.table, name)
 
-    def GET_body(self, conn, cur, uri):
-        return self.table.GET_body(conn, cur, uri).columns_in_order()
-
-    def GET_post_commit(self, columns):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps([ c.prejson() for c in columns ], indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+    def GET_body(self, conn, cur):
+        return self.table.GET_body(conn, cur).columns_in_order()
 
     def GET(self, uri):
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
+        return _GET(self, self.GET_body, _post_commit_json)
+    
+    def POST_body(self, conn, cur, columndoc):
+        table = self.table.GET_body(conn, cur)
+        return table.add_column(conn, cur, columndoc, web.ctx.ermrest_config)
 
     def POST(self, uri):
-        """Add a new column to the table according to input resource representation."""
-        
-        try:
-            columndoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur, uri)
-            return table.add_column(conn, cur, columndoc, web.ctx.ermrest_config)
-
-        def post_commit(column):
+        def post_commit(self, column):
             web.ctx.status = '201 Created'
-            return self.GET_post_commit([column])
+            return _post_commit_json(self, column)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
-        return self.perform(body, post_commit)
-
-class Column (Columns):
+class Column (Api):
     """A specific column by name."""
     def __init__(self, table, name):
-        Columns.__init__(self, table)
+        Api.__init__(self, table.schema.catalog)
+        self.table = table
         self.name = name
 
     def comment(self):
@@ -592,43 +383,19 @@ class Column (Columns):
     def annotations(self):
         return ColumnAnnotations(self)
 
-    def GET_post_commit(self, columns):
-        columns = dict([ (c.name, c) for c in columns ])
-        column_name = str(self.name)
-        if column_name not in columns:
-            raise exception.rest.NotFound('column "%s"' % column_name)
-        else:
-            column = columns[column_name]
-
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps(column.prejson(), indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
-
-    def POST(self, uri):
-        # turn off inherited POST method from Columns superclass
-        raise exception.rest.NoMethod('create columns at the column collection resource instead')
+    def GET_body(self, conn, cur):
+        return self.table.GET_body(conn, cur).columns[unicode(self.name)]
+    
+    def GET(self, uri):
+        return _GET(self, self.GET_body, _post_commit_json)
+    
+    def DELETE_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        table.delete_column(conn, cur, str(self.name))
+        return ''
 
     def DELETE(self, uri):
-        """Delete column from table."""
-        
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur, uri)
-            table.delete_column(conn, cur, str(self.name))
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 
 class Keys (Api):
     """A set of keys."""
@@ -638,87 +405,46 @@ class Keys (Api):
         Api.__init__(self, catalog)
         self.table = table
 
-    def GET_body(self, conn, cur, uri):
-        return self.table.GET_body(conn, cur, uri).uniques.values()
-
-    def GET_post_commit(self, keys):
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps([ key.prejson() for key in keys ], indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+    def GET_body(self, conn, cur):
+        return self.table.GET_body(conn, cur).uniques.values()
 
     def GET(self, uri):
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), self.GET_post_commit)
+        return _GET(self, self.GET_body, _post_commit_json)
         
+    def POST_body(self, conn, cur, keydoc):
+        table = self.table.GET_body(conn, cur)
+        return list(table.add_unique(conn, cur, keydoc))
+
     def POST(self, uri):
-        """Add a new key to the table according to input resource representation."""
-        try:
-            keydoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-        
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur, uri)
-            return list(table.add_unique(conn, cur, keydoc))
-
-        def post_commit(newkeys):
+        def post_commit(self, newkeys):
             web.ctx.status = '201 Created'
-            return self.GET_post_commit(newkeys)
+            return _post_commit_json(self, newkeys)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
-        return self.perform(body, post_commit)
-
-class Key (Keys):
+class Key (Api):
     """A specific key by column set."""
     def __init__(self, table, column_set, catalog=None):
-        Keys.__init__(self, table, catalog)
+        Api.__init__(self, catalog)
+        self.table = table
         self.columns = column_set
 
-    def GET_body(self, conn, cur, uri):
-        table = self.table.GET_body(conn, cur, uri)
-        try:
-            cols = [ table.columns[str(c)] for c in self.columns ]
-        except (KeyError), te:
-            raise exception.rest.NotFound('column "%s"' % str(te))
-        fs = frozenset(cols)
-        if fs not in table.uniques:
-            raise exception.rest.NotFound('key (%s)' % (','.join([ str(c) for c in cols])))
-        return table, table.uniques[fs]
+    def GET_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        cols = frozenset([ table.columns[unicode(c)] for c in self.columns ])
+        if cols not in table.uniques:
+            raise exception.rest.NotFound(u'key (%s)' % (u','.join([ unicode(c) for c in cols])))
+        return table.uniques[cols]
         
-    def GET_post_commit(self, tup):
-        table, key = tup
-        self.set_http_etag( self.catalog.manager._model_version )
-        self.emit_headers()
-        if self.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return ''
-        else:
-            web.header('Content-Type', 'application/json')
-            response = json.dumps(key.prejson(), indent=2) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+    def GET(self, uri):
+        return _GET(self, self.GET_body, _post_commit_json)
+
+    def DELETE_body(self, conn, cur):
+        key = self.GET_body(conn, cur)
+        key.table.delete_unique(conn, cur, key)
+        return ''
 
     def DELETE(self, uri):
-        """Delete a key constraint from a table."""
-        
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            table, key = self.GET_body(conn, cur, uri)
-            table.delete_unique(conn, cur, key)
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 
 class Foreignkeys (Api):
     """A set of foreign keys."""
@@ -726,48 +452,21 @@ class Foreignkeys (Api):
         Api.__init__(self, table.schema.catalog)
         self.table = table
 
-    def GET_body(self, conn, cur, uri):
-        return self.table.GET_body(conn, cur, uri)
-
+    def GET_body(self, conn, cur):
+        return self.table.GET_body(conn, cur).fkeys.values()
+        
     def GET(self, uri):
-        def post_commit(table):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                fkeys = table.fkeys
-                response = []
-                for fk in fkeys.values():
-                    response.extend( fk.prejson() )
-                response = json.dumps(response, indent=2) + '\n'
-                web.header('Content-Type', 'application/json')
-                web.header('Content-Length', len(response))
-                return response
-            
-            return json.dumps(response, indent=2) + '\n'
-
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
+        return _GET(self, self.GET_body, _post_commit_json)
+        
+    def POST_body(self, conn, cur, keydoc):
+        table = self.table.GET_body(conn, cur)
+        return list(table.add_fkeyref(conn, cur, keydoc))
 
     def POST(self, uri):
-        """Add a new foreign-key reference to table according to input resource representation."""
-        try:
-            keydoc = json.load(web.ctx.env['wsgi.input'])
-        except:
-            raise exception.rest.BadRequest('Could not deserialize JSON input.')
-        
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            table = self.table.GET_body(conn, cur, uri)
-            return list(table.add_fkeyref(conn, cur, keydoc))
-
-        def post_commit(newrefs):
+        def post_commit(self, newrefs):
             web.ctx.status = '201 Created'
             return json.dumps([ r.prejson() for r in newrefs ], indent=2) + '\n'
-
-        return self.perform(body, post_commit)
+        return _MODIFY(self, self.POST_body, _post_commit_json)
 
 class Foreignkey (Api):
     """A specific foreign key by column set."""
@@ -781,34 +480,17 @@ class Foreignkey (Api):
     def references(self):
         """A set of foreign key references from this foreign key."""
         return ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
+
+    def GET_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        cols = frozenset([ table.columns[str(c)] for c in self.columns ])
+        if cols not in table.fkeys:
+            raise exception.rest.NotFound(u'foreign key (%s)' % (u','.join([ unicode(c) for c in cols])))
+        return table.fkeys[cols]
     
-    def GET_body(self, conn, cur, uri):
-        table = self.table.GET_body(conn, cur, uri)
-        try:
-            cols = [ table.columns[str(c)] for c in self.columns ]
-        except (KeyError), te:
-            raise exception.rest.NotFound('column "%s"' % str(te))
-        fs = frozenset(cols)
-        if fs not in table.fkeys:
-            raise exception.rest.NotFound('foreign key (%s)' % (','.join([ str(c) for c in cols])))
-        return table, table.fkeys[fs]
-
     def GET(self, uri):
-        def post_commit(tup):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                table, fkey = tup
-                response = json.dumps(fkey.prejson(), indent=2) + '\n'
-                web.header('Content-Type', 'application/json')
-                web.header('Content-Length', len(response))
-                return response
-
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
-
+        return _GET(self, self.GET_body, _post_commit_json)
+    
 class ForeignkeyReferences (Api):
     """A set of foreign key references."""
     def __init__(self, catalog):
@@ -877,20 +559,22 @@ class ForeignkeyReferences (Api):
     def annotations(self):
         return ForeignkeyReferenceAnnotations(self)
 
-    def GET_body(self, conn, cur, uri):
+    def GET_body(self, conn, cur):
         from_table, from_key = None, None
         to_table, to_key = None, None
 
         # get real ermrest.model instances...
         if self._from_key:
-            from_table, from_key = self._from_key.GET_body(conn, cur, uri)
+            from_key = self._from_key.GET_body(conn, cur)
+            from_table = from_key.table
         elif self._from_table:
-            from_table = self._from_table.GET_body(conn, cur, uri)
+            from_table = self._from_table.GET_body(conn, cur)
 
         if self._to_key:
-            to_table, to_key = self._to_key.GET_body(conn, cur, uri)
+            to_key = self._to_key.GET_body(conn, cur)
+            to_table = to_key.table
         elif self._to_table:
-            to_table = self._to_table.GET_body(conn, cur, uri)
+            to_table = self._to_table.GET_body(conn, cur)
 
         # find matching foreign key references...
         if from_table:
@@ -923,41 +607,16 @@ class ForeignkeyReferences (Api):
                 fkrs = [ fkr for fkr in fkrs if fkr.unique == to_key ]
 
         return fkrs
-        
 
     def GET(self, uri):
-        def post_commit(fkrs):
-            self.set_http_etag( self.catalog.manager._model_version )
-            self.emit_headers()
-            if self.http_is_cached():
-                web.ctx.status = '304 Not Modified'
-                return ''
-            else:
-                if self._from_key and self._to_key:
-                    assert len(fkrs) == 1
-                    response = fkrs[0].prejson()
-                else:
-                    response = [ fkr.prejson() for fkr in fkrs ]
-                response = json.dumps(response, indent=2) + '\n'
-                web.header('Content-Type', 'application/json')
-                web.header('Content-Length', len(response))
-                return response
+        return _GET(self, self.GET_body, _post_commit_json)
 
-        return self.perform(lambda conn, cur: self.GET_body(conn, cur, uri), post_commit)
+    def DELETE_body(self, conn, cur):
+        fkrs = self.GET_body(conn, cur)
+        for fkr in fkrs:
+            fkr.foreign_key.table.delete_fkeyref(conn, cur, fkr)
+        return ''
 
     def DELETE(self, uri):
-        """Delete foreign-key reference constraint from table."""
-        
-        def body(conn, cur):
-            self.catalog.resolve(cur)
-            self.enforce_schema_write(cur, uri)
-            fkrs = self.GET_body(conn, cur, uri)
-            for fkr in fkrs:
-                fkr.foreign_key.table.delete_fkeyref(conn, cur, fkr)
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
+        return _MODIFY(self, self.DELETE_body, _post_commit)
 

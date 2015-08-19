@@ -23,22 +23,21 @@ import web
 
 import model
 import data
-from data import Api
-from ermrest import exception, catalog, sanepg2
+from .api import Api
+from ... import exception, catalog, sanepg2
+from ...apicore import web_method
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
 
-class Catalogs (Api):
+class Catalogs (object):
+    """A multi-tenant catalog set."""
 
     default_content_type = _application_json
     supported_types = [default_content_type, _text_plain]
-    
-    """A multi-tenant catalog set."""
-    def __init__(self):
-        Api.__init__(self, None)
-    
-    def POST(self, uri):
+
+    @web_method()
+    def POST(self):
         """Perform HTTP POST of catalogs.
         """
         # content negotiation
@@ -49,7 +48,11 @@ class Catalogs (Api):
         catalog = web.ctx.ermrest_catalog_factory.create()
 
         # initialize the catalog instance
-        sanepg2.pooled_perform(catalog.dsn, lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+        pc = sanepg2.PooledConnection(catalog.dsn)
+        try:
+            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+        finally:
+            pc.final()
 
         # register the catalog descriptor
         entry = web.ctx.ermrest_registry.register(catalog.descriptor)
@@ -59,10 +62,7 @@ class Catalogs (Api):
         web.ctx.ermrest_request_content_type = content_type
         
         # set location header and status
-        if uri[-1:] == '/':
-            location = uri + str(catalog_id)
-        else:
-            location = uri + '/' + str(catalog_id)
+        location = '/ermrest/catalog/%s' % catalog_id
         web.header('Location', location)
         web.ctx.status = '201 Created'
         
@@ -71,7 +71,6 @@ class Catalogs (Api):
         else:
             assert content_type == _application_json
             return json.dumps(dict(id=catalog_id))
-        
 
 class Catalog (Api):
 
@@ -91,12 +90,16 @@ class Catalog (Api):
             entries[0]['descriptor'],
             web.ctx.ermrest_config
             )
-
-    def resolve(self, cur):
-        """Bootstrap catalog manager state."""
-        # now enforce read permission
-        self.enforce_read(cur, 'catalog/' + str(self.catalog_id))
         
+        assert web.ctx.ermrest_catalog_pc is None
+        web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
+
+        # now enforce read permission
+        self.enforce_read(web.ctx.ermrest_catalog_pc.cur, 'catalog/' + str(self.catalog_id))
+
+    def final(self):
+        web.ctx.ermrest_catalog_pc.final()
+            
     def schemas(self):
         """The schema set for this catalog."""
         return model.Schemas(self)
@@ -113,9 +116,9 @@ class Catalog (Api):
         """A textfacet set for this catalog."""
         return data.TextFacet(self, filterelem, facetkeys, facetvals)
     
-    def entity(self, epath):
+    def entity(self, elem):
         """An entity set for this catalog."""
-        return data.Entity(self, epath)
+        return data.Entity(self, elem)
 
     def attribute(self, apath):
         """An attribute set for this catalog."""
@@ -143,7 +146,6 @@ class Catalog (Api):
         web.ctx.ermrest_request_content_type = content_type
         
         def body(conn, cur):
-            self.resolve(cur)
             return list(self.manager.get_meta(cur))
 
         def post_commit(meta):
@@ -162,7 +164,6 @@ class Catalog (Api):
         """Perform HTTP DELETE of catalog.
         """
         def body(conn, cur):
-            self.resolve(cur)
             self.enforce_owner(cur, uri)
             return True
 
@@ -192,7 +193,6 @@ class Meta (Api):
         content_type = data.negotiated_content_type(self.supported_types, 
                                                     self.default_content_type)
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_read(cur, uri)
             return self.catalog.manager.get_meta(cur, self.key, self.value)
 
@@ -213,7 +213,6 @@ class Meta (Api):
             raise exception.rest.NoMethod(uri)
         
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_write(cur, uri)
         
             if self.key == self.catalog.manager.META_OWNER:
@@ -246,7 +245,6 @@ class Meta (Api):
             raise exception.rest.NoMethod(uri)
             
         def body(conn, cur):
-            self.catalog.resolve(cur)
             self.enforce_write(cur, uri)
 
             meta = self.catalog.manager.get_meta(cur, self.key, self.value)

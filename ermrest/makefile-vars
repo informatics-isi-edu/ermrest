@@ -5,10 +5,9 @@ ERMREST_SHARE_FILES= \
 
 ERMREST_PYTHON_FILES= \
 	__init__.py \
-	ermpath.py \
+	apicore.py \
 	ermrest_apis.py \
 	ermrest.wsgi \
-	model.py \
 	sanepg2.py \
 	registry.py \
 	catalog.py \

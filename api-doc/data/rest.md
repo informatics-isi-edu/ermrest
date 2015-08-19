@@ -93,7 +93,7 @@ The PUT operation is used to update entity records in a table, using an `entity`
 
 In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:
 
-    POST /ermrest/catalog/42/entity/schema_name:table_name HTTP/1.1
+    PUT /ermrest/catalog/42/entity/schema_name:table_name HTTP/1.1
     Host: www.example.com
     Content-Type: text/csv
     Accept: text/csv
@@ -267,7 +267,7 @@ The PUT operation is used to update attributes in a table, using an `attributegr
 
 In this operation, complex entity paths with filter and linked entity elements are not allowed:
 
-    POST /ermrest/catalog/42/attributegroup/table/column2;column1 HTTP/1.1
+    PUT /ermrest/catalog/42/attributegroup/table/column1;column2 HTTP/1.1
     Host: www.example.com
     Content-Type: text/csv
     Accept: text/csv
@@ -303,7 +303,7 @@ Typical error response codes include:
 
 As with retrieval of attribute groups, update supports renaming of stored columns within the external representation, so that it is even possible to rewrite the key columns as in this example:
 
-    POST /ermrest/catalog/42/attributegroup/table1/original:=column1;replacement:=column1 HTTP/1.1
+    PUT /ermrest/catalog/42/attributegroup/table1/original:=column1;replacement:=column1 HTTP/1.1
     Host: www.example.com
     Content-Type: text/csv
     Accept: text/csv

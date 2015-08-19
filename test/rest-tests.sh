@@ -127,6 +127,7 @@ then
 
     cid=$(grep "^Location" ${RESPONSE_HEADERS} | sed -e "s|^Location: /ermrest/catalog/\([0-9]\+\).*|\1|")
     [[ -n "$cid" ]] || error "failed to create catalog, testing aborted."
+    DESTROY_CATALOG=true
 else
     cid=${TEST_CID}
     DESTROY_CATALOG=false
@@ -141,6 +142,7 @@ dotest "200::application/json::*" /catalog/${cid}/schema
 dotest "409::*::*" /catalog/${cid}/schema/public -X POST
 dotest "201::*::*" /catalog/${cid}/schema/test1 -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema
+
 
 # create tables using each core column type
 ctypes=(
@@ -251,6 +253,21 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
 
+# test key introspection
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/"
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id"
+dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
+
+cat > ${TEST_DATA} <<EOF
+{ "unique_columns": ["id", "name"] }
+EOF
+dotest "201::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
+dotest "204::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" -X DELETE
+dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" -X DELETE
+dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
+
+
 cat > ${TEST_DATA} <<EOF
 id,name
 1,foo
@@ -308,11 +325,136 @@ dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test
 dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*,B:*,C:*"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/A:*;B:*,C:*"
 
+# do comment tests
+resources=(
+    /schema/test1/table/test_level2
+    /schema/test1/table/test_level2/column/name
+)
+for resource in ${resources[@]}
+do
+    dotest "404::*::*" "/catalog/${cid}${resource}/comment"
+    cat > ${TEST_DATA} <<EOF
+This is a comment.
+EOF
+    dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
+    dotest "204::text/plain*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
+    dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -X DELETE
+    dotest "404::*::*" "/catalog/${cid}${resource}/comment"
+done
+
+# do annotation tests
+tag_key='tag%3Amisd.isi.edu%2C2015%3Atest1' # tag:misd.isi.edu,2015:test1
+resources=(
+    /schema/test1/table/test_level2/foreignkey/level1_id/reference/test_level1/id
+    /schema/test1/table/test_level2
+    /schema/test1/table/test_level2/column/name
+)
+for resource in ${resources[@]}
+do
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation"
+    dotest "404::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
+    cat > ${TEST_DATA} <<EOF
+{"dummy": "value"}
+EOF
+    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -T ${TEST_DATA}
+    dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    dotest "204::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    cat > ${TEST_DATA} <<EOF
+{"dummy": "value", "malformed"
+EOF
+    dotest "400::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -X DELETE
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
+    dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -X DELETE
+done
+
+
+# create table for unicode tests... use unusual unicode characters to test proper pass-through
+dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s" -X POST
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "ɐɯǝɥɔs",
+   "table_name": "ǝlqɐʇ",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "text" }, "name": "ǝɯɐu" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ]
+}
+EOF
+dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s/table" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+
+# make sure weird column name is OK in CSV
+cat > ${TEST_DATA} <<EOF
+id,ǝɯɐu
+1,foo 1
+2,foo 2
+3,bar 1
+4,baz 1
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# make sure weird column name is OK in JSON
+cat > ${TEST_DATA} <<EOF
+[{"id":5,"ǝɯɐu": "baz 2"}]
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+# make sure weird data is OK in CSV
+cat > ${TEST_DATA} <<EOF
+id,ǝɯɐu
+6,foo ǝɯɐu
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# make sure weird data is OK in JSON
+cat > ${TEST_DATA} <<EOF
+[{"id":7,"ǝɯɐu": "foo ǝɯɐu 2"}]
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+# test access to data in CSV and JSON
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: text/csv"
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: application/json"
+
+# test CSV error cases including that unicode data passes through OK
+cat > ${TEST_DATA} <<EOF
+id,ǝɯɐu
+10
+EOF
+dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# test CSV error cases including that unicode data passes through OK
+cat > ${TEST_DATA} <<EOF
+ǝɯɐu,id
+ǝlqɐʇ
+EOF
+dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id
+10
+EOF
+dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id,ǝlqɐʇ
+10,foo 10
+EOF
+dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+for pattern in foo bar "foo.%2A"
+do
+    dotest "200::*::*" "/catalog/${cid}/textfacet/${pattern}"
+done
 
 if [[ "${DESTROY_CATALOG}" = "true" ]]
 then
     ###### tear down test catalog
     dotest "20?::*::*" /catalog/${cid} -X DELETE
+    dotest "404::*::*" /catalog/${cid} -X DELETE
 fi
 
 if [[ ${NUM_FAILURES} -gt 0 ]]

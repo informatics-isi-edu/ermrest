@@ -1,8 +1,10 @@
 
 ERMREST_URL_AST_PYTHON_FILES= \
 	__init__.py \
+	api.py \
 	catalog.py \
-	model.py
+	model.py \
+	name.py
 
 ERMREST_URL_AST_PYTHON_FILES_INSTALL=$(ERMREST_URL_AST_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/url/ast/%)
 
@@ -11,8 +13,8 @@ INSTALL_FILES += $(ERMREST_URL_AST_PYTHON_FILES_INSTALL)
 INSTALL_DIRS += $(PYLIBDIR)/ermrest/url/ast
 
 CLEAN_FILES += \
-	$(ERMREST_URL_AST_PYTHON_FILES:%=ermrest/url/%c) \
-	$(ERMREST_URL_AST_PYTHON_FILES:%=ermrest/url/%o)
+	$(ERMREST_URL_AST_PYTHON_FILES:%=ermrest/url/ast/%c) \
+	$(ERMREST_URL_AST_PYTHON_FILES:%=ermrest/url/ast/%o)
 
 EDIT_FILES += $(ERMREST_URL_AST_PYTHON_FILES:%=ermrest/url/ast/%) \
 	ermrest/url/ast/makefile-vars

@@ -10,8 +10,8 @@ INSTALL_FILES += $(ERMREST_EXCEPTION_PYTHON_FILES_INSTALL)
 INSTALL_DIRS += $(PYLIBDIR)/ermrest/exception
 
 CLEAN_FILES += \
-	$(ERMREST_EXCEPTION_PYTHON_FILES:%=ermrest/url/%c) \
-	$(ERMREST_EXCEPTION_PYTHON_FILES:%=ermrest/url/%o)
+	$(ERMREST_EXCEPTION_PYTHON_FILES:%=ermrest/exception/%c) \
+	$(ERMREST_EXCEPTION_PYTHON_FILES:%=ermrest/exception/%o)
 
 EDIT_FILES += $(ERMREST_EXCEPTION_PYTHON_FILES:%=ermrest/exception/%) \
 	ermrest/exception/makefile-vars

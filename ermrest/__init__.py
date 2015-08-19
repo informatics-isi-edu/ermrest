@@ -142,12 +142,6 @@ def deploy_registry():
     """
     registry.deploy()
     
-def registry_lookup(id=None):
-    """
-    Lookup a catalog in the ERMREST registry.
-    """
-    return registry.lookup(id)
-
 def registry_register(descriptor, id=None):
     """
     Register a catalog connection string in the ERMREST registry.
@@ -175,7 +169,7 @@ def catalog_destroy(catalog_id):
     """
     Destroys a catalog.
     """
-    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    descriptor = registry.lookup(catalog_id)[0]['descriptor']
     catalog = Catalog(catalog_factory, descriptor)
     catalog.destroy()
     
@@ -183,7 +177,7 @@ def catalog_init_meta(catalog_id, role):
     """
     Initialize catalog metadata.
     """
-    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    descriptor = registry.lookup(catalog_id)[0]['descriptor']
     catalog = Catalog(catalog_factory, descriptor)
     catalog.init_meta(owner=role)
 
@@ -191,7 +185,7 @@ def catalog_get_meta(catalog_id, key=None):
     """
     Initialize catalog metadata.
     """
-    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    descriptor = registry.lookup(catalog_id)[0]['descriptor']
     catalog = Catalog(catalog_factory, descriptor)
     return catalog.get_meta(key)
 
@@ -199,7 +193,7 @@ def catalog_add_meta(catalog_id, key, value):
     """
     Initialize catalog metadata.
     """
-    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    descriptor = registry.lookup(catalog_id)[0]['descriptor']
     catalog = Catalog(catalog_factory, descriptor)
     catalog.add_meta(key, value)
 
@@ -207,6 +201,6 @@ def catalog_remove_meta(catalog_id, key, value=None):
     """
     Initialize catalog metadata.
     """
-    descriptor = registry_lookup(catalog_id)[0]['descriptor']
+    descriptor = registry.lookup(catalog_id)[0]['descriptor']
     catalog = Catalog(catalog_factory, descriptor)
     catalog.remove_meta(key, value)

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2015 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,250 +26,9 @@ import urllib
 import csv
 import web
 
-from util import sql_identifier, sql_literal
-from model import Type
-from ermrest import exception
-from ermrest.exception import *
-from ermrest.catalog import _random_name
-
-def _default_link_table2table(left, right):
-    """Find default reference link between left and right tables.
-
-       Returns (keyref, refop).
-
-       Raises exception.ConflictModel if no default can be found.
-    """
-    if left == right:
-        raise exception.ConflictModel('Ambiguous self-link for table %s' % left)
-
-    links = []
-
-    # look for right-to-left references
-    for pk in left.uniques.values():
-        if right in pk.table_references:
-            links.extend([
-                    (ref, '@=')
-                    for ref in pk.table_references[right]
-                    ])
-
-    # look for left-to-right references
-    for fk in left.fkeys.values():
-        if right in fk.table_references:
-            links.extend([
-                    (ref, '=@')
-                    for ref in fk.table_references[right]
-                    ])
-
-    if len(links) == 0:
-        raise exception.ConflictModel('No link found between tables %s and %s' % (left, right))
-    elif len(links) == 1:
-        return links[0]
-    else:
-        raise exception.ConflictModel('Ambiguous links found between tables %s and %s' % (left, right))
-
-class Name (object):
-    """Represent a qualified or unqualified name in an ERMREST URL.
-
-    """
-    def __init__(self, nameparts=None):
-        """Initialize a zero-element name container.
-        """
-        self.nameparts = nameparts and list(nameparts) or []
-        self.alias = None
-
-    def set_alias(self, alias):
-        self.alias = alias
-        return self
-
-    def __str__(self):
-        return ':'.join(map(urllib.quote, self.nameparts))
-    
-    def __repr__(self):
-        return '<ermrest.url.ast.Name %s>' % str(self)
-
-    def __len__(self):
-        return len(self.nameparts)
-
-    def __iter__(self):
-        return iter(self.nameparts)
-
-    def with_suffix(self, namepart):
-        """Append a namepart to a qualifying prefix, returning full name.
-
-           This method mutates the name and returns it as a
-           convenience for composing more calls.
-        """
-        self.nameparts.append(namepart)
-        return self
-        
-    def resolve_column(self, model, epath, table=None):
-        """Resolve self against a specific database model and epath context.
-
-           Returns (column, base) where base is one of:
-
-            -- a left table alias string if column is relative to alias
-            -- epath if column is relative to epath or table arg
-            -- None if column is relative to model
-        
-           The name must be resolved in this preferred order:
-
-             1. a relative 'n0' must be a column in the current epath
-                table type or the provided table arg if not None
-
-             2. a relative '*' may be a freetext virtual column
-                on the current epath table
-
-             3. a relative 'n0:n1' may be a column in alias n0 of
-                current epath
-
-             4. a relative 'n0:*' may be a freetext virtual column
-                in alias n0 of current epath
-
-             5. a relative 'n0:n1' may be a column in a table in the
-                model
-
-             6. any 'n0:n1:n2' must be a column in the model
-
-           Raises exception.ConflictModel on failed resolution.
-        """
-        ptable = epath.current_entity_table()
-
-        if table is None:
-            table = ptable
-        
-        if len(self.nameparts) == 3:
-            n0, n1, n2 = self.nameparts
-            table = model.lookup_table(n0, n1)
-            if n2 in table.columns:
-                return (table.columns[n2], None)
-            else:
-                raise exception.ConflictModel('Column %s does not exist in table %s.' % (n2, str(table)))
-        
-        else:
-            if len(self.nameparts) == 1:
-                if self.nameparts[0] in table.columns:
-                    return (table.columns[self.nameparts[0]], epath)
-                elif self.nameparts[0] == '*':
-                    return (ptable.freetext_column(), epath)
-                else:
-                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(table)))
-
-            elif len(self.nameparts) == 2:
-                n0, n1 = self.nameparts
-                if n0 in epath.aliases:
-                    if n1 in epath[n0].table.columns:
-                        return (epath[n0].table.columns[n1], n0)
-                    elif self.nameparts[1] == '*':
-                        return (epath[n0].table.freetext_column(), n0)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
-
-                table = model.lookup_table(None, n0)
-                if n1 not in table.columns:
-                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (n1, table.name))
-
-                return (table.columns[n1], None)
-
-        raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
-
-    def resolve_context(self, epath):
-        """Resolve self against a specific entity path for which we must be an alias, returning alias string."""
-        if len(self.nameparts) > 1:
-            raise exception.BadSyntax('Context name %s is not a valid syntax for an entity alias.' % self)
-        try:
-            return epath[str(self.nameparts[0])].alias
-        except KeyError:
-            raise exception.BadData('Context name %s is not a bound alias in entity path.' % self)
-
-    def resolve_link(self, model, epath):
-        """Resolve self against a specific database model and epath context.
-
-           Returns (keyref, refop, lalias) as resolved key reference
-           configuration.
-        
-           A name 'n0' must be an unambiguous table in the model
-
-           A name 'n0:n1' must be a table in the model
-
-           The named table must have an unambiguous implicit reference
-           to the epath context.
-
-           Raises exception.ConflictModel on failed resolution.
-        """
-        ptable = epath.current_entity_table()
-        
-        if len(self.nameparts) == 1:
-            name = self.nameparts[0]
-            table = self.resolve_table(model)
-            keyref, refop = _default_link_table2table(ptable, table)
-            return keyref, refop, None
-
-        elif len(self.nameparts) == 2:
-            n0, n1 = self.nameparts
-
-            table = model.lookup_table(n0, n1)
-            keyref, refop = _default_link_table2table(ptable, table)
-            return keyref, refop, None
-
-        raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
-
-    def resolve_table(self, model):
-        """Resolve self as table name.
-        
-           Qualified names 'n0:n1' can only be resolved from the model
-           as schema:table.  Bare names 'n0' can be resolved as table
-           if that is unambiguous across all schemas in the model.
-
-           Raises exception.ConflictModel on failed resolution.
-        """
-        if len(self.nameparts) == 2:
-            sname, tname = self.nameparts
-            return model.lookup_table(sname, tname)
-        elif len(self.nameparts) == 1:
-            tname = self.nameparts[0]
-            return model.lookup_table(None, tname)
-
-        raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
-            
-    def validate(self, epath):
-        """Validate name in epath context, raising exception on problems.
-
-           Name must be a column of path's current entity type 
-           or alias-qualified column of ancestor path entity type.
-        """
-        table = epath.current_entity_table()
-        col, base = self.resolve_column(epath._model, epath)
-        if base == epath:
-            return col, epath._path[epath.current_entity_position()]
-        elif base in epath.aliases:
-            return col, epath._path[epath.aliases[base]]
-
-        raise exception.ConflictModel('Referenced column %s not bound in entity path.' % (col.table))
-
-    def sql_column(self, epath, elem):
-        """Generate SQL column reference for name in epath elem context.
-
-           TODO: generalize to ancestor references later.
-        """
-        return 't%d.%s' % (
-            elem.pos,
-            sql_identifier(self.nameparts[-1])
-            )
-
-    def sql_literal(self, etype):
-        if len(self.nameparts) == 1:
-            return Value(self.nameparts[0]).sql_literal(etype)
-        else:
-            raise exception.BadSyntax('Names such as "%s" not supported in filter expressions.' % self)
-        
-    def validate_attribute_update(self):
-        """Return icolname for valid input column reference.
-           
-        """
-        if len(self.nameparts) == 1:
-            return self.nameparts[0]
-        else:
-            raise exception.BadSyntax('Name "%s" is not a valid input column reference.' % self)
+from ..exception import *
+from ..util import sql_identifier, sql_literal, random_name
+from ..model import Type
 
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
@@ -369,7 +128,7 @@ class EntityElem (object):
         return ltable, lcnames, rcnames, refop
 
     def __str__(self):
-        s = str(self.table)
+        s = unicode(self.table)
 
         if self.alias:
             s += ' AS %s' % self.alias
@@ -388,12 +147,12 @@ class EntityElem (object):
             s += ' ON (%s %s %s)' % (lcols, refop, rcols)
 
         if self.filters:
-            s += ' WHERE ' + ' AND '.join([ str(f) for f in self.filters ])
+            s += ' WHERE ' + ' AND '.join([ unicode(f) for f in self.filters ])
 
         return s
 
     def __repr__(self):
-        return '<ermrest.ermpath.EntityElem %s>' % str(self)
+        return '<ermrest.ermpath.EntityElem %s>' % unicode(self)
 
     def add_filter(self, filt):
         """Add a filtersql_name condition to this path element.
@@ -518,8 +277,8 @@ class EntityElem (object):
         if not self.table.writable_kind():
             raise ConflictModel('Entity %s is not writable.' % self.table)
         
-        input_table = _random_name("input_data_")
-        input_json_table = _random_name("input_json_")
+        input_table = random_name("input_data_")
+        input_json_table = random_name("input_json_")
 
         drop_tables = []
 
@@ -577,12 +336,13 @@ class EntityElem (object):
             hdr = csv.reader([ input_data.readline() ]).next()
 
             inputcol_names = set(
-                [ str(mkcol_aliases.get(c, c.name)) for c in mkcols ]
-                + [ str(mkcol_aliases.get(c, c.name)) for c in nmkcols ]
+                [ unicode(mkcol_aliases.get(c, c.name)) for c in mkcols ]
+                + [ unicode(mkcol_aliases.get(c, c.name)) for c in nmkcols ]
                 )
             csvcol_names = set()
             csvcol_names_ordered = []
             for cn in hdr:
+                cn = cn.decode('utf8')
                 try:
                     inputcol_names.remove(cn)
                     csvcol_names.add(cn)
@@ -591,10 +351,10 @@ class EntityElem (object):
                     if cn in csvcol_names:
                         raise BadData('CSV column %s appears more than once.' % cn)
                     else:
-                        raise BadData('CSV column %s not recognized.' % cn)
+                        raise ConflictModel('CSV column %s not recognized.' % cn)
 
             if len(inputcol_names) > 0:
-                raise BadData('CSV input missing required columns: %s' 
+                raise ConflictModel('CSV input missing required columns: %s' 
                               % ', '.join([ '"%s"' % cn for cn in inputcol_names ]))
 
             try:
@@ -612,13 +372,13 @@ FROM STDIN WITH (
                 input_data
                 )
             except psycopg2.DataError, e:
-                raise BadData('Bad CSV input. ' + e.pgerror)
+                raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
 
         elif in_content_type == 'application/json':
-            buf = input_data.read()
+            buf = input_data.read().decode('utf8')
             try:
                 cur.execute( 
-                """
+                u"""
 INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s 
 FROM (
@@ -629,7 +389,7 @@ FROM (
 ) s
 """ % dict( 
                         input_table = sql_identifier(input_table),
-                        cols = ','.join(
+                        cols = u','.join(
                             [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
                             + [ c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols ]
                             ),
@@ -695,7 +455,7 @@ FROM (
             for sql in correlating_sql
             ])
         
-        update_sql = """
+        update_sql = u"""
 UPDATE %(table)s AS t SET %(assigns)s
 FROM %(input_table)s AS i
 WHERE %(keymatches)s 
@@ -704,12 +464,12 @@ RETURNING %(tcols)s
 """ % dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
-            assigns = ','.join([ "%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
-            keymatches = ' AND '.join([ "t.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]),
-            valnonmatches = ' OR '.join([ "t.%s IS DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]),
-            tcols = ','.join(
-        [ 'i.%s AS %s' % (c.sql_name(mkcol_aliases.get(c)), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
-        + [ 't.%s AS %s' % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
+            assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
+            keymatches = u' AND '.join([ u"t.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]),
+            valnonmatches = u' OR '.join([ u"t.%s IS DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]),
+            tcols = u','.join(
+        [ u'i.%s AS %s' % (c.sql_name(mkcol_aliases.get(c)), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+        + [ u't.%s AS %s' % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
         )
             )
 
@@ -782,12 +542,12 @@ RETURNING *
         if allow_existing is False and not skip_key_tests:
             cur.execute("%s INTERSECT ALL %s" % correlating_sql)
             for row in cur:
-                raise ConflictData('Input row key (%s) collides with existing entity.' % str(row))
+                raise ConflictData('Input row key (%s) collides with existing entity.' % unicode(row))
 
         if allow_missing is False:
             cur.execute("%s EXCEPT ALL %s" % correlating_sql)
             for row in cur:
-                raise ConflictData('Input row key (%s) does not match existing entity.' % str(row))
+                raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
 
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
@@ -820,39 +580,6 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
-    def _preprocess_attributes(self, attributes):
-        results = []
-        for item in attributes:
-            if type(item) is tuple:
-                # make preprocessing resolution idempotent
-                attribute, col, base = item
-            else:
-                attribute = item
-                if len(attribute.nameparts) > 2:
-                    raise BadSyntax('Column name %s, qualified by schema and table names, not allowed as attribute.' % attribute)
-                elif len(attribute.nameparts) > 1 and attribute.nameparts[0] not in self.epath.aliases:
-                    raise BadSyntax('Alias %s, qualifying column name %s, not bound in path.' % (attribute.nameparts[0], attribute))
-                col, base = attribute.resolve_column(self.epath._model, self.epath)
-
-            if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
-                # expand '*' wildcard sugar as if user referenced each column
-                if attribute.alias is not None:
-                    raise BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
-                if base == self.epath:
-                    # columns from final entity path element
-                    for col in self.epath._path[self.epath.current_entity_position()].table.columns_in_order():
-                        results.append((Name([col.name]), col, base))
-                elif base in self.epath.aliases:
-                    # columns from interior path referenced by alias
-                    for col in self.epath[base].table.columns_in_order():
-                        results.append((Name([base, col.name]).set_alias('%s:%s' % (base, col.name)), col, base))
-                else:
-                    raise NotImplementedError('Unresolvable * column violates program invariants!')
-            else:
-                results.append((attribute, col, base))
-
-        return results
-                
     def _sql_get_agg_attributes(self, allow_extra=True):
         """Process attribute lists for aggregation APIs.
         """
@@ -874,7 +601,7 @@ class AnyPath (object):
         
         for attribute, col, base in self.attributes:
             sql_attr = sql_identifier(
-                attribute.alias is not None and str(attribute.alias) or str(col.name)
+                attribute.alias is not None and unicode(attribute.alias) or unicode(col.name)
                 )
 
             if hasattr(attribute, 'aggfunc'):
@@ -883,10 +610,10 @@ class AnyPath (object):
                 if attribute.alias is None:
                     raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
 
-                if str(attribute.aggfunc) not in templates:
+                if unicode(attribute.aggfunc) not in templates:
                     raise BadSyntax('Unknown or unsupported aggregate function "%s" applied to column "%s".' % (attribute.aggfunc, col.name))
 
-                aggregates.append((templates[str(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
+                aggregates.append((templates[unicode(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
             elif not allow_extra:
                 raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
             else:
@@ -972,7 +699,7 @@ class EntityPath (AnyPath):
 
     def __str__(self):
         return ' / '.join(
-            [ str(e) for e in self._path ] 
+            [ unicode(e) for e in self._path ] 
             + self._context_index >= 0 and [ '$%s' % self._path[self._context_index].alias ] or []
             )
 
@@ -1008,9 +735,8 @@ class EntityPath (AnyPath):
         else:
             raise NotImplementedError('current_entity_position with index %s' % self._context_index)
 
-    def set_context(self, context):
+    def set_context(self, alias):
         """Change path entity context to existing context referenced by alias."""
-        alias = context.resolve_context(self)
         self._context_index = self.aliases[alias]
 
     def get_data_version(self, cur):
@@ -1261,7 +987,7 @@ class AttributePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = self._preprocess_attributes(attributes)
+        self.attributes = attributes
         self.sort = None
 
     def add_sort(self, sort):
@@ -1315,14 +1041,14 @@ class AttributePath (AnyPath):
             select = select + cast
 
             if attribute.alias is not None:
-                if str(attribute.alias) in outputs:
+                if unicode(attribute.alias) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
-                outputs.add(str(attribute.alias))
+                outputs.add(unicode(attribute.alias))
                 selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
             else:
-                if str(col.name) in outputs:
+                if unicode(col.name) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % col.name)
-                outputs.add(str(col.name))
+                outputs.add(unicode(col.name))
                 selects.append('%s AS %s' % (select, col.sql_name()))
 
         if self.sort:
@@ -1418,8 +1144,8 @@ class AttributeGroupPath (AnyPath):
     def __init__(self, epath, groupkeys, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.groupkeys = self._preprocess_attributes(groupkeys)
-        self.attributes = self._preprocess_attributes(attributes)
+        self.groupkeys = groupkeys
+        self.attributes = attributes
         self.sort = None
 
         if not groupkeys:
@@ -1460,9 +1186,9 @@ class AttributeGroupPath (AnyPath):
 
         for key, col, base in self.groupkeys:
             if key.alias is not None:
-                groupkeys.append( sql_identifier(str(key.alias)) )
+                groupkeys.append( sql_identifier(unicode(key.alias)) )
             else:
-                groupkeys.append( sql_identifier(str(col.name)) )
+                groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
         asql, sort = apath.sql_get(split_sort=True, distinct_on=False)
@@ -1611,7 +1337,7 @@ class AggregatePath (AnyPath):
     def __init__(self, epath, attributes):
         AnyPath.__init__(self)
         self.epath = epath
-        self.attributes = self._preprocess_attributes(attributes)
+        self.attributes = attributes
 
         if not attributes:
             raise BadSyntax('Aggregate requires at least one attribute.')
@@ -1663,24 +1389,30 @@ def row_to_dict(cur, row):
 
 def val_to_csv(v):
     def condquote(v):
-        if v.find(',') > 0 or v.find('"') > 0:
-            return '"%s"' % (v.replace('"', '""'))
+        if v.find(u',') > 0 or v.find(u'"') > 0:
+            return u'"%s"' % (v.replace(u'"', u'""'))
         else:
             return v
 
     if v is None:
-        return ''
+        return u''
 
     if type(v) in [ int, float, long ]:
-        return '%s' % v
+        return u'%s' % v
 
     if type(v) is list:
-        return condquote('{%s}' % ",".join([ val_to_csv(e) for e in v ]))
+        return condquote(u'{%s}' % u",".join([ val_to_csv(e) for e in v ]))
 
+    elif type(v) is str:
+        return condquote(v.decode('utf8'))
+    
     else:
-        return condquote(str(v))
+        return condquote(unicode(v))
 
 def row_to_csv(row):
-    return ','.join([ val_to_csv(v) for v in row ])
+    try:
+        return (u','.join([ val_to_csv(v) for v in row ])).encode('utf8')
+    except Exception, e:
+        web.debug('row_to_csv', row, e)
 
        
