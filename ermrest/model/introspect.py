@@ -140,24 +140,23 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
     
-    # Select the unique or primary key columns
+    # Select the unique key reference columns
     PKEY_COLUMNS = '''
-SELECT
-   k_c_u.constraint_schema,
-   k_c_u.constraint_name,
-   k_c_u.table_schema,
-   k_c_u.table_name,
-   array_agg(k_c_u.column_name::text) AS column_names
-FROM information_schema.key_column_usage AS k_c_u
-JOIN information_schema.table_constraints AS t_c
-ON k_c_u.constraint_schema = t_c.constraint_schema
-   AND k_c_u.constraint_name = t_c.constraint_name 
-WHERE t_c.constraint_type IN ('UNIQUE', 'PRIMARY KEY')
-GROUP BY 
-   k_c_u.constraint_schema, k_c_u.constraint_name,
-   k_c_u.table_schema, k_c_u.table_name
-;
-    '''
+  SELECT
+    ncon.nspname::information_schema.sql_identifier AS pk_constraint_schema,
+    con.conname::information_schema.sql_identifier AS pk_constraint_name,
+    npk.nspname::information_schema.sql_identifier AS pk_table_schema,
+    pkcl.relname::information_schema.sql_identifier AS pk_table_name,
+    (SELECT array_agg(pka.attname ORDER BY i.i)
+     FROM generate_subscripts(con.conkey, 1) i
+     JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid AND con.conkey[i.i] = pka.attnum
+    ) AS pk_column_names
+  FROM pg_namespace ncon
+  JOIN pg_constraint con ON ncon.oid = con.connamespace
+  JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
+  JOIN pg_namespace npk ON pkcl.relnamespace = npk.oid
+  WHERE pg_has_role(pkcl.relowner, 'USAGE'::text) ;
+'''
 
     # Select the foreign key reference columns
     FKEY_COLUMNS = '''
