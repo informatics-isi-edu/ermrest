@@ -22,19 +22,9 @@ This module provides catalog management features including:
     - modify catalog policies (e.g., permissions, quotas, etc.)
     - modify catalog metadata
 """
-## NOTE: At this point, the abstractions in this module are rather weak.
-##  Ideally, we might make the db-specifics (dbname, dsn, etc) opaque to the
-##  caller and get some bootstrapping information out of a configuration file.
-##  Then the rest of the operations could be based on "Catalogs" as more 
-##  opaque encapsulations of the database details.
 
-import traceback
-import sys
-import uuid
-import base64
 import psycopg2
 import sanepg2
-import web
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model import introspect
@@ -241,7 +231,7 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
     def get_model(self, cur, config=None):
         # TODO: turn this into a @property
         if config is None:
-            config = web.ctx.ermrest_config # TODO: why not self._config?
+            config = self._config
         if not self._model:
             cache_key = (str(self.descriptor), self.get_model_version(cur))
             self._model = self.MODEL_CACHE.get(cache_key)
@@ -249,9 +239,6 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
                 try:
                     self._model = introspect(cur, config)
                 except Exception, te:
-                    et, ev, tb = sys.exc_info()
-                    web.debug('got exception "%s" during model introspection' % str(ev),
-                              traceback.format_exception(et, ev, tb))
                     raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
                 self.MODEL_CACHE[cache_key] = self._model
         return self._model
