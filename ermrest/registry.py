@@ -38,6 +38,10 @@ __all__ = ['get_registry']
 _POSTGRES_REGISTRY = "postgres"
 _SUPPORTED_REGISTRY_TYPES = (_POSTGRES_REGISTRY)
 
+_default_acls = {
+    "list_catalogs_permit": [ "*" ],
+    "create_catalog_permit": [ "admin" ]
+}
 
 def get_registry(config):
     """Returns an instance of the registry based on config.
@@ -47,7 +51,8 @@ def get_registry(config):
     
     return SimpleRegistry(
         dsn=config.get("dsn"),
-        schema=config.get("schema")
+        schema=config.get("schema"),
+        acls=config.get("acls")
         )
 
 
@@ -72,7 +77,28 @@ class Registry (object):
        
        http://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING
     """
-    
+
+    ANONYMOUS = set('*')
+
+    def __init__(self, acls):
+        """Initialized the base Registry.
+        """
+        super(Registry, self).__init__()
+        self.acls = acls if acls != None else _default_acls
+
+    def can_list(self, roles):
+        """Tests if one of roles can list all catalogs in registry.
+        """
+        raise NotImplementedError()
+
+    def can_create(self, roles):
+        """Tests if one of roles can create a catalog in registry.
+        """
+        roles = set(roles) | self.ANONYMOUS
+        acl = self.acls.get('create_catalog_permit')
+        acl = set(acl) if acl else set()
+        return len(roles & acl) > 0
+
     def lookup(self, id=None):
         """Lookup a registry and retrieve its description.
         
@@ -111,10 +137,10 @@ class SimpleRegistry (Registry):
     
     TABLE_NAME = "simple_registry"
     
-    def __init__(self, dsn, schema):
+    def __init__(self, dsn, schema, acls):
         """Initialized the SimpleRegistry.
         """
-        super(SimpleRegistry, self).__init__()
+        super(SimpleRegistry, self).__init__(acls)
         self.dsn = dsn
         self._schema_name = schema
 

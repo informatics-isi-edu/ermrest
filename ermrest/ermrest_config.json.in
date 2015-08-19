@@ -39,7 +39,11 @@
     "registry" : {
       "type" : "postgres",
       "dsn": "dbname=",
-      "schema": "ermrest"
+      "schema": "ermrest",
+      "acls": {
+          "list_catalogs_permit": [ "*" ],
+          "create_catalog_permit": [ "admin" ]
+      }
     },
     
     "catalog_factory": {

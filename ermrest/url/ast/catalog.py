@@ -26,6 +26,7 @@ import data
 from .api import Api
 from ... import exception, catalog, sanepg2
 from ...apicore import web_method
+from ...exception import *
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
@@ -37,12 +38,17 @@ class Catalogs (object):
     supported_types = [default_content_type, _text_plain]
 
     @web_method()
-    def POST(self):
+    def POST(self, uri='catalog'):
         """Perform HTTP POST of catalogs.
         """
         # content negotiation
         content_type = data.negotiated_content_type(self.supported_types, 
                                                     self.default_content_type)
+
+        # registry acl enforcement
+        allowed = web.ctx.ermrest_registry.can_create(web.ctx.webauthn2_context.attributes)
+        if not allowed:
+            raise rest.Forbidden(uri)
 
         # create the catalog instance
         catalog = web.ctx.ermrest_catalog_factory.create()
