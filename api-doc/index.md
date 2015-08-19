@@ -29,7 +29,7 @@ At its core, ERMrest is a multi-tenant service that can host multiple datasets, 
 The ERMrest web service model exposes resources to support management of datasets, the entity-relationship model, and the actual data stored using that model:
 
 1. Service: the entire multi-tenant service end-point
-1. Catalog: a particular dataset (in one service)
+1. [Catalog](model/naming.md#catalog-names): a particular dataset (in one service)
 1. [Schema or model resources](model/naming.md)
   1. [Schemata](model/naming.md#schemata-names): entire data model of a dataset (in one catalog)
   1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
@@ -149,7 +149,7 @@ ERMrest presents a composite resource model for data as sets of tuples. Using di
 
 For simplicity, ERMrest always uses data formats capable of representing a set of tuples, even if the particular named data resource is a degenerate case with set cardinality of one (single tuple) or zero (emtpy set). The currently supported MIME types for tabular data are:
 
-- `application/json`: a JSON array of objects where each object represents one tuple with named fields (the default representation). 
+- `application/json`: a JSON array of objects where each object represents one tuple with named fields (the default representation).
 - `text/csv`: a comma-separated value table where each row represents one tuple and a header row specifies the field names.
 - `application/x-json-stream`: a stream of JSON objects, one per line, where each object represents one tuple with named fields.
 
