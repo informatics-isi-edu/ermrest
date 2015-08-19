@@ -168,11 +168,11 @@ class Catalog (Api):
             return True
 
         def post_commit(destroy):
-            web.ctx.ermrest_registry.unregister(self.catalog_id, destroy=True)
+            web.ctx.ermrest_registry.unregister(self.catalog_id)
             web.ctx.status = '204 No Content'
             return ''
 
-        self.perform(body, post_commit)
+        return self.perform(body, post_commit)
 
 
 class Meta (Api):
