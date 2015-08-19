@@ -76,12 +76,21 @@ On success, the response is:
     
     {
       "schema_name": schema name,
-	  "tables": {
-	    table name: table representation, ...
+      "comment": comment,
+	  "annotations": {
+	     annotation key: annotation document, ...
+	  }
+      "tables": {
+         table name: table representation, ...
       }
     }
 
-Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is a single field `schema_name` whose value is the _schema name_ addressed in the retrieval request and a field `tables` which in turn is a sub-object used as a dictionary mapping. Each field name of the sub-object is a _table name_ and its corresponding value is a _table representation_ as described in [Table Creation](#table-creation).
+Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is a single object with the following fields:
+
+- `schema_name`: whose value is the _schema name_ addressed in the retrieval request
+- `comment`: whose value is a human-readable _comment_ for the schema
+- `annotations`: whose value is a sub-object use as a dictionary where each field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
+- `tables`: which is a sub-object used as a dictionary mapping. Each field name of the sub-object is a _table name_ and its corresponding value is a _table representation_ as described in [Table Creation](#table-creation).
 
 Typical error response codes include:
 - 404 Not Found
@@ -185,9 +194,9 @@ where the body content is the same _table representation_ as the request input c
 
 Typical error response codes include:
 - 400 Bad Request
-- 404 Not Found
 - 403 Forbidden
 - 401 Unauthorized
+- 409 Conflict
 
 ## Table Retrieval
 
@@ -215,6 +224,7 @@ Typical error response codes include:
 - 404 Not Found
 - 403 Forbidden
 - 401 Unauthorized
+- 409 Conflict
 
 ## Table Deletion
 
@@ -231,6 +241,7 @@ Typical error response codes include:
 - 404 Not Found
 - 403 Forbidden
 - 401 Unauthorized
+- 409 Conflict
 
 ## Column List Retrieval
 
@@ -290,7 +301,7 @@ The input _column representation_ is a long JSON document too verbose to show ve
 - `name`: whose value is the _column name_ string for the new column which must be distinct from all existing columns in the table
 - `type`: whose value is the _column type_ drawn from a limited set of supported types in ERMrest
 - `default`: whose value is an appropriate default value consistent with the _column type_ or the JSON `null` value to indicate that NULL values should be used (the default when `default` is omitted from the _column representation_)
-- `comment`: whose value is the human-readable comment string for the new column
+- `comment`: whose value is the human-readable comment string for the column
 - `annotations`: whose value is a sub-object use as a dictionary where each field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
 
 On success, the response is:
@@ -395,10 +406,18 @@ In this operation, the `application/json` _key representation_ is supplied as in
 	Content-Type: application/json
 
     {
-      "unique_columns": [ column name, ... ]
+       "unique_columns": [ column name, ... ],
+       "comment": comment,
+       "annotations": {
+          annotation key: annotation document, ...
+       }
     }
 
-The input _key representation_ is a JSON document with one object whose single field `unique_columns` has an array value listing the individual columns that comprise the composite key. The constituent columns are listed by their basic _column name_ strings.
+The input _key representation_ is a JSON document with one object with the following fields:
+
+- `unique_columns` has an array value listing the individual columns that comprise the composite key. The constituent columns are listed by their basic _column name_ strings.
+- `comment`: whose value is the human-readable comment string for the key
+- `annotations`: whose value is a sub-object use as a dictionary where each field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
 
 On success, the response is:
 
@@ -525,6 +544,7 @@ In this operation, the `application/json` _foreign key reference representation_
           "column_name": column name
         }
       ],
+      "comment": comment,
       "annotations": {
         annotation key: annotation document, ...
       }
@@ -540,6 +560,7 @@ The input _foreign key reference representation_ is a long JSON document too ver
   - `schema_name`: whose value names the schema in which the referenced table resides
   - `table_name`: whose value names the referenced table
   - `column_name`: whose value names the constituent column of the referenced key
+- `comment`: whose value is the human-readable comment string for the foreign key reference constraint
 - `annotations`: whose value is a sub-object used as a dictionary where each field field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
 
 The two arrays MUST have the same length and the order is important in that the two composite keys are mapped to one another element-by-element, so the first column of the composite foreign key refers to the first column of the composite referenced key, etc. In the `referenced_columns` list, the _schema name_ and _table name_ values MUST be identical for all referenced columns.

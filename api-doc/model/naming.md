@@ -120,6 +120,27 @@ Additionally, a composite resource summarizes all existing key constraints on on
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key`
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/`
 
+##### Key Comments
+
+Each key comment is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/comment`
+
+This named resource has a simple representation which is just human readable text in `text/plain` format.
+
+##### Key Annotations
+
+Each key annotation is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/annotation/` _annotation key_
+
+This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
+
+Additionally, a composite resource summarizes all existing annotations on one key for convenient discovery and bulk retrieval:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/annotation`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/annotation/`
+
 ### Foreign Key Names
 
 Each (composite) foreign key constraint is reified as a model-level resource:
@@ -145,7 +166,15 @@ Finally, a composite resource summarizes all foreign key constraints involving o
 
 (While highly unusual, it is possible to express more than one foreign key constraint from the same composite foreign key _column name_ list to different composite key _key column_ lists in the same or different _table reference_ tables.)
 
-### Foreign Key Annotations
+##### Foreign Key Comments
+
+Each foreign-key comment is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ... `/comment`
+
+This named resource has a simple representation which is just human readable text in `text/plain` format.
+
+#### Foreign Key Annotations
 
 Each foreign-key annotation is reified as a model-level resource:
 
