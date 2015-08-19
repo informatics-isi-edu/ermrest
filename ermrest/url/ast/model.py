@@ -177,7 +177,7 @@ class Comment (Api):
         return unicode(subject.comment) + '\n'
 
     def GET(self, uri):
-        return _GET(self, self.GET_body, lambda response: _post_commit(self, response, 'text/plain'))
+        return _GET(self, self.GET_body, lambda self, response: _post_commit(self, response, 'text/plain'))
 
     def SET_body(self, conn, cur, getresults, comment):
         subject = self.GET_subject(conn, cur)
