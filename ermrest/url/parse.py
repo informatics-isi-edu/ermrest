@@ -44,6 +44,10 @@ start = 'start'
 def p_apis(p):
     """api   : catalog
              | catalogslash
+             | comment
+             | annotations
+             | annotationsslash
+             | annotation
              | schemas 
              | schema
              | schemaslash
@@ -51,18 +55,10 @@ def p_apis(p):
              | tablesslash
              | table
              | tableslash
-             | tablecomment
-             | tableannotations
-             | tableannotationsslash
-             | tableannotation
              | columns 
              | columnsslash
              | column
              | columnslash
-             | columnannotations
-             | columnannotationsslash
-             | columnannotation
-             | columncomment
              | keys 
              | key
              | foreignkeys 
@@ -72,9 +68,6 @@ def p_apis(p):
              | foreignkeyreftableslash
              | foreignkeyref
              | foreignkeyrefslash
-             | foreignkeyrefannotations
-             | foreignkeyrefannotationsslash
-             | foreignkeyrefannotation
              | textfacet
              | meta
              | data
@@ -418,6 +411,37 @@ def p_schema2(p):
     """schemaslash : schema '/'"""
     p[0] = p[1]
 
+def p_commentable(p):
+    """commentable : schemaslash
+                   | tableslash
+                   | columnslash
+    """
+    p[0] = p[1]
+
+def p_comment(p):
+    """comment : commentable COMMENT"""
+    p[0] = p[1].comment()
+
+def p_annotatable(p):
+    """annotatable : schemaslash
+                   | tableslash
+                   | columnslash
+                   | foreignkeyrefslash
+    """
+    p[0] = p[1]
+
+def p_annotations(p):
+    """annotations : annotatable ANNOTATION"""
+    p[0] = p[1].annotations()
+
+def p_annotationsslash(p):
+    """annotationsslash : annotations '/' """
+    p[0] = p[1]
+
+def p_annotation(p):
+    """annotation : annotationsslash string"""
+    p[0] = p[1].annotation(p[2])
+    
 def p_tables(p):
     """tables : schemaslash TABLE"""
     p[0] = p[1].tables()
@@ -436,22 +460,6 @@ def p_table2(p):
     """tableslash : table '/' """
     p[0] = p[1]
 
-def p_tablecomment(p):
-    """tablecomment : tableslash COMMENT """
-    p[0] = p[1].comment()
-
-def p_tableannotations(p):
-    """tableannotations : tableslash ANNOTATION """
-    p[0] = p[1].annotations()
-
-def p_tableannotationsslash(p):
-    """tableannotationsslash : tableannotations '/' """
-    p[0] = p[1]
-
-def p_tableannotation(p):
-    """tableannotation : tableannotationsslash string"""
-    p[0] = p[1].annotation(p[2])
-
 def p_columns(p):
     """columns : tableslash COLUMN """
     p[0] = p[1].columns()
@@ -469,22 +477,6 @@ def p_column(p):
 def p_columnslash(p):
     """columnslash : column '/'"""
     p[0] = p[1]
-
-def p_columncomment(p):
-    """columncomment : columnslash COMMENT"""
-    p[0] = p[1].comment()
-
-def p_columnannotations(p):
-    """columnannotations : columnslash ANNOTATION"""
-    p[0] = p[1].annotations()
-
-def p_columnannotationsslash(p):
-    """columnannotationsslash : columnannotations '/'"""
-    p[0] = p[1]
-
-def p_columnannotation(p):
-    """columnannotation : columnannotationsslash string"""
-    p[0] = p[1].annotation(p[2])
 
 def p_keys(p):
     """keys : tableslash KEY slashopt """
@@ -532,18 +524,6 @@ def p_foreignkey_reftable_columns(p):
 def p_foreignkeyrefslash(p):
     """foreignkeyrefslash : foreignkeyref '/'"""
     p[0] = p[1]
-
-def p_foreignkeyannotations(p):
-    """foreignkeyrefannotations : foreignkeyrefslash ANNOTATION"""
-    p[0] = p[1].annotations()
-
-def p_foreignkeyannotationsslash(p):
-    """foreignkeyrefannotationsslash : foreignkeyrefannotations '/'"""
-    p[0] = p[1]
-
-def p_foreignkeyannotation(p):
-    """foreignkeyrefannotation : foreignkeyrefannotationsslash string"""
-    p[0] = p[1].annotation(p[2])
 
 def p_queryopts(p):
     """queryopts : queryopts_empty

@@ -52,7 +52,8 @@ def introspect(cur, config=None):
     SELECT_SCHEMAS = '''
 SELECT
   current_database() AS catalog_name,
-  nc.nspname AS schema_name
+  nc.nspname AS schema_name,
+  obj_description(nc.oid) AS schema_comment
 FROM 
   pg_catalog.pg_namespace nc
 WHERE
@@ -223,9 +224,9 @@ GROUP BY
     
     # get schemas (including empty ones)
     cur.execute(SELECT_SCHEMAS);
-    for dname, sname in cur:
+    for dname, sname, scomment in cur:
         if (dname, sname) not in schemas:
-            schemas[(dname, sname)] = Schema(model, sname)
+            schemas[(dname, sname)] = Schema(model, sname, scomment)
 
     # get columns
     cur.execute(SELECT_COLUMNS)

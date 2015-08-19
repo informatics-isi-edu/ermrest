@@ -23,6 +23,27 @@ Each schema or namespace of tables in a particular catalog is reified as a model
 
 This named schema resource has a representation which summarizes the data model of all tables qualified by the _schema name_ namespace.
 
+### Schema Comments
+
+Each schema comment is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/comment`
+
+This named resource has a simple representation which is just human readable text in `text/plain` format.
+
+### Schema Annotations
+
+Each schema annotation is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/annotation/` _annotation key_
+
+This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
+
+Additionally, a composite resource summarizes all existing annotations on one schema for convenient discovery and bulk retrieval:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/annotation`
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/annotation/`
+
 ## Table Names
 
 Each table is reified as a model-level resource:
