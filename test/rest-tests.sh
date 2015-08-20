@@ -127,7 +127,7 @@ then
 
     cid=$(grep "^Location" ${RESPONSE_HEADERS} | sed -e "s|^Location: /ermrest/catalog/\([0-9]\+\).*|\1|")
     [[ -n "$cid" ]] || error "failed to create catalog, testing aborted."
-    DESTROY_CATALOG=true
+    DESTROY_CATALOG=${DESTROY_CATALOG:-true}
 else
     cid=${TEST_CID}
     DESTROY_CATALOG=false
@@ -330,6 +330,8 @@ resources=(
     /schema/test1
     /schema/test1/table/test_level2
     /schema/test1/table/test_level2/column/name
+    /schema/test1/table/test_level2/key/id
+    /schema/test1/table/test_level2/foreignkey/level1_id/reference/test_level1/id
 )
 for resource in ${resources[@]}
 do
@@ -350,6 +352,7 @@ resources=(
     /schema/test1
     /schema/test1/table/test_level2
     /schema/test1/table/test_level2/column/name
+    /schema/test1/table/test_level2/key/id
     /schema/test1/table/test_level2/foreignkey/level1_id/reference/test_level1/id
 )
 for resource in ${resources[@]}

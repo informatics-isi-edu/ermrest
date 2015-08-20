@@ -217,6 +217,22 @@ class ColumnComment (Comment):
     def __init__(self, column):
         Comment.__init__(self, column.table.schema.catalog, column)
 
+class KeyComment (Comment):
+    """A specific key's comment."""
+    def __init__(self, key):
+        Comment.__init__(self, key.table.schema.catalog, key)
+
+class ForeignkeyReferencesComment (Comment):
+    """A specific fkey's comment."""
+    def __init__(self, fkey):
+        Comment.__init__(self, fkey.catalog, fkey)
+    
+    def GET_subject(self, conn, cur):
+        fkrs = self.subject.GET_body(conn, cur)
+        if len(fkrs) != 1:
+            raise NotImplementedError('ForeignkeyReferencesComment on %d fkrs' % len(fkrs))
+        return fkrs[0]
+
 class Annotations (Api):
     def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
@@ -279,6 +295,10 @@ class SchemaAnnotations (Annotations):
 class ColumnAnnotations (Annotations):
     def __init__(self, column):
         Annotations.__init__(self, column.table.schema.catalog, column)
+
+class KeyAnnotations (Annotations):
+    def __init__(self, key):
+        Annotations.__init__(self, key.table.schema.catalog, key)
 
 class ForeignkeyReferenceAnnotations (Annotations):
     def __init__(self, fkrs):
@@ -439,6 +459,12 @@ class Key (Api):
         self.table = table
         self.columns = column_set
 
+    def comment(self):
+        return KeyComment(self)
+
+    def annotations(self):
+        return KeyAnnotations(self)
+        
     def GET_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)
         cols = frozenset([ table.columns[unicode(c)] for c in self.columns ])
@@ -569,6 +595,9 @@ class ForeignkeyReferences (Api):
 
     def annotations(self):
         return ForeignkeyReferenceAnnotations(self)
+
+    def comment(self):
+        return ForeignkeyReferencesComment(self)
 
     def GET_body(self, conn, cur):
         from_table, from_key = None, None

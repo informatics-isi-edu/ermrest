@@ -16,26 +16,54 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
-from .misc import frozendict, AltDict, annotatable
+from .misc import frozendict, AltDict, annotatable, commentable
 
 import json
 
+@commentable()
+@annotatable('key', dict(
+    schema_name=('text', lambda self: unicode(self.table.schema.name)),
+    table_name=('text', lambda self: unicode(self.table.name)),
+    column_names=('text[]', lambda self: self._column_names())
+    )
+)
 class Unique (object):
     """A unique constraint."""
     
-    def __init__(self, cols, constraint_name=None):
+    def __init__(self, cols, constraint_name=None, comment=None, annotations={}):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
         self.constraint_names = set()
+        self.comment = comment
+        self.annotations = dict()
+        self.annotations.update(annotations)
         if constraint_name:
             self.constraint_names.add(constraint_name)
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
         
+    @staticmethod
+    def introspect_annotation(model=None, schema_name=None, table_name=None, column_names=None, annotation_uri=None, annotation_value=None):
+        table = model.schemas[schema_name].tables[table_name]
+        columns = [ table.columns[cname] for cname in column_names ]
+        table.uniques[frozenset(columns)].annotations[annotation_uri] = annotation_value
+        
+    def sql_comment_resource(self):
+        return set([
+            # we treat all unique constraints w/ same column set as equivalence class of key
+            # NOTE: this overwrites comments on multiple constraints that might be different in legacy DB!
+            "CONSTRAINT %s ON %s.%s" % (
+                sql_identifier(unicode(pk_name)),
+                sql_identifier(unicode(self.table.schema.name)),
+                sql_identifier(unicode(self.table.name))
+                )
+            for pk_schema, pk_name in self.constraint_names
+        ])
+
     def __str__(self):
         return ','.join([ str(c) for c in self.columns ])
 
@@ -49,18 +77,26 @@ class Unique (object):
         """Render SQL table constraint clause for DDL."""
         return 'UNIQUE(%s)' % (','.join([sql_identifier(c.name) for c in self.columns]))
 
+    def _column_names(self):
+        """Canonicalized column names list."""
+        cnames = [ unicode(col.name) for col in self.columns ]
+        cnames.sort()
+        return cnames
+        
     @staticmethod
     def fromjson_single(table, keydoc):
         """Yield Unique instance if and only if keydoc describes a key not already in table."""
         keycolumns = []
         kcnames = keydoc.get('unique_columns', [])
+        comment = keydoc.get('comment')
+        annotations = keydoc.get('annotations', {})
         for kcname in kcnames:
             if kcname not in table.columns:
                 raise exception.BadData('Key column %s not defined in table.' % kcname)
             keycolumns.append(table.columns[kcname])
         keycolumns = frozenset(keycolumns)
         if keycolumns not in table.uniques:
-            yield Unique(keycolumns)
+            yield Unique(keycolumns, comment=comment, annotations=annotations)
 
     @staticmethod
     def fromjson(table, keysdoc):
@@ -76,6 +112,8 @@ class Unique (object):
 
     def prejson(self):
         return dict(
+            comment=self.comment,
+            annotations=self.annotations,
             unique_columns=[ c.name for c in self.columns ]
             )
 
@@ -124,6 +162,7 @@ class ForeignKey (object):
                 refs.append( kr.prejson() )
         return refs
 
+@commentable()
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
     from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
@@ -136,7 +175,7 @@ class ForeignKey (object):
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map = dict(fk_ref_map)
@@ -155,6 +194,7 @@ class KeyReference (object):
             self.constraint_names.add(constraint_name)
         self.annotations = dict()
         self.annotations.update(annotations)
+        self.comment = comment
 
     @staticmethod
     def introspect_annotation(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None, annotation_uri=None, annotation_value=None):
@@ -165,6 +205,18 @@ class KeyReference (object):
             for from_cname, to_cname in zip(from_column_names, to_column_names)
         ])
         from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].annotations[annotation_uri] = annotation_value
+
+    def sql_comment_resource(self):
+        return set([
+            # we treat all fkeyref constraints w/ same cmapping as equivalence class of fkeyref
+            # NOTE: this overwrites comments on multiple constraints that might be different in legacy DB!
+            "CONSTRAINT %s ON %s.%s" % (
+                sql_identifier(unicode(fk_name)),
+                sql_identifier(unicode(self.foreign_key.table.schema.name)),
+                sql_identifier(unicode(self.foreign_key.table.name))
+                )
+            for fk_schema, fk_name in self.constraint_names
+        ])
 
     def __str__(self):
         interp = self._interp_annotation(None, sql_wrap=False)
@@ -262,13 +314,14 @@ class KeyReference (object):
         fk_columns = list(check_columns(refdoc.get('foreign_key_columns', []), 'foreign-key'))
         pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
         annotations = refdoc.get('annotations', {})
+        comment = refdoc.get('comment')
 
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
         
         if fk_ref_map not in fkey.references:
-            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations)
+            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
             yield fkey.references[fk_ref_map]
 
     def prejson(self):
@@ -280,6 +333,7 @@ class KeyReference (object):
         return dict(
             foreign_key_columns=fcs,
             referenced_columns=pcs,
+            comment=self.comment,
             annotations=self.annotations
             )
 

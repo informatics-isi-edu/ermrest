@@ -52,11 +52,16 @@ def commentable():
     """
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
-        cur.execute("""
+        resources = self.sql_comment_resource()
+        if not isinstance(resources, set):
+            # backwards compatibility
+            resources = set([resources])
+        for resource in resources:
+            cur.execute("""
 COMMENT ON %s IS %s;
 SELECT _ermrest.model_change_event();
-""" % (self.sql_comment_resource(), sql_literal(comment))
-        )
+""" % (resource, sql_literal(comment))
+            )
     
     def helper(orig_class):
         setattr(orig_class, 'set_comment', set_comment)

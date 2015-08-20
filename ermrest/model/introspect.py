@@ -140,24 +140,24 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
     
-    # Select the unique or primary key columns
+    # Select the unique key reference columns
     PKEY_COLUMNS = '''
-SELECT
-   k_c_u.constraint_schema,
-   k_c_u.constraint_name,
-   k_c_u.table_schema,
-   k_c_u.table_name,
-   array_agg(k_c_u.column_name::text) AS column_names
-FROM information_schema.key_column_usage AS k_c_u
-JOIN information_schema.table_constraints AS t_c
-ON k_c_u.constraint_schema = t_c.constraint_schema
-   AND k_c_u.constraint_name = t_c.constraint_name 
-WHERE t_c.constraint_type IN ('UNIQUE', 'PRIMARY KEY')
-GROUP BY 
-   k_c_u.constraint_schema, k_c_u.constraint_name,
-   k_c_u.table_schema, k_c_u.table_name
-;
-    '''
+  SELECT
+    ncon.nspname::information_schema.sql_identifier AS pk_constraint_schema,
+    con.conname::information_schema.sql_identifier AS pk_constraint_name,
+    npk.nspname::information_schema.sql_identifier AS pk_table_schema,
+    pkcl.relname::information_schema.sql_identifier AS pk_table_name,
+    (SELECT array_agg(pka.attname ORDER BY i.i)
+     FROM generate_subscripts(con.conkey, 1) i
+     JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid AND con.conkey[i.i] = pka.attnum
+    ) AS pk_column_names,
+    obj_description(con.oid) AS constraint_comment
+  FROM pg_namespace ncon
+  JOIN pg_constraint con ON ncon.oid = con.connamespace
+  JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
+  JOIN pg_namespace npk ON pkcl.relnamespace = npk.oid
+  WHERE pg_has_role(pkcl.relowner, 'USAGE'::text) ;
+'''
 
     # Select the foreign key reference columns
     FKEY_COLUMNS = '''
@@ -191,7 +191,8 @@ GROUP BY
             WHEN 'r'::"char" THEN 'RESTRICT'::text
             WHEN 'a'::"char" THEN 'NO ACTION'::text
             ELSE NULL::text
-    END::information_schema.character_data AS rc_update_rule
+    END::information_schema.character_data AS rc_update_rule,
+    obj_description(con.oid) AS constraint_comment
   FROM pg_namespace ncon
   JOIN pg_constraint con ON ncon.oid = con.connamespace
   JOIN pg_class fkcl ON con.conrelid = fkcl.oid AND con.contype = 'f'::"char"
@@ -270,9 +271,7 @@ GROUP BY
     # Introspect uniques / primary key references, aggregated by constraint
     #
     cur.execute(PKEY_COLUMNS)
-    for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names in cur:
-
-        pk_constraint_key = (pk_schema, pk_name)
+    for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
 
         pk_cols = [ columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
                     for pk_column_name in pk_column_names ]
@@ -281,19 +280,20 @@ GROUP BY
 
         # each constraint implies a pkey but might be duplicate
         if pk_colset not in pkeys:
-            pkeys[pk_colset] = Unique(pk_colset, (pk_schema, pk_name) )
+            pkeys[pk_colset] = Unique(pk_colset, (pk_schema, pk_name), pk_comment )
         else:
             pkeys[pk_colset].constraint_names.add( (pk_schema, pk_name) )
+            if pk_comment:
+                # save at least one comment in case multiple constraints have same key columns
+                pkeys[pk_colset].comment = pk_comment
 
     #
     # Introspect foreign keys references, aggregated by reference constraint
     #
     cur.execute(FKEY_COLUMNS)
     for fk_schema, fk_name, fk_table_schema, fk_table_name, fk_column_names, \
-            uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update \
+            uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update, fk_comment \
             in cur:
-
-        fk_constraint_key = (fk_schema, fk_name)
 
         fk_cols = [ columns[(dname, fk_table_schema, fk_table_name, fk_column_names[i])]
                     for i in range(0, len(fk_column_names)) ]
@@ -313,10 +313,12 @@ GROUP BY
 
         # each reference constraint implies a foreign key reference but might be duplicate
         if fk_ref_map not in fk.references:
-            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name) )
+            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name), comment=fk_comment )
         else:
             fk.references[fk_ref_map].constraint_names.add( (fk_schema, fk_name) )
-
+            if fk_comment:
+                # save at least one comment in case multiple csontraints have same key mapping
+                fk.references[fk_ref_map].comment = fk_comment
     #
     # Introspect ERMrest model overlay annotations
     #
