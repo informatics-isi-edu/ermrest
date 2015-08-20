@@ -66,7 +66,6 @@ import struct
 import urllib
 import sys
 import traceback
-import itertools
 import psycopg2
 import webauthn2
 
@@ -133,31 +132,33 @@ class Dispatcher (object):
             result = astmethod(uri)
             if hasattr(result, 'next'):
                 # force any transaction deferred in iterator
-                try:
-                    first = result.next()
-                except StopIteration:
-                    return result
-                return itertools.chain([first], result)
+                for res in result:
+                    yield res
             else:
-                return result
+                yield result
         finally:
             if ast is not None:
                 ast.final()
 
     def HEAD(self):
-        return self.METHOD('HEAD')
+        for res in self.METHOD('HEAD'):
+            yield res
 
     def GET(self):
-        return self.METHOD('GET')
+        for res in self.METHOD('GET'):
+            yield res
         
     def PUT(self):
-        return self.METHOD('PUT')
+        for res in self.METHOD('PUT'):
+            yield res
 
     def DELETE(self):
-        return self.METHOD('DELETE')
+        for res in self.METHOD('DELETE'):
+            yield res
 
     def POST(self):
-        return self.METHOD('POST')
+        for res in self.METHOD('POST'):
+            yield res
 
 def web_urls():
     """Builds and returns the web_urls for web.py.
