@@ -168,8 +168,12 @@ CREATE SCHEMA %(schema)s;"""
                 cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     id bigserial PRIMARY KEY,
-    descriptor text
-);"""
+    descriptor text,
+    deletedon timestamp with time zone DEFAULT NULL
+);
+CREATE INDEX ON %(schema)s.%(table)s (deletedon);
+CREATE INDEX ON %(schema)s.%(table)s (id, deletedon);
+"""
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
             return None
@@ -177,10 +181,9 @@ CREATE TABLE %(schema)s.%(table)s (
                 
     def lookup(self, id=None):
         def body(conn, cur):
+            where = "WHERE deletedon IS NULL"
             if id:
-                where = "WHERE id = %s" % sql_literal(id)
-            else:
-                where = ""
+                where += " AND id = %s" % sql_literal(id)
 
             cur.execute("""
 SELECT id, descriptor
@@ -205,7 +208,8 @@ FROM %(schema)s.%(table)s
         
         def body(conn, cur):
             cur.execute("""
-INSERT INTO %(schema)s.%(table)s (%(cols)s) values (%(values)s)
+INSERT INTO %(schema)s.%(table)s (%(cols)s)
+VALUES (%(values)s)
 RETURNING id;
 """ % dict(schema=self._schema_name,
            table=self.TABLE_NAME,
@@ -220,7 +224,7 @@ RETURNING id;
 
         return self.pooled_perform(body, post_commit)
 
-    def unregister(self, id, destroy=False):
+    def unregister(self, id):
         """Unregister a catalog description.
         
            'id' : the id of the catalog to unregister.
@@ -229,8 +233,9 @@ RETURNING id;
 
         def body(conn, cur):
             cur.execute("""
-DELETE FROM %(schema)s.%(table)s
-WHERE id = %(id)s;
+UPDATE %(schema)s.%(table)s
+SET deletedon = current_timestamp
+WHERE deletedon IS NULL AND id = %(id)s;
 """          % dict(schema=self._schema_name,
                    table=self.TABLE_NAME,
                    id=sql_literal(id)
