@@ -141,24 +141,19 @@ class Dispatcher (object):
                 ast.final()
 
     def HEAD(self):
-        for res in self.METHOD('HEAD'):
-            yield res
+        return self.METHOD('HEAD'):
 
     def GET(self):
-        for res in self.METHOD('GET'):
-            yield res
+        return self.METHOD('GET'):
         
     def PUT(self):
-        for res in self.METHOD('PUT'):
-            yield res
+        return self.METHOD('PUT'):
 
     def DELETE(self):
-        for res in self.METHOD('DELETE'):
-            yield res
+        return self.METHOD('DELETE'):
 
     def POST(self):
-        for res in self.METHOD('POST'):
-            yield res
+        return self.METHOD('POST'):
 
 def web_urls():
     """Builds and returns the web_urls for web.py.
