@@ -16,16 +16,19 @@ A successful run will exit with status 0 and an empty standard output.
 
 A failure will exit with status 1 and a non-empty standard output.
 
+Setting VERBOSE=true will include full per-test information on
+standard output for successes as well as failures. VERBOSE=brief will
+output a single line per successful test.
+
 Diagnostics may be printed to standard error regardless of success or
-failure.  Setting the environment variable VERBOSE=true increases the
-amount of diagnostic output.
+failure.
 
 EOF
 }
 
 error()
 {
-    cat >&2 <<EOF
+    cat <<EOF
 $0: $*
 EOF
     usage >&2
@@ -71,48 +74,64 @@ NUM_TESTS=0
 
 BASE_URL="https://$(hostname)/ermrest"
 
+logtest()
+{
+    status=$1
+    shift
+    cat <<EOF
+TEST $(( ${NUM_TESTS} + 1 )) $status:
+
+  Request: mycurl $@ ${BASE_URL}$url
+  Expected result: $pattern
+  Actual result: $summary
+$(case "$*" in 
+   *${TEST_DATA}*)
+     cat <<EOF2
+
+  Request body:
+$(sed -e "s/^\(.*\)/    \1/" "${TEST_DATA}")
+
+  Response headers:
+EOF2
+     ;;
+  *)
+     cat <<EOF2
+
+  Response headers:
+EOF2
+     ;;
+esac)
+$(cat ${RESPONSE_HEADERS} | sed -e "s/^\(.*\)/    \1/")
+  Response body:
+$(cat ${RESPONSE_CONTENT} | sed -e "s/^\(.*\)/    \1/")
+
+EOF
+
+}
+
 dotest()
 {
     pattern="$1"
     url="$2"
     shift 2
 
-    printf "%s " "$@" "${BASE_URL}$url" >&2
     summary=$(mycurl "$@" "${BASE_URL}$url")
-    printf " -->  %s " "$summary" >&2
 
     hash1=
     hash2=
 
     if [[ "$summary" != $pattern ]]
     then
-	printf "FAILED.\n" >&2
-	cat <<EOF
-
-TEST FAILURE:
-
-Expected result: $pattern
-Actual result: $summary
-
-Response headers:
-$(cat ${RESPONSE_HEADERS})
-Response body:
-$(cat ${RESPONSE_CONTENT})
-
-EOF
+	logtest FAILED "$@"
 	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
     else
-	printf "OK.\n" >&2
 	if [[ "$VERBOSE" = "true" ]]
 	then
+	    logtest OK "$@"
+	elif [[ "$VERBOSE" = "brief" ]]
+	then
 	    cat >&2 <<EOF
-Actual result: $summary
-
-Response headers:
-$(cat ${RESPONSE_HEADERS})
-Response body:
-$(cat ${RESPONSE_CONTENT})
-
+TEST $(( ${NUM_TESTS} + 1 )) OK: mycurl $@ ${BASE_URL}$url --> $summary
 EOF
 	fi
     fi
