@@ -99,11 +99,13 @@ class Registry (object):
         acl = set(acl) if acl else set()
         return len(roles & acl) > 0
 
-    def lookup(self, id=None):
+    def lookup(self, id=None, deleted=False):
         """Lookup a registry and retrieve its description.
         
            'id' : an identifier (not sure we have defined it precisely,
                   at present an integer)
+
+           'deleted' : a boolean flag to lookup deleted catalogs
            
            returns : a collection of mappings in the form (id, descriptor)
         """
@@ -179,14 +181,18 @@ CREATE INDEX ON %(schema)s.%(table)s (id, deletedon);
             return None
         return self.pooled_perform(body)
                 
-    def lookup(self, id=None):
+    def lookup(self, id=None, deleted=False):
         def body(conn, cur):
-            where = "WHERE deletedon IS NULL"
+            where = "WHERE deletedon"
+            if deleted:
+                where += " IS NOT NULL"
+            else:
+                where += " IS NULL"
             if id:
                 where += " AND id = %s" % sql_literal(id)
 
             cur.execute("""
-SELECT id, descriptor
+SELECT id, descriptor, deletedon
 FROM %(schema)s.%(table)s
 %(where)s;
 """         % dict(schema=self._schema_name,
@@ -196,8 +202,8 @@ FROM %(schema)s.%(table)s
             
             # return results as a list of dictionaries
             return [
-                dict(id=eid, descriptor=json.loads(descriptor))
-                for eid, descriptor in cur
+                dict(id=eid, descriptor=json.loads(descriptor), deletedon=deletedon)
+                for eid, descriptor, deletedon in cur
             ]
 
         return self.pooled_perform(body)
