@@ -66,7 +66,6 @@ import struct
 import urllib
 import sys
 import traceback
-import itertools
 import psycopg2
 import webauthn2
 
@@ -133,13 +132,10 @@ class Dispatcher (object):
             result = astmethod(uri)
             if hasattr(result, 'next'):
                 # force any transaction deferred in iterator
-                try:
-                    first = result.next()
-                except StopIteration:
-                    return result
-                return itertools.chain([first], result)
+                for res in result:
+                    yield res
             else:
-                return result
+                yield result
         finally:
             if ast is not None:
                 ast.final()

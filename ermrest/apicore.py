@@ -31,7 +31,6 @@ import struct
 import urllib
 import sys
 import traceback
-import itertools
 import psycopg2
 import webauthn2
 
@@ -189,13 +188,10 @@ def web_method():
                         result = original_method(*args)
                         if hasattr(result, 'next'):
                             # force any transaction deferred in iterator
-                            try:
-                                first = result.next()
-                            except StopIteration:
-                                return result
-                            return itertools.chain([first], result)
+                            for res in result:
+                                yield res
                         else:
-                            return result
+                            yield result
                     except:
                         et, e, tb = sys.exc_info()
                         request_trace(e)
