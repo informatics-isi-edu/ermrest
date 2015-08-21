@@ -1,3 +1,4 @@
 .idea/
 **/cookie
 **/.DS_Store
+**/*.swp
