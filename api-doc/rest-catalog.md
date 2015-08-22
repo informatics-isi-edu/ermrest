@@ -57,9 +57,6 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
-BUG: change this to 204 No Content?
-
-
 ## Access Control List Retrieval
 
 The GET method is used to get a summary of a specific access control (ACL)
