@@ -1,4 +1,5 @@
 .idea/
+.ropeproject/
 **/cookie
 **/.DS_Store
 **/*.swp

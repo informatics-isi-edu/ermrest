@@ -5,6 +5,7 @@ SBIN_FILES= \
 	ermrest-webauthn2-manage \
 	ermrest-registry-deploy \
 	ermrest-registry-lookup \
+	ermrest-registry-purge \
 	ermrest-freetext-indices \
 	ermrest-valuemap-recreate \
 	ermrest-valuemap-work \
