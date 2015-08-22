@@ -19,6 +19,24 @@
 DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name and DB name
 DELETED="$1" # pass "--deleted" to flag lookup of deleted catalogs
 
+# Drops the database using the PostgreSQL 'dropdb' utility.
+#   - does not attempt to drain the database of connections first.
+#   - tbd: add a '--force' flag to disconnect clients.
+function drop_db {
+    local _db=$1
+    echo "DROPPING ${_db}"
+    runuser -c "dropdb --if-exists --maintenance-db=${DAEMONUSER} \"${_db}\"" - "${DAEMONUSER}"
+    return $?
+}
+
+# Deletes the catalog entry from the simple_registry.
+function delete_catalog {
+    local _id=$1
+    echo "DELETING ${_id}"
+    runuser -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${_id}'\" ${DAEMONUSER}" - "${DAEMONUSER}"
+    return $?
+}
+
 # for all deleted catalogs, attempt to dropdb and delete from registry
 runuser -c "ermrest-registry-lookup ${DELETED} --key dbname" - "${DAEMONUSER}" | {
 while read result
@@ -26,13 +44,11 @@ do
     id=$(echo "${result}" | awk '{ print $1 }')
     db=$(echo "${result}" | awk '{ print $2 }')
 
-    echo "DROPPING database ${db}..."
-    runuser -c "dropdb --if-exists --maintenance-db=${DAEMONUSER} ${db}" - "${DAEMONUSER}"
+    drop_db "${db}"
     if [ $? -eq 0 ]; then
-        echo "DELETING catalog ${id}..."
-        runuser -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '$id'\" ${DAEMONUSER}" - "${DAEMONUSER}"
+        delete_catalog "${id}"
         if [ $? -eq 0 ]; then
-            echo "PURGED catalog (${id}, ${db})."
+            echo "PURGED ${id} | ${db}"
         fi
     fi
 done
