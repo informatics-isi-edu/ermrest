@@ -158,6 +158,7 @@ echo "Using catalog \"${cid}\" for testing." >&2
 ###### do tests on catalog
 
 dotest "200::application/json::*" /catalog/${cid}/schema
+dotest "400::*::*" /catalog/${cid}/invalid_api_name
 dotest "409::*::*" /catalog/${cid}/schema/public -X POST
 dotest "201::*::*" /catalog/${cid}/schema/test1 -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema
