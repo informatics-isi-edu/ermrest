@@ -141,6 +141,10 @@ class Dispatcher (object):
         finally:
             if ast is not None:
                 ast.final()
+            elif web.ctx.ermrest_catalog_pc is not None:
+                # this can happen if we start to instantiate a url.ast.catalog.Catalog
+                # and either fail with permission errors or have some other URL parse error!
+                web.ctx.ermrest_catalog_pc.final()
 
     def HEAD(self):
         return self.METHOD('HEAD')
