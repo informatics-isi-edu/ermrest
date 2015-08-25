@@ -113,6 +113,8 @@ class Dispatcher (object):
             return uri, url_parse_func(uri)
         except (LexicalError, ParseError), te:
             raise rest.BadRequest(str(te))
+        except rest.WebException, te:
+            raise te
         except:
             et, ev, tb = sys.exc_info()
             web.debug('got exception "%s" during URI parse' % str(ev),
