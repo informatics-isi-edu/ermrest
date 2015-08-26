@@ -1,12 +1,12 @@
-# 
+#
 # Copyright 2012-2013 University of Southern California
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,12 +18,12 @@ Defines the catalog Registry and a simple implementation.
 
 This may or may not be the right way to do this, but it seems like we will
 want to separate the catalog "registry" from the catalog "manager". Where the
-former is used to update a registry of catalogs for the purpose of lookup, 
-while the latter is used to create or delete catalogs, to modify policies 
+former is used to update a registry of catalogs for the purpose of lookup,
+while the latter is used to create or delete catalogs, to modify policies
 (such as ACLs and quotas), and such.
 
 The reason for (logically) separating the interface from the implementation is
-that we can envision having a distributed lookup service (or one that uses a 
+that we can envision having a distributed lookup service (or one that uses a
 distribute cache) but we will begin with a simple implementation using a
 database backend.
 """
@@ -48,7 +48,7 @@ def get_registry(config):
     """
     if config.get("type") not in _SUPPORTED_REGISTRY_TYPES:
         raise NotImplementedError()
-    
+
     return SimpleRegistry(
         dsn=config.get("dsn"),
         schema=config.get("schema"),
@@ -58,23 +58,23 @@ def get_registry(config):
 
 class Registry (object):
     """A registry of ERMREST catalogs.
-    
-       Supports the registration (or un-registration) and lookup of ERMREST 
+
+       Supports the registration (or un-registration) and lookup of ERMREST
        catalogs. Note that "registering" is not the same as creating a catalog.
        A catalog should be created separately using the CatalogManager utility.
-       
+
        Creating a registering a catalog therefore is a two-step process. First,
        one creates the catalog then registers it. The registration effectively
-       amounts to a binding between an 'id' and a 'descriptor' (connection 
-       descriptor) that specifies where to find the catalog and how to connect 
-       to it. 
-       
+       amounts to a binding between an 'id' and a 'descriptor' (connection
+       descriptor) that specifies where to find the catalog and how to connect
+       to it.
+
        An example descriptor: { "dbname" : "DATABASE_NAME" }
 
-       
-       The full details of 'descriptor' are based on the parameters of the 
+
+       The full details of 'descriptor' are based on the parameters of the
        postgres connection string supported by libpq:
-       
+
        http://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING
     """
 
@@ -86,11 +86,6 @@ class Registry (object):
         super(Registry, self).__init__()
         self.acls = acls if acls != None else _default_acls
 
-    def can_list(self, roles):
-        """Tests if one of roles can list all catalogs in registry.
-        """
-        raise NotImplementedError()
-
     def can_create(self, roles):
         """Tests if one of roles can create a catalog in registry.
         """
@@ -99,46 +94,44 @@ class Registry (object):
         acl = set(acl) if acl else set()
         return len(roles & acl) > 0
 
-    def lookup(self, id=None, deleted=False):
+    def lookup(self, id=None):
         """Lookup a registry and retrieve its description.
-        
+
            'id' : an identifier (not sure we have defined it precisely,
                   at present an integer)
 
-           'deleted' : a boolean flag to lookup deleted catalogs
-           
            returns : a collection of mappings in the form (id, descriptor)
         """
         raise NotImplementedError()
-    
+
     def register(self, descriptor, id=None):
         """Register a catalog description.
-        
+
            This does not create the catalog.
-           
+
            'descriptor' : the catalog connection descriptor.
            'id' : the id of the catalog to register.
         """
         raise NotImplementedError()
-    
+
     def unregister(self, id):
         """Unregister a catalog description.
-        
+
            'id' : the id of the catalog to unregister.
         """
         raise NotImplementedError()
-    
+
 
 class SimpleRegistry (Registry):
     """A simple registry implementation with a database backend.
-    
+
        Operations use basic connection-pooling but each does its own
        transaction since requests are usually independent and simple
        lookup is the hot path.
     """
-    
+
     TABLE_NAME = "simple_registry"
-    
+
     def __init__(self, dsn, schema, acls):
         """Initialized the SimpleRegistry.
         """
@@ -152,10 +145,10 @@ class SimpleRegistry (Registry):
             return pc.perform(body, post_commit).next()
         finally:
             pc.final()
-        
+
     def deploy(self):
         """Deploy the SimpleRegistry.
-        
+
         Creates the database schema for the SimpleRegistry implementation.
         """
         def body(conn, cur):
@@ -164,26 +157,26 @@ class SimpleRegistry (Registry):
                 cur.execute("""
 CREATE SCHEMA %(schema)s;"""
                     % dict(schema=self._schema_name))
-            
+
             # create registry table, if it doesn't exist
             if not table_exists(cur, self._schema_name, self.TABLE_NAME):
                 cur.execute("""
 CREATE TABLE %(schema)s.%(table)s (
     id bigserial PRIMARY KEY,
     descriptor text,
-    deletedon timestamp with time zone DEFAULT NULL
+    deleted_on timestamp with time zone DEFAULT NULL
 );
-CREATE INDEX ON %(schema)s.%(table)s (deletedon);
-CREATE INDEX ON %(schema)s.%(table)s (id, deletedon);
+CREATE INDEX ON %(schema)s.%(table)s (deleted_on);
+CREATE INDEX ON %(schema)s.%(table)s (id, deleted_on);
 """
                     % dict(schema=self._schema_name,
                            table=self.TABLE_NAME))
             return None
         return self.pooled_perform(body)
-                
+
     def lookup(self, id=None, deleted=False):
         def body(conn, cur):
-            where = "WHERE deletedon"
+            where = "WHERE deleted_on"
             if deleted:
                 where += " IS NOT NULL"
             else:
@@ -192,18 +185,18 @@ CREATE INDEX ON %(schema)s.%(table)s (id, deletedon);
                 where += " AND id = %s" % sql_literal(id)
 
             cur.execute("""
-SELECT id, descriptor, deletedon
+SELECT id, descriptor, deleted_on
 FROM %(schema)s.%(table)s
 %(where)s;
 """         % dict(schema=self._schema_name,
                    table=self.TABLE_NAME,
                    where=where
                    ) )
-            
+
             # return results as a list of dictionaries
             return [
-                dict(id=eid, descriptor=json.loads(descriptor), deletedon=deletedon)
-                for eid, descriptor, deletedon in cur
+                dict(id=eid, descriptor=json.loads(descriptor), deleted_on=deleted_on)
+                for eid, descriptor, deleted_on in cur
             ]
 
         return self.pooled_perform(body)
@@ -211,7 +204,7 @@ FROM %(schema)s.%(table)s
     def register(self, descriptor, id=None):
         assert isinstance(descriptor, dict)
         entry = dict(descriptor=json.dumps(descriptor))
-        
+
         def body(conn, cur):
             cur.execute("""
 INSERT INTO %(schema)s.%(table)s (%(cols)s)
@@ -221,10 +214,10 @@ RETURNING id;
            table=self.TABLE_NAME,
            cols=','.join([sql_identifier(c) for c in entry.keys()]),
            values=','.join([sql_literal(v) for v in entry.values()])
-           ) 
+           )
                         )
             return cur.fetchone()[0]
-            
+
         def post_commit(id):
             return dict(id=id, descriptor=descriptor)
 
@@ -232,7 +225,7 @@ RETURNING id;
 
     def unregister(self, id):
         """Unregister a catalog description.
-        
+
            'id' : the id of the catalog to unregister.
         """
         assert id is not None
@@ -240,8 +233,8 @@ RETURNING id;
         def body(conn, cur):
             cur.execute("""
 UPDATE %(schema)s.%(table)s
-SET deletedon = current_timestamp
-WHERE deletedon IS NULL AND id = %(id)s;
+SET deleted_on = current_timestamp
+WHERE deleted_on IS NULL AND id = %(id)s;
 """          % dict(schema=self._schema_name,
                    table=self.TABLE_NAME,
                    id=sql_literal(id)
