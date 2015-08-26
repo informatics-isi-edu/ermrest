@@ -164,21 +164,16 @@ CREATE INDEX ON ermrest.simple_registry (id, deleted_on);
         return self.pooled_perform(body)
 
 
-    def lookup(self, id=None, deleted=False):
+    def lookup(self, id=None):
         def body(conn, cur):
-            where = "WHERE deleted_on"
-            if deleted:
-                where += " IS NOT NULL"
-            else:
-                where += " IS NULL"
-            if id:
-                where += " AND id = %s" % sql_literal(id)
+            filter = " AND id = %s" % sql_literal(id) if id else ""
 
             cur.execute("""
 SELECT id, descriptor, deleted_on
 FROM ermrest.simple_registry
-%(where)s;
-"""         % dict(where=where))
+WHERE deleted_on IS NULL
+%(filter)s;
+"""         % dict(filter=filter))
 
             # return results as a list of dictionaries
             return [
@@ -187,6 +182,7 @@ FROM ermrest.simple_registry
             ]
 
         return self.pooled_perform(body)
+
 
     def register(self, descriptor, id=None):
         assert isinstance(descriptor, dict)
@@ -198,15 +194,15 @@ INSERT INTO ermrest.simple_registry (%(cols)s)
 VALUES (%(values)s)
 RETURNING id;
 """ % dict(cols=','.join([sql_identifier(c) for c in entry.keys()]),
-           values=','.join([sql_literal(v) for v in entry.values()])
-           )
-                        )
+           values=','.join([sql_literal(v) for v in entry.values()])))
+
             return cur.fetchone()[0]
 
         def post_commit(id):
             return dict(id=id, descriptor=descriptor)
 
         return self.pooled_perform(body, post_commit)
+
 
     def unregister(self, id):
         """Unregister a catalog description.
@@ -216,6 +212,7 @@ RETURNING id;
         assert id is not None
 
         def body(conn, cur):
+            """Returns True if row deleted, false if not"""
             cur.execute("""
 UPDATE ermrest.simple_registry
 SET deleted_on = current_timestamp
