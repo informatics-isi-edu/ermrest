@@ -14,18 +14,15 @@
 # limitations under the License.
 #
 """
-Defines the catalog Registry and a simple implementation.
+Defines the catalog Registry and a default implementation.
 
-This may or may not be the right way to do this, but it seems like we will
-want to separate the catalog "registry" from the catalog "manager". Where the
-former is used to update a registry of catalogs for the purpose of lookup,
-while the latter is used to create or delete catalogs, to modify policies
-(such as ACLs and quotas), and such.
-
-The reason for (logically) separating the interface from the implementation is
-that we can envision having a distributed lookup service (or one that uses a
-distribute cache) but we will begin with a simple implementation using a
-database backend.
+This module defines an abstract base class 'Registry' with one concrete
+implementation 'SimpleRegistry'. The SimpleRegistry is backed by the system
+database owned by the daemon account (typically it is named 'ermrest'). The
+SimpleRegistry depends on the 'ermrest' schema and persists the state of the
+registry in the 'ermrest.simple_registry' table. The base class defines the
+functions supported by this module, and it allows for future implementations
+that may be more sophisticated than the SimpleRegistry implementation.
 """
 
 import json
@@ -139,7 +136,6 @@ class SimpleRegistry(Registry):
         finally:
             pc.final()
 
-
     def deploy(self):
         """Deploy the SimpleRegistry.
 
@@ -163,8 +159,8 @@ CREATE INDEX ON ermrest.simple_registry (id, deleted_on);
             return None
         return self.pooled_perform(body)
 
-
     def lookup(self, id=None):
+        """See Registry.lookup()"""
         def body(conn, cur):
             filter = " AND id = %s" % sql_literal(id) if id else ""
 
@@ -183,8 +179,8 @@ WHERE deleted_on IS NULL
 
         return self.pooled_perform(body)
 
-
     def register(self, descriptor, id=None):
+        """See Registry.register()"""
         assert isinstance(descriptor, dict)
         entry = dict(descriptor=json.dumps(descriptor))
 
@@ -203,12 +199,8 @@ RETURNING id;
 
         return self.pooled_perform(body, post_commit)
 
-
     def unregister(self, id):
-        """Unregister a catalog description.
-
-           'id' : the id of the catalog to unregister.
-        """
+        """See Registry.unregister"""
         assert id is not None
 
         def body(conn, cur):
