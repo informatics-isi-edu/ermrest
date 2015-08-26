@@ -39,7 +39,6 @@
     "registry" : {
       "type" : "postgres",
       "dsn": "dbname=",
-      "schema": "ermrest",
       "acls": {
           "create_catalog_permit": [ "admin" ]
       }

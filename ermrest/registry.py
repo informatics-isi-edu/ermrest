@@ -35,28 +35,24 @@ from . import sanepg2
 
 __all__ = ['get_registry']
 
-_POSTGRES_REGISTRY = "postgres"
-_SUPPORTED_REGISTRY_TYPES = (_POSTGRES_REGISTRY)
-
-_default_acls = {
-    "list_catalogs_permit": [ "*" ],
-    "create_catalog_permit": [ "admin" ]
+_DEFAULT_ACLS = {
+    "create_catalog_permit": ["admin"]
 }
 
 def get_registry(config):
     """Returns an instance of the registry based on config.
     """
-    if config.get("type") not in _SUPPORTED_REGISTRY_TYPES:
+    # "postgres" is the one and only supported registry type
+    if config.get("type") != "postgres":
         raise NotImplementedError()
 
     return SimpleRegistry(
         dsn=config.get("dsn"),
-        schema=config.get("schema"),
         acls=config.get("acls")
         )
 
 
-class Registry (object):
+class Registry(object):
     """A registry of ERMREST catalogs.
 
        Supports the registration (or un-registration) and lookup of ERMREST
@@ -84,7 +80,7 @@ class Registry (object):
         """Initialized the base Registry.
         """
         super(Registry, self).__init__()
-        self.acls = acls if acls != None else _default_acls
+        self.acls = acls if acls != None else _DEFAULT_ACLS
 
     def can_create(self, roles):
         """Tests if one of roles can create a catalog in registry.
@@ -122,7 +118,7 @@ class Registry (object):
         raise NotImplementedError()
 
 
-class SimpleRegistry (Registry):
+class SimpleRegistry(Registry):
     """A simple registry implementation with a database backend.
 
        Operations use basic connection-pooling but each does its own
@@ -130,14 +126,11 @@ class SimpleRegistry (Registry):
        lookup is the hot path.
     """
 
-    TABLE_NAME = "simple_registry"
-
-    def __init__(self, dsn, schema, acls):
+    def __init__(self, dsn, acls):
         """Initialized the SimpleRegistry.
         """
         super(SimpleRegistry, self).__init__(acls)
         self.dsn = dsn
-        self._schema_name = schema
 
     def pooled_perform(self, body, post_commit=lambda x: x):
         pc = sanepg2.PooledConnection(self.dsn)
@@ -146,6 +139,7 @@ class SimpleRegistry (Registry):
         finally:
             pc.final()
 
+
     def deploy(self):
         """Deploy the SimpleRegistry.
 
@@ -153,26 +147,22 @@ class SimpleRegistry (Registry):
         """
         def body(conn, cur):
             # create registry schema, if it doesn't exist
-            if not schema_exists(cur, self._schema_name):
-                cur.execute("""
-CREATE SCHEMA %(schema)s;"""
-                    % dict(schema=self._schema_name))
+            cur.execute("CREATE SCHEMA IF NOT EXISTS ermrest;")
 
             # create registry table, if it doesn't exist
-            if not table_exists(cur, self._schema_name, self.TABLE_NAME):
+            if not table_exists(cur, "ermrest", "simple_registry"):
                 cur.execute("""
-CREATE TABLE %(schema)s.%(table)s (
+CREATE TABLE ermrest.simple_registry (
     id bigserial PRIMARY KEY,
     descriptor text,
     deleted_on timestamp with time zone DEFAULT NULL
 );
-CREATE INDEX ON %(schema)s.%(table)s (deleted_on);
-CREATE INDEX ON %(schema)s.%(table)s (id, deleted_on);
-"""
-                    % dict(schema=self._schema_name,
-                           table=self.TABLE_NAME))
+CREATE INDEX ON ermrest.simple_registry (deleted_on);
+CREATE INDEX ON ermrest.simple_registry (id, deleted_on);
+""")
             return None
         return self.pooled_perform(body)
+
 
     def lookup(self, id=None, deleted=False):
         def body(conn, cur):
@@ -186,12 +176,9 @@ CREATE INDEX ON %(schema)s.%(table)s (id, deleted_on);
 
             cur.execute("""
 SELECT id, descriptor, deleted_on
-FROM %(schema)s.%(table)s
+FROM ermrest.simple_registry
 %(where)s;
-"""         % dict(schema=self._schema_name,
-                   table=self.TABLE_NAME,
-                   where=where
-                   ) )
+"""         % dict(where=where))
 
             # return results as a list of dictionaries
             return [
@@ -207,12 +194,10 @@ FROM %(schema)s.%(table)s
 
         def body(conn, cur):
             cur.execute("""
-INSERT INTO %(schema)s.%(table)s (%(cols)s)
+INSERT INTO ermrest.simple_registry (%(cols)s)
 VALUES (%(values)s)
 RETURNING id;
-""" % dict(schema=self._schema_name,
-           table=self.TABLE_NAME,
-           cols=','.join([sql_identifier(c) for c in entry.keys()]),
+""" % dict(cols=','.join([sql_identifier(c) for c in entry.keys()]),
            values=','.join([sql_literal(v) for v in entry.values()])
            )
                         )
@@ -232,13 +217,10 @@ RETURNING id;
 
         def body(conn, cur):
             cur.execute("""
-UPDATE %(schema)s.%(table)s
+UPDATE ermrest.simple_registry
 SET deleted_on = current_timestamp
 WHERE deleted_on IS NULL AND id = %(id)s;
-"""          % dict(schema=self._schema_name,
-                   table=self.TABLE_NAME,
-                   id=sql_literal(id)
-                   ) )
+"""          % dict(id=sql_literal(id)))
             return cur.rowcount > 0
 
         def post_commit(deleted):
