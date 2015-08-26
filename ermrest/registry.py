@@ -200,7 +200,7 @@ RETURNING id;
         return self.pooled_perform(body, post_commit)
 
     def unregister(self, id):
-        """See Registry.unregister"""
+        """See Registry.unregister()"""
         assert id is not None
 
         def body(conn, cur):
