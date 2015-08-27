@@ -38,11 +38,13 @@ function delete_catalog {
 }
 
 # for all deleted catalogs, attempt to dropdb and delete from registry
-runuser -c "ermrest-registry-lookup ${DELETED} --key dbname" - "${DAEMONUSER}" | {
+runuser -c "psql -A -t -q -c \"SELECT id, descriptor::json->'dbname', deleted_on FROM ermrest.simple_registry WHERE deleted_on IS NOT NULL\" ${DAEMONUSER}" - "${DAEMONUSER}" | {
 while read result
 do
-    id=$(echo "${result}" | awk '{ print $1 }')
-    db=$(echo "${result}" | awk '{ print $2 }')
+    id=$(echo "${result}" | awk -F\| '{ print $1 }')
+    db=$(echo "${result}" | awk -F\| '{ print $2 }' | sed 's/"//g')
+
+    echo $id ... $db
 
     drop_db "${db}"
     if [ $? -eq 0 ]; then
