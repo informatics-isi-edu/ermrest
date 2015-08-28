@@ -1,0 +1,30 @@
+
+addons:
+  postgresq: "9.4"
+
+env:
+  - COOKIES=~/cookies
+  - PLATFORM=ubuntu1204
+
+before_install:
+  - sudo apt-get update
+  - cd ..
+  - git clone https://github.com/informatics-isi-edu/webauthn.git
+  - sudo make install
+  - cd ../ermrest
+  - sudo make predeploy
+
+install:
+  - sudo make install
+  - sudo make deploy
+
+before_script:
+  - sudo -u ermrest ermrest-webauthn2-manage adduser test1
+  - sudo -u ermrest ermrest-webauthn2-manage passwd test1 dummypassword
+  - sudo -u ermrest ermrest-webauthn2-manage addattr admin
+  - sudo -u ermrest ermrest-webauthn2-manage assign test1 admin
+
+script:
+  - curl --fail -k -b $COOKIES -c $COOKIES -d username=test1 -d password=dummypassword https://${HOSTNAME}/ermrest/authn/session
+  - bash ./test/rest-tests.sh
+
