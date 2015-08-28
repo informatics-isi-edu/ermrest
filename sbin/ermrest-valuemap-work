@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # 
 # Copyright 2012-2015 University of Southern California
@@ -21,6 +21,7 @@ VARLIBDIR=/var/lib/ermrest
 LIBEXECDIR=/usr/libexec/ermrest
 SHAREDIR=/usr/share/ermrest
 SBINDIR=/usr/sbin
+SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
 
@@ -31,10 +32,10 @@ export PGADMIN
 export DAEMONUSER
 
 # for all catalogs, do periodic maintenance of _ermrest.valuemap inverted table
-runuser -c "psql -q -t -A -c \"SELECT id FROM ermrest.simple_registry\" ermrest" - "${DAEMONUSER}" | {
+$SU -c "psql -q -t -A -c \"SELECT id FROM ermrest.simple_registry\" ermrest" - "${DAEMONUSER}" | {
     while read cat_id
     do
-	runuser -c "ermrest-valuemap-recreate ${cat_id}" - "${DAEMONUSER}"
+	$SU -c "ermrest-valuemap-recreate ${cat_id}" - "${DAEMONUSER}"
     done
 }
 

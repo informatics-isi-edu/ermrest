@@ -52,7 +52,8 @@ INSTALL_SCRIPT=./install-script -R \
                 LOGFACILITY=$(LOGFACILITY) \
                 LOGDIR=$(LOGDIR) \
                 SYSLOGCONF=$(SYSLOGCONF) \
-                LOGROTATECONFDIR=$(LOGROTATECONFDIR)
+                LOGROTATECONFDIR=$(LOGROTATECONFDIR) \
+		SU=$(SU)
 
 # make this the default target
 install: $(PREDEPLOY) $(INSTALL_FILES)

@@ -1,28 +1,25 @@
 
-# CONFIG for CentOS 6.x
+# CONFIG for Ubuntu 12.04
 
 # where we install our Python module
 PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig.get_python_lib()')
 
-SU=runuser
+SU=su
 
 SVCHOMEDIR=/home/$(DAEMONUSER)
 
-SBINDIR=/usr/sbin
-LIBEXECDIR=/usr/libexec/ermrest
+SBINDIR=/usr/bin
+LIBEXECDIR=/usr/lib/ermrest
 SHAREDIR=/usr/share/ermrest
 VARLIBDIR=/var/lib/ermrest
 
 CRONDAILYDIR=/etc/cron.daily
-HTTPCONFDIR=/etc/httpd/conf.d
-HTMLDIR=/var/www/html/ermrest
-WSGISOCKETPREFIX=/var/run/wsgi/wsgi
+HTTPCONFDIR=/etc/apache2/conf.d
+WSGISOCKETPREFIX=/var/run/apache2/wsgi
 
 LOGFACILITY=LOCAL2
 LOGDIR=/var/log
 SYSLOGCONF=/etc/rsyslog.conf
 LOGROTATECONFDIR=/etc/logrotate.d
-
-SEMANAGE_HTTPD_SYS_CONTENT_T=httpd_sys_content_t
 
 AUTHDIRECTIVES=Satisfy Any \n   Allow from all

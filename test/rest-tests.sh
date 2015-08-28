@@ -48,6 +48,7 @@ cleanup()
 
 trap cleanup 0
 
+declare -a curl_options
 curl_options=(
  -D ${RESPONSE_HEADERS}
  -o ${RESPONSE_CONTENT}
