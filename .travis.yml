@@ -18,6 +18,8 @@ before_install:
   - sudo make install PLATFORM=ubuntu1204
   - cd ../ermrest
   - sudo make predeploy PLATFORM=ubuntu1204
+  - sudo a2enmod ssl
+  - sudo a2ensite default-ssl
 
 install:
   - sudo make install PLATFORM=ubuntu1204
