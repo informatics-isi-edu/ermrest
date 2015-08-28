@@ -16,42 +16,111 @@
 # limitations under the License.
 #
 
-DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name and DB name
-DELETED="$1" # pass "--deleted" to flag lookup of deleted catalogs
+DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
+MASTERDB="${MASTEDB:-$DAEMONUSER}" # Master DB name
+PROG=$(basename "${0}")
 
-# Drops the database using the PostgreSQL 'dropdb' utility.
-#   - does not attempt to drain the database of connections first.
-#   - tbd: add a '--force' flag to disconnect clients.
+# Usage message
+function usage {
+    cat >&2 << EOF
+usage: ${PROG} [-afh] [-i <interval>]
+
+Options:
+    -a              purge all catalogs
+    -f              force disconnect of clients before attempting purges
+    -h              print usage and exit
+    -i <interval>   purge catalogs that were deleted prior to <interval>
+                    examples: '5 weeks', '3 days', '1 year'
+EOF
+}
+
+# Command-line Arguments
+while getopts ":h :a :f :i:" opt; do
+  case $opt in
+    h)
+      usage
+      exit 0
+      ;;
+    f)
+      FORCE=1
+      ;;
+    a)
+      ALL=1
+      ;;
+    i)
+      INTERVAL="${OPTARG}"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Validate arguments
+if test -n "${ALL}" -a -n "${INTERVAL}"; then
+    echo "Mutually exclusive options: -a and -i" >&2
+    usage
+    exit 1
+fi
+
+# Drop the database using the PostgreSQL 'dropdb' utility
 function drop_db {
     local _db=$1
-    echo "DROPPING ${_db}"
-    runuser -c "dropdb --if-exists --maintenance-db=${DAEMONUSER} \"${_db}\"" - "${DAEMONUSER}"
+    echo -n " DROPPING" >&2
+    runuser -c "dropdb --if-exists --maintenance-db=${MASTEDB} \"${_db}\"" - "${DAEMONUSER}"
     return $?
 }
 
-# Deletes the catalog entry from the simple_registry.
+# Force disconnect of clients
+function force_disconnect {
+    local _db=$1
+    echo -n " DISCONNECTING" >&2
+    # TODO
+    return 0
+}
+
+# Delete the catalog entry from the simple_registry
 function delete_catalog {
     local _id=$1
-    echo "DELETING ${_id}"
-    runuser -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${_id}'\" ${DAEMONUSER}" - "${DAEMONUSER}"
+    echo -n " DELETING" >&2
+    runuser -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${_id}'\" ${MASTEDB}" - "${DAEMONUSER}"
     return $?
 }
 
-# for all deleted catalogs, attempt to dropdb and delete from registry
-runuser -c "psql -A -t -q -c \"SELECT id, descriptor::json->'dbname', deleted_on FROM ermrest.simple_registry WHERE deleted_on IS NOT NULL\" ${DAEMONUSER}" - "${DAEMONUSER}" | {
+# Generate the select statement
+function select_statement {
+    echo -n "SELECT id, descriptor::json->'dbname' FROM ermrest.simple_registry"
+    if [ -n "${INTERVAL}" ]; then
+        echo -n " WHERE deleted_on < (current_timestamp - interval '${INTERVAL}')"
+    elif [ -z "${ALL}" ]; then
+        echo -n " WHERE deleted_on IS NOT NULL"
+    fi
+}
+
+# For all selected catalogs, attempt to dropdb and delete from registry
+runuser -c "psql -A -t -q -c \"`select_statement`\" ${MASTEDB}" - "${DAEMONUSER}" | {
 while read result
 do
     id=$(echo "${result}" | awk -F\| '{ print $1 }')
     db=$(echo "${result}" | awk -F\| '{ print $2 }' | sed 's/"//g')
 
-    echo $id ... $db
+    echo -n "FOUND $id $db" >&2
 
-    drop_db "${db}"
-    if [ $? -eq 0 ]; then
-        delete_catalog "${id}"
-        if [ $? -eq 0 ]; then
-            echo "PURGED ${id} | ${db}"
-        fi
+    if [ -n "${FORCE}" ]; then
+        force_disconnect || (echo " FAILED" >&2 && continue)
     fi
+
+    drop_db "${db}" || (echo " FAILED" >&2 && continue)
+
+    delete_catalog "${id}" || (echo " FAILED" >&2 && continue)
+
+    echo " DONE" >&2
 done
 }
