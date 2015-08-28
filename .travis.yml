@@ -4,9 +4,12 @@ language: python
 addons:
   postgresq: "9.4"
 
+env:
+  global:
+    - COOKIES=~/cookies
+    - PLATFORM=ubuntu1204
+
 before_install:
-  - export COOKIES=~/cookies
-  - export PLATFORM=ubuntu1204
   - sudo apt-get update
   - cd ..
   - git clone https://github.com/informatics-isi-edu/webauthn.git
