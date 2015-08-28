@@ -4,6 +4,8 @@
 # where we install our Python module
 PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig.get_python_lib()')
 
+SU=runuser
+
 SVCHOMEDIR=/home/$(DAEMONUSER)
 
 SBINDIR=/usr/sbin

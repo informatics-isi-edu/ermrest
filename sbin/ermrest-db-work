@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # 
 # Copyright 2012-2013 University of Southern California
@@ -21,6 +21,7 @@ VARLIBDIR=/var/lib/ermrest
 LIBEXECDIR=/usr/libexec/ermrest
 SHAREDIR=/usr/share/ermrest
 SBINDIR=/usr/sbin
+SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
 
@@ -35,10 +36,10 @@ export DAEMONUSER
 #  -- readers use max() aggregation to find latest
 #  -- periodically flush older version info
 #  -- this works with postgres MVCC to avoid concurrent update hazards
-runuser -c "psql -q -t -A -c \"SELECT descriptor::json->>'dbname' FROM ermrest.simple_registry\" ermrest" - "${DAEMONUSER}" | {
+$SU -c "psql -q -t -A -c \"SELECT descriptor::json->>'dbname' FROM ermrest.simple_registry\" ermrest" - "${DAEMONUSER}" | {
     while read cat_db
     do
-	runuser -c "psql -q \"${cat_db}\"" - "${DAEMONUSER}" <<EOF
+	$SU -c "psql -q \"${cat_db}\"" - "${DAEMONUSER}" <<EOF
 BEGIN;
 
 -- purge older model versions

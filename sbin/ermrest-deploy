@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # 
 # Copyright 2012-2013 University of Southern California
@@ -27,6 +27,7 @@ VARLIBDIR=/var/lib/ermrest
 LIBEXECDIR=/usr/libexec/ermrest
 SHAREDIR=/usr/share/ermrest
 SBINDIR=/usr/sbin
+SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
 
@@ -47,15 +48,15 @@ export DAEMONUSER
     exit 1
 }
 
-[[ "$CREATEUSER" = "true" ]] && runuser -c "createuser -d -R -S \"$DAEMONUSER\"" - "${PGADMIN}"
-[[ "$DROPDB" = "true" ]] && runuser -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
+[[ "$CREATEUSER" = "true" ]] && $SU -c "createuser -d -R -S \"$DAEMONUSER\"" - "${PGADMIN}"
+[[ "$DROPDB" = "true" ]] && $SU -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
 [[ "$CREATEDB" = "true" ]] && {
-    runuser -c "createdb -O \"$DAEMONUSER\" \"$DAEMONUSER\"" - "${PGADMIN}"
-    runuser -c "createlang -d \"$DAEMONUSER\" plpgsql" - "${PGADMIN}"
-    runuser -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - "${PGADMIN}"
-    runuser -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
-    runuser -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
-    runuser -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
+    $SU -c "createdb -O \"$DAEMONUSER\" \"$DAEMONUSER\"" - "${PGADMIN}"
+    $SU -c "createlang -d \"$DAEMONUSER\" plpgsql" - "${PGADMIN}"
+    $SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - "${PGADMIN}"
+    $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
+    $SU -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
+    $SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
     # add deploy tasks here...
     [[ -n "$DEPLOYLOCK" ]] && cat > "$DEPLOYLOCK" <<EOF
 DATE="$(date)"
