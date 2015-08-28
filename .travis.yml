@@ -24,10 +24,10 @@ install:
   - sudo make deploy PLATFORM=ubuntu1204
 
 before_script:
-  - sudo -u ermrest ermrest-webauthn2-manage adduser test1
-  - sudo -u ermrest ermrest-webauthn2-manage passwd test1 dummypassword
-  - sudo -u ermrest ermrest-webauthn2-manage addattr admin
-  - sudo -u ermrest ermrest-webauthn2-manage assign test1 admin
+  - sudo -H -u ermrest ermrest-webauthn2-manage adduser test1
+  - sudo -H -u ermrest ermrest-webauthn2-manage passwd test1 dummypassword
+  - sudo -H -u ermrest ermrest-webauthn2-manage addattr admin
+  - sudo -H -u ermrest ermrest-webauthn2-manage assign test1 admin
 
 script:
   - curl --fail -k -b $COOKIES -c $COOKIES -d username=test1 -d password=dummypassword https://${HOSTNAME}/ermrest/authn/session
