@@ -16,27 +16,43 @@
 # limitations under the License.
 #
 
-DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
-MASTERDB="${MASTEDB:-$DAEMONUSER}" # Master DB name
 PROG=$(basename "${0}")
+POSTGRES="${POSTGRES:-postgres}"    # Postgres daemon user
+DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
+MASTERDB="${MASTEDB:-$DAEMONUSER}"  # Master DB name
+LOG=${LOG:-/dev/stderr}             # Log message file
+DEBUG=${DEBUG:-0}                   # Debug flag
 
-# Usage message
+# Prints log message to logfile (default: stderr)
+function log {
+    printf "$1" >${LOG}
+}
+
+# Prints usage message
 function usage {
     cat >&2 << EOF
-usage: ${PROG} [-afh] [-i <interval>]
+usage: ${PROG} [-adfh] [-i <interval>]
 
 Options:
     -a              purge all catalogs
+    -d              debug mode; does not purge
     -f              force disconnect of clients before attempting purges
     -h              print usage and exit
     -i <interval>   purge catalogs that were deleted prior to <interval>
                     examples: '5 weeks', '3 days', '1 year'
+    -q              quiet mode
 EOF
 }
 
-# Command-line Arguments
-while getopts ":h :a :f :i:" opt; do
+# Get command-line options
+while getopts ":a :d :f :h :i: :q" opt; do
   case $opt in
+    a)
+      ALL=1
+      ;;
+    d)
+      DEBUG=1
+      ;;
     h)
       usage
       exit 0
@@ -44,8 +60,8 @@ while getopts ":h :a :f :i:" opt; do
     f)
       FORCE=1
       ;;
-    a)
-      ALL=1
+    q)
+      LOG=/dev/null
       ;;
     i)
       INTERVAL="${OPTARG}"
@@ -70,57 +86,61 @@ if test -n "${ALL}" -a -n "${INTERVAL}"; then
     exit 1
 fi
 
-# Drop the database using the PostgreSQL 'dropdb' utility
-function drop_db {
-    local _db=$1
-    echo -n " DROPPING" >&2
-    runuser -c "dropdb --if-exists --maintenance-db=${MASTEDB} \"${_db}\"" - "${DAEMONUSER}"
-    return $?
-}
-
-# Force disconnect of clients
-function force_disconnect {
-    local _db=$1
-    echo -n " DISCONNECTING" >&2
-    # TODO
-    return 0
-}
-
-# Delete the catalog entry from the simple_registry
-function delete_catalog {
-    local _id=$1
-    echo -n " DELETING" >&2
-    runuser -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${_id}'\" ${MASTEDB}" - "${DAEMONUSER}"
-    return $?
-}
-
-# Generate the select statement
-function select_statement {
-    echo -n "SELECT id, descriptor::json->'dbname' FROM ermrest.simple_registry"
-    if [ -n "${INTERVAL}" ]; then
-        echo -n " WHERE deleted_on < (current_timestamp - interval '${INTERVAL}')"
-    elif [ -z "${ALL}" ]; then
-        echo -n " WHERE deleted_on IS NOT NULL"
-    fi
-}
+# Generate query statement
+QUERY="SELECT id, descriptor::json->'dbname' FROM ermrest.simple_registry"
+if [ -n "${INTERVAL}" ]; then
+    QUERY="${QUERY} WHERE deleted_on < (CURRENT_TIMESTAMP - interval '${INTERVAL}')"
+elif [ -z "${ALL}" ]; then
+    QUERY="${QUERY} WHERE deleted_on IS NOT NULL"
+fi
 
 # For all selected catalogs, attempt to dropdb and delete from registry
-runuser -c "psql -A -t -q -c \"`select_statement`\" ${MASTEDB}" - "${DAEMONUSER}" | {
+runuser -c "psql -A -t -q -c \"${QUERY}\" ${MASTEDB}" - "${DAEMONUSER}" | {
 while read result
 do
     id=$(echo "${result}" | awk -F\| '{ print $1 }')
     db=$(echo "${result}" | awk -F\| '{ print $2 }' | sed 's/"//g')
+    log "PURGING $id $db"
 
-    echo -n "FOUND $id $db" >&2
-
-    if [ -n "${FORCE}" ]; then
-        force_disconnect || (echo " FAILED" >&2 && continue)
+    # skip if debug mode (easy way to see what would have been purged)
+    if [ "${DEBUG}" -eq 1 ]; then
+        log "\n"
+        continue
     fi
 
-    drop_db "${db}" || (echo " FAILED" >&2 && continue)
+    # force disconnect of clients, optional
+    if [ -n "${FORCE}" ]; then
+        #runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${DAEMONUSER}" <<EOF
+        runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${POSTGRES}" <<EOF
+-- first, disallow further connections to database
+UPDATE pg_database SET datallowconn = false WHERE datname = '${db}';
+-- then, terminate all backend processes for this db
+SELECT pid, 
+       (SELECT pg_terminate_backend(pid)) as killed
+FROM pg_stat_activity
+WHERE datname = '${db}';
+EOF
+        if [ $? -ne 0 ]; then
+            log " DISCONNECT FAILED\n"
+            continue
+        fi
+        log " DISCONNECTED"
+    fi
 
-    delete_catalog "${id}" || (echo " FAILED" >&2 && continue)
+    # drop database
+    runuser -c "dropdb --if-exists --maintenance-db=\"${MASTEDB}\" \"${db}\"" - "${DAEMONUSER}"
+    if [ $? -ne 0 ]; then
+        log " DROP FAILED\n"
+        continue
+    fi
+    log " DROPPED"
 
-    echo " DONE" >&2
+    # delete registry entry of catalog
+    runuser -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${id}'\" ${MASTEDB}" - "${DAEMONUSER}"
+    if [ $? -ne 0 ]; then
+        log " DELETE FAILED\n"
+        continue
+    fi
+    log " DELETED\n"
 done
 }
