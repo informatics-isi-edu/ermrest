@@ -48,6 +48,7 @@ cleanup()
 
 trap cleanup 0
 
+declare -a curl_options
 curl_options=(
  -D ${RESPONSE_HEADERS}
  -o ${RESPONSE_CONTENT}
@@ -158,6 +159,7 @@ echo "Using catalog \"${cid}\" for testing." >&2
 ###### do tests on catalog
 
 dotest "200::application/json::*" /catalog/${cid}/schema
+dotest "400::*::*" /catalog/${cid}/invalid_api_name
 dotest "409::*::*" /catalog/${cid}/schema/public -X POST
 dotest "201::*::*" /catalog/${cid}/schema/test1 -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema
@@ -358,8 +360,8 @@ do
     cat > ${TEST_DATA} <<EOF
 This is a comment.
 EOF
-    dotest "20?::text/plain*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
-    dotest "204::text/plain*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
+    dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
+    dotest "204::*::*" "/catalog/${cid}${resource}/comment" -T ${TEST_DATA}
     dotest "200::text/plain*::*" "/catalog/${cid}${resource}/comment"
     dotest "20?::*::*" "/catalog/${cid}${resource}/comment" -X DELETE
     dotest "404::*::*" "/catalog/${cid}${resource}/comment"

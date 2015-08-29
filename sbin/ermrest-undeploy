@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # 
 # Copyright 2012-2013 University of Southern California
@@ -34,12 +34,14 @@ DROPDB="${DROPDB:-false}"           # whether to try to drop service database
 
 DEPLOYLOCK="${DEPLOYLOCK}"
 
+SU=su
+
 undeploy()
 {
     # TODO: drop multi-tenant catalogs here?
     # TODO: nuke WSGI config here?
-    [[ "$DROPDB" = "true" ]] && runuser -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
-    [[ "$DROPUSER" = "true" ]] && runuser -c "dropuser -w \"$DAEMONUSER\"" - "${PGADMIN}"
+    [[ "$DROPDB" = "true" ]] && $SU -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
+    [[ "$DROPUSER" = "true" ]] && $SU -c "dropuser -w \"$DAEMONUSER\"" - "${PGADMIN}"
     [[ "$USERDEL" = "true" ]] && userdel -r "$DAEMONUSER"
 }
 

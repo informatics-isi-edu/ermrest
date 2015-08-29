@@ -113,6 +113,8 @@ class Dispatcher (object):
             return uri, url_parse_func(uri)
         except (LexicalError, ParseError), te:
             raise rest.BadRequest(str(te))
+        except rest.WebException, te:
+            raise te
         except:
             et, ev, tb = sys.exc_info()
             web.debug('got exception "%s" during URI parse' % str(ev),
@@ -139,6 +141,10 @@ class Dispatcher (object):
         finally:
             if ast is not None:
                 ast.final()
+            elif web.ctx.ermrest_catalog_pc is not None:
+                # this can happen if we start to instantiate a url.ast.catalog.Catalog
+                # and either fail with permission errors or have some other URL parse error!
+                web.ctx.ermrest_catalog_pc.final()
 
     def HEAD(self):
         return self.METHOD('HEAD')

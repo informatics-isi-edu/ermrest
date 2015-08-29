@@ -1,0 +1,37 @@
+
+language: python
+
+addons:
+  postgresq: "9.4"
+
+env:
+  global:
+    - COOKIES=~/cookies
+
+before_install:
+  - sudo apt-get update
+  - sudo service postgresql stop
+  - sudo service postgresql start 9.4
+  - cd ..
+  - git clone https://github.com/informatics-isi-edu/webauthn.git
+  - cd webauthn
+  - sudo make install PLATFORM=ubuntu1204
+  - cd ../ermrest
+  - sudo make predeploy PLATFORM=ubuntu1204
+  - sudo a2enmod ssl
+  - sudo a2ensite default-ssl
+
+install:
+  - sudo make install PLATFORM=ubuntu1204
+  - sudo make deploy PLATFORM=ubuntu1204
+
+before_script:
+  - sudo -H -u ermrest ermrest-webauthn2-manage adduser test1
+  - sudo -H -u ermrest ermrest-webauthn2-manage passwd test1 dummypassword
+  - sudo -H -u ermrest ermrest-webauthn2-manage addattr admin
+  - sudo -H -u ermrest ermrest-webauthn2-manage assign test1 admin
+
+script:
+  - curl --fail -k -b $COOKIES -c $COOKIES -d username=test1 -d password=dummypassword https://${HOSTNAME}/ermrest/authn/session
+  - bash ./test/rest-tests.sh
+

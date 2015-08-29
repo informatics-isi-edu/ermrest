@@ -165,6 +165,15 @@ def request_final():
             range = web.ctx.ermrest_request_content_range,
             type = web.ctx.ermrest_content_type
             ))
+    if web.ctx.ermrest_catalog_pc is not None:
+        if web.ctx.ermrest_catalog_pc.conn is not None:
+            web.debug(
+                'ERMrest DB conn LEAK averted in request_final()!?',
+                web.ctx.env['REQUEST_METHOD'],
+                web.ctx.env['REQUEST_URI'],
+                web.ctx.status
+            )
+            web.ctx.ermrest_catalog_pc.final()
     logger.info( (log_final_template % parts).encode('utf-8') )
 
 def web_method():
