@@ -165,7 +165,7 @@ CREATE INDEX ON ermrest.simple_registry (id, deleted_on);
             filter = " AND id = %s" % sql_literal(id) if id else ""
 
             cur.execute("""
-SELECT id, descriptor, deleted_on
+SELECT id, descriptor
 FROM ermrest.simple_registry
 WHERE deleted_on IS NULL
 %(filter)s;
@@ -173,8 +173,8 @@ WHERE deleted_on IS NULL
 
             # return results as a list of dictionaries
             return [
-                dict(id=eid, descriptor=json.loads(descriptor), deleted_on=deleted_on)
-                for eid, descriptor, deleted_on in cur
+                dict(id=eid, descriptor=json.loads(descriptor))
+                for eid, descriptor in cur
             ]
 
         return self.pooled_perform(body)
