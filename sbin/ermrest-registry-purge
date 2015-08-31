@@ -31,7 +31,7 @@ function log {
 # Prints usage message
 function usage {
     cat >&2 << EOF
-usage: ${PROG} [-adfh] [-i <interval>]
+usage: ${PROG} [-dfh] [-a|i <interval>]
 
 Options:
     -a              purge all catalogs
@@ -110,7 +110,6 @@ do
 
     # force disconnect of clients, optional
     if [ -n "${FORCE}" ]; then
-        #runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${DAEMONUSER}" <<EOF
         runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${POSTGRES}" <<EOF
 -- first, disallow further connections to database
 UPDATE pg_database SET datallowconn = false WHERE datname = '${db}';
