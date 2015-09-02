@@ -35,13 +35,15 @@ elif [[ "$VERBOSE" == "brief" ]]; then
     BRIEF=${ERR}
 fi
 
-# Define the tests that will be run
-#   0 = purge based on a time interval
+# Define the tests that will be run:
+#   purge based on a time interval
 TESTS[0]="CURRENT_TIMESTAMP - interval '1 week'"
-#   1 = purge without regard to time
-TESTS[1]="CURRENT_TIMESTAMP"
-#   2 = purge all 
-TESTS[2]="NULL"
+#   purge based on a time interval (used by the archive test case)
+TESTS[1]="CURRENT_TIMESTAMP - interval '1 day'"
+#   purge without regard to time
+TESTS[2]="CURRENT_TIMESTAMP"
+#   purge all
+TESTS[3]="NULL"
 
 function usage {
     cat >${ERR} <<EOF
@@ -128,6 +130,9 @@ function setup {
             return $?
         fi
     done
+
+    archive_dir=$(mktemp -d /tmp/`basename $0`.XXXXX)
+    verbose "Created archive directory $archive_dir"
 }
 
 # Clean up all test databases and catalog entries
@@ -142,6 +147,8 @@ function teardown {
     # delete all registry entries
     verbose "Deleting all entries from simple_registry table"
     runuser -c "psql -A -t -q -c \"delete from ermrest.simple_registry\" ermrest" - ermrest 2>${FULL}
+    # cleanup archive directory
+    rm -rf "$archive_dir" 2>${FULL}
 }
 
 # Make sure preconditions are satisfied before running tests
@@ -195,7 +202,8 @@ function suite {
     setup
     if [[ $? -eq 0 ]]; then
       verbose "Running test suite"
-      dotest "Purge catalogs deleted >= 1 week ago" "ermrest-registry-purge -q -i '1 week'" 2
+      dotest "Purge catalogs deleted >= 1 week ago" "ermrest-registry-purge -q -i '1 week'" 3
+      dotest "Purge and archive catalogs deleted >= 1 day ago" "ermrest-registry-purge -q -i '1 day' -z \"$archive_dir\"" 2
       dotest "Purge catalogs deleted anytime" "ermrest-registry-purge -q" 1
       dotest "Purge all catalogs" "ermrest-registry-purge -q -a" 0
     fi

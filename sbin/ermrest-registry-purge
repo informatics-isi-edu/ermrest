@@ -17,7 +17,6 @@
 #
 
 PROG=$(basename "${0}")
-POSTGRES="${POSTGRES:-postgres}"    # Postgres daemon user
 DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
 MASTERDB="${MASTEDB:-$DAEMONUSER}"  # Master DB name
 LOG=${LOG:-/dev/stderr}             # Log message file
@@ -31,21 +30,22 @@ function log {
 # Prints usage message
 function usage {
     cat >&2 << EOF
-usage: ${PROG} [-dfh] [-a|i <interval>]
+usage: ${PROG} [-dfh] [-a|i INTERVAL] [-z DIR]
 
 Options:
     -a              purge all catalogs
     -d              debug mode; does not purge
     -f              force disconnect of clients before attempting purges
     -h              print usage and exit
-    -i <interval>   purge catalogs that were deleted prior to <interval>
+    -i INTERVAL     purge catalogs that were deleted prior to INTERVAL
                     examples: '5 weeks', '3 days', '1 year'
     -q              quiet mode
+    -z DIR          archive catalog to DIR before purge
 EOF
 }
 
 # Get command-line options
-while getopts ":a :d :f :h :i: :q" opt; do
+while getopts ":a :d :f :h :i: :q :z:" opt; do
   case $opt in
     a)
       ALL=1
@@ -66,6 +66,9 @@ while getopts ":a :d :f :h :i: :q" opt; do
     i)
       INTERVAL="${OPTARG}"
       ;;
+    z)
+      ARCHIVE="${OPTARG}"
+      ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
       usage
@@ -80,7 +83,7 @@ while getopts ":a :d :f :h :i: :q" opt; do
 done
 
 # Validate arguments
-if test -n "${ALL}" -a -n "${INTERVAL}"; then
+if [ -n "${ALL}" -a -n "${INTERVAL}" ]; then
     echo "Mutually exclusive options: -a and -i" >&2
     usage
     exit 1
@@ -110,12 +113,8 @@ do
 
     # force disconnect of clients, optional
     if [ -n "${FORCE}" ]; then
-        runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${POSTGRES}" <<EOF
--- first, disallow further connections to database
-UPDATE pg_database SET datallowconn = false WHERE datname = '${db}';
--- then, terminate all backend processes for this db
-SELECT pid, 
-       (SELECT pg_terminate_backend(pid)) as killed
+        runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${DAEMONUSER}" <<EOF
+SELECT pid, (SELECT pg_terminate_backend(pid)) as killed
 FROM pg_stat_activity
 WHERE datname = '${db}';
 EOF
@@ -124,6 +123,20 @@ EOF
             continue
         fi
         log " DISCONNECTED"
+    fi
+
+    # dump database to archive directory before purge, optional
+    if [ -n "${ARCHIVE}" ]; then
+        filename="${ARCHIVE}/${id}-${db}-`date +%s`.sql"
+        runuser -c "pg_dump --blobs --no-owner \"${db}\"" - "${DAEMONUSER}" >"${filename}"
+        if [ $? -eq 0 -a -s "${filename}" ]; then
+            gzip "${filename}"
+        else
+            rm -f "${filename}"
+            log " ARCHIVE FAILED\n"
+            continue
+        fi
+        log " ARCHIVED"
     fi
 
     # drop database
