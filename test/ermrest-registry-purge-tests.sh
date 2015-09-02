@@ -197,6 +197,7 @@ function suite {
     num_fails=0
 
     if ! preconditions
+    then
         return 1
     fi
 
