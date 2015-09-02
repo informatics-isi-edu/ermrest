@@ -90,7 +90,6 @@ function create_db {
     local dbn=${1}
     verbose "Creating database ${dbn}"
     su -c "createdb --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
-    return $?
 }
 
 # Add a catalog entry to the simple_registry
@@ -111,16 +110,19 @@ function count_catalogs {
     su -c "psql -A -t -q -c \"select count(*) from ermrest.simple_registry\" ermrest" - ermrest
 }
 
+echo which sh
+which sh
+
 # Setup a few catalogs (with dbs) for different conditions
 function setup {
     verbose "Setting up test environment"
     for i in ${!TESTS[*]}; do
         local dbn=$DBNPREFIX$i
 
-        create_db "$dbn"
-        if [ $? -ne 0 ]; then
+        if ! create_db "$dbn"
+	then
             failed "could not create database $dbn"
-            return $?
+            return 1
         fi
 
         register_catalog "$dbn" "${TESTS[$i]}"
