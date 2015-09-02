@@ -12,6 +12,7 @@ env:
 before_install:
   - sudo apt-get update
   - sudo service postgresql stop
+  - sudo apt-get purge postgresql-9.1 postgresql-9.2 postgresql-9.3
   - sudo service postgresql start 9.4
   - cd ..
   - git clone https://github.com/informatics-isi-edu/webauthn.git
