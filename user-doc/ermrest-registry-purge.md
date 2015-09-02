@@ -23,34 +23,27 @@ or to purge only catalogs that are at least as old as a given age.
 ermrest-registry-purge accepts the following command-line arguments: 
 
 `-a`
-
     Purges all catalogs, not just those that have been deleted.
 
 `-d`
-
     Dry run. Identify but do not purge catalogs that match selection criteria.
 
 `-f`
-
     Force disconnect of clients before attempting purges.
 
 `-h`
-
     Show help about this command and exit.
 
 `-i INTERVAL`
-
     Only purge catalogs that were deleted prior to _INTERVAL_, where _INTERVAL_
     is a valid PostgreSQL timestamp interval such as '1 week', '2 years',
     '24 hours', '31 days', etc.
 
 `-q`
-
     Executes quietly. By default, the command prints a line for each catalog
     that is being purged.
 
 `-z DIR`
-
     Archive the catalog as a file in _DIR_. The archive filename includes the 
     catalog identifier, the database name, and the seconds since epoch. The
     file contains the complete _SQL_ commands required to recreate the catalog.
