@@ -98,7 +98,7 @@ elif [ -z "${ALL}" ]; then
 fi
 
 # For all selected catalogs, attempt to dropdb and delete from registry
-runuser -c "psql -A -t -q -c \"${QUERY}\" ${MASTEDB}" - "${DAEMONUSER}" | {
+su -c "psql -A -t -q -c \"${QUERY}\" ${MASTEDB}" - "${DAEMONUSER}" | {
 while read result
 do
     id=$(echo "${result}" | awk -F\| '{ print $1 }')
@@ -113,7 +113,7 @@ do
 
     # force disconnect of clients, optional
     if [ -n "${FORCE}" ]; then
-        runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${DAEMONUSER}" <<EOF
+        su -c "psql -q \"${MASTERDB}\" >/dev/null" - "${DAEMONUSER}" <<EOF
 SELECT pid, (SELECT pg_terminate_backend(pid)) as killed
 FROM pg_stat_activity
 WHERE datname = '${db}';
@@ -128,7 +128,7 @@ EOF
     # dump database to archive directory before purge, optional
     if [ -n "${ARCHIVE}" ]; then
         filename="${ARCHIVE}/${id}-${db}-`date +%s`.sql"
-        runuser -c "pg_dump --blobs --no-owner \"${db}\"" - "${DAEMONUSER}" >"${filename}"
+        su -c "pg_dump --blobs --no-owner \"${db}\"" - "${DAEMONUSER}" >"${filename}"
         if [ $? -eq 0 -a -s "${filename}" ]; then
             gzip "${filename}"
         else
@@ -140,7 +140,7 @@ EOF
     fi
 
     # drop database
-    runuser -c "dropdb --if-exists --maintenance-db=\"${MASTEDB}\" \"${db}\"" - "${DAEMONUSER}"
+    su -c "dropdb --if-exists --maintenance-db=\"${MASTEDB}\" \"${db}\"" - "${DAEMONUSER}"
     if [ $? -ne 0 ]; then
         log " DROP FAILED\n"
         continue
@@ -148,7 +148,7 @@ EOF
     log " DROPPED"
 
     # delete registry entry of catalog
-    runuser -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${id}'\" ${MASTEDB}" - "${DAEMONUSER}"
+    su -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${id}'\" ${MASTEDB}" - "${DAEMONUSER}"
     if [ $? -ne 0 ]; then
         log " DELETE FAILED\n"
         continue

@@ -90,7 +90,7 @@ function verbose {
 function create_db {
     local dbn=${1}
     verbose "Creating database ${dbn}"
-    runuser -c "createdb --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
+    su -c "createdb --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
     return $?
 }
 
@@ -101,7 +101,7 @@ function register_catalog {
     local dbn=${1}
     local when=${2-NULL}
     verbose "Registering catalog for ${dbn} with deleted_on = ${when}"
-    runuser -c "psql -q \"${MASTERDB}\"" - "${DAEMONUSER}" 2>${FULL} <<EOF
+    su -c "psql -q \"${MASTERDB}\"" - "${DAEMONUSER}" 2>${FULL} <<EOF
 INSERT INTO ermrest.simple_registry ("descriptor", "deleted_on")
 VALUES ('{ "dbname": "${dbn}" }', ${when});
 EOF
@@ -109,7 +109,7 @@ EOF
 
 # Output the count of catalogs in registry
 function count_catalogs {
-    runuser -c "psql -A -t -q -c \"select count(*) from ermrest.simple_registry\" ermrest" - ermrest
+    su -c "psql -A -t -q -c \"select count(*) from ermrest.simple_registry\" ermrest" - ermrest
 }
 
 # Setup a few catalogs (with dbs) for different conditions
@@ -142,11 +142,11 @@ function teardown {
     for i in ${!TESTS[*]}; do
         local dbn=$DBNPREFIX$i
         verbose "Dropping database ${dbn}, if exists"
-        runuser -c "dropdb --if-exists --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
+        su -c "dropdb --if-exists --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
     done
     # delete all registry entries
     verbose "Deleting all entries from simple_registry table"
-    runuser -c "psql -A -t -q -c \"delete from ermrest.simple_registry\" ermrest" - ermrest 2>${FULL}
+    su -c "psql -A -t -q -c \"delete from ermrest.simple_registry\" ermrest" - ermrest 2>${FULL}
     # cleanup archive directory
     rm -rf "$archive_dir" 2>${FULL}
 }
