@@ -88,7 +88,7 @@ function verbose {
 function create_db {
     local dbn=${1}
     verbose "Creating database ${dbn}"
-    runuser -c "createdb --maintenance-db=\"${MASTEDB}\" \"${dbn}\"" - "${DAEMONUSER}"
+    runuser -c "createdb --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
     return $?
 }
 
@@ -99,10 +99,9 @@ function register_catalog {
     local dbn=${1}
     local when=${2-NULL}
     verbose "Registering catalog for ${dbn} with deleted_on = ${when}"
-    runuser -c "psql -q \"${MASTERDB}\" >/dev/null" - "${DAEMONUSER}" <<EOF
+    runuser -c "psql -q \"${MASTERDB}\"" - "${DAEMONUSER}" 2>${FULL} <<EOF
 INSERT INTO ermrest.simple_registry ("descriptor", "deleted_on")
-VALUES ('{ "dbname": "${dbn}" }', ${when})
-RETURNING "id";
+VALUES ('{ "dbname": "${dbn}" }', ${when});
 EOF
 }
 
@@ -119,13 +118,13 @@ function setup {
 
         create_db "$dbn"
         if [ $? -ne 0 ]; then
-            failed "could not create database $dbn\n"
+            failed "could not create database $dbn"
             return $?
         fi
 
         register_catalog "$dbn" "${TESTS[$i]}"
         if [ $? -ne 0 ]; then
-            failed "could not register catalog for $dbn\n"
+            failed "could not register catalog for $dbn"
             return $?
         fi
     done
@@ -138,11 +137,11 @@ function teardown {
     for i in ${!TESTS[*]}; do
         local dbn=$DBNPREFIX$i
         verbose "Dropping database ${dbn}, if exists"
-        runuser -c "dropdb --if-exists --maintenance-db=\"${MASTEDB}\" \"${dbn}\" 2>/dev/null" - "${DAEMONUSER}"
+        runuser -c "dropdb --if-exists --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
     done
     # delete all registry entries
     verbose "Deleting all entries from simple_registry table"
-    runuser -c "psql -A -t -q -c \"delete from ermrest.simple_registry\" ermrest 2>/dev/null" - ermrest
+    runuser -c "psql -A -t -q -c \"delete from ermrest.simple_registry\" ermrest" - ermrest 2>${FULL}
 }
 
 # Make sure preconditions are satisfied before running tests
