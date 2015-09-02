@@ -7,7 +7,7 @@ addons:
 env:
   global:
     - COOKIES=~/cookies
-    - VERBOSE=true
+    - VERBOSE=brief
 
 before_install:
   - sudo apt-get update
