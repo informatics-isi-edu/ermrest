@@ -16,22 +16,21 @@
 # limitations under the License.
 #
 
-POSTGRES="${POSTGRES:-postgres}"    # Postgres daemon user
 DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
 MASTERDB="${MASTEDB:-$DAEMONUSER}"  # Master DB name
 DBNPREFIX="_ermrest_test_"          # DB name prefix
 OUT=/dev/stdout                     # Standard output
 ERR=/dev/stderr                     # Error output
-if [[ "$QUIET" = "true" ]]; then
+if [ "$QUIET" = "true" ]; then
     ERR=/dev/null
     OUT=/dev/null
 fi
 BRIEF=/dev/null                     # Brief verbosity messages file
 FULL=/dev/null                      # Full verbosity messages file
-if [[ "$VERBOSE" == "true" ]]; then
+if [ "$VERBOSE" == "true" ]; then
     BRIEF=${ERR}
     FULL=${ERR}
-elif [[ "$VERBOSE" == "brief" ]]; then
+elif [ "$VERBOSE" == "brief" ]; then
     BRIEF=${ERR}
 fi
 
@@ -155,7 +154,7 @@ function teardown {
 #  ! Registry must be empty
 function preconditions {
     count=$(count_catalogs)
-    if [[ $count -ne 0 ]]; then
+    if [ $count -ne 0 ]; then
         failed "found $count catalogs in registry. Must be empty."
         usage
         return 1
@@ -175,12 +174,12 @@ function dotest {
     num_tests=$((num_tests + 1))
     eval "${cmd}" 2>${ERR} 1>&2
     _rc=$?
-    if [[ $_rc -ne 0 ]]; then
+    if [ $_rc -ne 0 ]; then
         failed "\"$text\" exited with $_rc"
         num_fails=$((num_fails + 1))
     else
         count=$(count_catalogs)
-        if [[ $count -ne $expect ]]; then
+        if [ $count -ne $expect ]; then
             failed "\"$text\" expected $expect but found $count"
             num_fails=$((num_fails + 1))
         else
@@ -195,12 +194,12 @@ function suite {
     num_fails=0
 
     preconditions
-    if [[ $? -ne 0 ]]; then
+    if [ $? -ne 0 ]; then
         return 1
     fi
 
     setup
-    if [[ $? -eq 0 ]]; then
+    if [ $? -eq 0 ]; then
       verbose "Running test suite"
       dotest "Purge catalogs deleted >= 1 week ago" "ermrest-registry-purge -q -i '1 week'" 3
       dotest "Purge and archive catalogs deleted >= 1 day ago" "ermrest-registry-purge -q -i '1 day' -z \"$archive_dir\"" 2
@@ -209,7 +208,7 @@ function suite {
     fi
     teardown
 
-    if [[ ${num_fails} -gt 0 ]]; then
+    if [ ${num_fails} -gt 0 ]; then
         failed "${num_fails} of ${num_tests} tests"
     else
         info "ALL ${num_tests} tests succeeded"
