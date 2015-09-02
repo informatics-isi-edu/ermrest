@@ -4,7 +4,7 @@ ermrest-registry-purge -- purge ERMrest catalogs
 
 ## Synopsis
 
-```sh
+```
 ermrest-registry-purge [-dfh] [-a|i INTERVAL] [-z DIR]
 ```
 
@@ -58,39 +58,39 @@ usage error occurs.
 
 To purge all deleted catalogs:
 
-```sh
+```
 # ermrest-registry-purge
 ```
 
 To purge all deleted catalogs that were deleted at least 7 days ago:
 
-```sh
+```
 # ermrest-registry-purge -i '7 days'
 ```
 
 To purge all deleted catalogs that were deleted at least 1 year ago and archive
 them to /home/ermrest/backups:
 
-```sh
+```
 # ermrest-registry-purge -i '1 year' -z /home/ermrest/backups
 ```
 
 To purge all deleted catalogs that were deleted at least 1 hour ago and
 force client disconnect:
 
-```sh
+```
 # ermrest-registry-purge -f -i '1 hour'
 ```
 
 To purge all catalogs, even those that have not been deleted, and force
 disconnect:
 
-```sh
+```
 # ermrest-registry-purge -a -f
 ```
 
 To do a _dry run_ that will _not_ purge any catalogs:
  
-```sh
+```
 # ermrest-registry-purge -d
 ```
