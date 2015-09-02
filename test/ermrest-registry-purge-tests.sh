@@ -89,7 +89,7 @@ function verbose {
 function create_db {
     local dbn=${1}
     verbose "Creating database ${dbn}"
-    su -c "createdb --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}" 2>${FULL}
+    su -c "createdb --maintenance-db=\"${MASTERDB}\" \"${dbn}\"" - "${DAEMONUSER}"
 }
 
 # Add a catalog entry to the simple_registry
@@ -97,7 +97,7 @@ function create_db {
 #   when: postgres timestamptz of deleted_on (default = NULL)
 function register_catalog {
     local dbn=${1}
-    local when=${2-NULL}
+    local when=${2:-NULL}
     verbose "Registering catalog for ${dbn} with deleted_on = ${when}"
     su -c "psql -q \"${MASTERDB}\"" - "${DAEMONUSER}" 2>${FULL} <<EOF
 INSERT INTO ermrest.simple_registry ("descriptor", "deleted_on")
@@ -116,7 +116,8 @@ which sh
 # Setup a few catalogs (with dbs) for different conditions
 function setup {
     verbose "Setting up test environment"
-    for i in ${!TESTS[*]}; do
+    for i in ${!TESTS[*]}
+    do
         local dbn=$DBNPREFIX$i
 
         if ! create_db "$dbn"
@@ -125,15 +126,15 @@ function setup {
             return 1
         fi
 
-        register_catalog "$dbn" "${TESTS[$i]}"
-        if [ $? -ne 0 ]; then
+        if ! register_catalog "$dbn" "${TESTS[$i]}"
+	then
             failed "could not register catalog for $dbn"
-            return $?
+	    return 1
         fi
     done
 
     archive_dir=$(mktemp -d /tmp/`basename $0`.XXXXX)
-    verbose "Created archive directory $archive_dir"
+    verbose "Created archive directory ${archive_dir}"
 }
 
 # Clean up all test databases and catalog entries
@@ -149,7 +150,7 @@ function teardown {
     verbose "Deleting all entries from simple_registry table"
     su -c "psql -A -t -q -c \"delete from ermrest.simple_registry\" ermrest" - ermrest 2>${FULL}
     # cleanup archive directory
-    rm -rf "$archive_dir" 2>${FULL}
+    rm -rf "${archive_dir}" 2>${FULL}
 }
 
 # Make sure preconditions are satisfied before running tests
@@ -173,17 +174,17 @@ function dotest {
     local expect=$3
     local _rc=0
 
-    num_tests=$((num_tests + 1))
+    num_tests=$((${num_tests} + 1))
     eval "${cmd}" 2>${ERR} 1>&2
     _rc=$?
-    if [ $_rc -ne 0 ]; then
-        failed "\"$text\" exited with $_rc"
+    if [ ${_rc} -ne 0 ]; then
+        failed "\"$text\" exited with ${_rc}"
         num_fails=$((num_fails + 1))
     else
         count=$(count_catalogs)
         if [ $count -ne $expect ]; then
             failed "\"$text\" expected $expect but found $count"
-            num_fails=$((num_fails + 1))
+            num_fails=$((${num_fails} + 1))
         else
             info "\"$text\" succeeded"
         fi
@@ -195,18 +196,19 @@ function suite {
     num_tests=0
     num_fails=0
 
-    preconditions
-    if [ $? -ne 0 ]; then
+    if ! preconditions
         return 1
     fi
 
-    setup
-    if [ $? -eq 0 ]; then
+    if setup
+    then
       verbose "Running test suite"
       dotest "Purge catalogs deleted >= 1 week ago" "ermrest-registry-purge -q -i '1 week'" 3
-      dotest "Purge and archive catalogs deleted >= 1 day ago" "ermrest-registry-purge -q -i '1 day' -z \"$archive_dir\"" 2
+      dotest "Purge and archive catalogs deleted >= 1 day ago" "ermrest-registry-purge -q -i '1 day' -z \"${archive_dir}\"" 2
       dotest "Purge catalogs deleted anytime" "ermrest-registry-purge -q" 1
       dotest "Purge all catalogs" "ermrest-registry-purge -q -a" 0
+    else
+	num_fails=$(( ${num_fails} + 1 ))
     fi
     teardown
 
@@ -216,8 +218,8 @@ function suite {
         info "ALL ${num_tests} tests succeeded"
     fi
 
-    return $num_fails
+    return ${num_fails}
 }
 
 suite
-exit $?
+
