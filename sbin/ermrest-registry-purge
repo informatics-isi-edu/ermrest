@@ -18,7 +18,7 @@
 
 PROG=$(basename "${0}")
 DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
-MASTERDB="${MASTEDB:-$DAEMONUSER}"  # Master DB name
+MASTERDB="${MASTERDB:-$DAEMONUSER}"  # Master DB name
 LOG=${LOG:-/dev/stderr}             # Log message file
 DEBUG=${DEBUG:-0}                   # Debug flag
 
@@ -98,7 +98,7 @@ elif [ -z "${ALL}" ]; then
 fi
 
 # For all selected catalogs, attempt to dropdb and delete from registry
-su -c "psql -A -t -q -c \"${QUERY}\" ${MASTEDB}" - "${DAEMONUSER}" | {
+su -c "psql -A -t -q -c \"${QUERY}\" ${MASTERDB}" - "${DAEMONUSER}" | {
 while read result
 do
     id=$(echo "${result}" | awk -F\| '{ print $1 }')
@@ -140,7 +140,7 @@ EOF
     fi
 
     # drop database
-    su -c "dropdb --if-exists --maintenance-db=\"${MASTEDB}\" \"${db}\"" - "${DAEMONUSER}"
+    su -c "dropdb --if-exists --maintenance-db=\"${MASTERDB}\" \"${db}\"" - "${DAEMONUSER}"
     if [ $? -ne 0 ]; then
         log " DROP FAILED\n"
         continue
@@ -148,7 +148,7 @@ EOF
     log " DROPPED"
 
     # delete registry entry of catalog
-    su -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${id}'\" ${MASTEDB}" - "${DAEMONUSER}"
+    su -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${id}'\" ${MASTERDB}" - "${DAEMONUSER}"
     if [ $? -ne 0 ]; then
         log " DELETE FAILED\n"
         continue
