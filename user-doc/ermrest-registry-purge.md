@@ -10,13 +10,12 @@ ermrest-registry-purge [-dfh] [-a|i INTERVAL] [-z DIR]
 
 ## Description
 
-ermrest-registry-purge purges ERMrest catalogs. The user who executes this
-command must be superuser. The command will run database utilities as the
-_ermrest_ daemon user to drop databases and remove entries from the ERMrest
-registry of catalogs. Optionally, it will force disconnect of client
-connections and/or archive databases before dropping them. By default, it
-purges any deleted database, but it includes options to purge all catalogs
-or to purge only catalogs that are at least as old as a given age.
+ermrest-registry-purge purges ERMrest catalogs. The command will run database
+utilities to drop databases and remove entries from the ERMrest registry of
+catalogs. Optionally, it will force disconnect of client connections and/or
+archive databases before dropping them. By default, it purges any deleted
+database, but it includes options to purge all catalogs or to purge only
+catalogs that are at least as old as a given age.
 
 ## Options
 

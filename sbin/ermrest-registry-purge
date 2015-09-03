@@ -17,14 +17,16 @@
 #
 
 PROG=$(basename "${0}")
-DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
-MASTERDB="${MASTERDB:-$DAEMONUSER}"  # Master DB name
-LOG=${LOG:-/dev/stderr}             # Log message file
-DEBUG=${DEBUG:-0}                   # Debug flag
+ERMREST="${ERMREST:-ermrest}"   # ERMrest database name
+DEBUG="${DEBUG:-false}"         # Debug flag
+QUIET="${QUIET:-false}"         # Quiet flag
 
-# Prints log message to logfile (default: stderr)
+# Prints log message to stderr
 function log {
-    printf "$1" >${LOG}
+    if [ "${QUIET}" == "false" ]
+    then
+        printf "$1" >&2
+    fi
 }
 
 # Prints usage message
@@ -51,7 +53,7 @@ while getopts ":a :d :f :h :i: :q :z:" opt; do
       ALL=1
       ;;
     d)
-      DEBUG=1
+      DEBUG="true"
       ;;
     h)
       usage
@@ -61,7 +63,7 @@ while getopts ":a :d :f :h :i: :q :z:" opt; do
       FORCE=1
       ;;
     q)
-      LOG=/dev/null
+      QUIET="true"
       ;;
     i)
       INTERVAL="${OPTARG}"
@@ -98,22 +100,22 @@ elif [ -z "${ALL}" ]; then
 fi
 
 # For all selected catalogs, attempt to dropdb and delete from registry
-su -c "psql -A -t -q -c \"${QUERY}\" ${MASTERDB}" - "${DAEMONUSER}" | {
+psql -A -t -q -c "${QUERY}" ${ERMREST} | {
 while read result
 do
     id=$(echo "${result}" | awk -F\| '{ print $1 }')
     db=$(echo "${result}" | awk -F\| '{ print $2 }' | sed 's/"//g')
-    log "PURGING $id $db"
+    log "PURGING ${id} ${db}"
 
     # skip if debug mode (easy way to see what would have been purged)
-    if [ "${DEBUG}" -eq 1 ]; then
+    if [ "${DEBUG}" == "true" ]; then
         log "\n"
         continue
     fi
 
     # force disconnect of clients, optional
     if [ -n "${FORCE}" ]; then
-        su -c "psql -q \"${MASTERDB}\" >/dev/null" - "${DAEMONUSER}" <<EOF
+        psql -q "${ERMREST}" >/dev/null <<EOF
 SELECT pid, (SELECT pg_terminate_backend(pid)) as killed
 FROM pg_stat_activity
 WHERE datname = '${db}';
@@ -128,7 +130,7 @@ EOF
     # dump database to archive directory before purge, optional
     if [ -n "${ARCHIVE}" ]; then
         filename="${ARCHIVE}/${id}-${db}-`date +%s`.sql"
-        su -c "pg_dump --blobs --no-owner \"${db}\"" - "${DAEMONUSER}" >"${filename}"
+        pg_dump --blobs --no-owner "${db}" >"${filename}"
         if [ $? -eq 0 -a -s "${filename}" ]; then
             gzip "${filename}"
         else
@@ -140,7 +142,7 @@ EOF
     fi
 
     # drop database
-    su -c "dropdb --if-exists --maintenance-db=\"${MASTERDB}\" \"${db}\"" - "${DAEMONUSER}"
+    dropdb --if-exists "${db}"
     if [ $? -ne 0 ]; then
         log " DROP FAILED\n"
         continue
@@ -148,7 +150,7 @@ EOF
     log " DROPPED"
 
     # delete registry entry of catalog
-    su -c "psql -q -c \"DELETE FROM ermrest.simple_registry WHERE id = '${id}'\" ${MASTERDB}" - "${DAEMONUSER}"
+    psql -q -c "DELETE FROM ermrest.simple_registry WHERE id = '${id}'" ${ERMREST}
     if [ $? -ne 0 ]; then
         log " DELETE FAILED\n"
         continue
