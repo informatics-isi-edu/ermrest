@@ -7,10 +7,12 @@ addons:
 env:
   global:
     - COOKIES=~/cookies
+    - VERBOSE=brief
 
 before_install:
   - sudo apt-get update
   - sudo service postgresql stop
+  - sudo apt-get purge postgresql-9.1 postgresql-9.2 postgresql-9.3
   - sudo service postgresql start 9.4
   - cd ..
   - git clone https://github.com/informatics-isi-edu/webauthn.git
@@ -32,6 +34,7 @@ before_script:
   - sudo -H -u ermrest ermrest-webauthn2-manage assign test1 admin
 
 script:
+  - sudo ./test/ermrest-registry-purge-tests.sh
   - curl --fail -k -b $COOKIES -c $COOKIES -d username=test1 -d password=dummypassword https://${HOSTNAME}/ermrest/authn/session
   - bash ./test/rest-tests.sh
 

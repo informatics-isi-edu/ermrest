@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# 
+# Copyright 2012-2015 University of Southern California
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#    http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+PROG=$(basename "${0}")
+ERMREST="${ERMREST:-ermrest}"   # ERMrest database name
+DEBUG="${DEBUG:-false}"         # Debug flag
+QUIET="${QUIET:-false}"         # Quiet flag
+
+# Prints log message to stderr
+function log {
+    if [ "${QUIET}" == "false" ]
+    then
+        printf "$1" >&2
+    fi
+}
+
+# Prints usage message
+function usage {
+    cat >&2 << EOF
+usage: ${PROG} [-dfh] [-a|i INTERVAL] [-z DIR]
+
+Options:
+    -a              purge all catalogs
+    -d              debug mode; does not purge
+    -f              force disconnect of clients before attempting purges
+    -h              print usage and exit
+    -i INTERVAL     purge catalogs that were deleted prior to INTERVAL
+                    examples: '5 weeks', '3 days', '1 year'
+    -q              quiet mode
+    -z DIR          archive catalog to DIR before purge
+EOF
+}
+
+# Get command-line options
+while getopts ":a :d :f :h :i: :q :z:" opt; do
+  case $opt in
+    a)
+      ALL=1
+      ;;
+    d)
+      DEBUG="true"
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
+    f)
+      FORCE=1
+      ;;
+    q)
+      QUIET="true"
+      ;;
+    i)
+      INTERVAL="${OPTARG}"
+      ;;
+    z)
+      ARCHIVE="${OPTARG}"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Validate arguments
+if [ -n "${ALL}" -a -n "${INTERVAL}" ]; then
+    echo "Mutually exclusive options: -a and -i" >&2
+    usage
+    exit 1
+fi
+
+# Generate query statement
+QUERY="SELECT id, descriptor::json->'dbname' FROM ermrest.simple_registry"
+if [ -n "${INTERVAL}" ]; then
+    QUERY="${QUERY} WHERE deleted_on < (CURRENT_TIMESTAMP - interval '${INTERVAL}')"
+elif [ -z "${ALL}" ]; then
+    QUERY="${QUERY} WHERE deleted_on IS NOT NULL"
+fi
+
+# For all selected catalogs, attempt to dropdb and delete from registry
+psql -A -t -q -c "${QUERY}" ${ERMREST} | {
+while read result
+do
+    id=$(echo "${result}" | awk -F\| '{ print $1 }')
+    db=$(echo "${result}" | awk -F\| '{ print $2 }' | sed 's/"//g')
+    log "PURGING ${id} ${db}"
+
+    # skip if debug mode (easy way to see what would have been purged)
+    if [ "${DEBUG}" == "true" ]; then
+        log "\n"
+        continue
+    fi
+
+    # force disconnect of clients, optional
+    if [ -n "${FORCE}" ]; then
+        psql -q "${ERMREST}" >/dev/null <<EOF
+SELECT pid, (SELECT pg_terminate_backend(pid)) as killed
+FROM pg_stat_activity
+WHERE datname = '${db}';
+EOF
+        if [ $? -ne 0 ]; then
+            log " DISCONNECT FAILED\n"
+            continue
+        fi
+        log " DISCONNECTED"
+    fi
+
+    # dump database to archive directory before purge, optional
+    if [ -n "${ARCHIVE}" ]; then
+        filename="${ARCHIVE}/${id}-${db}-`date +%s`.sql"
+        pg_dump --blobs --no-owner "${db}" >"${filename}"
+        if [ $? -eq 0 -a -s "${filename}" ]; then
+            gzip "${filename}"
+        else
+            rm -f "${filename}"
+            log " ARCHIVE FAILED\n"
+            continue
+        fi
+        log " ARCHIVED"
+    fi
+
+    # drop database
+    dropdb --if-exists "${db}"
+    if [ $? -ne 0 ]; then
+        log " DROP FAILED\n"
+        continue
+    fi
+    log " DROPPED"
+
+    # delete registry entry of catalog
+    psql -q -c "DELETE FROM ermrest.simple_registry WHERE id = '${id}'" ${ERMREST}
+    if [ $? -ne 0 ]; then
+        log " DELETE FAILED\n"
+        continue
+    fi
+    log " DELETED\n"
+done
+}
