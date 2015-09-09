@@ -1,8 +1,8 @@
 # Change Log
 
-## Version: v0.0-alpha.0
+## Version: Master
 
-Notable changes:
+Notable changes since `v0.0-alpha.0`:
 
 1. Drop the ermrest_config.json key for "registry.schema"
 
