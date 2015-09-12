@@ -48,7 +48,7 @@ Some annotations are supported on multiple types of model element, so
 here is a quick matrix to locate them.
 
 | Annotation | Schema | Table | Column | Key | Foreign Key Ref | Summary |
---------------------------------------------------------------------------
+|------------|--------|-------|--------|-----|-----------------|---------|
 | [2015 Binary Relationship](#2015-binary-relationship) | - | X | - | - | X | Entity relationships |
 | [2015 Default](#2015-default) | X | X | - | - | - | Default scope |
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
