@@ -29,7 +29,7 @@ abbreviated ISO dates such as `2015`, `2015-01`, and `2015-01-01`.
 ### Example to Set Annotation
 
 This example sets the
-(2015 Default)[#2015-default] annotation:
+[2015 Default](#2015-default) annotation:
 
     PUT /ermrest/catalog/1/schema/MainContent/annotation/tag%3Amisd.isi.edu%2C2015%3Aermrest%2Fdefault HTTP/1.1
     Host: www.example.com
