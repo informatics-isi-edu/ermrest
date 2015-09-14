@@ -47,8 +47,8 @@ TBD changes to propose for ERMrest:
 Some annotations are supported on multiple types of model element, so
 here is a quick matrix to locate them.
 
-| Annotation | Schema | Table | Column | Key | Foreign Key Ref | Summary |
-|------------|--------|-------|--------|-----|-----------------|---------|
+| Annotation | Schema | Table | Column | Key | FKR | Summary |
+|------------|--------|-------|--------|-----|-----|---------|
 | [2015 Binary Relationship](#2015-binary-relationship) | - | X | - | - | X | Entity relationships |
 | [2015 Default](#2015-default) | X | X | - | - | - | Default scope |
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
@@ -78,31 +78,42 @@ Supported JSON payload patterns:
 - `{`... `"referring":` `[` _fkr_ `]` ...`}`: The list of columns _fkr_ forms a foreign key reference to the quasi-referring entity in this association table.
 - `{`... `"referred":` `[` _fkr_ `]` ...`}`: The list of columns _fkr_ forms a foreign key reference to the quasi-referred in this association table.
 - `{`... `"container":` _container_ ...`}`: The _container_ entity is considered to contain its counterparts in the relationship.
+  - `"referrer"`: The referring entity is the container.
+  - `"referred"`: The referred entity is the container.
+  - `"either"`: Either mutually entity contains the other.
+  - `false`: Neither entity contains the other, overriding any default heuristic selection of containing entity.
 - `{`... `"referring_name":` _name_ ...`}`: The relationship has a preferred _name_ from the perspective of the referring entity.
 - `{`... `"referred_name":` _name_ ...`}`: The relationship has a preferred _name_ from the perspective of the referred entity.
 - `{`... `"name":` _name_ ... `}`: The relationship has a preferred _name_ from an outsider perspective.
 
-#### Directionality
+#### Direction
 
 A foreign key reference annotated as a binary relationship is
-inherently directed and and assigns roles of _referring_ to the table
+inherently _directed_ and assigns roles of _referring_ to the table
 containing the foreign key reference and _referred_ to the table
 containing the key which is being referenced. For consistency, when
 annotating an association table, the `referring` and `referred`
 annotation fields SHOULD designate foreign keys through which these
 same relationship roles will be assigned to the associated entity
 tables. When such designation is present, the assocation is considered
-_directed_.
+_directed_, and separate naming and containment can be applied when
+viewing the relationship from the perspective of one of the endpoints.
 
 #### Containment
 
 A containment relationship implies a nested, hierarchical
-interpretation of related entities. The container "contains" the
+interpretation of related entities. The container _contains_ the
 contained entities, i.e. a parent document contains child documents in
 a typical nested tree structure. The containment property of a binary
-relationship indicates such roles.
+relationship indicates such pairwise roles.
+
+The concept of containment here is an aspect of data presentation. It
+does not necessarily imply any partitive relationship in the domain
+ontology containing the entity types and relationship.
 
 #### Heuristics
+
+##### Relationship Name
 
 To find the name of a binary relationship, the first matching rule wins:
 
@@ -110,27 +121,33 @@ To find the name of a binary relationship, the first matching rule wins:
 2. For association table relationships, the table name declares the relationship name.
 3. For single-column FKR relationships, the FKR column name declares the relationship name.
 
-To find the referring name of a binary relationship, the first matching rule wins:
+##### Referring Relationship Name
+
+To find the referring name of a binary relationship, i.e. the name from the perspective of the referring entity, the first matching rule wins:
 
 1. The `referring_name` field with a string value declares the referring name.
 2. The `referring_name` field with `false` value declares an anonymous or hidden referring relationship.
 3. For directed associations, the name of the referred table is the referring name.
 4. Otherwise, the relationship name is used as the referring name.
 
-To find the referred name of a binary relationship, the first matching rule wins:
+##### Referred Relationship Name
+
+To find the referred name of a binary relationship, i.e. the name from the perspective of the referred entity, the first matching rule wins:
 
 1. The `referred_name` field with a string value declares the referred name.
 2. The `referred_name` field with `false` value declares an anonymous or hidden referred relationship.
 3. For directed associations, the name of the referring table is the referred name.
 4. For FKR relationships, the name of the referring table is the referred name.
-5. ???
 
-To find containment, the first matching rule wins:
+##### Containment Roles
 
-1. The `container` field with value `"referred"` establishes the referred entity as the container.
-2. The `container` field with value `"referring"` establishes the referring entity as the container.
-3. The `container` field with value `"either"` suggests treating either entity as the container when it is central to a presentation, so the other related entities are exposed as nested content. In this mode, a cyclic presentation may develop if navigation from container to contained is allowed.
-4. Otherwise, the relationship is not containment but some other form of relationship to be determined by other means.
+To find containment roles, the first matching rule wins:
+
+1. The `container` field with value `false` declares non-containment.
+2. The `container` field with value `"referred"` establishes the referred entity as the container.
+3. The `container` field with value `"referring"` establishes the referring entity as the container.
+4. The `container` field with value `"either"` suggests treating either entity as the container when it is central to a presentation, so the other related entities are exposed as nested content. In this mode, a cyclic presentation may develop if navigation from container to contained is allowed.
+5. Otherwise, containment or lack thereof must be determined by other means.
 
 ### 2015 Default
 
