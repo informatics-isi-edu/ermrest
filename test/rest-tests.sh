@@ -387,15 +387,15 @@ EOF
 
 do_annotation_phase2_tests()
 {
-    local resource="$1" tag_key="$2" test_value="$3"
+    local resource="$1" tag_key="$2" test_value="\"$3\""
 
     dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
-    if ! grep -q "\"${test_value}\"" ${RESPONSE_CONTENT}
+    if ! grep -q "${test_value}" ${RESPONSE_CONTENT}
     then
 	cat <<EOF
 FAILED: Annotation value mismatch.
-  Expected: ${test_value}
-  Actual: $(cat ${RESPONSE_CONTENT})
+  Expected: ${test_value}  (${#test_value} bytes)
+  Actual: $(cat ${RESPONSE_CONTENT})  ($(wc -c ${RESPONSE_CONTENT}) bytes)
 
 EOF
 	NUM_FAILURES=$(( ${NUM_TESTS} + 1 ))
