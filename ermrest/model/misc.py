@@ -99,8 +99,8 @@ def annotatable(restype, keying):
             raise exception.BadData('Null value is not a valid annotation.')
         interp = self._interp_annotation(key)
         where = ' AND '.join([
-            "%s = %s" % (sql_identifier(k), interp[k])
-            for k in keying.keys()
+            "%s = %s" % (sql_identifier(k), v)
+            for k, v in interp.items()
         ])
         cur.execute("""
 SELECT _ermrest.model_change_event();
@@ -129,8 +129,8 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
         if key is None:
             del interp['annotation_uri']
         where = ' AND '.join([
-            "%s = %s" % (sql_identifier(k), interp[k])
-            for k in keying.keys()
+            "%s = %s" % (sql_identifier(k), v)
+            for k, v in interp.items()
         ])
         cur.execute("""
 SELECT _ermrest.model_change_event();

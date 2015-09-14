@@ -228,7 +228,7 @@ EOF
     if ! grep -q "\"typename\": \"${ctype}\"" ${RESPONSE_CONTENT}
     then
 	cat <<EOF	
-ERROR: Core type ${ctype} failed to round-trip for est1:test_ctype_${ctype}:column1
+FAILED: Core type ${ctype} failed to round-trip for est1:test_ctype_${ctype}:column1
 
 $(cat ${RESPONSE_CONTENT})
 EOF
@@ -368,7 +368,52 @@ EOF
 done
 
 # do annotation tests
+do_annotation_phase1_tests()
+{
+    local resource="$1" tag_key="$2" test_value="$3"
+
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation"
+    dotest "404::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
+    cat > ${TEST_DATA} <<EOF
+"${test_value}"
+EOF
+    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -T ${TEST_DATA}
+    dotest "201::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+    cat > ${TEST_DATA} <<EOF
+{"dummy": "value", "malformed"
+EOF
+    dotest "400::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
+}
+
+do_annotation_phase2_tests()
+{
+    local resource="$1" tag_key="$2" test_value="$3"
+
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
+    if ! grep -q "\"${test_value}\"" ${RESPONSE_CONTENT}
+    then
+	cat <<EOF
+FAILED: Annotation value mismatch.
+  Expected: ${resource}/annotation/${tag_key}
+  Actual: """$(cat ${RESPONSE_CONTENT})"""
+
+EOF
+	NUM_FAILURES=$(( ${NUM_TESTS} + 1 ))
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+do_annotation_phase3_tests()
+{
+    local resource="$1" tag_key="$2"
+
+    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -X DELETE
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
+    dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -X DELETE
+}
+
 tag_key='tag%3Amisd.isi.edu%2C2015%3Atest1' # tag:misd.isi.edu,2015:test1
+tag_key2='tag%3Amisd.isi.edu%2C2015%3Atest2' # tag:misd.isi.edu,2015:test2
 resources=(
     /schema/test1
     /schema/test1/table/test_level2
@@ -378,23 +423,18 @@ resources=(
 )
 for resource in ${resources[@]}
 do
-    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation"
-    dotest "404::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
-    cat > ${TEST_DATA} <<EOF
-{"dummy": "value"}
-EOF
-    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -T ${TEST_DATA}
-    dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
-    dotest "204::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
-    cat > ${TEST_DATA} <<EOF
-{"dummy": "value", "malformed"
-EOF
-    dotest "400::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -T ${TEST_DATA}
-    dotest "405::*::*" "/catalog/${cid}${resource}/annotation" -X DELETE
-    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
-    dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -X DELETE
-done
+    do_annotation_phase1_tests "${resource}" "${tag_key}" "${resource} value 1"
+    do_annotation_phase2_tests "${resource}" "${tag_key}" "${resource} value 1"
+    
+    do_annotation_phase1_tests "${resource}" "${tag_key2}" "${resource} value 2"
+    do_annotation_phase2_tests "${resource}" "${tag_key2}" "${resource} value 2"
 
+    # re-check first value (regression test for issue #37, PUT modified values for other keys too)
+    do_annotation_phase2_tests "${resource}" "${tag_key}" "${resource} value 1"
+    
+    do_annotation_phase3_tests "${resource}" "${tag_key}"
+    do_annotation_phase3_tests "${resource}" "${tag_key2}"
+done
 
 # create table for unicode tests... use unusual unicode characters to test proper pass-through
 dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s" -X POST
