@@ -394,8 +394,8 @@ do_annotation_phase2_tests()
     then
 	cat <<EOF
 FAILED: Annotation value mismatch.
-  Expected: ${resource}/annotation/${tag_key}
-  Actual: """$(cat ${RESPONSE_CONTENT})"""
+  Expected: ${test_value}
+  Actual: $(cat ${RESPONSE_CONTENT})
 
 EOF
 	NUM_FAILURES=$(( ${NUM_TESTS} + 1 ))
