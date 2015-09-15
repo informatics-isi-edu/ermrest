@@ -398,7 +398,7 @@ FAILED: Annotation value mismatch.
   Actual: $(cat ${RESPONSE_CONTENT})  ($(wc -c ${RESPONSE_CONTENT}) bytes)
 
 EOF
-	NUM_FAILURES=$(( ${NUM_TESTS} + 1 ))
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
     fi
     NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
 }
