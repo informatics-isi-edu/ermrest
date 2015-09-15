@@ -274,10 +274,35 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
 
+# create table for composite-key tests
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_composite",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "timestamptz" }, "name": "last_update" },
+      { "type": { "typename": "text" }, "name": "name" },
+      { "type": { "typename": "int8" }, "name": "site" }
+   ],
+   "keys": [ 
+      { "unique_columns": [ "id", "site" ] } 
+   ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite"
+
 # test key introspection
 dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/"
 dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id"
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
+
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_composite/key/"
+dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_composite/key/id,site"
+dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_composite/key/id"
+
 
 cat > ${TEST_DATA} <<EOF
 { "unique_columns": ["id", "name"] }
@@ -288,7 +313,6 @@ dotest "204::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" 
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" -X DELETE
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
 
-
 cat > ${TEST_DATA} <<EOF
 id,name
 1,foo
@@ -296,6 +320,22 @@ id,name
 3,baz
 EOF
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id,last_update,name,site
+1,2010-01-01,Foo,1
+1,2010-01-02,Foo,2
+2,2010-01-03,Foo,1
+2,2010-01-04,Foo,2
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id,last_update,name,site
+1,2010-01-01,Foo1,1
+2,2010-01-04,Foo1,1
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite" -H "Content-Type: text/csv" -T ${TEST_DATA} -X PUT
 
 cat > ${TEST_DATA} <<EOF
 {
