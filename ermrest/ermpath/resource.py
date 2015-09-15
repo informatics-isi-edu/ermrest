@@ -479,13 +479,14 @@ RETURNING %(tcols)s
 INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s
 FROM %(input_table)s
-RETURNING *
-""" % dict(
+RETURNING %(tcols)s
+            """ % dict(
                 table = self.table.sql_name(),
                 input_table = sql_identifier(input_table),
                 cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
-                icols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ])
-                )
+                icols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
+                tcols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ])
+            )
         else:
             insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
@@ -496,15 +497,16 @@ FROM (
   SELECT %(mkcols)s FROM %(table)s
 ) k
 JOIN %(input_table)s AS i ON (%(keymatches)s)
-RETURNING *
-""" % dict(
+RETURNING %(tcols)s
+            """ % dict(
                 table = self.table.sql_name(),
                 input_table = sql_identifier(input_table),
                 cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ]),
                 icols = ','.join([ 'i.%s' % c.sql_name() for c in (mkcols + nmkcols) ]),
                 mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-                keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name()) for c in mkcols ])
-                )
+                keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name()) for c in mkcols ]),
+                tcols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ])
+            )
         
         updated_sql = "SELECT * FROM updated_rows"
         inserted_sql = "SELECT * FROM inserted_rows"
