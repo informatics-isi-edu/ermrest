@@ -16,6 +16,10 @@ Notable changes since `v0.0-alpha.0`:
 
  https://github.com/informatics-isi-edu/ermrest/issues/19
 
+ Creating a catalog, by default requires a user with 'admin' role. This ACL can
+ be changed by modifying the ACL list in the `ermrest_config.json`
+ configuration file.
+
 1. Proposed improvements to 'DELETE /catalog/N'
 
  https://github.com/informatics-isi-edu/ermrest/issues/14

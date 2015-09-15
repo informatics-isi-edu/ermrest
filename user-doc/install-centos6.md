@@ -194,11 +194,11 @@ against an internal database of usernames and passwords and attributes.
    The `admin` attribute has special meaning only because it appears in
    `~ermrest/ermrest-config.json` in some ACLs.
 
-3. Setup a test user account.
+3. Setup a user account.
 
    ```
-   $ ermrest-webauthn2-manage adduser testuser
-   $ ermrest-webauthn2-manage passwd testuser 'your password here'
+   $ ermrest-webauthn2-manage adduser myuser
+   $ ermrest-webauthn2-manage passwd myuser 'your password here'
    ```
 
 ## Create Your First Catalog
@@ -207,11 +207,11 @@ A quick sanity check of the above configuration is to login to ERMrest, create
 a catalog, and read its meta properties. The following commands can be run as
 any local user.
 
-1. Login to ERMrest using an account previously created with
+1. Login to ERMrest using an 'admin' account previously created with
    `ermrest-webauthn-manage`. Do not include the single quotes in the parameter.
 
    ```
-   $ curl -k -b cookie -c cookie -d username=testuser \
+   $ curl -k -b cookie -c cookie -d username=root \
    > -d password='your password here' https://localhost/ermrest/authn/session
    ```
 
