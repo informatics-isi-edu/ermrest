@@ -51,6 +51,7 @@ here is a quick matrix to locate them.
 |------------|--------|-------|--------|-----|-----|---------|
 | [2015 Binary Relationship](#2015-binary-relationship) | - | X | - | - | X | Entity relationships |
 | [2015 Default](#2015-default) | X | X | - | - | - | Default scope |
+| [2015 Facets](#2015-facets) | - | X | - | - | - | Facet grouping |
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
 | [2015 URL](#2015-url) | - | - | X | - | - | Column data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
