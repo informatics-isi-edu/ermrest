@@ -166,6 +166,74 @@ selection only applies when the user has not had an opportunity or has
 not taken the opportunity to choose a scope explicitly and the
 user interface requires a scope selection in order to function.
 
+### 2015 Facets
+
+`tag:misd.isi.edu,2015:facets`
+
+This key is allowed on zero or more tables in a model. The purpose of
+the annotation is to customize how an entity type might be interpreted
+as faceted data.
+
+Supported JSON payload pattern:
+
+- `[` _facetspec_ ... `]`: The ordered list of _facetspec_ facet specifications SHOULD be considered its primary facets.
+
+Supported JSON _facetspec_ pattern:
+
+- `{ "path": [` _linkspec_ ... `],` _facets_ `}`: One ordered list of columns are facets drawn from the table linked to the current table by the ordered sequence of _linkspec_ link specifications. The ordered path is interpreted left-to-right with the same logic as ERMrest entity paths in the REST API.
+- `{` _linkspec_  _facets_ `}`: Short-hand equivalent when the sequence of link specifications has exactly one _linkspec_ entry.
+- `{` _facets_ `}`: Short-hand equivalent when the sequence of link specifications has zero entries, and facets are drawn from the current table itself.
+
+Supported JSON _linkspec_ patterns:
+
+- `"table":` _tname_: Draw facets from the table _tname_ in the same schema as the current table and which MUST have an unambiguous linkage to the current table.
+- `"schema":` _sname_, `"table":` _tname_ `,`: Draw facets from table _sname_:_tname_ which MUST have an unambiguous linkage to the current table.
+- `"lcolumns": [` _lname_ `],`: Draw facets from the table with an unambiguous link to the current table involving link column(s) _lname_ in the current table.
+- `"table": ` _tname_ `,"lcolumns": [` _lname_ `],`: Draw facets from the table _tname_ in the same schema as the current table and with an unambiguous link to the current table involving link column(s) _lname_ from _sname_:_tname_.
+- `"schema":` _sname_, `"table": ` _tname_ `,"lcolumns": [` _lname_ `],`: Draw facets from the table _sname_:_tname_ with an unambiguous link to the current table involving link column(s) _lname_ from _sname_:_tname_.
+
+Supported JSON _facets_ patterns:
+
+- (empty): All columns of the table are considered heuristically as facets.
+- `"fcolumns": [` _fname_ ... `]`: The ordered list of column(s) _fname_ are considered as facets.
+
+#### Examples
+
+There is a direct correspondence between _facetspec_ elements and an
+ERMrest API URL fragment encoding the same path information. Consider
+the following _facetspec_ examples that could be present in a facets
+annotation on the entity type `S`:`E1` in a catalog:
+
+| facet spec. | ERMrest URL fragment |
+|-------------|----------------------|
+| `{}` | `/entity/S:E1` |
+| `{"path": []}` | `/entity/S:E1` |
+| `{"fcolumns": ["foo", "bar"]}` | `/attribute/S:E1/foo,bar` |
+| `{"table": "E2"}` |`/entity/S:E1/S:E2` |
+| `{"schema": "S", "table": "E2"}` |`/entity/S:E1/S:E2` |
+| `{"path": [{"schema": "S", "table": "E2"}]}` |`/entity/S:E1/S:E2` |
+| `{"path": [{"schema": "S", "table": "E2"}], "fcolumns": ["foo", "bar"]}` |`/attribute/S:E1/S:E2/foo,bar` |
+| `{"lcolumns": ["id"]}` | `/entity/S:E1/(id)` |
+| `{"path": [{"lcolumns": ["id"]}]}` | `/entity/S:E1/(id)` |
+| `{"path": [{"lcolumns": ["id"]}, {"lcolumns": ["id"]}]}` | `/entity/S:E1/(id)/(id)` |
+| `{"path": [{"schema": "S", "table": "E2", "lcolumns": ["e1_id"]}, {"lcolumns": ["id"]}]}` | `/entity/S:E1/(S:E2:e1_id)/(id)` |
+
+#### Heuristics
+
+1. Validate each _facetspec_.
+  - Validate the _linkspec_ chain to determine source table for facets.
+  - Resolve the _fname_ facets as columns in the source table.
+  - If *too many* invalid _facetspec_ elements were encountered, consider the whole set invalid?
+2. Ignore invalid _facetspec_ elements.
+  - Any _sname_:_tname_ that is not present in the model is invalid.
+  - Any _lname_ that is not present in the link table is invalid.
+  - Any _lname_ sequence that does not form a link's endpoint is invalid.
+  - Any ambiguous linkage is invalid (more than one way to reach the named table or using the same named link columns).
+3. Present the ordered list of valid _facetspec_ elements as the primary faceting.
+  - Heuristics MAY suppress or denormalize a valid _facetspec_.
+  - An empty set of valid elements SHOULD be interpreted as if no annotation was present.
+4. Offer other reachable facets (found via model-driven interpretation) through "see more" or similar advanced interfaces. The annotation is meant to group or prioritize facets but SHOULD NOT block facet interpretation.
+
 ### 2015 Hidden
 
 `tag:misd.isi.edu,2015:hidden`
