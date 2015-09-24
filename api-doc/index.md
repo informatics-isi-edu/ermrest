@@ -157,3 +157,65 @@ For simplicity, ERMrest always uses data formats capable of representing a set o
 - `application/x-json-stream`: a stream of JSON objects, one per line, where each object represents one tuple with named fields.
 
 Other data formats may be supported in future revisions.
+
+#### CSV Format
+
+ERMrest supports the `text/csv` MIME type for tabular input or output,
+as described in [RFC 4180](https://tools.ietf.org/html/rfc4180). If
+deviation between the RFC and ERMrest are found, please report them as
+a bug in the ERMrest issue tracker.
+
+Refer to the RFC for full CSV format details, but here are a few
+points worth noting:
+
+- Each row (record) is terminated with a carriage-return, linefeed (CRLF) byte pair.
+- Fields are separated by the comma (`,`) character. The final field MUST NOT have a trailing comma, as that would be interpreted as one more empty field before the record terminator.
+- The first row is a header with column names in each field.
+- All records MUST have the same number of fields.
+- Fields MAY be surrounded by the double-quotation character (`"`) to allow embedding of field separators, record terminators, or whitespace.
+  - Even a newline or CRLF pair may appear in the quoted field.
+  - To embed a literal double-quotation character in a quoted field, escape it by preceding with a second copy of the same byte, e.g. `"This "" sentence has one double-quote character in it."`.
+- All whitespace between field separators is significant.
+  - A quoted record SHOULD NOT be preceded or followed by whitespace, e.g. `...," a b ",...` is preferred to `..., "a b" ,...`. The RFC does not allow the latter form. ERMrest MAY interpret both as equivalent but this behavior SHOULD NOT be relied upon by clients.
+
+##### NULL values
+
+As a further note, ERMrest interprets quoted and unquoted empty fields distinctly:
+
+- `...,,...`: NULL value
+- `...,"",...`: empty string
+
+##### Example CSV Content
+
+In this example, we include the literal `<CRLF>` to emphasize the record terminator that would not be visually appreciable otherwise:
+
+    row #,column A,column B,column C,column D<CRLF>
+    1,a,b,c,d<CRLF>
+	2,A,B,C,D<CRLF>
+	3, A, B, C, D<CRLF>
+	4, A , B , C , D <CRLF>
+	5," A "," B "," C "," D "<CRLF>
+	6," ""A"" "," ""B"" "," ""C"" "," ""D"" "<CRLF>
+	7,"A<CRLF>
+	A","B<CRLF>
+	B","C<CRLF>
+	C","D<CRLF>
+	D"<CRLF>
+	8,,,,<CRLF>
+	9,"","","",""<CRLF>
+
+The preceding example has nine total rows with a column containing an
+explicit row number `1` through `9` and four addition columns named
+`column A` through `column D` with the following values encoded in the
+CSV records:
+
+1. Four literals `a` through `d`
+2. Four literals `A` through `D`
+3. Four literals ` A` through ` D`, i.e. alphabetic character preceded by space character.
+4. Four literals ` A ` through ` D `, i.e. alphabetic character surrounded by space characters on both sides.
+5. Same literals as row (4).
+6. Four literals ` "A" ` through ` "D" `, i.e. alphabetic character surrounded by quotes and then surrounded by space characters on both sides.
+7. Four literals `A<CRLF>A` through `D<CRLF>D`, i.e. one carriage-return linefeed pair surrounded by alphabetic characters on both sides.
+8. Four NULL values.
+9. Four literal empty strings.
+
