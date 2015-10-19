@@ -164,7 +164,7 @@ class Api (object):
         while s:
             s = s.strip()
             # accept leading comma that isn't really valid by spec...
-            m = re.match('^,? *(?P<first>(W/)?"(.|\\")*")(?P<rest>.*)', s)
+            m = re.match('^,? *(?P<first>(W/)?"([^"]|\\\\")*")(?P<rest>.*)', s)
             if m:
                 # found 'W/"tag"' or '"tag"'
                 g = m.groupdict()
@@ -181,6 +181,7 @@ class Api (object):
                 continue
             s = None
 
+        web.debug(etags, dict(etags))
         return dict(etags)
         
     def http_check_preconditions(self, method='GET', resource_exists=True):
