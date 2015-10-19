@@ -77,7 +77,7 @@ class Conflict (WebException):
 class PreconditionFailed (WebException):
     def __init__(self, data=u'', headers={}):
         status = '412 Precondition Failed'
-        message = 'Resource state does not match requested preconditions. %s'
+        desc = 'Resource state does not match requested preconditions. %s'
         WebException.__init__(self, status, headers=headers, data=data, desc=desc)
 
 class UnsupportedMediaType (WebException):
