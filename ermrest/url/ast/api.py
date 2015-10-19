@@ -141,39 +141,6 @@ class Api (object):
 
         self.http_etag = '"%s"' % ';'.join(etag).replace('"', '\\"')
 
-    def http_is_cached(self):
-        """Determine whether a request is cached and the request can return 304 Not Modified.
-           Currently only considers ETags via HTTP "If-None-Match" header, if caller set self.http_etag.
-        """
-        def etag_parse(s):
-            strong = True
-            if s[0:2] == 'W/':
-                strong = False
-                s = s[2:]
-            return (s, strong)
-
-        def etags_parse(s):
-            etags = []
-            s, strong = etag_parse(s)
-            while s:
-                s = s.strip()
-                m = re.match('^,? *(?P<first>(W/)?"(.|\\")*")(?P<rest>.*)', s)
-                if m:
-                    g = m.groupdict()
-                    etags.append(etag_parse(g['first']))
-                    s = g['rest']
-                else:
-                    s = None
-            return dict(etags)
-        
-        client_etags = etags_parse( web.ctx.env.get('HTTP_IF_NONE_MATCH', ''))
-        #web.debug(client_etags)
-        
-        if self.http_etag is not None and client_etags.has_key('%s' % self.http_etag):
-            return True
-
-        return False
-
     def parse_client_etags(self, header):
         """Parse header string for ETag-related preconditions.
 
