@@ -313,6 +313,21 @@ dotest "204::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" 
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" -X DELETE
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
 
+# test preconditions
+for resource in "/schema/test1/table/test_level1" "/entity/test1:test_level1"
+do
+    dotest "200::*::*" "/catalog/${cid}${resource}"
+    etag=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+    dotest "200::*::*" "/catalog/${cid}${resource}" -H 'If-Match: *'
+    dotest "304::*::*" "/catalog/${cid}${resource}" -H 'If-None-Match: *'
+    dotest "200::*::*" "/catalog/${cid}${resource}" -H 'If-Match: '"${etag}"
+    dotest "304::*::*" "/catalog/${cid}${resource}" -H 'If-None-Match: '"${etag}"
+    dotest "304::*::*" "/catalog/${cid}${resource}" -H 'If-Match: "broken-etag"'
+    dotest "200::*::*" "/catalog/${cid}${resource}" -H 'If-None-Match: "broken-etag"'
+    dotest "200::*::*" "/catalog/${cid}${resource}" -H 'If-Match: "broken-etag"'", ${etag}"
+    dotest "304::*::*" "/catalog/${cid}${resource}" -H 'If-None-Match: "broken-etag"'", ${etag}"
+done
+
 cat > ${TEST_DATA} <<EOF
 id,name
 1,foo
