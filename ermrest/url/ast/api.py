@@ -174,6 +174,77 @@ class Api (object):
 
         return False
 
+    def parse_client_etags(self, header):
+        """Parse header string for ETag-related preconditions.
+
+           Returns dict mapping ETag -> boolean indicating strong
+           (true) or weak (false).
+
+           The special key True means the '*' precondition was
+           encountered which matches any representation.
+
+        """
+        def etag_parse(s):
+            strong = True
+            if s[0:2] == 'W/':
+                strong = False
+                s = s[2:]
+            return (s, strong)
+
+        s = header
+        etags = []
+        # pick off one ETag prefix at a time, consuming comma-separated list
+        while s:
+            s = s.strip()
+            # accept leading comma that isn't really valid by spec...
+            m = re.match('^,? *(?P<first>(W/)?"(.|\\")*")(?P<rest>.*)', s)
+            if m:
+                # found 'W/"tag"' or '"tag"'
+                g = m.groupdict()
+                etags.append(etag_parse(g['first']))
+                s = g['rest']
+                continue
+            m = re.match('^,? *[*](?P<rest>.*)', s)
+            if m:
+                # found '*'
+                # accept anywhere in list even though spec is more strict...
+                g = m.groupdict()
+                etags.append((True, True))
+                s = g['rest']
+                continue
+            s = None
+
+        return dict(etags)
+        
+    def http_check_preconditions(self, method='GET', resource_exists=True):
+        failed = False
+
+        match_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_MATCH', ''))
+        if match_etags:
+            if resource_exists:
+                if self.http_etag and self.http_etag not in match_etags \
+                   and (True not in match_etags):
+                    failed = True
+            else:
+                failed = True
+        
+        nomatch_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_NONE_MATCH', ''))
+        if nomatch_etags:
+            if resource_exists:
+                if self.http_etag and self.http_etag in nomatch_etags \
+                   or (True in nomatch_etags):
+                    failed = True
+
+        if failed:
+            headers={ 
+                "ETag": self.http_etag, 
+                "Vary": ", ".join(self.http_vary)
+            }
+            if method == 'GET':
+                raise rest.NotModified(headers=headers)
+            else:
+                raise rest.PreconditionFailed(headers=headers)
+
     def emit_headers(self):
         """Emit any automatic headers prior to body beginning."""
         #TODO: evaluate whether this function is necessary
