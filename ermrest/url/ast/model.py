@@ -58,9 +58,7 @@ def _GET(handler, thunk, _post_commit):
         handler.enforce_content_read(cur)
         handler.catalog.manager.get_model(cur)
         handler.set_http_etag( handler.catalog.manager._model_version )
-        if handler.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return None
+        handler.http_check_preconditions()
         return thunk(conn, cur)
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
 

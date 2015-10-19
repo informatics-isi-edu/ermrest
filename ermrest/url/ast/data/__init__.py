@@ -71,9 +71,7 @@ def _GET(handler, uri, dresource, vresource):
         
     def body(conn, cur):
         handler.set_http_etag( vresource.get_data_version(cur) )
-        if handler.http_is_cached():
-            web.ctx.status = '304 Not Modified'
-            return None
+        handler.http_check_preconditions()
         dresource.add_sort(handler.sort)
         return dresource.get(conn, cur, content_type=content_type, limit=limit)
 
