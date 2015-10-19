@@ -491,6 +491,66 @@ do
     do_annotation_phase3_tests "${resource}" "${tag_key2}"
 done
 
+# do more destructive precondition tests
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
+etag1=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+
+cat > ${TEST_DATA} <<EOF
+id,name
+47,foo
+EOF
+
+dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST -H 'If-Match: "broken"'
+dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST -H 'If-None-Match: '"${etag1}"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST -H 'If-Match: '"${etag1}"
+etag2=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+
+if [[ "${etag2}" == "${etag1}" ]]
+then
+    cat <<EOF
+FAILED: POST response ETag does not reflect changed resource state
+
+$(cat ${RESPONSE_HEADERS})
+EOF
+    NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+elif [[ -z "${etag2}" ]]
+then
+    cat <<EOF
+FAILED: POST response lacks ETag header
+
+$(cat ${RESPONSE_HEADERS})
+EOF
+    NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+fi
+NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+
+dotest "304::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -H 'If-None-Match: '"${etag2}"
+
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
+etag2=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+
+cat > ${TEST_DATA} <<EOF
+id,name
+47,bar
+EOF
+dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-Match: "broken"'
+dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-None-Match: '"${etag2}"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-Match: '"${etag2}"
+
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
+etag3=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+
+dotest "412::*::*" "/catalog/${cid}/attributegroup/test1:test_level1/id;name" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-Match: "broken"'
+dotest "412::*::*" "/catalog/${cid}/attributegroup/test1:test_level1/id;name" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-None-Match: '"${etag3}"
+dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_level1/id;name" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-Match: '"${etag3}"
+
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
+etag4=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+
+dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -X DELETE -H 'If-Match: "broken"'
+dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -X DELETE -H 'If-None-Match: '"${etag4}"
+dotest "204::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -X DELETE -H 'If-Match: '"${etag4}"
+
 # create table for unicode tests... use unusual unicode characters to test proper pass-through
 dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s" -X POST
 cat > ${TEST_DATA} <<EOF

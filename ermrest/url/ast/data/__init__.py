@@ -86,7 +86,7 @@ def _GET(handler, uri, dresource, vresource):
 
     return handler.perform(body, post_commit)
 
-def _PUT(handler, uri, put_thunk):
+def _PUT(handler, uri, put_thunk, vresource):
     """Perform HTTP PUT of generic data resources.
     """
     try:
@@ -102,15 +102,21 @@ def _PUT(handler, uri, put_thunk):
     def body(conn, cur):
         input_data.seek(0) # rewinds buffer, in case of retry
         handler.enforce_content_write(cur, uri)
-        return put_thunk([
+        handler.set_http_etag( vresource.get_data_version(cur) )
+        handler.http_check_preconditions(method='PUT')
+        result = put_thunk([
             conn,
             cur,
             input_data, 
             in_content_type,
             content_type
         ])
+        handler.set_http_etag( vresource.get_data_version(cur) )
+        cur.close()
+        return result
 
     def post_commit(lines):
+        handler.emit_headers()
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
         for line in lines:
@@ -118,14 +124,18 @@ def _PUT(handler, uri, put_thunk):
 
     return handler.perform(body, post_commit)
 
-def _DELETE(handler, uri, resource):
+def _DELETE(handler, uri, resource, vresource):
     """Perform HTTP DELETE of generic data resources.
     """
     def body(conn, cur):
         handler.enforce_content_write(cur, uri)
+        handler.set_http_etag( vresource.get_data_version(cur) )
+        handler.http_check_preconditions(method='DELETE')
         resource.delete(conn, cur)
+        handler.set_http_etag( vresource.get_data_version(cur) )
 
     def post_commit(ignore):
+        handler.emit_headers()
         web.ctx.status = '204 No Content'
         return ''
 
@@ -210,7 +220,7 @@ class Entity (Api):
     def PUT(self, uri, post_method=False, post_defaults=None):
         """Perform HTTP PUT of entities.
         """
-        return _PUT(self, uri, lambda args: self.epath.put(*args, allow_existing=not post_method, use_defaults=post_defaults))
+        return _PUT(self, uri, lambda args: self.epath.put(*args, allow_existing=not post_method, use_defaults=post_defaults), self.epath)
 
     def POST(self, uri):
         """Perform HTTP POST of entities.
@@ -228,7 +238,7 @@ class Entity (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
         """
-        return _DELETE(self, uri, self.epath)
+        return _DELETE(self, uri, self.epath, self.epath)
 
 class Attribute (Api):
     """A specific attribute set by attributepath."""
@@ -255,7 +265,7 @@ class Attribute (Api):
     def DELETE(self, uri):
         """Perform HTTP DELETE of entity attribute.
         """
-        return _DELETE(self, uri, self.apath)
+        return _DELETE(self, uri, self.apath, self.apath.epath)
 
 class AttributeGroup (Api):
     """A specific group set by entity path, group keys, and group attributes."""
@@ -286,7 +296,7 @@ class AttributeGroup (Api):
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of attribute groups.
         """
-        return _PUT(self, uri, lambda args: self.agpath.put(*args))
+        return _PUT(self, uri, lambda args: self.agpath.put(*args), self.agpath.epath)
 
 
 class Aggregate (Api):

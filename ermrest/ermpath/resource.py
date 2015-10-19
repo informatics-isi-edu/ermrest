@@ -64,8 +64,6 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
         for table in drop_tables:
             cur.execute("DROP TABLE %s" % sql_identifier(table))
 
-        cur.close()
-
         #if conn is not None:
         #    conn.commit()
         
