@@ -181,7 +181,6 @@ class Api (object):
                 continue
             s = None
 
-        web.debug(etags, dict(etags))
         return dict(etags)
         
     def http_check_preconditions(self, method='GET', resource_exists=True):
