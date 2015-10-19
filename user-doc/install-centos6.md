@@ -27,6 +27,17 @@ Run the following commands to install the EPEL repository.
 # yum localinstall epel-release*.rpm
 ```
 
+### Workaround HTTPD errors related to mod_wsgi not finding its sockets
+
+On some versions of Fedora and CentOS, you may encounter errors in the
+Apache SSL server log similar to `Unable to connect to WSGI daemon
+process on '/var/run/wsgi/wsgi.1331.1.1.sock'`.
+
+A workaround is to configure the SE-Linux context:
+
+    semanage fcontext --add --type httpd_var_run_t "/var/run/wsgi"
+    restorecon -rv /var/run/wsgi
+
 ### PostgreSQL 9.2 or above
 
 PostgreSQL must be installed and configured to operate within the [SE-Linux]
