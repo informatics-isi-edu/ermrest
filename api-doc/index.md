@@ -139,6 +139,65 @@ The ERMrest interface supports typical HTTP operations to manage these different
 
 These operations produce and/or consume representations of the resources. ERMrest defines its own JSON representations for catalog and model elements, and supports common representations of tabular data.
 
+### HTTP Concurrency Control
+
+ERMrest supports opportunistic concurrency control using an entity tag ("ETag") as per the HTTP standards to identify versions of web resources. The ETag is a version identifier that composes with a URL to fully identify a resource version. In other words, ETag strings are meaningless when separated from the resource address.
+
+#### Precondition Processing
+
+1. A response header `ETag` carries an ETag representing the resource version _at the conclusion of request processing_.
+  - A `HEAD` response with an ETag identifies the version of the resource currently present in the server.
+  - A `GET` response with an ETag identifies the version of the resource being represented in the output.
+  - A `PUT`, `POST`, or `DELETE` response with an ETag identifies the version of the server-side resource after it was modified by the request.
+2. Request headers `If-Match` and `If-None-Match` carry one or more ETags (or the wildcard `*`) specifying constraints on the resource version _at the start of request processing_.
+  - The `If-Match` header requires that the server-side resource match one of the specified ETag values in order to permit processing of the request.
+  - The `If-None-Match` header requires that the server-side resource *not* match any of the specified ETag values in order to permit processing of the request.
+  - The wildcard `*` in either header trivially matches any server-side resource version.
+  - The combination of both headers is a logical conjunction of all constraints, meaning both headers' respective conditions must be met in order to permit processing of the request.
+3. HTTP methods conditionalize their behavior and response when precondition headers are present in requests.
+  - A `PUT`, `POST`, or `DELETE` operation returns a normal `200 OK` or `201 Created` in the absence of preconditions or if preconditions are met. They return `412 PreconditionFailed` when preconditions are not met; in this case, the operation has no effect on server-side resource state.
+  - A `GET` operation returns a normal `200 OK` in the absence of preconditions or if preconditions are met. It returns `304 Not Modified` when preconditions are not met. This alternative status code is required by the HTTP standard due to its idiomatic use for cache-control of `GET` responses; the "not modified" status means the client can reuse a representation when an `If-None-Match` header is used to specify the ETag associated with the representation previously retrieved by that client.
+
+#### Atomic Retrieval of Multiple Resources
+
+An example of concurrency control is to dump a set of data values from several tables with confidence that they are transactionally consistent. ERMrest provides basic atomicity at the HTTP request level, but this is insufficient to guarantee consistency of several different requests. Instead, a client might follow this workflow:
+
+1. Plan the set of resources it needs to retrieve (e.g. a list of ERMrest URLs for schema and/or data resources).
+2. Pre-fetch each resource using an unconditional `GET` request and save both the representation and corresponding ETag from the response.
+3. Re-probe each resource using a conditional `GET` request with `If-None-Match` header specifying the ETag from the previous response for that URL.
+  - A `304 Not Modified` response indicates that the resource is still at the same version on the server.
+  - A `200 OK` response indicates that the server-side state has changed, so save both the representation and corresponding ETag from the response.
+4. Repeat step (3) until an entire cycle of visits to all resources yielded `304 Not Modified`, indicating that no resource changed state since their states were retrieved.
+
+#### Atomic Change of a Resource
+
+Another example of concurrency control is to change a resource while ensuring that other clients' modifications are not clobbered:
+
+1. Fetch a resource representation and its corresponding ETag.
+2. Send a revision of the data an appropriate `PUT`, `POST`, or `DELETE` to the same URL including an `If-Match` header with the previously retrieved ETag.
+  - A `200 OK`, `201 Created`, and/or `204 No Content` indicates that the mutation was performed safely.
+  - A `412 Precondition Failed` response indicates that someone else modified the resource since you last fetched it, so repeat the process from step (1).
+
+ERMrest always makes an atomic change for one request, but the above workflow protects against concurrent access to the resource while the client is interpreting the first representation it retrieved, planning the mutation, and requesting that the change be applied. When an update hazard is identified by the `412 Precondition Failed` response, the client has avoided making an unsafe change and repeats the entire inspect, plan, execute cycle.
+
+#### Atomic Change of Multiple Resources
+
+The two preceding workflows can be combined in order to determine consistent modification of multiple data or schema resources, with some caveats:
+
+1. Perform [atomic retrieval of multiple resources](#atomic-retrieval-of-multiple-resources) until a consistent set of <URL, representation, ETag> triples are known.
+2. Plan a set of update operations for the same URLs.
+3. Perform a variant of [atomic change of a resource](#atomic-change-of-a-resource) once for each URL.
+  A. Perform the mutation request immediately with an `If-Match` header bearing the ETag obtained in step (1) of this bulk workflow.
+  B. Any `200 OK`, `201 Created`, and/or `204 No Content` response indicates that part of the update has completed. Save the update revision ETag associated with this response.
+  C. If any `412 Precondition Failed` response is encountered, a concurrent modification has been detected. The client should stop and analyze the situation!
+
+Unfortunately, a concurrent change detected in step (3.C.) above leaves the server in an inconsistent state. The client is aware that they have partially applied updates and they must now formulate a compensation action which depends on domain knowledge and more sophisticated client behaviors.  For example:
+
+- A client might be able to restart the whole workflow, determine the new state of all resources, and reformulate or "re-base" its plan as a set of revised updates.
+- If a `HEAD` request to each resource successfully changed in step (3.B.) yield the same revision ETag that was returned in the mutation response, the client may be able to apply reverse operations to undo its changes. Whether practical reverse operations are available depends on the operation and size of affected data.
+
+Alternative ERMrest bulk-change APIs are under consideration to allow truly atomic change by sending a complete multi-resource request and allowing the server to process it under transaction control. Users interested in such features should contact the developers by filing an issue in our GitHub project.
+
 ### Set-based Data Resources and Representations
 
 ERMrest presents a composite resource model for data as sets of tuples. Using different resource naming mechanisms, this allows reference to data at different granularities and levels of abstraction:

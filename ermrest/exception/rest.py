@@ -32,6 +32,12 @@ class WebException (web.HTTPError):
         headers['Content-Type'] = 'text/plain'
         web.HTTPError.__init__(self, status, headers=headers, data=data)
 
+class NotModified(WebException):
+    def __init__(self, data=u'', headers={}):
+        status = '304 Not Modified'
+        desc = u'Resource not modified. %s'
+        WebException.__init__(self, status, headers=headers, data=data, desc=desc)
+
 class BadRequest (WebException):
     def __init__(self, data=u'', headers={}):
         status = '400 Bad Request'
@@ -66,6 +72,12 @@ class Conflict (WebException):
     def __init__(self, data=u'', headers={}):
         status = '409 Conflict'
         desc = u'The request conflicts with the state of the server. %s'
+        WebException.__init__(self, status, headers=headers, data=data, desc=desc)
+
+class PreconditionFailed (WebException):
+    def __init__(self, data=u'', headers={}):
+        status = '412 Precondition Failed'
+        desc = 'Resource state does not match requested preconditions. %s'
         WebException.__init__(self, status, headers=headers, data=data, desc=desc)
 
 class UnsupportedMediaType (WebException):
