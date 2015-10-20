@@ -242,7 +242,7 @@ SELECT _ermrest.model_change_event();
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
-        self.schemsa[sname].delete_annotations(conn, cur, None)
+        self.schemas[sname].delete_annotation(conn, cur, None)
         del self.schemas[sname]
 
     def recreate_value_map(self, conn, cur, empty=False):
