@@ -22,8 +22,17 @@ normal user.
 
 Run the following commands to install the EPEL repository.
 
+For CentOS 6 use:
+
 ```
 # rsync -v rsync://mirrors.kernel.org/fedora-epel/6/x86_64/epel-release*.rpm .
+# yum localinstall epel-release*.rpm
+```
+
+For CentOS 7 use:
+
+```
+# rsync -v rsync://mirrors.kernel.org/fedora-epel/7/x86_64/e/epel-release*.rpm .
 # yum localinstall epel-release*.rpm
 ```
 
@@ -45,8 +54,16 @@ access control mechanism.
 
 1. Install the PostgreSQL 9.4 repository
 
+   For CentOS 6 use:
+
    ```
    # yum install http://yum.postgresql.org/9.4/redhat/rhel-6-x86_64/pgdg-redhat94-9.4-1.noarch.rpm
+   ```
+
+   For CentOS 7 use:
+
+   ```
+   # yum install http://yum.postgresql.org/9.4/redhat/rhel-7-x86_64/pgdg-centos94-9.4-1.noarch.rpm
    ```
 
 2. Install the required packages. You may first want to uninstall any
@@ -62,6 +79,8 @@ access control mechanism.
 3. Add local labeling rules to [SE-Linux] since the files are not where CentOS
    expects them.
 
+   For CentOS 6 use:
+
    ```
    # semanage fcontext --add --ftype "" --type postgresql_tmp_t "/tmp/\.s\.PGSQL\.[0-9]+.*"
    # semanage fcontext --add --ftype "" --type postgresql_exec_t "/usr/pgsql-9\.[0-9]/bin/(initdb|postgres)"
@@ -71,7 +90,20 @@ access control mechanism.
    # restorecon -rv /usr/pgsql-9.*
    ```
 
+  For CentOS 7 use:
+
+  ```
+  # semanage fcontext --add --type postgresql_tmp_t "/tmp/\.s\.PGSQL\.[0-9]+.*"
+  # semanage fcontext --add --type postgresql_exec_t "/usr/pgsql-9\.[0-9]/bin/(initdb|postgres)"
+  # semanage fcontext --add --type postgresql_log_t "/var/lib/pgsql/9\.[0-9]/pgstartup\.log"
+  # semanage fcontext --add --type postgresql_db_t "/var/lib/pgsql/9\.[0-9]/data(/.*)?"
+  # restorecon -rv /var/lib/pgsql/
+  # restorecon -rv /usr/pgsql-9.*
+  ```
+
 4. Initialize and enable the `postgresql` service.
+
+   For CentOS 6 use:
 
    ```
    # service postgresql-9.4 initdb
@@ -79,8 +111,18 @@ access control mechanism.
    # chkconfig postgresql-9.4 on
    ```
 
+   For CentOS 7 use:
+
+   ```
+   # /usr/pgsql-9.4/bin/postgresql94-setup initdb
+   # systemctl enable postgresql-9.4.service
+   # systemctl start postgresql-9.4.service
+   ```
+
 5. Verify that postmaster is running under the right SE-Linux context
    `postgresql_t` (though process IDs will vary of course).
+
+   For CentOS 6 use:
 
    ```
    # ps -eZ | grep postmaster
@@ -91,6 +133,19 @@ access control mechanism.
    unconfined_u:system_r:postgresql_t:s0 2284 ?   00:00:00 postmaster
    unconfined_u:system_r:postgresql_t:s0 2285 ?   00:00:00 postmaster
    unconfined_u:system_r:postgresql_t:s0 2286 ?   00:00:00 postmaster
+   ```
+
+   For CentOS 7 use:
+
+   ```
+   # ps -eZ | grep postgres
+   system_u:system_r:unconfined_service_t:s0 22188 ? 00:00:00 postgres
+   system_u:system_r:unconfined_service_t:s0 22189 ? 00:00:00 postgres
+   system_u:system_r:unconfined_service_t:s0 22191 ? 00:00:00 postgres
+   system_u:system_r:unconfined_service_t:s0 22192 ? 00:00:00 postgres
+   system_u:system_r:unconfined_service_t:s0 22193 ? 00:00:00 postgres
+   system_u:system_r:unconfined_service_t:s0 22194 ? 00:00:00 postgres
+   system_u:system_r:unconfined_service_t:s0 22195 ? 00:00:00 postgres
    ```
 
 6. Permit network connections to the database service.
@@ -120,6 +175,13 @@ access control mechanism.
    This will install the WebAuthn Python module under
    `/usr/lib/python2*/site-packages/webauthn2/`.
 
+   **NOTE**: the above step will partially fail on CentOS 7. The python-webpy
+   package is not yet available on CentOS 7. It may be installed using:
+
+   ```
+   # easy_install web.py
+   ```
+
 ## Installing ERMrest
 
 After installing the prerequisite, you are ready to install ERMrest.
@@ -134,7 +196,7 @@ After installing the prerequisite, you are ready to install ERMrest.
 
    ```
    # cd ermrest
-   # make install
+   # make install [PLATFORM=centos7]
    ```
 
    The install script:
@@ -146,7 +208,7 @@ After installing the prerequisite, you are ready to install ERMrest.
 3. From the same directory, run the deployment script.
 
    ```
-   # make deploy
+   # make deploy [PLATFORM=centos7]
    ```
 
    The deployment script:
@@ -174,7 +236,7 @@ commands.
 
 ```
 # cd path/to/ermrest
-# make install
+# make install [PLATFORM=centos7]
 ```
 
 The script updates files under `/usr/lib/python2*/site-packages/ermrest` and
@@ -222,20 +284,20 @@ any local user.
    `ermrest-webauthn-manage`. Do not include the single quotes in the parameter.
 
    ```
-   $ curl -k -b cookie -c cookie -d username=root \
-   > -d password='your password here' https://localhost/ermrest/authn/session
+   $ curl -k -c cookie -d username=root -d password='your password here' \
+   > https://localhost/ermrest/authn/session
    ```
 
 2. Create a catalog.
 
    ```
-   $ curl -k -b cookie -c cookie -XPOST https://localhost/ermrest/catalog/
+   $ curl -k -b cookie -XPOST https://localhost/ermrest/catalog/
    ```
 
 3. Inspect the catalog metadata. (Readable indentation added here.)
 
    ```
-   $ curl -k -b cookie -c cookie -H "Accept: application/json" \
+   $ curl -k -b cookie -H "Accept: application/json" \
    > https://localhost/ermrest/catalog/1
    {
      "meta": [
@@ -252,7 +314,7 @@ any local user.
 4. Inspect the catalog schema.
 
    ```
-   $ curl -k -b cookie -c cookie -H "Accept: application/json" \
+   $ curl -k -b cookie -H "Accept: application/json" \
    > https://localhost/ermrest/catalog/1/schema
    {
       "schemas": {
