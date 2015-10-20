@@ -67,7 +67,11 @@ def _MODIFY(handler, thunk, _post_commit):
         handler.enforce_content_read(cur)
         handler.enforce_schema_write(cur)
         handler.catalog.manager.get_model(cur)
-        return thunk(conn, cur)
+        handler.set_http_etag( handler.catalog.manager._model_version )
+        handler.http_check_preconditions(method='PUT')
+        result = thunk(conn, cur)
+        handler.set_http_etag( handler.catalog.manager.get_model_update_version(cur) )
+        return result
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
 
 def _MODIFY_with_json_input(handler, thunk, _post_commit):

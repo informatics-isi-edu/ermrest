@@ -328,6 +328,15 @@ do
     dotest "304::*::*" "/catalog/${cid}${resource}" -H 'If-None-Match: "broken-etag"'", ${etag}"
 done
 
+dotest "200::*::*" "/catalog/${cid}/schema"
+etag=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+dotest "412::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X POST -H "If-None-Match: ${etag}"
+dotest "20?::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X POST -H "If-Match: ${etag}"
+etag=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+dotest "412::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X DELETE -H "If-None-Match: ${etag}"
+dotest "20?::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X DELETE -H "If-Match: ${etag}"
+
+
 cat > ${TEST_DATA} <<EOF
 id,name
 1,foo

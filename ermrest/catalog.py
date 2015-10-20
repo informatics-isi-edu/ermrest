@@ -228,6 +228,12 @@ SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_s
         self._model_version = cur.next()[0]  # TODO: do we need self._model_version to be an instance var?
         return self._model_version
 
+    def get_model_update_version(self, cur):
+        cur.execute("""
+SELECT txid_current(); 
+""" % dict(schema=self._SCHEMA_NAME, table=self._MODEL_VERSION_TABLE_NAME))
+        return cur.next()[0] 
+
     def get_model(self, cur, config=None):
         # TODO: turn this into a @property
         if config is None:
