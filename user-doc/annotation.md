@@ -51,6 +51,7 @@ here is a quick matrix to locate them.
 |------------|--------|-------|--------|-----|-----|---------|
 | [2015 Binary Relationship](#2015-binary-relationship) | - | X | - | - | X | Entity relationships |
 | [2015 Default](#2015-default) | X | X | - | - | - | Default scope |
+| [2015 Display](#2015-display) | X | X | X | - | - | Display options |
 | [2015 Facets](#2015-facets) | - | X | - | - | - | Facet grouping |
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
 | [2015 URL](#2015-url) | - | - | X | - | - | Column data as URLs |
@@ -166,6 +167,19 @@ presentation is scoped by schema or table, respectively. This default
 selection only applies when the user has not had an opportunity or has
 not taken the opportunity to choose a scope explicitly and the
 user interface requires a scope selection in order to function.
+
+### 2015 Display
+
+`tag:misd.isi.edu,2015:display`
+
+This key is allowed on any number of schemas, tables, and columns. This 
+annotation indicates display options for the indicated element. At the
+time of this writing, the only supported option is 'name', which may be
+used to override the default display name of the model element.
+
+Supported JSON payload patterns:
+
+- `{`... `"name":` _name_ ...`}`: The _name_ to use in place of the model element's original name.
 
 ### 2015 Facets
 
