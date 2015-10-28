@@ -3,7 +3,7 @@ $(WSGISOCKETDIR):
 	mkdir -p $(WSGISOCKETDIR)
 
 $(SHAREDIR)/ermrest_config.json: ermrest/ermrest_config.json.in
-	./install-script -M ref -R HOSTNAME=$(shell hostname) \
+	[ -f $@ ] && touch $@ || ./install-script -M ref -R HOSTNAME=$(shell hostname) \
 		-o root -g root -m a+r -Z "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" -p -D $< $@
 
 $(HTTPCONFDIR)/wsgi_ermrest.conf: ermrest/wsgi_ermrest.conf.in $(WSGISOCKETDIR)
