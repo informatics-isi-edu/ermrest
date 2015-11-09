@@ -181,7 +181,7 @@ class Name (object):
         
         if len(self.nameparts) == 3:
             n0, n1, n2 = self.nameparts
-            return model.schemas[n0].tables[n1].columns[n2]
+            return (model.schemas[n0].tables[n1].columns[n2],None)
         
         else:
             if len(self.nameparts) == 1:
