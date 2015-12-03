@@ -172,7 +172,7 @@ user interface requires a scope selection in order to function.
 
 `tag:misd.isi.edu,2015:display`
 
-This key is allowed on any number of schemas, tables, and columns. This 
+This key is allowed on any number of schemas, tables, and columns. This
 annotation indicates display options for the indicated element. At the
 time of this writing, the only supported option is 'name', which may be
 used to override the default display name of the model element.
@@ -304,6 +304,7 @@ concept in a controlled vocabulary.
 Supported JSON payload patterns:
 
 - `null` or `{}`: Default heuristics apply.
+- `{`... `"uri":` _uri_ ...`}`: The _uri_ indicates the global identifier of the controlled vocabulary. The _uri_ MAY be a resolvable URL.
 - `{`... `"term":` _column_ ...`}`: The named _column_ stores the preferred textual representation of the term. The referenced column MUST comprise a single-column key for the table.
 - `{`... `"id":` _column_ ...`}`: The named _column_ stores the preferred compact identifier for the term, which MAY be textual or numeric. The referenced column MUST comprise a single-column key for the table.
 - `{`... `"internal":` [_column_, ...] ...`}`: The one or more named _columns_ store internal identifiers for the term, used for efficient normalized storage in the database but not meaningful to typical users. The referenced columns MUST each comprise a single-column key for the table.
@@ -334,4 +335,3 @@ expert user scenarios, while the preferred textual representation is
 often used in prose, long-form presentations, tool tips, or other
 scenarios where a user may need more natural language understanding of
 the concept.
-
