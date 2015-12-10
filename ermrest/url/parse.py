@@ -140,7 +140,7 @@ def p_textfacet(p):
     )
     
 def p_entity(p):
-    """entity : catalogslash ENTITY '/' entityelem2 """
+    """entity : catalogslash ENTITY '/' entityelem1 """
     p[0] = p[1].entity(p[4])
 
 def p_attribute(p):
@@ -165,15 +165,15 @@ def p_aggregate(p):
 
 
 def p_attribute_epath(p):
-    """attribute_epath : catalogslash ATTRIBUTE '/' entityelem2 """
+    """attribute_epath : catalogslash ATTRIBUTE '/' entityelem1 """
     p[0] = p[1].attribute(p[4])
     
 def p_attributegroup_epath(p):
-    """attributegroup_epath : catalogslash ATTRIBUTEGROUP '/' entityelem2 """
+    """attributegroup_epath : catalogslash ATTRIBUTEGROUP '/' entityelem1 """
     p[0] = p[1].attributegroup(p[4])
     
 def p_aggregate_epath(p):
-    """aggregate_epath : catalogslash AGGREGATE '/' entityelem2 """
+    """aggregate_epath : catalogslash AGGREGATE '/' entityelem1 """
     p[0] = p[1].aggregate(p[4])
 
 
@@ -214,6 +214,15 @@ def p_groupleaf(p):
 def p_entityelem_single(p):
     """entityelem : sname """
     p[0] = ast.data.path.TableElem(p[1])
+
+def p_entityelem1(p):
+    """entityelem1 : sname """
+    p[0] = ast.data.path.TableElem(p[1])
+
+def p_entityelem1_bind(p):
+    """entityelem1 : string ASSIGN entityelem1"""
+    p[3].set_alias(p[1])
+    p[0] = p[3]
 
 def p_entityelem_cols(p):
     """entityelem : '(' snamelist1 ')' """
