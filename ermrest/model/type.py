@@ -116,8 +116,17 @@ class Type (object):
     def __str__(self):
         return str(self.name)
     
-    def sql(self):
-        return self.name
+    def sql(self, basic_storage=False):
+        if basic_storage:
+            # convert sugared types to their basic storage type
+            name = {
+                'serial2': 'int2',
+                'serial4': 'int4',
+                'serial8': 'int8'
+                }.get(self.name, self.name)
+        else:
+            name = self.name
+        return name
 
     def sql_literal(self, v):
         try:

@@ -313,17 +313,21 @@ class EntityElem (object):
                 # input rows cannot be tested for key uniqueness except by trying to insert!
                 skip_key_tests = True
 
-            # ignore non-key input columns where defaults are to be used
-            nmkcols = [ c for c in nmkcols if c.name not in use_defaults ]
-
         # create temporary table
         cur.execute(
             "CREATE TEMPORARY TABLE %s (%s)" % (
                 sql_identifier(input_table),
-                ','.join([ c.ddl(mkcol_aliases.get(c)) for c in mkcols ] 
-                         + [ c.ddl(nmkcol_aliases.get(c)) for c in nmkcols ] )
+                ','.join(
+                    [
+                        c.input_ddl(mkcol_aliases.get(c))
+                        for c in mkcols
+                    ] + [
+                        c.input_ddl(nmkcol_aliases.get(c))
+                        for c in nmkcols
+                    ]
                 )
             )
+        )
         drop_tables.append( input_table )
         if in_content_type in [ 'application/x-json-stream' ]:
             cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(input_json_table))
@@ -485,6 +489,7 @@ RETURNING %(tcols)s
                 icols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
                 tcols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ])
             )
+
         else:
             insert_sql = """
 INSERT INTO %(table)s (%(cols)s)

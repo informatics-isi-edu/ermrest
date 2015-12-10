@@ -147,15 +147,26 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
             return None
         
     def sql_def(self):
-        """Render SQL column clause for table DDL."""
+        """Render SQL column clause for managed table DDL."""
         parts = [
             sql_identifier(unicode(self.name)),
-            str(self.type.name)
+            self.type.sql()
             ]
         if self.default_value:
             parts.append('DEFAULT %s' % sql_literal(self.default_value))
         return ' '.join(parts)
 
+    def input_ddl(self, alias=None):
+        """Render SQL column clause for temporary input table DDL."""
+        if alias:
+            name = alias
+        else:
+            name = self.name
+        return u"%s %s" % (
+            sql_identifier(name),
+            self.type.sql(basic_storage=True)
+            )
+    
     def pre_delete(self, conn, cur):
         """Do any maintenance before column is deleted from table."""
         self.delete_annotation(conn, cur, None)
@@ -205,16 +216,6 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
             return sql_identifier(alias)
         else:
             return sql_identifier(self.name)
-    
-    def ddl(self, alias=None):
-        if alias:
-            name = alias
-        else:
-            name = self.name
-        return u"%s %s" % (
-            sql_identifier(name),
-            self.type.sql()
-            )
     
 
 class FreetextColumn (Column):
