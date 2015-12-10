@@ -273,6 +273,24 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
 
+# do basic parsing tests
+for path in "test_level1" "test1:test_level1"
+do
+    for filter in "" "/id=4"
+    do
+	dotest "200::*::*" "/catalog/${cid}/entity/${path}${filter}"
+	dotest "200::*::*" "/catalog/${cid}/attribute/${path}${filter}/id,name"
+	dotest "400::*::*" "/catalog/${cid}/attribute/${path}${filter}/id;name"
+	dotest "200::*::*" "/catalog/${cid}/attributegroup/${path}${filter}/id;name,n:=cnt(name)"
+	dotest "200::*::*" "/catalog/${cid}/aggregate/${path}${filter}/n:=cnt(id),ndistinct:=cnt_d(name)"
+    done
+    dotest "400::*::*" "/catalog/${cid}/entity/id=4"
+    dotest "400::*::*" "/catalog/${cid}/attribute/id=4/id,name"
+    dotest "400::*::*" "/catalog/${cid}/attribute/id=4/id;name"
+    dotest "400::*::*" "/catalog/${cid}/attributegroup/id=4/id;name,n:=cnt(name)"
+    dotest "400::*::*" "/catalog/${cid}/aggregate/id=4/n:=cnt(id),ndistinct:=cnt_d(name)"
+done
+
 # create table for composite-key tests
 cat > ${TEST_DATA} <<EOF
 {
