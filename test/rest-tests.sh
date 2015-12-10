@@ -242,12 +242,11 @@ EOF
     # test insertion of rows with server-generated serial ID types
     if [[ "$ctype" == serial* ]]
     then
-	# NOTE: currently ermrest chokes on a null value for column1, so dummy value "1" is used instead... need to investigate further
 	cat > ${TEST_DATA} <<EOF
 column1,column2
-1,value1
-1,value1
-1,value2
+,value1
+,value1
+,value2
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}?defaults=column1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 	dotest "200::text/csv::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Accept: text/csv"
