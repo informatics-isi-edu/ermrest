@@ -619,6 +619,7 @@ The DELETE method is used to remove a foreign key constraint from a table using 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
 
 These names differ in how many constraints are applied to filter the set of retrieved foreign key references:
+
 1. The list is always constrained to foreign keys stored in _schema name_ : _table name_
 1. The list MAY be constrained by the composite foreign key _column name_ list of its constituent keys, interpreted as a set of columns
 1. The list MAY be constrained by the _table reference_ of the table containing the composite key or keys referenced by the composite foreign key
