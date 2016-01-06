@@ -305,6 +305,33 @@ CREATE TABLE %(schema)s.%(table)s (
         # create annotation storage tables
         for klass in annotatable_classes:
             klass.create_storage_table(cur)
+
+        if not table_exists(cur, self._SCHEMA_NAME, 'model_pseudo_key'):
+            cur.execute("""
+CREATE TABLE _ermrest.model_pseudo_key (
+  id serial PRIMARY KEY,
+  schema_name text NOT NULL,
+  table_name text NOT NULL,
+  column_names text[] NOT NULL,
+  comment text,
+  UNIQUE(schema_name, table_name, column_names)
+);
+""")
+            
+        if not table_exists(cur, self._SCHEMA_NAME, 'model_pseudo_keyref'):
+            cur.execute("""
+CREATE TABLE _ermrest.model_pseudo_keyref (
+  id serial PRIMARY KEY,
+  from_schema_name text NOT NULL,
+  from_table_name text NOT NULL,
+  from_column_names text[] NOT NULL,
+  to_schema_name text NOT NULL,
+  to_table_name text NOT NULL,
+  to_column_names text[] NOT NULL,
+  comment text,
+  UNIQUE(from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names)
+);
+""")
             
         if not table_exists(cur, self._SCHEMA_NAME, self._MODEL_VERSION_TABLE_NAME):
             cur.execute("""

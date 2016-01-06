@@ -20,7 +20,6 @@ from .misc import frozendict, AltDict, annotatable, commentable
 
 import json
 
-@commentable()
 @annotatable('key', dict(
     schema_name=('text', lambda self: unicode(self.table.schema.name)),
     table_name=('text', lambda self: unicode(self.table.name)),
@@ -36,12 +35,11 @@ class Unique (object):
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
-        self.constraint_names = set()
+        self.constraint_name = constraint_name
+        self.constraints = set([self])
         self.comment = comment
         self.annotations = dict()
         self.annotations.update(annotations)
-        if constraint_name:
-            self.constraint_names.add(constraint_name)
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
@@ -51,19 +49,26 @@ class Unique (object):
         table = model.schemas[schema_name].tables[table_name]
         columns = [ table.columns[cname] for cname in column_names ]
         table.uniques[frozenset(columns)].annotations[annotation_uri] = annotation_value
-        
-    def sql_comment_resource(self):
-        return set([
-            # we treat all unique constraints w/ same column set as equivalence class of key
-            # NOTE: this overwrites comments on multiple constraints that might be different in legacy DB!
-            "CONSTRAINT %s ON %s.%s" % (
-                sql_identifier(unicode(pk_name)),
-                sql_identifier(unicode(self.table.schema.name)),
-                sql_identifier(unicode(self.table.name))
-                )
-            for pk_schema, pk_name in self.constraint_names
-        ])
 
+    def set_comment(self, conn, cur, comment):
+        # comment this particular constraint
+        if self.constraint_name:
+            pk_schema, pk_name = self.constraint_name
+            cur.execute("""
+COMMENT ON CONSTRAINT %s ON %s.%s IS %s;
+SELECT _ermrest.model_change_event();
+""" % (
+    sql_identifier(unicode(pk_name)),
+    sql_identifier(unicode(self.table.schema.name)),
+    sql_identifier(unicode(self.table.name)),
+    sql_literal(comment)
+)
+        )
+        # also update other constraints sharing same key colset
+        for pk in self.constraints:
+            if pk != self:
+                pk.set_comment(conn, cur, comment)
+ 
     def __str__(self):
         return ','.join([ str(c) for c in self.columns ])
 
@@ -96,7 +101,10 @@ class Unique (object):
             keycolumns.append(table.columns[kcname])
         keycolumns = frozenset(keycolumns)
         if keycolumns not in table.uniques:
-            yield Unique(keycolumns, comment=comment, annotations=annotations)
+            if table.kind == 'r':
+                yield Unique(keycolumns, comment=comment, annotations=annotations)
+            else:
+                yield PseudoUnique(keycolumns, comment=comment, annotations=annotations)
 
     @staticmethod
     def fromjson(table, keysdoc):
@@ -106,16 +114,123 @@ class Unique (object):
 
     def pre_delete(self, conn, cur):
         """Do any maintenance before table is deleted."""
+        self.delete_annotation(conn, cur, None)
         for fkeyrefset in self.table_references.values():
             for fkeyref in fkeyrefset:
                 fkeyref.pre_delete(conn, cur)
 
+    def add(self, conn, cur):
+        self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+                
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.constraint_name:
+            pk_schema, pk_name = self.constraint_name
+            self.table.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
+        for pk in self.constraints:
+            if pk != self:
+                pk.delete(conn, cur)
+        
     def prejson(self):
         return dict(
             comment=self.comment,
             annotations=self.annotations,
             unique_columns=[ c.name for c in self.columns ]
             )
+
+@annotatable('key', dict(
+    schema_name=('text', lambda self: unicode(self.table.schema.name)),
+    table_name=('text', lambda self: unicode(self.table.name)),
+    column_names=('text[]', lambda self: self._column_names())
+    )
+)
+class PseudoUnique (object):
+    """A pseudo-uniqueness constraint."""
+
+    def __init__(self, cols, id=None, comment=None, annotations={}):
+        tables = set([ c.table for c in cols ])
+        assert len(tables) == 1
+        self.table = tables.pop()
+        self.columns = cols
+        self.table_references = dict()
+        self.id = id
+        self.constraints = set([self])
+        self.comment = comment
+        self.annotations = dict()
+        self.annotations.update(annotations)
+
+        if cols not in self.table.uniques:
+            self.table.uniques[cols] = self
+
+    def __str__(self):
+        return ','.join([ str(c) for c in self.columns ])
+
+    def __repr__(self):
+        return '<ermrest.model.PseudoUnique %s>' % str(self)
+
+    def set_comment(self, conn, cur, comment):
+        # comment this particular constraint
+        if self.id:
+            cur.execute("""
+UPDATE _ermrest.model_pseudo_key
+SET comment = %s
+WHERE id = %s ;
+SELECT _ermrest.model_change_event();
+""" % (
+    sql_literal(comment),
+    sql_literal(self.id)
+)
+        )
+        # also update other constraints sharing same key colset
+        for pk in self.constraints:
+            if pk != self:
+                pk.set_comment(conn, cur, comment)
+ 
+    def _column_names(self):
+        """Canonicalized column names list."""
+        cnames = [ unicode(col.name) for col in self.columns ]
+        cnames.sort()
+        return cnames
+        
+    def prejson(self):
+        return dict(
+            comment=self.comment,
+            annotations=self.annotations,
+            unique_columns=[ c.name for c in self.columns ]
+            )
+
+    def pre_delete(self, conn, cur):
+        """Do any maintenance before table is deleted."""
+        self.delete_annotation(conn, cur, None)
+        for fkeyrefset in self.table_references.values():
+            for fkeyref in fkeyrefset:
+                fkeyref.pre_delete(conn, cur)
+
+    def add(self, conn, cur):
+        cur.execute("""
+INSERT INTO _ermrest.model_pseudo_key 
+  (schema_name, table_name, column_names, comment)
+  VALUES (%s, %s, ARRAY[%s], %s) ;
+""" % (
+    sql_literal(unicode(self.table.schema.name)),
+    sql_literal(unicode(self.table.name)),
+    ','.join([ sql_literal(unicode(c.name)) for c in self.columns ]),
+    sql_literal(self.comment)
+)
+        )
+                
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.id:
+            cur.execute("""
+DELETE FROM _ermrest.model_pseudo_key WHERE id = %s;
+SELECT _ermrest.model_change_event();
+""" % sql_literal(self.id)
+            )
+        for pk in self.constraints:
+            if pk != self:
+                pk.delete(conn, cur)
+        
 
 class ForeignKey (object):
     """A foreign key."""
@@ -162,7 +277,6 @@ class ForeignKey (object):
                 refs.append( kr.prejson() )
         return refs
 
-@commentable()
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
     from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
@@ -189,9 +303,8 @@ class KeyReference (object):
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         unique.table_references[foreign_key.table].add(self)
-        self.constraint_names = set()
-        if constraint_name:
-            self.constraint_names.add(constraint_name)
+        self.constraint_name = constraint_name
+        self.constraints = set([self])
         self.annotations = dict()
         self.annotations.update(annotations)
         self.comment = comment
@@ -206,18 +319,24 @@ class KeyReference (object):
         ])
         from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].annotations[annotation_uri] = annotation_value
 
-    def sql_comment_resource(self):
-        return set([
-            # we treat all fkeyref constraints w/ same cmapping as equivalence class of fkeyref
-            # NOTE: this overwrites comments on multiple constraints that might be different in legacy DB!
-            "CONSTRAINT %s ON %s.%s" % (
-                sql_identifier(unicode(fk_name)),
-                sql_identifier(unicode(self.foreign_key.table.schema.name)),
-                sql_identifier(unicode(self.foreign_key.table.name))
-                )
-            for fk_schema, fk_name in self.constraint_names
-        ])
-
+    def set_comment(self, conn, cur, comment):
+        if self.constraint_name:
+            fkr_schema, fkr_name = self.constraint_name
+            cur.execute("""
+COMMENT ON CONSTRAINT %s ON %s.%s IS %s;
+SELECT _ermrest.model_change_event();
+""" % (
+    sql_identifier(unicode(fkr_name)),
+    sql_identifier(unicode(self.foreign_key.table.schema.name)),
+    sql_identifier(unicode(self.foreign_key.table.name)),
+    sql_literal(comment)
+)
+            )
+        # also update other constraints sharing same mapping
+        for fkr in self.constraints:
+            if fkr != self:
+                fkr.set_comment(conn, cur, comment)
+        
     def __str__(self):
         interp = self._interp_annotation(None, sql_wrap=False)
         interp['from_column_names'] = ','.join(interp['from_column_names'])
@@ -238,10 +357,21 @@ class KeyReference (object):
                 ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
                 ))
 
-    def pre_delete(self, conn, cur):
-        """Do any maintenance before foreignkey reference constraint is deleted from table."""
+    def pre_delet(self, conn, cur):
         self.delete_annotation(conn, cur, None)
-
+    
+    def add(self, conn, cur):
+        self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+                
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.constraint_name:
+            fkr_schema, fkr_name = self.constraint_name
+            self.foreign_key.table.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(fkr_name))
+        for fkr in self.constraints:
+            if fkr != self:
+                fkr.delete(conn, cur)
+        
     def _from_column_names(self):
         """Canonicalized from-column names list."""
         f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
@@ -321,7 +451,11 @@ class KeyReference (object):
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
         
         if fk_ref_map not in fkey.references:
-            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+            if fktable.kind == 'r' and pktable.kind == 'r':
+                fkr = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+            else:
+                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+            fkey.references[fk_ref_map] = fkr
             yield fkey.references[fk_ref_map]
 
     def prejson(self):
@@ -340,3 +474,117 @@ class KeyReference (object):
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
+@annotatable('keyref', dict(
+    from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+    from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
+    from_column_names=('text[]', lambda self: self._from_column_names()),
+    to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
+    to_table_name=('text', lambda self: unicode(self.unique.table.name)),
+    to_column_names=('text[]', lambda self: self._to_column_names())
+    )
+)
+class PseudoKeyReference (object):
+    """A psuedo-reference from a foreign key to a primary key."""
+    
+    def __init__(self, foreign_key, unique, fk_ref_map, id=None, annotations={}, comment=None):
+        self.foreign_key = foreign_key
+        self.unique = unique
+        self.reference_map = dict(fk_ref_map)
+        self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
+        # Link into foreign key's key reference list, by table ref
+        if unique.table not in foreign_key.table_references:
+            foreign_key.table_references[unique.table] = set()
+        foreign_key.table_references[unique.table].add(self)
+        if foreign_key.table not in unique.table_references:
+            unique.table_references[foreign_key.table] = set()
+        unique.table_references[foreign_key.table].add(self)
+        self.id = id
+        self.constraints = set([self])
+        self.annotations = dict()
+        self.annotations.update(annotations)
+        self.comment = comment
+
+    def set_comment(self, conn, cur, comment):
+        if self.id:
+            cur.execute("""
+UPDATE _ermrest.model_pseudo_keyref
+SET comment = %s
+WHERE id = %s
+SELECT _ermrest.model_change_event();
+""" % (
+    sql_literal(comment),
+    sql_literal(self.id)
+)
+            )
+        # also update other constraints sharing same mapping
+        for fkr in self.constraints:
+            if fkr != self:
+                fkr.set_comment(conn, cur, comment)
+        
+    def __str__(self):
+        interp = self._interp_annotation(None, sql_wrap=False)
+        interp['from_column_names'] = ','.join(interp['from_column_names'])
+        interp['to_column_names'] = ','.join(interp['to_column_names'])
+        return ':%(from_schema_name)s:%(from_table_name)s(%(from_column_names)s)==>:%(to_schema_name)s:%(to_table_name)s(%(to_column_names)s)' % interp
+
+    def _from_column_names(self):
+        """Canonicalized from-column names list."""
+        f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
+        f_cnames.sort()
+        return f_cnames
+        
+    def _to_column_names(self):
+        """Canonicalized to-column names list."""
+        return [
+            unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
+            for colname in self._from_column_names()
+        ]
+        
+    def prejson(self):
+        fcs = []
+        pcs = []
+        for fc in self.reference_map.keys():
+            fcs.append( fc.prejson_ref() )
+            pcs.append( self.reference_map[fc].prejson_ref() )
+        return dict(
+            foreign_key_columns=fcs,
+            referenced_columns=pcs,
+            comment=self.comment,
+            annotations=self.annotations
+            )
+
+    def __repr__(self):
+        return '<ermrest.model.KeyReference %s>' % str(self)
+
+    def pre_delete(self, conn, cur):
+        self.delete_annotation(conn, cur, None)
+
+    def add(self, conn, cur):
+        fk_cols = list(self.foreign_key.columns)
+        cur.execute("""
+INSERT INTO _ermrest.model_pseudo_keyref
+  (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, comment)
+  VALUES (%s, %s, ARRAY[%s], %s, %s, ARRAY[%s], %s)
+""" % (
+    sql_literal(unicode(self.foreign_key.table.schema.name)),
+    sql_literal(unicode(self.foreign_key.table.name)),
+    ', '.join([ sql_literal(unicode(fk_cols[i].name)) for i in range(len(fk_cols)) ]),
+    sql_literal(unicode(self.unique.table.schema.name)),
+    sql_literal(unicode(self.unique.table.name)),
+    ', '.join([ sql_literal(unicode(self.reference_map[fk_cols[i]].name)) for i in range(len(fk_cols)) ]),
+    sql_literal(self.comment)
+)
+        )
+        
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.id:
+            cur.execute("""
+DELETE FROM _ermrest.model_pseudo_keyref WHERE id = %s;
+SELECT _ermrest.model_change_event();
+""" % sql_literal(self.id)
+            )
+        for fkr in self.constraints:
+            if fkr != self:
+                fkr.delete(conn, cur)
+        

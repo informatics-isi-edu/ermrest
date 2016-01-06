@@ -479,7 +479,7 @@ class Key (Api):
 
     def DELETE_body(self, conn, cur):
         key = self.GET_body(conn, cur)
-        key.table.delete_unique(conn, cur, key)
+        key.delete(conn, cur)
         return ''
 
     def DELETE(self, uri):
@@ -505,7 +505,7 @@ class Foreignkeys (Api):
         def post_commit(self, newrefs):
             web.ctx.status = '201 Created'
             return json.dumps([ r.prejson() for r in newrefs ], indent=2) + '\n'
-        return _MODIFY(self, self.POST_body, _post_commit_json)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
 class Foreignkey (Api):
     """A specific foreign key by column set."""
@@ -656,7 +656,7 @@ class ForeignkeyReferences (Api):
     def DELETE_body(self, conn, cur):
         fkrs = self.GET_body(conn, cur)
         for fkr in fkrs:
-            fkr.foreign_key.table.delete_fkeyref(conn, cur, fkr)
+            fkr.delete(conn, cur)
         return ''
 
     def DELETE(self, uri):

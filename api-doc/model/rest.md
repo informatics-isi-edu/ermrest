@@ -394,12 +394,12 @@ Typical error response codes include:
 
 ## Key Creation
 
-The POST operation is used to add a key constraint to an existing table's key list resource:
+The POST operation is used to add a key constraint to an existing table's key list resource, or a pseudo-key constraint to a view's key list resource:
 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key`
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/`
 
-In this operation, the `application/json` _key representation_ is supplied as input:
+In this operation, the _table name_ MAY be an existing table or view in the named schema, and the `application/json` _key representation_ is supplied as input:
 
     POST /ermrest/catalog/42/schema/schema_name/table/table_name/key HTTP/1.1
 	Host: www.example.com
@@ -463,7 +463,7 @@ Typical error response codes include:
 
 ## Key Deletion
 
-The DELETE method is used to remove a key constraint from a table:
+The DELETE method is used to remove a key constraint from a table or a pseudo-key constraint from a view:
 
     DELETE /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,... HTTP/1.1
     Host: www.example.com
@@ -518,7 +518,7 @@ Typical error response codes include:
 
 ## Foreign Key Creation
 
-The POST operation is used to add a foreign key reference constraint to an existing table's foreign key list resource:
+The POST operation is used to add a foreign key reference constraint or pseudo-constraint to an existing table's or view's foreign key list resource:
 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey`
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/`
@@ -563,7 +563,7 @@ The input _foreign key reference representation_ is a long JSON document too ver
 - `comment`: whose value is the human-readable comment string for the foreign key reference constraint
 - `annotations`: whose value is a sub-object used as a dictionary where each field field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
 
-The two arrays MUST have the same length and the order is important in that the two composite keys are mapped to one another element-by-element, so the first column of the composite foreign key refers to the first column of the composite referenced key, etc. In the `referenced_columns` list, the _schema name_ and _table name_ values MUST be identical for all referenced columns.
+The two arrays MUST have the same length and the order is important in that the two composite keys are mapped to one another element-by-element, so the first column of the composite foreign key refers to the first column of the composite referenced key, etc. In the `referenced_columns` list, the _schema name_ and _table name_ values MUST be identical for all referenced columns. If both referencing and referenced _table name_ refer to tables, a real constraint is created; if either referencing or referenced _table name_ refer to a view, a pseudo-constraint is created instead.
 
 On success, the response is:
 
@@ -619,6 +619,7 @@ The DELETE method is used to remove a foreign key constraint from a table using 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
 
 These names differ in how many constraints are applied to filter the set of retrieved foreign key references:
+
 1. The list is always constrained to foreign keys stored in _schema name_ : _table name_
 1. The list MAY be constrained by the composite foreign key _column name_ list of its constituent keys, interpreted as a set of columns
 1. The list MAY be constrained by the _table reference_ of the table containing the composite key or keys referenced by the composite foreign key

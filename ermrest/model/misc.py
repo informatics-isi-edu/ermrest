@@ -140,6 +140,8 @@ DELETE FROM _ermrest.model_%s_annotation WHERE %s;
 
     @classmethod
     def create_storage_table(orig_class, cur):
+        if table_exists(cur, '_ermrest', 'model_%s_annotation' % restype):
+            return
         keys = keying.keys() + ['annotation_uri']
         cur.execute("""
 CREATE TABLE _ermrest.model_%s_annotation (%s);
@@ -179,7 +181,8 @@ SELECT %s FROM _ermrest.model_%s_annotation;
         setattr(orig_class, 'set_annotation', set_annotation)
         setattr(orig_class, 'delete_annotation', delete_annotation)
         setattr(orig_class, '_annotation_keying', keying)
-        setattr(orig_class, 'introspect_helper', introspect_helper)
+        if hasattr(orig_class, 'introspect_annotation'):
+            setattr(orig_class, 'introspect_helper', introspect_helper)
         setattr(orig_class, 'create_storage_table', create_storage_table)
         annotatable_classes.append(orig_class)
         return orig_class
@@ -320,17 +323,6 @@ class Schema (object):
         """Drop a table from the schema."""
         if tname not in self.tables:
             raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
-        self.tables[tname].pre_delete(conn, cur)
-        # we keep around a bumped version for table as a tombstone to invalidate any old cached results
-        cur.execute("""
-DROP TABLE %(sname)s.%(tname)s ;
-SELECT _ermrest.model_change_event();
-SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
-""" % dict(sname=sql_identifier(self.name), 
-           tname=sql_identifier(tname),
-           snamestr=sql_literal(self.name), 
-           tnamestr=sql_literal(tname)
-           )
-                    )
+        self.tables[tname].delete(conn, cur)
         del self.tables[tname]
 
