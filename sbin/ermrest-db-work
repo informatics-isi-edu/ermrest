@@ -165,6 +165,47 @@ WHERE NOT a.column_names IN (
   )
 ;
 
+-- purge orphaned pseudo keyref constraints
+DELETE FROM _ermrest.model_pseudo_keyref p
+SELECT * FROM _ermrest.model_pseudo_keyref p
+WHERE NOT p.from_column_names <@ (
+  SELECT COALESCE(array_agg(a.attname::text), ARRAY[]::text[]) AS column_names
+  FROM pg_catalog.pg_attribute a
+  JOIN pg_catalog.pg_class c ON (a.attrelid = c.oid)
+  JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
+  LEFT JOIN pg_catalog.pg_attrdef ad ON (a.attrelid = ad.adrelid AND a.attnum = ad.adnum)
+  JOIN pg_catalog.pg_type t ON (t.oid = a.atttypid)
+  JOIN pg_catalog.pg_namespace nt ON (t.typnamespace = nt.oid)
+  LEFT JOIN pg_catalog.pg_type bt ON (t.typtype = 'd'::"char" AND t.typbasetype = bt.oid)
+  LEFT JOIN pg_catalog.pg_namespace nbt ON (bt.typnamespace = nbt.oid)
+  WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+    AND NOT pg_is_other_temp_schema(nc.oid) 
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+    AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char"])) 
+    AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
+    AND p.from_schema_name = nc.nspname
+    AND p.from_table_name = c.relname
+  )
+   OR NOT p.to_column_names IN (
+  SELECT
+    COALESCE(array_agg(pka.attname::text ORDER BY pka.attname), ARRAY[]::text[]) AS pk_column_names
+  FROM pg_namespace ncon
+  JOIN pg_constraint con ON ncon.oid = con.connamespace
+  JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
+  JOIN pg_namespace npk ON pkcl.relnamespace = npk.oid
+  JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid
+  WHERE pg_has_role(pkcl.relowner, 'USAGE'::text)
+    AND p.to_schema_name = npk.nspname::text
+    AND p.to_table_name = pkcl.relname::text
+  UNION
+  SELECT column_names AS pk_column_names 
+  FROM _ermrest.model_pseudo_key p2
+  WHERE p.to_schema_name = p2.schema_name
+    AND p.to_table_name = p2.table_name
+  )
+;
+
 -- purge orphaned keyref annotations
 DELETE FROM _ermrest.model_keyref_annotation a
 USING (
