@@ -294,8 +294,11 @@ FROM _ermrest.model_pseudo_keyref ;
     # Introspect uniques / primary key references, aggregated by constraint
     #
     def _introspect_pkey(pk_table_schema, pk_table_name, pk_column_names, pk_comment, pk_factory):
-        pk_cols = [ columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
-                    for pk_column_name in pk_column_names ]
+        try:
+            pk_cols = [ columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
+                        for pk_column_name in pk_column_names ]
+        except KeyError:
+            return
 
         pk_colset = frozenset(pk_cols)
 
@@ -331,10 +334,13 @@ FROM _ermrest.model_pseudo_keyref ;
             uq_table_schema, uq_table_name, uq_column_names, fk_comment,
             fkr_factory
     ):
-        fk_cols = [ columns[(dname, fk_table_schema, fk_table_name, fk_column_names[i])]
-                    for i in range(0, len(fk_column_names)) ]
-        pk_cols = [ columns[(dname, uq_table_schema, uq_table_name, uq_column_names[i])]
-                    for i in range(0, len(uq_column_names)) ]
+        try:
+            fk_cols = [ columns[(dname, fk_table_schema, fk_table_name, fk_column_names[i])]
+                        for i in range(0, len(fk_column_names)) ]
+            pk_cols = [ columns[(dname, uq_table_schema, uq_table_name, uq_column_names[i])]
+                        for i in range(0, len(uq_column_names)) ]
+        except KeyError:
+            return
 
         fk_colset = frozenset(fk_cols)
         pk_colset = frozenset(pk_cols)
