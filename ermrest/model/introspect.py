@@ -32,7 +32,7 @@ from .misc import frozendict, Model, Schema, annotatable_classes
 from .type import Type, ArrayType, canonicalize_column_type
 from .column import Column
 from .table import Table
-from .key import Unique, ForeignKey, KeyReference
+from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyReference
 
 def introspect(cur, config=None):
     """Introspects a Catalog (i.e., a database).
@@ -159,6 +159,16 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
   WHERE pg_has_role(pkcl.relowner, 'USAGE'::text) ;
 '''
 
+    PSEUDO_PKEY_COLUMNS = '''
+SELECT 
+  id AS pk_id,
+  schema_name AS pk_table_schema,
+  table_name AS pk_table_name,
+  column_names AS pk_column_names,
+  comment AS constraint_comment
+FROM _ermrest.model_pseudo_key ;
+'''
+    
     # Select the foreign key reference columns
     FKEY_COLUMNS = '''
   SELECT
@@ -204,6 +214,19 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     AND (pg_has_role(fkcl.relowner, 'USAGE'::text) 
          OR has_table_privilege(fkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(fkcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
  ;
+'''
+
+    PSEUDO_FKEY_COLUMNS = '''
+SELECT
+  id AS fk_id,
+  from_schema_name AS fk_table_schema,
+  from_table_name AS fk_table_name,
+  from_column_names AS fk_column_names,
+  to_schema_name AS uq_table_schema,
+  to_table_name AS uq_table_name,
+  to_column_names AS uq_column_names,
+  comment AS constraint_comment
+FROM _ermrest.model_pseudo_keyref ;
 '''
 
     # PostgreSQL denotes array types with the string 'ARRAY'
@@ -270,31 +293,44 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     #
     # Introspect uniques / primary key references, aggregated by constraint
     #
-    cur.execute(PKEY_COLUMNS)
-    for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
-
+    def _introspect_pkey(pk_table_schema, pk_table_name, pk_column_names, pk_comment, pk_factory):
         pk_cols = [ columns[(dname, pk_table_schema, pk_table_name, pk_column_name)]
                     for pk_column_name in pk_column_names ]
 
         pk_colset = frozenset(pk_cols)
 
         # each constraint implies a pkey but might be duplicate
+        pk = pk_factory(pk_colset)
         if pk_colset not in pkeys:
-            pkeys[pk_colset] = Unique(pk_colset, (pk_schema, pk_name), pk_comment )
+            pkeys[pk_colset] = pk
         else:
-            pkeys[pk_colset].constraint_names.add( (pk_schema, pk_name) )
+            pkeys[pk_colset].constraints.add(pk)
             if pk_comment:
                 # save at least one comment in case multiple constraints have same key columns
                 pkeys[pk_colset].comment = pk_comment
+    
+    cur.execute(PKEY_COLUMNS)
+    for pk_schema, pk_name, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
+        _introspect_pkey(
+            pk_table_schema, pk_table_name, pk_column_names, pk_comment,
+            lambda pk_colset: Unique(pk_colset, (pk_schema, pk_name), pk_comment)
+        )
 
+    cur.execute(PSEUDO_PKEY_COLUMNS)
+    for pk_id, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
+        _introspect_pkey(
+            pk_table_schema, pk_table_name, pk_column_names, pk_comment,
+            lambda pk_colset: Unique(pk_colset, (pk_schema, pk_name), pk_comment)
+        )
+            
     #
     # Introspect foreign keys references, aggregated by reference constraint
     #
-    cur.execute(FKEY_COLUMNS)
-    for fk_schema, fk_name, fk_table_schema, fk_table_name, fk_column_names, \
-            uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update, fk_comment \
-            in cur:
-
+    def _introspect_fkr(
+            fk_table_schema, fk_table_name, fk_column_names,
+            uq_table_schema, uq_table_name, uq_column_names, fk_comment,
+            fkr_factory
+    ):
         fk_cols = [ columns[(dname, fk_table_schema, fk_table_name, fk_column_names[i])]
                     for i in range(0, len(fk_column_names)) ]
         pk_cols = [ columns[(dname, uq_table_schema, uq_table_name, uq_column_names[i])]
@@ -312,18 +348,42 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
         pk = pkeys[pk_colset]
 
         # each reference constraint implies a foreign key reference but might be duplicate
+        fkr = fkr_factory(fk, pk, fk_ref_map)
         if fk_ref_map not in fk.references:
-            fk.references[fk_ref_map] = KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name), comment=fk_comment )
+            fk.references[fk_ref_map] = fkr
         else:
-            fk.references[fk_ref_map].constraint_names.add( (fk_schema, fk_name) )
+            fk.references[fk_ref_map].constraints.add(fkr)
             if fk_comment:
                 # save at least one comment in case multiple csontraints have same key mapping
                 fk.references[fk_ref_map].comment = fk_comment
+
+    
+    cur.execute(FKEY_COLUMNS)
+    for fk_schema, fk_name, fk_table_schema, fk_table_name, fk_column_names, \
+            uq_table_schema, uq_table_name, uq_column_names, on_delete, on_update, fk_comment \
+            in cur:
+        _introspect_fkr(
+            fk_table_schema, fk_table_name, fk_column_names,
+            uq_table_schema, uq_table_name, uq_column_names, fk_comment,
+            lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (fk_schema, fk_name), comment=fk_comment)
+        )
+        
+    cur.execute(PSEUDO_FKEY_COLUMNS)
+    for fk_id, fk_table_schema, fk_table_name, fk_column_names, \
+            uq_table_schema, uq_table_name, uq_column_names, fk_comment \
+            in cur:
+        _introspect_fkr(
+            fk_table_schema, fk_table_name, fk_column_names,
+            uq_table_schema, uq_table_name, uq_column_names, fk_comment,
+            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, fk_id, comment=fk_comment)
+        )
+    
     #
     # Introspect ERMrest model overlay annotations
     #
     for klass in annotatable_classes:
-        klass.introspect_helper(cur, model)
+        if hasattr(klass, 'introspect_helper'):
+            klass.introspect_helper(cur, model)
 
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
