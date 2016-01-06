@@ -162,6 +162,22 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
         return table
 
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        cur.execute("""
+DROP %(kind)s %(sname)s.%(tname)s ;
+SELECT _ermrest.model_change_event();
+SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
+""" % dict(
+    kind={'r': 'TABLE', 'v': 'VIEW', 'f': 'FOREIGN TABLE'}[self.kind],
+    sname=sql_identifier(self.schema.name), 
+    tname=sql_identifier(self.name),
+    snamestr=sql_literal(self.schema.name), 
+    tnamestr=sql_literal(self.name)
+)
+        )
+            
+    
     def pre_delete(self, conn, cur):
         """Do any maintenance before table is deleted."""
         for fkey in self.fkeys.values():
@@ -225,15 +241,14 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
     def add_unique(self, conn, cur, udoc):
         """Add a unique constraint to table."""
         for key in Unique.fromjson_single(self, udoc):
-            # new key must be added to table
-            self.alter_table(conn, cur, 'ADD %s' % key.sql_def())
+            key.add(conn, cur)
             yield key
 
     def add_fkeyref(self, conn, cur, fkrdoc):
         """Add foreign-key reference constraint to table."""
         for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
             # new foreign key constraint must be added to table
-            self.alter_table(conn, cur, 'ADD %s' % fkr.sql_def())
+            fkr.add(conn, cur)
             for k, v in fkr.annotations.items():
                 fkr.set_annotation(conn, cur, k, v)
             yield fkr

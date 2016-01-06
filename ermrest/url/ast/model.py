@@ -505,7 +505,7 @@ class Foreignkeys (Api):
         def post_commit(self, newrefs):
             web.ctx.status = '201 Created'
             return json.dumps([ r.prejson() for r in newrefs ], indent=2) + '\n'
-        return _MODIFY(self, self.POST_body, _post_commit_json)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
 class Foreignkey (Api):
     """A specific foreign key by column set."""

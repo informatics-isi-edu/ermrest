@@ -323,17 +323,6 @@ class Schema (object):
         """Drop a table from the schema."""
         if tname not in self.tables:
             raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
-        self.tables[tname].pre_delete(conn, cur)
-        # we keep around a bumped version for table as a tombstone to invalidate any old cached results
-        cur.execute("""
-DROP TABLE %(sname)s.%(tname)s ;
-SELECT _ermrest.model_change_event();
-SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
-""" % dict(sname=sql_identifier(self.name), 
-           tname=sql_identifier(tname),
-           snamestr=sql_literal(self.name), 
-           tnamestr=sql_literal(tname)
-           )
-                    )
+        self.tables[tname].delete(conn, cur)
         del self.tables[tname]
 

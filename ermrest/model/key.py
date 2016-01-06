@@ -101,7 +101,10 @@ SELECT _ermrest.model_change_event();
             keycolumns.append(table.columns[kcname])
         keycolumns = frozenset(keycolumns)
         if keycolumns not in table.uniques:
-            yield Unique(keycolumns, comment=comment, annotations=annotations)
+            if table.kind == 'r':
+                yield Unique(keycolumns, comment=comment, annotations=annotations)
+            else:
+                yield PseudoUnique(keycolumns, comment=comment, annotations=annotations)
 
     @staticmethod
     def fromjson(table, keysdoc):
@@ -115,6 +118,9 @@ SELECT _ermrest.model_change_event();
         for fkeyrefset in self.table_references.values():
             for fkeyref in fkeyrefset:
                 fkeyref.pre_delete(conn, cur)
+
+    def add(self, conn, cur):
+        self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -199,6 +205,19 @@ SELECT _ermrest.model_change_event();
         for fkeyrefset in self.table_references.values():
             for fkeyref in fkeyrefset:
                 fkeyref.pre_delete(conn, cur)
+
+    def add(self, conn, cur):
+        cur.execute("""
+INSERT INTO _ermrest.model_pseudo_key 
+  (schema_name, table_name, column_names, comment)
+  VALUES (%s, %s, ARRAY[%s], %s) ;
+""" % (
+    sql_literal(unicode(self.table.schema.name)),
+    sql_literal(unicode(self.table.name)),
+    ','.join([ sql_literal(unicode(c.name)) for c in self.columns ]),
+    sql_literal(self.comment)
+)
+        )
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -341,6 +360,9 @@ SELECT _ermrest.model_change_event();
     def pre_delet(self, conn, cur):
         self.delete_annotation(conn, cur, None)
     
+    def add(self, conn, cur):
+        self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+                
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
         if self.constraint_name:
@@ -429,7 +451,11 @@ SELECT _ermrest.model_change_event();
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
         
         if fk_ref_map not in fkey.references:
-            fkey.references[fk_ref_map] = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+            if fktable.kind == 'r' and pktable.kind == 'r':
+                fkr = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+            else:
+                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+            fkey.references[fk_ref_map] = fkr
             yield fkey.references[fk_ref_map]
 
     def prejson(self):
@@ -530,9 +556,26 @@ SELECT _ermrest.model_change_event();
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
-    def pre_delet(self, conn, cur):
+    def pre_delete(self, conn, cur):
         self.delete_annotation(conn, cur, None)
-    
+
+    def add(self, conn, cur):
+        fk_cols = list(self.foreign_key.columns)
+        cur.execute("""
+INSERT INTO _ermrest.model_pseudo_keyref
+  (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, comment)
+  VALUES (%s, %s, ARRAY[%s], %s, %s, ARRAY[%s], %s)
+""" % (
+    sql_literal(unicode(self.foreign_key.table.schema.name)),
+    sql_literal(unicode(self.foreign_key.table.name)),
+    ', '.join([ sql_literal(unicode(fk_cols[i].name)) for i in range(len(fk_cols)) ]),
+    sql_literal(unicode(self.unique.table.schema.name)),
+    sql_literal(unicode(self.unique.table.name)),
+    ', '.join([ sql_literal(unicode(self.reference_map[fk_cols[i]].name)) for i in range(len(fk_cols)) ]),
+    sql_literal(self.comment)
+)
+        )
+        
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
         if self.id:
