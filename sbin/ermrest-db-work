@@ -144,6 +144,24 @@ WHERE NOT p.column_names <@ (
   )
 ;
 
+-- purge orphaned key annotations
+DELETE FROM _ermrest.model_key_annotation a
+WHERE NOT a.column_names IN (
+  SELECT
+    COALESCE(array_agg(pka.attname::text ORDER BY pka.attname), ARRAY[]::text[]) AS pk_column_names
+  FROM pg_namespace ncon
+  JOIN pg_constraint con ON ncon.oid = con.connamespace
+  JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
+  JOIN pg_namespace npk ON pkcl.relnamespace = npk.oid
+  JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid
+  WHERE pg_has_role(pkcl.relowner, 'USAGE'::text)
+    AND a.schema_name = npk.nspname::text
+    AND a.table_name = pkcl.relname::text
+  UNION
+  SELECT column_names AS pk_column_names FROM _ermrest.model_pseudo_key
+  )
+;
+
 -- purge orphaned keyref annotations
 DELETE FROM _ermrest.model_keyref_annotation a
 USING (
