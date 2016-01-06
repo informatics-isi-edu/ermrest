@@ -148,15 +148,18 @@ WHERE NOT p.column_names <@ (
 DELETE FROM _ermrest.model_key_annotation a
 WHERE NOT a.column_names IN (
   SELECT
-    COALESCE(array_agg(pka.attname::text ORDER BY pka.attname), ARRAY[]::text[]) AS pk_column_names
+    (SELECT array_agg(ka.attname::text ORDER BY ka.attname::text)
+     FROM generate_subscripts(con.conkey, 1) i
+     JOIN pg_catalog.pg_attribute ka ON con.conrelid = ka.attrelid AND con.conkey[i.i] = ka.attnum
+    ) AS uq_column_names
   FROM pg_namespace ncon
   JOIN pg_constraint con ON ncon.oid = con.connamespace
-  JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
-  JOIN pg_namespace npk ON pkcl.relnamespace = npk.oid
-  JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid
-  WHERE pg_has_role(pkcl.relowner, 'USAGE'::text)
-    AND a.schema_name = npk.nspname::text
-    AND a.table_name = pkcl.relname::text
+  JOIN pg_class kcl ON con.conrelid = kcl.oid AND con.contype = ANY (ARRAY['u'::"char", 'p'::"char"])
+  JOIN pg_namespace nk ON kcl.relnamespace = nk.oid
+  WHERE (pg_has_role(kcl.relowner, 'USAGE'::text) 
+         OR has_table_privilege(kcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(kcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+    AND a.schema_name = ncon.nspname::text
+    AND a.table_name = kcl.relname::text
   UNION
   SELECT column_names AS pk_column_names 
   FROM _ermrest.model_pseudo_key p
@@ -189,15 +192,18 @@ WHERE NOT p.from_column_names <@ (
   )
    OR NOT p.to_column_names IN (
   SELECT
-    COALESCE(array_agg(pka.attname::text ORDER BY pka.attname), ARRAY[]::text[]) AS pk_column_names
+    (SELECT array_agg(ka.attname::text ORDER BY ka.attname::text)
+     FROM generate_subscripts(con.conkey, 1) i
+     JOIN pg_catalog.pg_attribute ka ON con.conrelid = ka.attrelid AND con.conkey[i.i] = ka.attnum
+    ) AS uq_column_names
   FROM pg_namespace ncon
   JOIN pg_constraint con ON ncon.oid = con.connamespace
-  JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
-  JOIN pg_namespace npk ON pkcl.relnamespace = npk.oid
-  JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid
-  WHERE pg_has_role(pkcl.relowner, 'USAGE'::text)
-    AND p.to_schema_name = npk.nspname::text
-    AND p.to_table_name = pkcl.relname::text
+  JOIN pg_class kcl ON con.conrelid = kcl.oid AND con.contype = ANY (ARRAY['u'::"char", 'p'::"char"])
+  JOIN pg_namespace nk ON kcl.relnamespace = nk.oid
+  WHERE (pg_has_role(kcl.relowner, 'USAGE'::text) 
+         OR has_table_privilege(kcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(kcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+    AND p.to_schema_name = ncon.nspname::text
+    AND p.to_table_name = kcl.relname::text
   UNION
   SELECT column_names AS pk_column_names 
   FROM _ermrest.model_pseudo_key p2
