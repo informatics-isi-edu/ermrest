@@ -53,11 +53,12 @@ class Unique (object):
     def set_comment(self, conn, cur, comment):
         # comment this particular constraint
         if self.constraint_name:
+            pk_schema, pk_name = self.constraint_name
             cur.execute("""
 COMMENT ON CONSTRAINT %s ON %s.%s IS %s;
 SELECT _ermrest.model_change_event();
 """ % (
-    sql_identifier(unicode(self.constraint_name)),
+    sql_identifier(unicode(pk_name)),
     sql_identifier(unicode(self.table.schema.name)),
     sql_identifier(unicode(self.table.name)),
     sql_literal(comment)
@@ -110,10 +111,20 @@ SELECT _ermrest.model_change_event();
 
     def pre_delete(self, conn, cur):
         """Do any maintenance before table is deleted."""
+        self.delete_annotation(conn, cur, None)
         for fkeyrefset in self.table_references.values():
             for fkeyref in fkeyrefset:
                 fkeyref.pre_delete(conn, cur)
-
+                
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.constraint_name:
+            pk_schema, pk_name = self.constraint_name
+            self.table.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
+        for pk in self.constraints:
+            if pk != self:
+                pk.delete(conn, cur)
+        
     def prejson(self):
         return dict(
             comment=self.comment,
@@ -181,6 +192,26 @@ SELECT _ermrest.model_change_event();
             annotations=self.annotations,
             unique_columns=[ c.name for c in self.columns ]
             )
+
+    def pre_delete(self, conn, cur):
+        """Do any maintenance before table is deleted."""
+        self.delete_annotation(conn, cur, None)
+        for fkeyrefset in self.table_references.values():
+            for fkeyref in fkeyrefset:
+                fkeyref.pre_delete(conn, cur)
+                
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.id:
+            cur.execute("""
+DELETE FROM _ermrest.model_pseudo_key WHERE id = %s;
+SELECT _ermrest.model_change_event();
+""" % sql_literal(self.id)
+            )
+        for pk in self.constraints:
+            if pk != self:
+                pk.delete(conn, cur)
+        
 
 class ForeignKey (object):
     """A foreign key."""
@@ -271,11 +302,12 @@ class KeyReference (object):
 
     def set_comment(self, conn, cur, comment):
         if self.constraint_name:
+            fkr_schema, fkr_name = self.constraint_name
             cur.execute("""
 COMMENT ON CONSTRAINT %s ON %s.%s IS %s;
 SELECT _ermrest.model_change_event();
 """ % (
-    sql_identifier(unicode(self.constraint_name)),
+    sql_identifier(unicode(fkr_name)),
     sql_identifier(unicode(self.foreign_key.table.schema.name)),
     sql_identifier(unicode(self.foreign_key.table.name)),
     sql_literal(comment)
@@ -306,10 +338,18 @@ SELECT _ermrest.model_change_event();
                 ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
                 ))
 
-    def pre_delete(self, conn, cur):
-        """Do any maintenance before foreignkey reference constraint is deleted from table."""
+    def pre_delet(self, conn, cur):
         self.delete_annotation(conn, cur, None)
-
+    
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.constraint_name:
+            fkr_schema, fkr_name = self.constraint_name
+            self.foreign_key.table.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(fkr_name))
+        for fkr in self.constraints:
+            if fkr != self:
+                fkr.delete(conn, cur)
+        
     def _from_column_names(self):
         """Canonicalized from-column names list."""
         f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
@@ -490,3 +530,18 @@ SELECT _ermrest.model_change_event();
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
+    def pre_delet(self, conn, cur):
+        self.delete_annotation(conn, cur, None)
+    
+    def delete(self, conn, cur):
+        self.pre_delete(conn, cur)
+        if self.id:
+            cur.execute("""
+DELETE FROM _ermrest.model_pseudo_keyref WHERE id = %s;
+SELECT _ermrest.model_change_event();
+""" % sql_literal(self.id)
+            )
+        for fkr in self.constraints:
+            if fkr != self:
+                fkr.delete(conn, cur)
+        

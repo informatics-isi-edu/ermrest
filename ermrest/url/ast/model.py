@@ -479,7 +479,7 @@ class Key (Api):
 
     def DELETE_body(self, conn, cur):
         key = self.GET_body(conn, cur)
-        key.table.delete_unique(conn, cur, key)
+        key.delete(conn, cur)
         return ''
 
     def DELETE(self, uri):
@@ -656,7 +656,7 @@ class ForeignkeyReferences (Api):
     def DELETE_body(self, conn, cur):
         fkrs = self.GET_body(conn, cur)
         for fkr in fkrs:
-            fkr.foreign_key.table.delete_fkeyref(conn, cur, fkr)
+            fkr.delete(conn, cur)
         return ''
 
     def DELETE(self, uri):

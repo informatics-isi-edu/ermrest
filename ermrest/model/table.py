@@ -229,15 +229,6 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             self.alter_table(conn, cur, 'ADD %s' % key.sql_def())
             yield key
 
-    def delete_unique(self, conn, cur, unique):
-        """Delete unique constraint(s) from table."""
-        if unique.columns not in self.uniques or len(unique.constraint_names) == 0:
-            raise exception.ConflictModel('Unique constraint columns %s not understood in table %s:%s.' % (unique.columns, self.schema.name, self.name))
-        unique.pre_delete(conn, cur)
-        for pk_schema, pk_name in unique.constraint_names:
-            # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
-            self.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
-
     def add_fkeyref(self, conn, cur, fkrdoc):
         """Add foreign-key reference constraint to table."""
         for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
@@ -246,14 +237,6 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             for k, v in fkr.annotations.items():
                 fkr.set_annotation(conn, cur, k, v)
             yield fkr
-
-    def delete_fkeyref(self, conn, cur, fkr):
-        """Delete foreign-key reference constraint(s) from table."""
-        assert fkr.foreign_key.table == self
-        fkr.pre_delete(conn, cur)
-        for fk_schema, fk_name in fkr.constraint_names:
-            # TODO: can constraint ever be in a different postgres schema?  if so, how do you drop it?
-            self.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(fk_name))
 
     def prejson(self):
         return dict(
