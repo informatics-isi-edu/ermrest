@@ -320,7 +320,7 @@ FROM _ermrest.model_pseudo_keyref ;
     for pk_id, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
         _introspect_pkey(
             pk_table_schema, pk_table_name, pk_column_names, pk_comment,
-            lambda pk_colset: Unique(pk_colset, (pk_schema, pk_name), pk_comment)
+            lambda pk_colset: PseudoUnique(pk_colset, pk_id, pk_comment)
         )
             
     #
