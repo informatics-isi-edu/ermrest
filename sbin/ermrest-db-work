@@ -151,6 +151,15 @@ LEFT OUTER JOIN (
          OR has_table_privilege(kcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(kcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
     AND (pg_has_role(fkcl.relowner, 'USAGE'::text) 
          OR has_table_privilege(fkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(fkcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+  UNION
+  SELECT
+    from_schema_name AS fk_table_schema,
+    from_table_name AS fk_table_name,
+    from_column_names AS fk_column_names,
+    to_schema_name AS uq_table_schema,
+    to_table_name AS uq_table_name,
+    to_column_names AS uq_column_names
+  FROM _ermrest.model_pseudo_keyref
 ) r ON (a.from_schema_name = r.fk_table_schema AND a.from_table_name = r.fk_table_name AND a.from_column_names = r.fk_column_names
         AND a.to_schema_name = r.uq_table_schema AND a.to_table_name = r.uq_table_Name AND a.to_column_names = r.uq_column_names)
 WHERE r.uq_column_names IS NULL
