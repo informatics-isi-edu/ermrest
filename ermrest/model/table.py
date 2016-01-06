@@ -115,7 +115,7 @@ class Table (object):
         annotations = tabledoc.get('annotations', {})
         columns = Column.fromjson(tabledoc.get('column_definitions',[]), ermrest_config)
         comment = tabledoc.get('comment')
-        table = Table(schema, tname, columns, kind, comment, annotations)
+        table = Table(schema, tname, columns, 'r', comment, annotations)
         keys = Unique.fromjson(table, tabledoc.get('keys', []))
         fkeys = ForeignKey.fromjson(table, tabledoc.get('foreign_keys', []))
 
