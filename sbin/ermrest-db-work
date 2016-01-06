@@ -158,7 +158,10 @@ WHERE NOT a.column_names IN (
     AND a.schema_name = npk.nspname::text
     AND a.table_name = pkcl.relname::text
   UNION
-  SELECT column_names AS pk_column_names FROM _ermrest.model_pseudo_key
+  SELECT column_names AS pk_column_names 
+  FROM _ermrest.model_pseudo_key p
+  WHERE a.schema_name = p.schema_name
+    AND a.table_name = p.table_name
   )
 ;
 
