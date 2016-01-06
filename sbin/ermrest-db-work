@@ -170,7 +170,6 @@ WHERE NOT a.column_names IN (
 
 -- purge orphaned pseudo keyref constraints
 DELETE FROM _ermrest.model_pseudo_keyref p
-SELECT * FROM _ermrest.model_pseudo_keyref p
 WHERE NOT p.from_column_names <@ (
   SELECT COALESCE(array_agg(a.attname::text), ARRAY[]::text[]) AS column_names
   FROM pg_catalog.pg_attribute a
