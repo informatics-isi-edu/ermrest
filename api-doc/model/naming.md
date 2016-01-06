@@ -128,6 +128,11 @@ Each (composite) key constraint is reified as a model-level resource:
 
 This named constraint has a representation which summarizes its set of constituent key columns. The meaning of a key constraint is that the combination of listed columns must be a unique identifier for rows in the table, i.e. no two rows can share the same combination of values for those columns.
 
+ERMrest also supports pseudo-keys on views, which allow the uniqueness properties of views to be asserted both for clients introspecting the catalog model and for ERMrest itself to reason about queries on the view. Psuedo-keys are chosen automatically when an authorized client creates a key constraint on a view, while real database constraints are used when the client creates a key constraint on a table.
+
+  - *NOTE* pseudo-keys are advisory, *not enforced* in the database, and *not validated* by ERMrest. A client SHOULD NOT assert inaccurate psuedo-key constraints as it could mislead other clients who introspect the schema or lead to unexpected query results as ERMrest formulates relational queries assuming the constraints are true.
+  - Future ERMrest releases MAY enforce validation on psuedo-keys so clients SHOULD NOT depend on the ability to create inaccurate psuedo-constraints.
+
 Additionally, a composite resource summarizes all existing key constraints on one table for convenient discovery and bulk retrieval:
 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key`
@@ -161,6 +166,11 @@ Each (composite) foreign key constraint is reified as a model-level resource:
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
 
 This named constraint has a representation which summarizes its set of constituent foreign key columns, another referenced table, and the set of key columns that form the composite key being referenced in that other table, including the mapping of each foreign key _column name_ to each composite key _key column_. The _table reference_ can be a qualified table name, e.g. `schema1:table1` or an unqualified table name, e.g. `table1`.  The meaning of this constraint is that each combination of non-NULL values in _schema name_:_table name_ MUST reference an existing combination of values forming a composite key for a row in _table reference_.
+
+ERMrest also supports pseudo-foreign keys on views, which allow the reference links of views to be asserted both for clients introspecting the catalog model and for ERMrest itself to reason about queries on the view. Psuedo-foreign keys are chosen automatically when an authorized client creates a foreign key constraint on a view or referencing a view, while real database constraints are used when the client creates a foreign key constraint on a table referencing another table.
+
+  - *NOTE* pseudo-foreign keys are advisory, *not enforced* in the database, and *not validated* by ERMrest. A client SHOULD NOT assert inaccurate psuedo-foreign key constraints as it could mislead other clients who introspect the schema or lead to unexpected query results as ERMrest formulates relational queries assuming the constraints are true.
+  - Future ERMrest releases MAY enforce validation on psuedo-foreign keys so clients SHOULD NOT depend on the ability to create inaccurate psuedo-constraints.
 
 Additionally, a composite resource summarizes all foreign key constraints on one table for discovery and bulk retrieval purposes:
 
