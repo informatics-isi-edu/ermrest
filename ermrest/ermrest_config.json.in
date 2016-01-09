@@ -68,7 +68,9 @@
         "serial8": { "aliases": [ "bigserial" ] },
         "text": { "aliases": [ "character varying" ] },
         "timestamptz": { "aliases": [ "timestamptz", "timestamp with time zone" ] },
-        "uuid": null
+        "uuid": null,
+	"json": null,
+	"jsonb": null
     },
     
     "column_types_readonly": {
