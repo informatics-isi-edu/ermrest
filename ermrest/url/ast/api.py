@@ -26,6 +26,8 @@ import re
 
 from ...exception import *
 from ... import sanepg2
+from ...util import sql_literal
+import json
 
 class Api (object):
 
@@ -223,6 +225,14 @@ class Api (object):
     def perform(self, body, finish):
         def wrapbody(conn, cur):
             try:
+                cur.execute("""
+SELECT set_config('webauthn2.client', %s, false);
+SELECT set_config('webauthn2.attributes', %s, false);
+""" % (
+    sql_literal(web.ctx.webauthn2_context.client),
+    sql_literal(json.dumps(list(web.ctx.webauthn2_context.attributes))),
+)
+                )
                 return body(conn, cur)
             except psycopg2.InterfaceError, e:
                 raise rest.ServiceUnavailable("Please try again.")
