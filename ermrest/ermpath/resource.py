@@ -747,10 +747,14 @@ class EntityPath (AnyPath):
     def get_data_version(self, cur):
         """Get data version txid considering all tables in entity path."""
         preds = [
+            elem.table.kind == 'r'
+            and
             '("schema" = %s AND "table" = %s)' % (
                 sql_literal(elem.table.schema.name), 
                 sql_literal(elem.table.name)
                 )
+            or
+            'True'
             for elem in self._path
             ]
         cur.execute("""
