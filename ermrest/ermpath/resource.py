@@ -461,7 +461,7 @@ FROM (
 UPDATE %(table)s AS t SET %(assigns)s
 FROM %(input_table)s AS i
 WHERE %(keymatches)s 
-  AND (%(valnonmatches)s)
+--  AND (%(valnonmatches)s) -- disable comparisons that may not always be possible
 RETURNING %(tcols)s
 """ % dict(
             table = self.table.sql_name(),

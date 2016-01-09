@@ -257,6 +257,57 @@ EOF
     dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_ctype_${ctype} -X DELETE
 done
 
+# create tables for extended types
+etypes=(
+    json
+    jsonb
+)
+
+evals=(
+    '"{""foo"": ""bar""}"'
+    '"{""foo"": ""bar""}"'
+)
+
+for typeno in "${!etypes[@]}"
+do
+    etype="${etypes[$typeno]}"
+    eval="${evals[$typeno]}"
+    
+    cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_etype_${etype}",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "text" }, "name": "name" },
+      { "type": { "typename": "${etype}" }, "name": "payload" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ]
+}
+EOF
+
+    dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+    dotest "200::*::*" /catalog/${cid}/entity/test1:test_etype_${etype}
+    dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_etype_${etype}
+
+    cat > ${TEST_DATA} <<EOF
+id,name,payload
+1,row1,${eval}
+2,row2,${eval}
+EOF
+    dotest "200::*::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+    dotest "200::text/csv::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Accept: text/csv"
+
+    dotest "409::*::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+    dotest "200::*::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Content-Type: text/csv" -T ${TEST_DATA}
+
+    dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_etype_${etype}/id;name,payload" -H "Content-Type: text/csv" -T ${TEST_DATA}
+    dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_etype_${etype}/id,name;payload" -H "Content-Type: text/csv" -T ${TEST_DATA}
+    
+    dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_etype_${etype} -X DELETE
+done
+
 # create linked tables for basic tests
 cat > ${TEST_DATA} <<EOF
 {
