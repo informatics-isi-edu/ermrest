@@ -333,6 +333,36 @@ class EntityElem (object):
             cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(input_json_table))
             drop_tables.append( input_json_table )
         
+        # build up intermediate SQL representations of each JSON record as field lists
+        # this is used in both JSON-related input data branches below, so lifted up here to share...
+        json_cols = []
+        json_record_type = []
+        json_projection = []
+
+        def json_field(col_name, c):
+            json_cols.append(col_name)
+            sql_type = c.type.sql(basic_storage=True)
+                    
+            if c.type.is_array:
+                # extract field as JSON and transform to array
+                # since PostgreSQL json_to_recordset fails for native array extraction...
+                json_record_type.append('%s %s' % (col_name, 'json'))
+                json_projection.append('(SELECT array_agg(x::%s) FROM json_array_elements_text(%s) s (x)) AS %s' % (
+                    c.type.base_type.sql(basic_storage=True),
+                    col_name,
+                    col_name
+                ))
+            else:
+                # pass-through for normal scalar types
+                json_record_type.append('%s %s' % (col_name, sql_type))
+                json_projection.append('%s AS %s' % (col_name, col_name))
+                        
+        for c in mkcols:
+            json_field(c.sql_name(mkcol_aliases.get(c)), c)
+                        
+        for c in nmkcols:
+            json_field(c.sql_name(nmkcol_aliases.get(c)), c)
+                    
         # copy input data to temp table
         if in_content_type == 'text/csv':
             hdr = csv.reader([ input_data.readline() ]).next()
@@ -368,10 +398,11 @@ FROM STDIN WITH (
     HEADER false, 
     DELIMITER ',', 
     QUOTE '"'
-)""" % (sql_identifier(input_table),
-        ','.join([ sql_identifier(cn) for cn in csvcol_names_ordered ])
-        ),
-                input_data
+)""" % (
+    sql_identifier(input_table),
+    ','.join([ sql_identifier(cn) for cn in csvcol_names_ordered ])
+),
+                    input_data
                 )
             except psycopg2.DataError, e:
                 raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
@@ -384,19 +415,17 @@ FROM STDIN WITH (
 INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s 
 FROM (
-  SELECT (rs.r).*
-  FROM (
-    SELECT json_populate_recordset( NULL::%(input_table)s, %(input)s::json, True ) AS r
-  ) rs
+  SELECT %(json_projection)s 
+  FROM json_to_recordset( %(input)s::json )
+    AS rs ( %(json_record_type)s )
 ) s
 """ % dict( 
-                        input_table = sql_identifier(input_table),
-                        cols = u','.join(
-                            [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
-                            + [ c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols ]
-                            ),
-                        input = Type('text').sql_literal(buf)
-                        )
+    input_table = sql_identifier(input_table),
+    cols = u','.join(json_cols),
+    input = Type('text').sql_literal(buf),
+    json_record_type=','.join(json_record_type),
+    json_projection=','.join(json_projection)
+)
                 )
             except psycopg2.DataError, e:
                 raise BadData('Bad JSON array input. ' + e.pgerror)
@@ -410,20 +439,17 @@ FROM (
 INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s
 FROM (
-  SELECT (rs.r).*
-  FROM (
-    SELECT json_populate_record( NULL::%(input_table)s, i.j, True ) AS r
-    FROM %(input_json)s i
-  ) rs
+  SELECT %(json_projection)s
+  FROM json_to_recordset( (SELECT json_agg(j) FROM %(input_json)s i) )
+    AS rs ( %(json_record_type)s )
 ) s
 """ % dict(
-                        input_table = sql_identifier(input_table),
-                        input_json = sql_identifier(input_json_table),
-                        cols = ','.join(
-                            [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
-                            + [ c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols ]
-                            )
-                        )
+    input_table = sql_identifier(input_table),
+    input_json = sql_identifier(input_json_table),
+    cols = ','.join(json_cols),
+    json_record_type=','.join(json_record_type),
+    json_projection=','.join(json_projection)
+)
                 )
             except psycopg2.DataError, e:
                 raise BadData('Bad JSON stream input. ' + e.pgerror)
