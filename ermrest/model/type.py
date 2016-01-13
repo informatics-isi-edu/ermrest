@@ -208,7 +208,10 @@ class ArrayType(Type):
     @staticmethod
     def fromjson(typedoc, ermrest_config):
         assert typedoc['is_array']
-        base_type = Type.fromjson(typedoc['base_type'], ermrest_config)
+        if 'base_type' in typedoc:
+            base_type = Type.fromjson(typedoc['base_type'], ermrest_config)
+        else:
+            raise exception.ConflictData('array types require a base type')
         if base_type.is_array:
             raise exception.ConflictData('base type of array cannot be another array type')
         return ArrayType( base_type )
