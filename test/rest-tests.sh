@@ -121,6 +121,14 @@ dotest()
     hash1=
     hash2=
 
+    errorpattern="500::*::*"
+    
+    if [[ "$summary" = $errorpattern ]]
+    then
+	logtest FAILED "$@"
+	error terminating on internal server error
+    fi
+    
     if [[ "$summary" != $pattern ]]
     then
 	logtest FAILED "$@"
