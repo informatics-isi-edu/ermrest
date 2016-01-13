@@ -191,7 +191,7 @@ ctypes=(
     serial8
 )
 
-# use corresponding test values (already url-encoded for simplicity)
+# use corresponding test values
 cvals=(
     True
     1.0
@@ -200,7 +200,7 @@ cvals=(
     1
     1
     one
-    '2015-03-11T11%3A32%3A56-0700'
+    '2015-03-11T11:32:56-0700'
     '2015-03-11'
     '2648a44e-c81d-11e4-b6d7-00221930f5cc'
     'P1Y2M3DT4H5M6S'
@@ -214,6 +214,17 @@ do
     ctype="${ctypes[$typeno]}"
     cval="${cvals[$typeno]}"
 
+    # apply url-escaping in limited form to cover cvals array above
+    cval_uri=$(sed -e 's/:/%3A/g' <<<"${cval}")
+
+    if [[ "$ctype" == serial* ]]
+    then
+	# do not try to test serial[] array types...
+	col3_type="{ \"typename\": \"${ctype}\" }"
+    else
+	col3_type="{ \"typename\": \"${ctype}[]\", \"is_array\": true, \"base_type\": { \"typename\": \"${ctype}\" } }"
+    fi
+
     cat > ${TEST_DATA} <<EOF
 {
    "kind": "table",
@@ -221,7 +232,8 @@ do
    "table_name": "test_ctype_${ctype}",
    "column_definitions": [ 
       { "type": { "typename": "${ctype}" }, "name": "column1" },
-      { "type": { "typename": "text" }, "name": "column2" }
+      { "type": { "typename": "text" }, "name": "column2" },
+      { "type": ${col3_type}, "name": "column3" }
    ],
    "keys": [ { "unique_columns": [ "column1" ] } ]
 }
@@ -245,21 +257,39 @@ EOF
     NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
 
     # test handling of column-typed literals in filters
-    dotest "200::application/json::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}/column1=${cval}"
+    dotest "200::application/json::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}/column1=${cval_uri}"
 
-    # test insertion of rows with server-generated serial ID types
     if [[ "$ctype" == serial* ]]
     then
+	# test insertion of rows with server-generated serial ID types
 	cat > ${TEST_DATA} <<EOF
-column1,column2
-,value1
-,value1
-,value2
+column1,column2,column3
+,value1,${cval}
+,value1,${cval}
+,value2,${cval}
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}?defaults=column1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
-	dotest "200::text/csv::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Accept: text/csv"
-	dotest "200::application/json::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}"
+
+	cat > ${TEST_DATA} <<EOF
+[{"column2": "value2", "column3": "${cval}"}]
+EOF
+	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}?defaults=column1" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+    else
+	# test insertion of rows with array data
+	cat > ${TEST_DATA} <<EOF
+column1,column2,column3
+${cval},value1,"{${cval},${cval}}"
+EOF
+	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+	cat > ${TEST_DATA} <<EOF
+[{"column1": "${cval}", "column2": "value1", "column3": ["${cval}", "${cval}"]}]
+EOF
+	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: application/json" -T ${TEST_DATA}
     fi
+    
+    dotest "200::text/csv::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Accept: text/csv"
+    dotest "200::application/json::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}"
 
     # drop table
     dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_ctype_${ctype} -X DELETE
