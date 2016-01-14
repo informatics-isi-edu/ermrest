@@ -79,11 +79,19 @@ class BinaryPredicate (Predicate):
             raise TypeError('Operator %s requires right-hand value' % self.op)
 
     def sql_where(self, epath, elem):
-        return 't%d.%s %s %s' % (
-            self.left_elem.pos,
-            self.left_col.sql_name(),
-            self.sqlop,
-            self.right_expr.sql_literal(self.left_col.type)
+        if self.left_col.type.is_array:
+            return '(SELECT bool_or(v %s %s) FROM unnest(t%d.%s) x (v))' % (
+                self.sqlop,
+                self.right_expr.sql_literal(self.left_col.type.base_type),
+                self.left_elem.pos,
+                self.left_col.sql_name()
+            )
+        else:
+            return 't%d.%s %s %s' % (
+                self.left_elem.pos,
+                self.left_col.sql_name(),
+                self.sqlop,
+                self.right_expr.sql_literal(self.left_col.type)
             )
 
 def op(rest_syntax):

@@ -258,6 +258,7 @@ EOF
 
     # test handling of column-typed literals in filters
     dotest "200::application/json::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}/column1=${cval_uri}"
+    dotest "200::application/json::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}/column3=${cval_uri}"
 
     if [[ "$ctype" == serial* ]]
     then
