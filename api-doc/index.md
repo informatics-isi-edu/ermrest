@@ -217,6 +217,64 @@ For simplicity, ERMrest always uses data formats capable of representing a set o
 
 Other data formats may be supported in future revisions.
 
+#### Scalar and Array Typed Attributes
+
+ERMrest generically exposes a range of scalar and array-of-scalar attribute types, with names familiar to PostgreSQL users:
+
+- `boolean`: Can be either `True` or `False`.
+- `date`: An ISO 8601 date such as `2015-12-31`.
+- `timestamptz`: An ISO 8601 timestamp with timezone such as `2016-01-13T16:34:24-0800`.
+- `float4` and `float8`: Floating-point numbers in 4-byte (32-bit) or 8-byte (64-bit) precision, respectively.
+- `int2`, `int4`, `int8`: Two's complement integers in 2-byte, 4-byte, or 8-byte widths, respectively.
+- `serial2`, `serial4`, `serial8`: Corresponding to `int2`, `int4`, and `int8` with an auto-incremented default behavior on insertion.
+- `text`: Variable-length text containing Unicode characters, using UTF-8 encoding in all supported MIME types (currently CSV and JSON).
+
+The [binary filter predicate](data/naming.md#binary-filter-predicate)
+language of ERMrest URIs compare a stored scalar column value (the
+left-hand value) to a constant value supplied in the URI filter syntax
+(the right-hand value). In general, the core operators apply to all
+scalar types except the regular-expression matches which only apply to
+`text` column type.
+
+##### Arrays of Scalars
+
+ERMrest supports columns storing arrays of the preceding scalar
+types. These arrays are encoded differently depending on the MIME type:
+
+- As native JSON array content in JSON input/output formats, e.g. `{"array_column_name": ["value1", "value2"], "scalar_column_name": "value3"}`
+- As PostgreSQL-formatted arrays in CSV input/output formats, e.g. `"{value1,value2,value3}",value3`
+
+The [binary filter predicate](data/naming.md#binary-filter-predicate)
+language of ERMrest URIs compare each scalar element in a stored array
+column using *existential qualification*. The array elements are used
+as left-hand values and individually compared with the constant
+right-hand value from the URI filter syntax. The predicate is
+considered to match if *any* contained array element individually
+matches using the scalar comparison.
+
+##### Experimental Types
+
+ERMrest makes a best-effort attempt to support additional attribute
+types when exposing legacy database schema. These types MAY support
+value storage and exchange to varying degrees but support for filter
+predicates and other niceties are lacking or we discourage their use
+for other reasons:
+
+- `uuid`: Universally Unique Identifiers, e.g. `a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11`.
+- `numeric`: Arbitrary-precision decimal numerical data.
+- `time`: Time values lacking date information.
+- `timestamp`: Timestamps lacking timezone information.
+- `json`: JSON text strings.
+- `jsonb`: JSON text strings parsed and stored in PostgreSQL's binary JSON variant.
+- various `text` and `character` types with length constraints: No
+  length constraints or padding are considered or enforced by ERMrest
+  and for the most part these map to variable-length `text` storage
+  with additional constraints that MAY be enforced by PostgreSQL.
+
+In a normal ERMrest configuration, these types are not supported when
+defining new columns or tables, and only mapped from existing
+databases for legacy support.
+
 #### CSV Format
 
 ERMrest supports the `text/csv` MIME type for tabular input or output,
