@@ -277,6 +277,16 @@ class ForeignKey (object):
                 refs.append( kr.prejson() )
         return refs
 
+def _guarded_add(s, new_fkr):
+    """Deduplicate FKRs by tracking duplicates under leader.constraints if leader exists in set s.
+    """
+    for fkr in s:
+        if fkr.reference_map_frozen == new_fkr.reference_map_frozen:
+            fkr.constraints.add(new_fkr)
+            return
+    # otherwise this is a new leader
+    s.add(new_fkr)
+
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
     from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
@@ -292,6 +302,7 @@ class KeyReference (object):
     def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None):
         self.foreign_key = foreign_key
         self.unique = unique
+        self.reference_map_frozen = fk_ref_map
         self.reference_map = dict(fk_ref_map)
         self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
         self.on_delete = on_delete
@@ -299,10 +310,10 @@ class KeyReference (object):
         # Link into foreign key's key reference list, by table ref
         if unique.table not in foreign_key.table_references:
             foreign_key.table_references[unique.table] = set()
-        foreign_key.table_references[unique.table].add(self)
+        _guarded_add(foreign_key.table_references[unique.table], self)
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
-        unique.table_references[foreign_key.table].add(self)
+        _guarded_add(unique.table_references[foreign_key.table], self)
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.annotations = dict()
@@ -489,15 +500,16 @@ class PseudoKeyReference (object):
     def __init__(self, foreign_key, unique, fk_ref_map, id=None, annotations={}, comment=None):
         self.foreign_key = foreign_key
         self.unique = unique
+        self.reference_map_frozen = fk_ref_map
         self.reference_map = dict(fk_ref_map)
         self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
         # Link into foreign key's key reference list, by table ref
         if unique.table not in foreign_key.table_references:
             foreign_key.table_references[unique.table] = set()
-        foreign_key.table_references[unique.table].add(self)
+        _guarded_add(foreign_key.table_references[unique.table], self)
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
-        unique.table_references[foreign_key.table].add(self)
+        _guarded_add(unique.table_references[foreign_key.table], self)
         self.id = id
         self.constraints = set([self])
         self.annotations = dict()
