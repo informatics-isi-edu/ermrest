@@ -142,7 +142,7 @@ def request_init():
             ['text/html', '*'],
             '*'
             )
-        if content_type == 'text/html':
+        if content_type == 'text/html' and False:
             # bounce browsers through a login form and back
             refer = web.ctx.env['REQUEST_URI']
             # leave off /ermrest/ prefix due to web.SeeOther behavior
