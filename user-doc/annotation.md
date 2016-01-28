@@ -54,7 +54,7 @@ here is a quick matrix to locate them.
 | [2015 Display](#2015-display) | X | X | X | - | - | Display options |
 | [2015 Facets](#2015-facets) | - | X | - | - | - | Facet grouping |
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
-| [2015 URL](#2015-url) | - | - | X | - | - | Column data as URLs |
+| [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
 
 For brevity, the annotation keys are listed above by their section
@@ -268,29 +268,53 @@ presentation behaving as if the model element were not present.
 
 `tag:misd.isi.edu,2015:url`
 
-This key is allowed on any number of columns in the model with a
-textual value type. This annotation indicates that the annotated
-column contains values that should be interpreted as retrievable
-URLs.
+This key is allowed on any number of columns and tables in the model. Applied
+within the context of a column, this annotation indicates that the annotated
+column contains values that should be interpreted as retrievable URLs. Applied
+within the context of a table, this annotation indicates additional resources
+that may be associated with or replace the presentation of the entities from the
+table.
 
 Supported JSON payload patterns:
 
+Note that the JSON payload MAY contain one object as specified below, or may include an array (`[{`...`}` [`, {`...`}`]...`]`) of the specified objects. For example, a table MAY have both a thumbnail and a download URL associated with each entity found in it.
+
 - `null` or `{}`: Nothing else is known about the URLs.
-- `{`... `"pattern":` _pattern_ ...`}`: The actual URL is obtained by expanding the _pattern_ by substituting the column value for the substitution marker `{value}` in _pattern_. For example, a pattern `http://www.ncbi.nlm.nih.gov/pubmed/{value}` would replace the `{value}` marker with PubMed identifiers stored in the column.
-- `{`... `"base-url":` _URL0_ ...`}`: Each relative URL found in this column SHOULD be interpreted as relative to the _URL0_ base URL indicated.
+- `{`... `"url":` _pattern_ ...`}`: The actual URL is obtained by expanding the _pattern_ (see below).
+- `{`... `"caption":` _pattern_ ...`}`: The optional caption to go along with the URL where applicable. The actual caption is obtained by expanding the _pattern_ (see below).
+- `{`... `"presentation":` [`"download"` | `"embed"` | `"link"` | `"thumbnail"`] ...`}`: Indicates the preferred presentation style for the URL. The presentation value should be one of the options listed.
 - `{`... `"entity": true` ...`}`: Each URL locates a representation of the table row.
-- `{`... `"thumbnail": true` ...`}`: Each URL locates an image suitable as a brief summary in a user interface.
 - `{`... `"content-type":` _MIME type_ ... `}`: Each URL locates a representation which SHOULD have the given _MIME type_. This sets a static MIME type for the whole table.
 - `{`... `"content-type-column":` _MIME column_ ... `}`: Each URL locates a representation which SHOULD have the MIME type stored in the corresponding _MIME column_ of the same table. This allows for variable MIME types on a row-by-row basis in the table.
 
 These optional descriptive fields are mostly additive in their semantics.
 
-1. Any `pattern` assertion is interpreted first, resulting in a URL that is then interpreted according the remaining rules, i.e. the result of the pattern MAY be a relative URL further modified by the `base-url` assertion.
-2. In the absence `base-url`, the proper interpretation of relative URLs SHOULD be determined by other means.
+1. The `url` assertion is interpreted first, resulting in a URL that is then interpreted according the remaining rules.
+2. The `caption` may be used to enhance the presentation of the URL where applicable.
 3. In the absence of `entity`, the relationship of the located representation to the table row SHOULD be determined by other means.
-4. A `thumbnail` assertion implies that the MIME type of the located representations SHOULD be an image type, but does not specify which image type specifically.
+4. A `thumbnail` assertion within the `presentation` option implies that the MIME type of the located representations SHOULD be an image type, but does not specify which image type specifically.
 5. A `content-type` assertion indicates a static MIME type for the whole column, while the `content-type-column` assertion indicates a source of row-by-row MIME types. The presence of both indicates that the row-by-row source SHOULD always contain the same static value.
 6. A retrieved representation that does not satisfy the `thumbnail`, `content-type`, or `content-type-column` expectations designated by the annotation SHOULD be handled as an erroneous condition.
+
+When deriving a field value from a _pattern_, the following rules apply based on the context of the annotation.
+
+- When the context is a _table_, the _pattern_ MAY contain markers for substring replacement of form `{column_name}` where `column_name` MUST reference a column in the table.
+-  When the context is a _column_, the _pattern_ MAY contain markers for substring replacement of form `{column_name}` where `column_name` MUST reference a column in the table. In addition, the _pattern_ MAY contain a special replacement marker of the form `{value}` which MUST be used to reference the value of the column on which the annotation is applied.
+
+For example, a _table_ may have a `tag:misd.isi.edu,2015:url` annotation containing the following payload:
+
+```
+{
+    "pattern": "https://www.example.org/collections/{collection}/media/{object}",
+    "presentation": "embed"
+}
+```
+
+A web user agent that consumes this annotation and the related table data would likely embed the following `<iframe>` tag for each entity:
+
+```
+<iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
+```
 
 ### 2015 Vocabulary
 
