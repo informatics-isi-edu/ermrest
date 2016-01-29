@@ -296,10 +296,7 @@ These optional descriptive fields are mostly additive in their semantics.
 5. A `content-type` assertion indicates a static MIME type for the whole column, while the `content-type-column` assertion indicates a source of row-by-row MIME types. The presence of both indicates that the row-by-row source SHOULD always contain the same static value.
 6. A retrieved representation that does not satisfy the `thumbnail`, `content-type`, or `content-type-column` expectations designated by the annotation SHOULD be handled as an erroneous condition.
 
-When deriving a field value from a _pattern_, the following rules apply based on the context of the annotation.
-
-- When the context is a _table_, the _pattern_ MAY contain markers for substring replacement of form `{column_name}` where `column_name` MUST reference a column in the table.
--  When the context is a _column_, the _pattern_ MAY contain markers for substring replacement of form `{column_name}` where `column_name` MUST reference a column in the table. In addition, the _pattern_ MAY contain a special replacement marker of the form `{value}` which MUST be used to reference the value of the column on which the annotation is applied.
+When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. When the context of the annotation is a _column_, it SHOULD be assumed that the `column name` matches the context.
 
 For example, a _table_ may have a `tag:misd.isi.edu,2015:url` annotation containing the following payload:
 
