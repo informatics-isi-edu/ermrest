@@ -286,6 +286,8 @@ Note that the JSON payload MAY contain one object as specified below, or may inc
 - `{`... `"entity": true` ...`}`: Each URL locates a representation of the table row.
 - `{`... `"content-type":` _MIME type_ ... `}`: Each URL locates a representation which SHOULD have the given _MIME type_. This sets a static MIME type for the whole table.
 - `{`... `"content-type-column":` _MIME column_ ... `}`: Each URL locates a representation which SHOULD have the MIME type stored in the corresponding _MIME column_ of the same table. This allows for variable MIME types on a row-by-row basis in the table.
+- `{`... `"height":` [_number_ | _column name_] ...`}`: The desired height. This is applicable under certain situations such as when displaying a resource in an `iframe` or as a thumbnail in an `img` element. The value may either be a literal number or may be taken from the value of a column in the entity as specific by its _column name_.
+- `{`... `"width":` [_number_ | _column name_] ...`}`: The desired width. This is applicable under certain situations such as when displaying a resource in an `iframe` or as a thumbnail in an `img` element. The value may either be a literal number or may be taken from the value of a column in the entity as specific by its _column name_.
 
 These optional descriptive fields are mostly additive in their semantics.
 
