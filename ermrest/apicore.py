@@ -201,6 +201,13 @@ def web_method():
                                 yield res
                         else:
                             yield result
+                    except psycopg2.ProgrammingError, e:
+                        if e.pgcode == '42501':
+                            # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
+                            raise rest.Forbidden(e.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
+                        else:
+                            # re-raise and let outer handlers below do something more generic
+                            raise e
                     except:
                         et, e, tb = sys.exc_info()
                         request_trace(e)
