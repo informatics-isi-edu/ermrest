@@ -156,7 +156,8 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
   JOIN pg_constraint con ON ncon.oid = con.connamespace
   JOIN pg_class pkcl ON con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"])
   JOIN pg_namespace npk ON pkcl.relnamespace = npk.oid
-  WHERE pg_has_role(pkcl.relowner, 'USAGE'::text) ;
+  WHERE has_table_privilege(pkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text) OR has_any_column_privilege(pkcl.oid, 'INSERT, UPDATE, REFERENCES'::text) 
+ ;
 '''
 
     PSEUDO_PKEY_COLUMNS = '''
