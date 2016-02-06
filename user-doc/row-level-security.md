@@ -28,89 +28,90 @@ PostgreSQL superuser.
 ## Instructions and Examples
 
 1. Upgrade your postgres to 9.5
-
 2. Have latest ERMrest master code deployed (as of 2016-02-05 16:30 PST).
+3. Adjust ownership on the table or tables we will restrict with row-level access control.  The owner MUST NOT be the ermrest daemon as ownership provides implicit access to all table rows.
+4. Enable row-level security on specific table
+5. Create row-level policies to access table data
+6. Drop or alter row-level policies by name
 
-3. Adjust ownership on the table or tables we will restrict with row-level access control.  The owner MUST NOT be the ermrest daemon as ownership provides implicit access to all table rows.  As an example, assuming a local dev/DBA psql account such as `karlcz`:
+### Example 1: Adjust ownership
 
     BEGIN;
     ALTER TABLE my_example OWNER TO karlcz;
     GRANT ALL ON TABLE my_example TO ermrest;
     COMMIT;
 
-4. Enable row-level security:
+### Example 2: Enable row-level security
 
     ALTER TABLE my_example ENABLE ROW SECURITY;
 
-   At this point, ERMrest should still work (a smart thing to test) but data operations on this table will fail as the default policies do not allow any operations on any row data!  Go back to normal with:
+At this point, ERMrest should still work (a smart thing to test) but data operations on this table will fail as the default policies do not allow any operations on any row data!  Go back to normal with:
 
     ALTER TABLE my_example DISABLE ROW SECURITY;
 
-5. Create row-level policies to restore all access:
+### Example 3: Create row-level policies to restore all access
 
     CREATE POLICY select_all ON my_example FOR SELECT USING (True);
     CREATE POLICY delete_all ON my_example FOR DELETE USING (True);
     CREATE POLICY insert_all ON my_example FOR INSERT WITH CHECK (True);
     CREATE POLICY update_all ON my_example FOR UPDATE USING (True) WITH CHECK (True);
 
-   At this point, all data access is possible again.  In general, the `USING (expr)` part must evaluate to true for existing rows to be accessed while `WITH CHECK (expr)` part must evaluate true for new row content to be applied.
+At this point, all data access is possible again.  In general, the `USING (expr)` part must evaluate to true for existing rows to be accessed while `WITH CHECK (expr)` part must evaluate true for new row content to be applied.
 
-6. Drop policies to limit it again:
+### Example 4: Drop policies to limit it again
 
     DROP POLICY update_all ON my_example;
     DROP POLICY insert_all ON my_example;
     DROP POLICY delete_all ON my_example;
     DROP POLICY select_all ON my_example;
 
-7. Make policies that check against webauthn context but not row data:
+### Example 5: Check against webauthn context but not row data:
 
     CREATE POLICY select_group
     ON my_example
-	FOR SELECT
-	USING ( 'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())) );
-	
-	CREATE POLICY select_user
-	ON my_example
-	FOR SELECT
-	USING ( 'karlcz' = (SELECT _ermrest.current_client()) );
+        FOR SELECT
+        USING ( 'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())) );
 
-8. Drop those policies:
 
-    DROP POLICY select_group ON my_example;
-	DROP POLICY select_user ON my_example;
+    CREATE POLICY select_user
+    ON my_example
+      FOR SELECT
+      USING ( 'karlcz' = (SELECT _ermrest.current_client()) );
 
-9. Consider row-data in more complete example:
+### Example 6: Consider row-data in more complete example:
 
     -- allow members of group to insert but enforce provenance of owner column
     CREATE POLICY insert_group
     ON my_example
-	FOR INSERT
-	WITH CHECK (
-	  'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes()))
+      FOR INSERT
+      WITH CHECK (
+        'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes()))
       AND owner = (SELECT _ermrest.current_owner())
     );
 
-	-- owner can update his own rows
-	-- but continue to enforce provenance of owner column too
-	CREATE POLICY update_owner
+
+    -- owner can update his own rows
+    -- but continue to enforce provenance of owner column too
+    CREATE POLICY update_owner
     ON my_example
-	FOR UPDATE
-	USING ( owner = (SELECT _ermrest.current_owner()) )
-	WITH CHECK ( owner = (SELECT _ermrest.current_owner()) ) ;
+      FOR UPDATE
+      USING ( owner = (SELECT _ermrest.current_owner()) )
+      WITH CHECK ( owner = (SELECT _ermrest.current_owner()) ) ;
 
-	-- owner can delete his own rows
-	CREATE POLICY delete_owner
-	ON my_example
-	FOR DELETE
-	USING ( owner = (SELECT _ermrest.current_owner()) );
 
-	-- owner can read
-	-- as can members of groups in ACL
-	CREATE POLICY select_owner_acl
-	ON my_example
-	FOR SELECT
-	USING (
-	  owner = (SELECT _ermrest.current_owner())
+    -- owner can delete his own rows
+    CREATE POLICY delete_owner
+      ON my_example
+      FOR DELETE
+      USING ( owner = (SELECT _ermrest.current_owner()) );
+
+
+    -- owner can read
+    -- as can members of groups in ACL
+    CREATE POLICY select_owner_acl
+      ON my_example
+      FOR SELECT
+      USING (
+        owner = (SELECT _ermrest.current_owner())
       OR acl && (SELECT _ermrest.current_attributes())
     );
-
