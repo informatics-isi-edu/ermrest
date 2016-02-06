@@ -224,7 +224,7 @@ def web_method():
                 except BadData, e:
                     raise rest.BadRequest(e.message)
                 except UnsupportedMediaType, e:
-                    raise rest.UnsupportedMediaType
+                    raise rest.UnsupportedMediaType(e.message)
                 except psycopg2.pool.PoolError, e:
                     raise rest.ServiceUnavailable(e.message)
                 except psycopg2.Error, e:
