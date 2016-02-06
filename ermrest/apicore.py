@@ -217,6 +217,8 @@ def web_method():
                     raise e
                 except (ConflictModel, ConflictData), e:
                     raise rest.Conflict(e.message)
+                except Forbidden, e:
+                    raise rest.Forbidden(e.message)
                 except NotFound, e:
                     raise rest.NotFound(e.message)
                 except BadData, e:

@@ -71,3 +71,7 @@ class NotFound (ValueError):
         ValueError.__init__(self, message)
         self.message = message
 
+class Forbidden (ValueError):
+    """Exception for permission errors"""
+    pass
+

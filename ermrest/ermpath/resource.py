@@ -954,10 +954,14 @@ WHERE %(keymatches)s
             raise ConflictModel('Entity %s is not writable.' % table)
         
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
-        if cur.fetchone()[0] == 0:
+        cnt = cur.fetchone()[0]
+        if cnt == 0:
             raise NotFound('entities matching request path')
         notify_data_change(cur, table)
         cur.execute(self.sql_delete())
+        if cnt > cur.rowcount:
+            # HACK: assume difference in rowcount is due to row-level security??
+            raise Forbidden('deletion of one or more rows')
         
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
