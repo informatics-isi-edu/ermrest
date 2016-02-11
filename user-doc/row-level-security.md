@@ -19,6 +19,16 @@ able to consider:
   - The value of `(SELECT _ermrest.current_attributes())` scalar subquery of type `text[]`.
   - Other scalar subqueries which MAY lookup indirect values from other tables to find links between the affected row content and the current ermrest client or attributes context.
 
+Note: row-level security policies can compute arbitrary boolean
+results based on these input values. There are no built-in concepts of
+ownership, access control lists, or any other privilege
+model. Operations are simply allowed or denied if the boolean
+expression returns a true value or not. It is up to the data modeler
+in each table to decide if or how to interpret or restrict the content
+of row data to make access control decisions. There is no distinction
+between access control or non-access control data at the SQL nor
+ERMrest protocol level.
+
 ## Considerations
 
 Row-level security affects all access to tables for which it is
@@ -56,7 +66,7 @@ At this point, ERMrest should still work (a smart thing to test) but data operat
     CREATE POLICY insert_all ON my_example FOR INSERT WITH CHECK (True);
     CREATE POLICY update_all ON my_example FOR UPDATE USING (True) WITH CHECK (True);
 
-At this point, all data access is possible again.  In general, the `USING (expr)` part must evaluate to true for existing rows to be accessed while `WITH CHECK (expr)` part must evaluate true for new row content to be applied.
+At this point, all data access is possible again.  In general, the `USING (expr)` part must evaluate to true for existing rows to be accessed while `WITH CHECK (expr)` part must evaluate true for new row content to be applied. The `USING` and `WITH CHECK` policies MAY reference column data from the existing or new row data, respectively; it is not possible to consider both existing and replacement row content in a single policy expression.
 
 ### Example 4: Drop policies to limit it again
 
@@ -65,20 +75,19 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     DROP POLICY delete_all ON my_example;
     DROP POLICY select_all ON my_example;
 
-### Example 5: Check against webauthn context but not row data:
+### Example 5: Check against webauthn context but not row data, e.g. to emulate a table-level privilege using webauthn roles instead of PostgreSQL roles
 
     CREATE POLICY select_group
     ON my_example
         FOR SELECT
         USING ( 'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())) );
 
-
     CREATE POLICY select_user
     ON my_example
       FOR SELECT
       USING ( 'karlcz' = (SELECT _ermrest.current_client()) );
 
-### Example 6: Consider row-data in more complete example:
+### Example 6: Consider row-data in more complete example, assuming the table includes `owner` and `acl` columns of type `text` and `text[]`, respectively
 
     -- allow members of group to insert but enforce provenance of owner column
     CREATE POLICY insert_group
@@ -89,7 +98,6 @@ At this point, all data access is possible again.  In general, the `USING (expr)
       AND owner = (SELECT _ermrest.current_owner())
     );
 
-
     -- owner can update his own rows
     -- but continue to enforce provenance of owner column too
     CREATE POLICY update_owner
@@ -98,13 +106,11 @@ At this point, all data access is possible again.  In general, the `USING (expr)
       USING ( owner = (SELECT _ermrest.current_owner()) )
       WITH CHECK ( owner = (SELECT _ermrest.current_owner()) ) ;
 
-
     -- owner can delete his own rows
     CREATE POLICY delete_owner
       ON my_example
       FOR DELETE
       USING ( owner = (SELECT _ermrest.current_owner()) );
-
 
     -- owner can read
     -- as can members of groups in ACL
