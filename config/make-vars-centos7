@@ -16,7 +16,7 @@ VARLIBDIR=/var/lib/ermrest
 CRONDAILYDIR=/etc/cron.daily
 HTTPCONFDIR=/etc/httpd/conf.d
 HTMLDIR=/var/www/html/ermrest
-WSGISOCKETPREFIX=/var/run/wsgi/wsgi
+WSGISOCKETPREFIX=/var/run/httpd/wsgi
 
 LOGFACILITY=LOCAL2
 LOGDIR=/var/log

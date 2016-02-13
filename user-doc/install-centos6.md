@@ -38,14 +38,14 @@ For CentOS 7 use:
 
 ### Workaround HTTPD errors related to mod_wsgi not finding its sockets
 
-On some versions of Fedora and CentOS, you may encounter errors in the
+With older deployments, you may encounter errors in the
 Apache SSL server log similar to `Unable to connect to WSGI daemon
 process on '/var/run/wsgi/wsgi.1331.1.1.sock'`.
 
-A workaround is to configure the SE-Linux context:
-
-    semanage fcontext --add --type httpd_var_run_t "/var/run/wsgi"
-    restorecon -rv /var/run/wsgi
+The solution is to use `/var/run/httpd/wsgi` as the WSGI socket
+directory in the `/etc/httpd/conf.d/wsgi_ermrest.conf` file. This
+location will have appropriate SE-Linux context to work with the
+default Apache httpd sandboxing.
 
 ### PostgreSQL 9.2 or above
 
