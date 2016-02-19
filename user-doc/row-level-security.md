@@ -53,7 +53,7 @@ PostgreSQL superuser.
 
 ### Example 2: Enable row-level security
 
-    ALTER TABLE my_example ENABLE ROW SECURITY;
+    ALTER TABLE my_example ENABLE ROW LEVEL SECURITY;
 
 At this point, ERMrest should still work (a smart thing to test) but data operations on this table will fail as the default policies do not allow any operations on any row data!  Go back to normal with:
 
@@ -80,7 +80,7 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     CREATE POLICY select_group
     ON my_example
         FOR SELECT
-        USING ( 'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())) );
+        USING ( 'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())::text[]) );
 
     CREATE POLICY select_user
     ON my_example
@@ -94,8 +94,8 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     ON my_example
       FOR INSERT
       WITH CHECK (
-        'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes()))
-      AND owner = (SELECT _ermrest.current_owner())
+        'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())::text[])
+      AND owner = (SELECT _ermrest.current_client())
     );
 
     -- owner can update his own rows
@@ -103,14 +103,14 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     CREATE POLICY update_owner
     ON my_example
       FOR UPDATE
-      USING ( owner = (SELECT _ermrest.current_owner()) )
-      WITH CHECK ( owner = (SELECT _ermrest.current_owner()) ) ;
+      USING ( owner = (SELECT _ermrest.current_client()) )
+      WITH CHECK ( owner = (SELECT _ermrest.current_client()) ) ;
 
     -- owner can delete his own rows
     CREATE POLICY delete_owner
       ON my_example
       FOR DELETE
-      USING ( owner = (SELECT _ermrest.current_owner()) );
+      USING ( owner = (SELECT _ermrest.current_client()) );
 
     -- owner can read
     -- as can members of groups in ACL
@@ -118,6 +118,6 @@ At this point, all data access is possible again.  In general, the `USING (expr)
       ON my_example
       FOR SELECT
       USING (
-        owner = (SELECT _ermrest.current_owner())
+        owner = (SELECT _ermrest.current_client())
       OR acl && (SELECT _ermrest.current_attributes())
     );
