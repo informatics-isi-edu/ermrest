@@ -35,6 +35,13 @@ Row-level security affects all access to tables for which it is
 enabled. Backup database dumps could be incomplete unless taken by a
 PostgreSQL superuser.
 
+In a database with mixed ownership, care must be taken to account for
+several different kinds of rights:
+
+1. The owner of a table has all rights and bypasses row-level security policy.
+2. When the `ermrest` role does not own a table but is granted rights to insert, it also needs to be granted rights to the sequence relations used for any auto-generating serial columns in that table.
+3. When `ermrest` makes changes to a table it does not own, postgres may perform some bookkeeping operations on behalf of the owning role and that role might also need access to other resources such as schemas or tables to enforce data-integrity constraints. Either grant appropriate permissions on those objects or just grant the `ermrest` role to the other table ownership role so that it will always work.
+
 ## Instructions and Examples
 
 1. Upgrade your postgres to 9.5
@@ -48,7 +55,9 @@ PostgreSQL superuser.
 
     BEGIN;
     ALTER TABLE my_example OWNER TO karlcz;
+	GRANT ermrest TO karlcz; -- needed to allow normal bookkeeping on behalf of table owner when foreign keys exist etc.
     GRANT ALL ON TABLE my_example TO ermrest;
+	GRANT ALL ON SEQUENCE my_example_id_seq TO ermrest; -- needed to allow use of auto-generated serial IDs
     COMMIT;
 
 ### Example 2: Enable row-level security
