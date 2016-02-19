@@ -56,6 +56,7 @@ here is a quick matrix to locate them.
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
+| [2016 Sequence](#2016-sequence) | - | - | X | - | - | Column as a Gene Sequence |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
@@ -358,3 +359,21 @@ expert user scenarios, while the preferred textual representation is
 often used in prose, long-form presentations, tool tips, or other
 scenarios where a user may need more natural language understanding of
 the concept.
+
+### 2016 Sequence
+
+`tag:isrd.isi.edu,2016:sequence`
+
+This key is allowed on any number of columns in the model. It is used to
+indicate that the annotated column contains a text value that should be
+interpreted as a gene sequence.
+
+Supported JSON payload patterns:
+
+- `null` or `{}`: Default heuristics apply.
+- `{`... `"subseq-length":` _number_ ...`}`: The _number_ indicates the intended
+  length for a subsequence of the overall gene sequence. When displaying a gene
+  sequence, it is common to visually demarcate a long sequence of nucleotides
+  into smaller subsequences.
+- `{`... `"separator":` _character_ ...`}`: The _character_ to use as the
+  separator between subsequence strings.
