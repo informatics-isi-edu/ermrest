@@ -259,7 +259,9 @@ An optional sorting modifier can modify the ordering of elements in the set-base
 - `@sort(` _output column_ `,` ... `)`
 - `@sort(` _output column_ `::desc::` `,` ... `)`
 
-where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. The list of sort keys goes left-to-right from primary to secondary etc.  The individual _output column_ names are user-supplied values and therefore must be URL-escaped if they contain any special characters, including the `:` character in implicitly named output columns introduced using the _alias_ `:` `*` wildcard syntax in projected [attribute names](#attribute-names) or [aggregate names](#aggregate-names).
+where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. ERMrest **always sorts NULL values last** while sorting non-NULL values in ascending or descending order. This differs from the default behavior of the SQL language.
+
+The list of sort keys goes left-to-right from primary to secondary etc.  The individual _output column_ names are user-supplied values and therefore must be URL-escaped if they contain any special characters, including the `:` character in implicitly named output columns introduced using the _alias_ `:` `*` wildcard syntax in projected [attribute names](#attribute-names) or [aggregate names](#aggregate-names).
 
 The modifier appears as an optional suffix to data names, but before any query parameters in the URL:
 
