@@ -252,6 +252,8 @@ right-hand value from the URI filter syntax. The predicate is
 considered to match if *any* contained array element individually
 matches using the scalar comparison.
 
+A column storing an array of scalars MAY be used as a unique key or foreign key, subject to PostgreSQL native interpretation of array equality. However, it is RECOMMENDED that data modelers consider normalizing their schema to avoid such constructs.
+
 ##### Experimental Types
 
 ERMrest makes a best-effort attempt to support additional attribute
