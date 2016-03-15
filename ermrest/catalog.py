@@ -547,6 +547,7 @@ DELETE FROM %(schema)s.%(table)s
     def _test_perm(self, cur, perm, roles):
         """Tests whether the user roles have a permission.
         """
+        roles = set([ r['id'] if type(r) is dict else r for r in roles ])
         return len(list(self.get_meta(cur, perm, roles.union(self.ANONYMOUS)))) > 0
                                   
     def has_read(self, cur, roles):
@@ -577,6 +578,7 @@ DELETE FROM %(schema)s.%(table)s
     def is_owner(self, cur, roles):
         """Tests whether the user role is owner.
         """
+        roles = [ r['id'] if type(r) is dict else r for r in roles ]
         return len(list(self.get_meta(cur, self.META_OWNER, roles)))>0
 
 

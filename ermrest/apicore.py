@@ -29,6 +29,7 @@ import datetime
 import pytz
 import struct
 import urllib
+import json
 import sys
 import traceback
 import psycopg2
@@ -96,11 +97,14 @@ def log_parts():
     """Generate a dictionary of interpolation keys used by our logging template."""
     now = datetime.datetime.now(pytz.timezone('UTC'))
     elapsed = (now - web.ctx.ermrest_start_time)
+    client_identity = web.ctx.webauthn2_context and web.ctx.webauthn2_context.client or ''
+    if type(client_identity) is dict:
+        client_identity = json.dumps(client_identity, separators=(',',':'))
     parts = dict(
         elapsed_s = elapsed.seconds, 
         elapsed_ms = elapsed.microseconds/1000,
         client_ip = web.ctx.ip,
-        client_identity = web.ctx.webauthn2_context and urllib.quote(web.ctx.webauthn2_context.client or '') or '',
+        client_identity = urllib.quote(client_identity),
         reqid = web.ctx.ermrest_request_guid
         )
     return parts

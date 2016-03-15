@@ -82,7 +82,7 @@ class Registry(object):
     def can_create(self, roles):
         """Tests if one of roles can create a catalog in registry.
         """
-        roles = set(roles) | self.ANONYMOUS
+        roles = set([r['id'] if type(r) is dict else r for r in roles]) | self.ANONYMOUS
         acl = self.acls.get('create_catalog_permit')
         acl = set(acl) if acl else set()
         return len(roles & acl) > 0
