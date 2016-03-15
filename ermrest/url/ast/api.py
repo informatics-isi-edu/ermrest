@@ -225,12 +225,21 @@ class Api (object):
     def perform(self, body, finish):
         def wrapbody(conn, cur):
             try:
+                client = web.ctx.webauthn2_context.client
+                if type(client) is dict:
+                    client = client['id']
+
+                attributes = [
+                    a['id'] if type(a) is dict else a
+                    for a in web.ctx.webauthn2_context.attributes
+                ]
+                
                 cur.execute("""
 SELECT set_config('webauthn2.client', %s, false);
 SELECT set_config('webauthn2.attributes', %s, false);
 """ % (
-    sql_literal(web.ctx.webauthn2_context.client),
-    sql_literal(json.dumps(list(web.ctx.webauthn2_context.attributes))),
+    sql_literal(client),
+    sql_literal(json.dumps(attributes)),
 )
                 )
                 return body(conn, cur)
