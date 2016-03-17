@@ -549,7 +549,7 @@ DELETE FROM %(schema)s.%(table)s
     def _test_perm(self, cur, perm, roles):
         """Tests whether the user roles have a permission.
         """
-        if not hasattr(roles, '__iter__'):
+        if not (type(roles) is set or type(roles) is list):
             roles = [roles]
         roles = set([ r['id'] if type(r) is dict else r for r in roles ])
         return len(list(self.get_meta(cur, perm, roles.union(self.ANONYMOUS)))) > 0
@@ -582,7 +582,7 @@ DELETE FROM %(schema)s.%(table)s
     def is_owner(self, cur, roles):
         """Tests whether the user role is owner.
         """
-        if not hasattr(roles, '__iter__'):
+        if not (type(roles) is set or type(roles) is list):
             roles = [roles]
         roles = [ r['id'] if type(r) is dict else r for r in roles ]
         return len(list(self.get_meta(cur, self.META_OWNER, roles)))>0
