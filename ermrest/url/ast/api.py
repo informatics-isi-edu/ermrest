@@ -42,7 +42,7 @@ class Api (object):
         """Policy enforcement on is_owner.
         """
         if not self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client):
+                        cur, web.ctx.webauthn2_context.attributes):
             raise rest.Forbidden(uri)
 
     def enforce_read(self, cur, uri=''):
@@ -51,7 +51,7 @@ class Api (object):
         if not (self.catalog.manager.has_read(
                         cur, web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
     def enforce_write(self, cur, uri=''):
@@ -60,7 +60,7 @@ class Api (object):
         if not (self.catalog.manager.has_write(
                         cur, web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
     def enforce_content_read(self, cur, uri=''):
@@ -69,7 +69,7 @@ class Api (object):
         if not (self.catalog.manager.has_content_read(
                         cur, web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
     def enforce_content_write(self, cur, uri=''):
@@ -78,7 +78,7 @@ class Api (object):
         if not (self.catalog.manager.has_content_write(
                         cur, web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
     def enforce_schema_write(self, cur, uri=''):
@@ -87,7 +87,7 @@ class Api (object):
         if not (self.catalog.manager.has_schema_write(
                         cur, web.ctx.webauthn2_context.attributes)
                 or self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.client) ):
+                        cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
     def with_queryopts(self, qopt):
