@@ -282,6 +282,8 @@ SELECT txid_current();
            When 'owner' is None, it initializes the catalog permissions with 
            the anonymous ('*') role, including the ownership.
         """
+        if type(owner) is dict:
+            owner = owner['id']
         
         # create schema, if it doesn't exist
         if not schema_exists(cur, self._SCHEMA_NAME):
