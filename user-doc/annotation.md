@@ -282,7 +282,9 @@ Note that the JSON payload MAY contain one object as specified below, or may inc
 
 - `null` or `{}`: Nothing else is known about the URLs.
 - `{`... `"url":` _pattern_ ...`}`: The actual URL is obtained by expanding the _pattern_ (see below).
+- `{`... `"url": [` _pattern_`,`...`]`...`}`: A set of URLs is obtained by expanding the list of _pattern_.
 - `{`... `"caption":` _pattern_ ...`}`: The optional caption to go along with the URL where applicable. The actual caption is obtained by expanding the _pattern_ (see below).
+- `{`... `"caption": [` _pattern_`,`...`]`...`}`: A set of captions is obtained by expanding the list of _pattern_. The list of captions and list of URLs MUST be the same length.
 - `{`... `"presentation":` [`"download"` | `"embed"` | `"link"` | `"thumbnail"`] ...`}`: Indicates the preferred presentation style for the URL. The presentation value should be one of the options listed.
 - `{`... `"entity": true` ...`}`: Each URL locates a representation of the table row.
 - `{`... `"content-type":` _MIME type_ ... `}`: Each URL locates a representation which SHOULD have the given _MIME type_. This sets a static MIME type for the whole table.
@@ -292,15 +294,17 @@ Note that the JSON payload MAY contain one object as specified below, or may inc
 
 These optional descriptive fields are mostly additive in their semantics.
 
-1. The `url` assertion is interpreted first, resulting in a URL that is then interpreted according the remaining rules.
-2. The `caption` may be used to enhance the presentation of the URL where applicable.
+1. The `url` assertion is interpreted first, resulting in a URL (or set of URLs) that is then interpreted according the remaining rules.
+2. The `caption` may be used to enhance the presentation of the URL (or set of URLs) where applicable.
 3. In the absence of `entity`, the relationship of the located representation to the table row SHOULD be determined by other means.
 4. A `thumbnail` assertion within the `presentation` option implies that the MIME type of the located representations SHOULD be an image type, but does not specify which image type specifically.
 5. A `content-type` assertion indicates a static MIME type for the whole column, while the `content-type-column` assertion indicates a source of row-by-row MIME types. The presence of both indicates that the row-by-row source SHOULD always contain the same static value.
 6. A retrieved representation that does not satisfy the `thumbnail`, `content-type`, or `content-type-column` expectations designated by the annotation SHOULD be handled as an erroneous condition.
 
-When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. When the context of the annotation is a _column_, it SHOULD be assumed that the `column name` matches the context.
+#### Pattern expansion
 
+When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. When the context of the annotation is a _column_, it SHOULD be assumed that the `column name` matches the context. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
+ 
 For example, a _table_ may have a `tag:misd.isi.edu,2015:url` annotation containing the following payload:
 
 ```
@@ -315,6 +319,24 @@ A web user agent that consumes this annotation and the related table data would 
 ```
 <iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
 ```
+
+##### Null value exceptions
+
+If any field value in a _pattern_ is NULL in the source data record, the entire _pattern_ evaluates to NULL for this row.
+
+1. For annotation objects containing a scalar `url` _pattern_
+  - If the `url` _pattern_ evaluates to NULL, the annotation object does not produce a URL presentation
+  - If the `caption` _pattern_ is present and evaluates to NULL, the annotation object does not produce a URL presentation
+2. For annotation objects containing an array of `url` _pattern_
+  - If the `url` _pattern_ in position _i_ evaluates to NULL, the position _i_ does not produce a URL presentation
+  - If the `caption` _pattern_ in position _i_ is present and evaluates to NULL, the position _i_ does not produce a URL presentation
+  - If no position produces a URL presentation, the enclosing object does not produce a URL presentation
+
+#### Array interpretation
+
+1. When the annotation includes an array of annotation objects following the above description, the entire set of URL presentations described by the array are *all* included in the presentation of the entity. When a particular array entry's presentation is disabled due to null value exceptions, it is removed from the presentation of the entity. If the set of active URL presentations is empty, the entity has no presentation.
+2. When a single annotation object includes an array of `url` patterns, the URL presentation is a composite of those URLs. If the `caption` attribute is present, it MUST include an array of patterns of the same length and each caption modifies its corresponding URL at the same array positions. If the array is empty or the effective array is empty due to null value exceptions in patterns, the enclosing object's presentation is disabled.
+
 
 ### 2015 Vocabulary
 
