@@ -18,6 +18,8 @@ def catalog_auto_index(catalog, conn, cur, schema_names):
     for sname in schema_names:
         schema = model.schemas[sname]
         for table in schema.tables.values():
+            if table.kind not in ['r']:
+                continue
             column = table.freetext_column()
             cur.execute(column.textsearch_index_sql())
             cur.execute(column.pg_trgm_index_sql())
