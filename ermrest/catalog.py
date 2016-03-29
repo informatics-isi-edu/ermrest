@@ -582,9 +582,6 @@ DELETE FROM %(schema)s.%(table)s
     def is_owner(self, cur, roles):
         """Tests whether the user role is owner.
         """
-        if not (type(roles) is set or type(roles) is list):
-            roles = [roles]
-        roles = [ r['id'] if type(r) is dict else r for r in roles ]
-        return len(list(self.get_meta(cur, self.META_OWNER, roles)))>0
+        return self._test_perm(cur, self.META_OWNER, roles)
 
 
