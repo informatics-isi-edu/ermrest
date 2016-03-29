@@ -474,11 +474,11 @@ $$ LANGUAGE plpgsql;
            key and value pair, to test existence of specific pair.
         """
         where = ''
-        if key:
+        if key is not None:
             where = "WHERE key = %s" % sql_literal(key)
-            if value:
+            if value is not None:
                 if hasattr(value, '__iter__'):
-                    where += " AND value IN (%s)" % (
+                    where += " AND value = ANY (ARRAY[%s]::text[])" % (
                         ','.join([sql_literal(v) for v in value]))
                 else:
                     where += " AND value = %s" % sql_literal(value)
