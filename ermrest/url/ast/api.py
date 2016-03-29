@@ -49,8 +49,6 @@ class Api (object):
         """Policy enforcement on has_read test.
         """
         if not (self.catalog.manager.has_read(
-                        cur, web.ctx.webauthn2_context.attributes)
-                or self.catalog.manager.is_owner(
                         cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
@@ -58,8 +56,6 @@ class Api (object):
         """Policy enforcement on has_write test.
         """
         if not (self.catalog.manager.has_write(
-                        cur, web.ctx.webauthn2_context.attributes)
-                or self.catalog.manager.is_owner(
                         cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
@@ -67,8 +63,6 @@ class Api (object):
         """Policy enforcement on has_content_read test.
         """
         if not (self.catalog.manager.has_content_read(
-                        cur, web.ctx.webauthn2_context.attributes)
-                or self.catalog.manager.is_owner(
                         cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
@@ -76,8 +70,6 @@ class Api (object):
         """Policy enforcement on has_content_write test.
         """
         if not (self.catalog.manager.has_content_write(
-                        cur, web.ctx.webauthn2_context.attributes)
-                or self.catalog.manager.is_owner(
                         cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
@@ -85,8 +77,6 @@ class Api (object):
         """Policy enforcement on has_schema_write test.
         """
         if not (self.catalog.manager.has_schema_write(
-                        cur, web.ctx.webauthn2_context.attributes)
-                or self.catalog.manager.is_owner(
                         cur, web.ctx.webauthn2_context.attributes) ):
             raise rest.Forbidden(uri)
 
