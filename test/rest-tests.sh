@@ -789,23 +789,63 @@ id,name,value
 EOF
 dotest "200::*::*" "/catalog/${cid}/entity/pagedata?defaults=id" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
+dopagetest()
+{
+    expected_rows=$1
+    shift
+    dotest "$@" -H "Accept: text/csv"
+    got_rows=$(( $(wc -l < ${RESPONSE_CONTENT} ) - 1 )) # minus one for CSV header
+    [[ ${got_rows} -eq -1 ]] && got_rows=0 # ERMrest skips CSV header on empty result set!
+    if [[ ${expected_rows} -ne ${got_rows} ]]
+    then
+	cat <<EOF
+FAILED: result row count ${got_rows} does not match expected ${expected_rows} for $@
+
+$(cat ${RESPONSE_CONTENT})
+EOF
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+    elif [[ "$VERBOSE" = "true" ]] || [[ "$VERBOSE" = "brief" ]]
+    then
+	cat <<EOF
+TEST $(( ${NUM_TESTS} + 1 )) OK: row count ${got_rows} matches expected ${expected_rows}
+EOF
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+# different API forms that denote the same essential entity result set
+# to tickle different code paths
 for query in "/catalog/${cid}/entity/pagedata" \
 		 "/catalog/${cid}/attribute/pagedata/id,name,value" \
-		 "/catalog/${cid}/attributegroup/pagedata/id;name,value"
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value,c:=cnt(*)"
+do
+    # valid page key syntax
+    dopagetest 20 "200::*::*" "${query}@sort(name,value)@after(,4)"
+    dopagetest 16 "200::*::*" "${query}@sort(name,value)@after(bar,3)"
+    dopagetest 14 "200::*::*" "${query}@sort(name,value)@after(bar,::null::)"
+    dopagetest  0 "200::*::*" "${query}@sort(name,value)@after(::null::,::null::)"
+done
+
+for query in "/catalog/${cid}/entity/pagedata" \
+		 "/catalog/${cid}/attribute/pagedata/id,name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value,c:=cnt(*)" \
+		 "/catalog/${cid}/aggregate/pagedata/id:=cnt(id),name:=cnt(name),value:=cnt(*)"
 do
     # invalid page key syntax
     dotest "400::*::*" "${query}@after(bar)"
     dotest "400::*::*" "${query}@before(bar)"
     dotest "400::*::*" "${query}@sort(name,value)@after(bar)"
     dotest "400::*::*" "${query}@sort(name,value)@before(bar)"
-
-    # valid page key syntax
-    dotest "200::*::*" "${query}@sort(name,value)@after(,4)"
-    dotest "200::*::*" "${query}@sort(name,value)@after(bar,3)"
-    dotest "200::*::*" "${query}@sort(name,value)@after(bar,::null::)"
-    dotest "200::*::*" "${query}@sort(name,value)@after(::null::,::null::)"
-    
 done
+
+# even valid page key syntax not allowed on aggregates
+query="/catalog/${cid}/aggregate/pagedata/id:=cnt(id),name:=cnt(name),value:=cnt(*)"
+dotest "400::*::*" "${query}@sort(name,value)@after(,4)"
+dotest "400::*::*" "${query}@sort(name,value)@after(bar,3)"
+dotest "400::*::*" "${query}@sort(name,value)@after(bar,::null::)"
+dotest "400::*::*" "${query}@sort(name,value)@after(::null::,::null::)"
 
 if [[ "${DESTROY_CATALOG}" = "true" ]]
 then
