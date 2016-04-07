@@ -1530,6 +1530,10 @@ class AggregatePath (AnyPath):
         if sort:
             raise BadSyntax('Sort is meaningless for aggregates returning one row.')
 
+    def add_paging(self, before, after):
+        # to honour generic API.  actually gated on self.add_sort() above so no need to test again
+        pass
+        
     def sql_get(self, row_content_type='application/json'):
         """Generate SQL query to get the resources described by this apath.
 
