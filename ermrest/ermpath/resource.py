@@ -1167,11 +1167,6 @@ class AttributePath (AnyPath):
         outputs = set()
         output_types = {}
 
-        if row_content_type == 'text/csv':
-            cast = '::text'
-        else:
-            cast = ''
-
         for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
@@ -1187,7 +1182,7 @@ class AttributePath (AnyPath):
             else:
                 select = "%s.%s" % (alias, col.sql_name())
 
-            select = select + cast
+            select = select
 
             if attribute.alias is not None:
                 if unicode(attribute.alias) in outputs:
@@ -1371,11 +1366,6 @@ class AttributeGroupPath (AnyPath):
         else:
             page_filters = 'WHERE %s' % (' AND '.join(page_filters))
 
-        if row_content_type == 'text/csv':
-            groupkeys = map(lambda k: '%s::text' % k, groupkeys)
-            extras = map(lambda k: '%s::text' % k, extras)
-            aggregates = map(lambda a: ('%s::text' % a[0], a[1]), aggregates)
-
         if extras:
             # an impure aggregate query includes extras which must be reduced 
             # by an arbitrary DISTINCT ON and joined to the core aggregate query
@@ -1542,11 +1532,6 @@ class AggregatePath (AnyPath):
         aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
         asql, sort, page_filters = apath.sql_get(split_sort=True, distinct_on=False)
 
-        if row_content_type == 'text/csv':
-            cast = '::text'
-        else:
-            cast = ''
-
         # a pure aggregate query has aggregates
         sql = """
 SELECT %(aggs)s
@@ -1554,7 +1539,7 @@ FROM ( %(asql)s ) s
 """
         return sql % dict(
             asql=asql,
-            aggs=', '.join([ '%s%s AS %s' % (a[0], cast, a[1]) for a in aggregates]),
+            aggs=', '.join([ '%s AS %s' % (a[0], a[1]) for a in aggregates]),
             )
 
 class QueryPath (object):
