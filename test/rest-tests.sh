@@ -789,13 +789,20 @@ id,name,value
 EOF
 dotest "200::*::*" "/catalog/${cid}/entity/pagedata?defaults=id" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
-dopagetest()
+dopagetest_typed()
 {
-    expected_rows=$1
-    shift
-    dotest "$@" -H "Accept: text/csv"
-    got_rows=$(( $(wc -l < ${RESPONSE_CONTENT} ) - 1 )) # minus one for CSV header
+    mime_type="$1"
+    expected_rows=$2
+    shift 2
+    dotest "$@" -H "Accept: ${mime_type}"
+    offset=0
+    if [[ "${mime_type}" = text/csv ]]
+    then
+	offset=1
+    fi
+    got_rows=$(( $(wc -l < ${RESPONSE_CONTENT} ) - $offset )) # minus one for CSV header
     [[ ${got_rows} -eq -1 ]] && got_rows=0 # ERMrest skips CSV header on empty result set!
+    [[ "${mime_type}" = "application/json" ]] && grep -q '^\[\]$' ${RESPONSE_CONTENT} && got_rows=0 # empty array
     if [[ ${expected_rows} -ne ${got_rows} ]]
     then
 	cat <<EOF
@@ -811,6 +818,13 @@ TEST $(( ${NUM_TESTS} + 1 )) OK: row count ${got_rows} matches expected ${expect
 EOF
     fi
     NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+dopagetest()
+{
+    dopagetest_typed text/csv "$@"
+    dopagetest_typed application/x-json-stream "$@"
+    dopagetest_typed application/json "$@"
 }
 
 # different API forms that denote the same essential entity result set
