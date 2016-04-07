@@ -73,6 +73,7 @@ def _GET(handler, uri, dresource, vresource):
         handler.set_http_etag( vresource.get_data_version(cur) )
         handler.http_check_preconditions()
         dresource.add_sort(handler.sort)
+        dresource.add_paging(handler.after, handler.before)
         return dresource.get(conn, cur, content_type=content_type, limit=limit)
 
     def post_commit(lines):

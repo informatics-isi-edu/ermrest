@@ -73,6 +73,9 @@ class Value (object):
         """
         pass
 
+    def is_null(self):
+        return self._str is None
+    
     def sql_literal(self, etype):
         return etype.sql_literal(self._str)
 
