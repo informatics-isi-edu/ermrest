@@ -51,6 +51,11 @@ class Sortkey (object):
         self.keyname = keyname
         self.descending = descending
 
+class PageList (list):
+    """Represent a list of page key values
+    """
+    pass
+
 class Value (object):
     """Represent a literal value in an ERMREST URL.
 

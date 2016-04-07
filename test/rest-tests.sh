@@ -748,6 +748,65 @@ do
     dotest "200::*::*" "/catalog/${cid}/textfacet/${pattern}"
 done
 
+# create table for paging tests
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "pagedata",
+   "column_definitions": [ 
+      { "type": { "typename": "serial4" }, "name": "id" },
+      { "type": { "typename": "text" }, "name": "name" },
+      { "type": { "typename": "int4" }, "name": "value" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id,name,value
+,bar,0
+,bar,1
+,bar,2
+,bar,3
+,bar,4
+,bar,
+,baz,0
+,baz,1
+,baz,2
+,baz,3
+,baz,4
+,baz,
+,foo,0
+,foo,1
+,foo,2
+,foo,3
+,foo,4
+,foo,
+,,5
+,,
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/pagedata?defaults=id" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+for query in "/catalog/${cid}/entity/pagedata" \
+		 "/catalog/${cid}/attribute/pagedata/id,name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value"
+do
+    # invalid page key syntax
+    dotest "400::*::*" "${query}@after(bar)"
+    dotest "400::*::*" "${query}@before(bar)"
+    dotest "400::*::*" "${query}@sort(name,value)@after(bar)"
+    dotest "400::*::*" "${query}@sort(name,value)@before(bar)"
+
+    # valid page key syntax
+    dotest "200::*::*" "${query}@sort(name,value)@after(,4)"
+    dotest "200::*::*" "${query}@sort(name,value)@after(bar,3)"
+    dotest "200::*::*" "${query}@sort(name,value)@after(bar,::null::)"
+    dotest "200::*::*" "${query}@sort(name,value)@after(::null::,::null::)"
+    
+done
+
 if [[ "${DESTROY_CATALOG}" = "true" ]]
 then
     ###### tear down test catalog

@@ -116,6 +116,23 @@ def p_sortlist_grow(p):
     p[0] = p[1]
     p[0].append( p[3] )
 
+def p_data_page_before(p):
+    """datasort : datasort '@' BEFORE '(' pagelist ')' """
+    p[0] = p[1].with_before(p[5])
+
+def p_data_page_after(p):
+    """datasort : datasort '@' AFTER '(' pagelist ')' """
+    p[0] = p[1].with_after(p[5])
+
+def p_pagelist(p):
+    """pagelist : pageitem"""
+    p[0] = ast.PageList([ p[1] ])
+
+def p_pagelist_grow(p):
+    """pagelist : pagelist ',' pageitem"""
+    p[0] = p[1]
+    p[0].append( p[3] )
+    
 def p_meta_key(p):
     """meta : catalogslash META '/' string slashopt """
     p[0] = p[1].meta(p[4])
@@ -256,6 +273,18 @@ def p_sortitem(p):
 def p_sortitem_descending(p):
     """sortitem : string OPMARK DESC OPMARK"""
     p[0] = ast.Sortkey(p[1], True)
+
+def p_pageitem(p):
+    """pageitem : string"""
+    p[0] = ast.Value(p[1])
+
+def p_pageitem_null(p):
+    """pageitem : OPMARK NULL OPMARK"""
+    p[0] = ast.Value(None)
+
+def p_pageitem_empty(p):
+    """pageitem : """
+    p[0] = ast.Value('')
 
 def p_bname_grow(p):
     """bname : bname ':' string"""

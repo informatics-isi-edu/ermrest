@@ -277,6 +277,32 @@ The modifier appears as an optional suffix to data names, but before any query p
 
 The sort modifier is only meaningful on retrieval requests using the `GET` method described in [Data Operations](#data-operations).
 
+## Paging Modifiers
+
+Optional paging modifiers can designate results that come _before_ or _after_ a designated page key in a sorted sequence. A page key is a vector of values taken from a row that falls outside the page, with one component per field in the sort modifier. Both paging modifiers MAY be included in the same resource to designate rows falling _between_ two page keys. The page key boundaries form an "open interval", where rows matching the page keys MUST NOT appear in the resulting data resource.
+
+These modifiers MUST be accompanied by a sort modifier to define the ordering of rows in the result set as well as the ordering of fields of the page key vector. The paging modifiers support a special symbol `::null::` to represent a NULL column value in a page key.
+
+### Before Modifier
+
+The `@before` modifier designates a result set of rows antecedent to the encoded page key:
+
+- `@sort(` _output column_ ...`)@before(` `,` ... `)` (i.e. empty string)
+- `@sort(` _output column_ ...`)@before(` _value_ `,` ... `)` (i.e. literal string)
+- `@sort(` _output column_ ...`)@before(` `::null::` `,` ... `)` (i.e. NULL)
+
+For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _before_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last).
+
+### After Modifier
+
+The `@after` modifier designates a result set of rows subsequent to the encoded page key:
+
+- `@sort(` _output column_ ...`)@after(` `,` ... `)` (i.e. empty string)
+- `@sort(` _output column_ ...`)@after(` _value_ `,` ... `)` (i.e. literal string)
+- `@sort(` _output column_ ...`)@after(` `::null::` `,` ... `)` (i.e. NULL)
+
+For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _after_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last).
+
 ## Limit Query Parameter
 
 An optional `limit` query parameter can truncate the length of set-based resource representations denoted by `entity`, `attribute`, and `attributegroup` resource names:
@@ -294,58 +320,25 @@ The `limit` query parameter is only meaningful on retrieval requests using the `
 
 ## Data Paging
 
-The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [path filters](#path-filters) can be combined to express paged access to set-based data resources:
+The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [paging modifers](#paging-modifiers) can be combined to express paged access to set-based data resources:
 
 1. The sort order defines a stable sequence of set elements.
-1. The path filter selects set elements following the last-visited element.
-1. The limit parameter defines the number of set elements in the page.
+1. The paging modifiers select set elements following (or preceding) the last-visited element.
+1. The limit parameter defines the number of set elements in the retrieved page.
 
-This allows sequential paging or scrolling of large result sets. Because ERMrest supports concurrent retrieval and modification of data resources by multiple clients, it is not sensible to randomly access set elements by stream offset (whether by element or page count) because you might skip or repeat elements if preceding elements have been inserted or removed from the sequence in between page requests. With element-based page keying, a concurrent insertion may appear in a scrolled set, and a concurrent deletion may disappear from a scrolled set, but all elements that existed throughout the period of scrolling will be visited once.
+This allows sequential paging or scrolling of large result sets with reversing/rewind to earlier pages. Because ERMrest supports concurrent retrieval and modification of data resources by multiple clients, it is not sensible to randomly access set elements by stream position offsets (whether by element or page count) because you might skip or repeat elements if preceding elements have been inserted or removed from the sequence in between page requests. 
 
-### Simple Paging by Entity Key
+A client can choose an arbitrary application-oriented sort order with paging. However, the client SHOULD include row-level unique key material in the sort and page key to avoid hazards of missing rows that have identical sorting rank due to non-unique page keys. This can be achieved by appending unique key columns to the application sort as the lowest precedence sort criteria, i.e. sort first by an interesting but non-unique property and then finally break ties by a unique serial ID or similar property.
 
-If the client needs to page through entity records, i.e. `entity` or `attribute` resources, and the client does not need a particular visitation order for the set-based resource elements, it is recommended that paging be performed by the primary key on the entity. Of course, the method described here is also then applicable if the client desired to visit the elements in primary key order.
+1. Fetch first page:
+  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+1. Fetch subsequent page by encoding a page key projected from the **last** row of the preceding page:
+  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
+1. Fetch antecedent page by encoding a page key projected from the **first** row of the subsequent page:
+  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
 
-For example, assuming `table1` has a single key column `keycol`, fetch the first page of results using a sorted and limited data resource:
+Realize that a sequence of forward and backward page requests through a dataset might not land on the same page boundaries on both visits!
 
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(keycol)?limit=` _page size_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(keycol)?limit=` _page size_
-
-Fetch additional pages by sorting and limiting a filtered data resource that only includes elements with key value following the _previous key_ value encountered in the last element of the preceding page:
-
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `/keycol::gt::` _previous key_ `@sort(keycol)?limit=` _page size_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/keycol::gt::` _previous key_ `/` _projection_ `,` ... `@sort(keycol)?limit=` _page size_
-
-These examples use the `::gt::` or "greater than" filter operator which means only records where `keycol` > _previous key_ are included in the results. A reverse order scroll can be achieved by using the `::desc::` sort direction and the `::lt::` or "less than" filter operator.
-
-Because sort is applied after projection, such paging is only possible for `attribute` resources if the key column(s) are included in the projection list.
-
-### Paging with Application Sort Order
-
-If the client needs sort elements by a column other than the primary key, a more complex data name is required to simultaneously provide the application sort and a secondary sort that allows page-based segmentation by unique row keys. Two complications are introduced here: the application sort values may be shared by multiple rows and they may also be absent (NULL) for some rows.
-
-For example, assuming `table1` has a single key column `keycol` and the client wants to sort by an application-specific column `appcol`, fetch the first page of results using a sorted and limited data resource:
-
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(appcol,keycol)?limit=` _page size_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(appcol,keycol)?limit=` _page size_
-
-Fetch additional pages by sorting and limiting a filtered data resource that only includes elements with application value and key value following the _V0_ and _K0_ encountered in the last element of the preceding page:
-
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `/appcol=` _V0_ `&keycol::gt::` _K0_ `;appcol::gt::` _V0_ `;appcol::null::` `@sort(appcol,keycol)?limit=` _page size_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/appcol=` _V0_ `&keycol::gt::` _K0_ `;appcol::gt::` _V0_ `;appcol::null::` `/` _projection_ `,` ... `@sort(appcol,keycol)?limit=` _page size_
-
-The subsequent page filters express conditions for three kinds of row which might appear in the next page:
-
-1. A set of rows sharing the same `appcol` value _V0_ and subsequent `keycol` keys
-1. A set of rows with subsequent `appcol` values
-1. A set of rows with `NULL` `appcol`
-
-these logical cases are rewritten into conjunctive normal form using the available filter syntax of ERMrest.  If the last encountered element has a `NULL` `appcol` value, a different page request is needed:
-
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `/appcol::null::/keycol::gt::` _K0_ `@sort(appcol,keycol)?limit=` _page size_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/appcol::null::/keycol::gt::` _K0_`/` _projection_ `,` ... `@sort(appcol,keycol)?limit=` _page size_
-
-this alternate resource name is required because `NULL` is not a value which can be used in `::gt::` or `::lt::` comparison operations.
-
-Because sort is applied after projection, such paging is only possible for `attribute` resources if the application and key sort column(s) are included in the projection list.
-
+- Rows might be inserted during a traversal. An inserted row MAY appear in the traversal or MAY be skipped depending on where it falls in the sorted sequence.
+- Rows might be deleted during a traversal. A deleted row MAY appear in the traversal or MAY be skipped depending on where it falls in the sorted sequence.
+- Rows might be mutated such that they change positions in the sorted sequence during a traversal. A mutated table row contains one tuple of data before the mutation and another tuple of data after. A single traversal concurrent with that mutation MAY encounter zero, one, or two copies of the row depending on where they fall in the sorted sequence.
