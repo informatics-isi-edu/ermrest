@@ -51,11 +51,13 @@ several different kinds of rights:
 5. Create row-level policies to access table data
 6. Drop or alter row-level policies by name
 
+NOTE: the following examples use old-style group IDs as with the `goauth` webauthn provider. In the future, such group IDs will replace the `g:` prefix with a URL designating the group membership provider who asserted the group membership attribute.
+
 ### Example 1: Adjust ownership
 
     BEGIN;
-    ALTER TABLE my_example OWNER TO karlcz;
-	GRANT ermrest TO karlcz; -- needed to allow normal bookkeeping on behalf of table owner when foreign keys exist etc.
+    ALTER TABLE my_example OWNER TO devuser;
+	GRANT ermrest TO devuser; -- needed to allow normal bookkeeping on behalf of table owner when foreign keys exist etc.
     GRANT ALL ON TABLE my_example TO ermrest;
 	GRANT ALL ON SEQUENCE my_example_id_seq TO ermrest; -- needed to allow use of auto-generated serial IDs
     COMMIT;
@@ -66,7 +68,7 @@ several different kinds of rights:
 
 At this point, ERMrest should still work (a smart thing to test) but data operations on this table will fail as the default policies do not allow any operations on any row data!  Go back to normal with:
 
-    ALTER TABLE my_example DISABLE ROW SECURITY;
+    ALTER TABLE my_example DISABLE ROW LEVEL SECURITY;
 
 ### Example 3: Create row-level policies to restore all access
 
@@ -94,7 +96,7 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     CREATE POLICY select_user
     ON my_example
       FOR SELECT
-      USING ( 'karlcz' = (SELECT _ermrest.current_client()) );
+      USING ( 'devuser' = (SELECT _ermrest.current_client()) );
 
 ### Example 6: Consider row-data in more complete example, assuming the table includes `owner` and `acl` columns of type `text` and `text[]`, respectively
 
