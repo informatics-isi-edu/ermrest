@@ -35,6 +35,8 @@ class Api (object):
         self.catalog = catalog
         self.queryopts = dict()
         self.sort = None
+        self.before = None
+        self.after = None
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 
@@ -86,6 +88,24 @@ class Api (object):
 
     def with_sort(self, sort):
         self.sort = sort
+        return self
+
+    def with_before(self, before):
+        self.before = before
+        if len(before) != len(self.sort):
+            raise rest.BadRequest(
+                'The "before" page key of length %d does not match the "sort" key of length %d.'
+                % (len(before), len(self.sort))
+            )
+        return self
+
+    def with_after(self, after):
+        self.after = after
+        if len(after) != len(self.sort):
+            raise rest.BadRequest(
+                'The "after" page key of length %d does not match the "sort" key of length %d.'
+                % (len(after), len(self.sort))
+            )
         return self
 
     def negotiated_limit(self):

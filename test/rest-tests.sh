@@ -748,6 +748,119 @@ do
     dotest "200::*::*" "/catalog/${cid}/textfacet/${pattern}"
 done
 
+# create table for paging tests
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "pagedata",
+   "column_definitions": [ 
+      { "type": { "typename": "serial4" }, "name": "id" },
+      { "type": { "typename": "text" }, "name": "name" },
+      { "type": { "typename": "int4" }, "name": "value" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+id,name,value
+,bar,0
+,bar,1
+,bar,2
+,bar,3
+,bar,4
+,bar,
+,baz,0
+,baz,1
+,baz,2
+,baz,3
+,baz,4
+,baz,
+,foo,0
+,foo,1
+,foo,2
+,foo,3
+,foo,4
+,foo,
+,,5
+,,
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/pagedata?defaults=id" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+dopagetest_typed()
+{
+    mime_type="$1"
+    expected_rows=$2
+    shift 2
+    dotest "$@" -H "Accept: ${mime_type}"
+    offset=0
+    if [[ "${mime_type}" = text/csv ]]
+    then
+	offset=1
+    fi
+    got_rows=$(( $(wc -l < ${RESPONSE_CONTENT} ) - $offset )) # minus one for CSV header
+    [[ ${got_rows} -eq -1 ]] && got_rows=0 # ERMrest skips CSV header on empty result set!
+    [[ "${mime_type}" = "application/json" ]] && grep -q '^\[\]$' ${RESPONSE_CONTENT} && got_rows=0 # empty array
+    if [[ ${expected_rows} -ne ${got_rows} ]]
+    then
+	cat <<EOF
+FAILED: result row count ${got_rows} does not match expected ${expected_rows} for $@
+
+$(cat ${RESPONSE_CONTENT})
+EOF
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+    elif [[ "$VERBOSE" = "true" ]] || [[ "$VERBOSE" = "brief" ]]
+    then
+	cat <<EOF
+TEST $(( ${NUM_TESTS} + 1 )) OK: row count ${got_rows} matches expected ${expected_rows}
+EOF
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+dopagetest()
+{
+    dopagetest_typed text/csv "$@"
+    dopagetest_typed application/x-json-stream "$@"
+    dopagetest_typed application/json "$@"
+}
+
+# different API forms that denote the same essential entity result set
+# to tickle different code paths
+for query in "/catalog/${cid}/entity/pagedata" \
+		 "/catalog/${cid}/attribute/pagedata/id,name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value,c:=cnt(*)"
+do
+    # valid page key syntax
+    dopagetest 20 "200::*::*" "${query}@sort(name,value)@after(,4)"
+    dopagetest 16 "200::*::*" "${query}@sort(name,value)@after(bar,3)"
+    dopagetest 14 "200::*::*" "${query}@sort(name,value)@after(bar,::null::)"
+    dopagetest  0 "200::*::*" "${query}@sort(name,value)@after(::null::,::null::)"
+done
+
+for query in "/catalog/${cid}/entity/pagedata" \
+		 "/catalog/${cid}/attribute/pagedata/id,name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value" \
+		 "/catalog/${cid}/attributegroup/pagedata/id;name,value,c:=cnt(*)" \
+		 "/catalog/${cid}/aggregate/pagedata/id:=cnt(id),name:=cnt(name),value:=cnt(*)"
+do
+    # invalid page key syntax
+    dotest "400::*::*" "${query}@after(bar)"
+    dotest "400::*::*" "${query}@before(bar)"
+    dotest "400::*::*" "${query}@sort(name,value)@after(bar)"
+    dotest "400::*::*" "${query}@sort(name,value)@before(bar)"
+done
+
+# even valid page key syntax not allowed on aggregates
+query="/catalog/${cid}/aggregate/pagedata/id:=cnt(id),name:=cnt(name),value:=cnt(*)"
+dotest "400::*::*" "${query}@sort(name,value)@after(,4)"
+dotest "400::*::*" "${query}@sort(name,value)@after(bar,3)"
+dotest "400::*::*" "${query}@sort(name,value)@after(bar,::null::)"
+dotest "400::*::*" "${query}@sort(name,value)@after(::null::,::null::)"
+
 if [[ "${DESTROY_CATALOG}" = "true" ]]
 then
     ###### tear down test catalog

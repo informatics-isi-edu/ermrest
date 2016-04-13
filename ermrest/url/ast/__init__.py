@@ -51,6 +51,11 @@ class Sortkey (object):
         self.keyname = keyname
         self.descending = descending
 
+class PageList (list):
+    """Represent a list of page key values
+    """
+    pass
+
 class Value (object):
     """Represent a literal value in an ERMREST URL.
 
@@ -68,6 +73,9 @@ class Value (object):
         """
         pass
 
+    def is_null(self):
+        return self._str is None
+    
     def sql_literal(self, etype):
         return etype.sql_literal(self._str)
 
