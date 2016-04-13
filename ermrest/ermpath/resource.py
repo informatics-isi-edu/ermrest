@@ -414,7 +414,6 @@ class EntityElem (object):
         # build up intermediate SQL representations of each JSON record as field lists
         # this is used in both JSON-related input data branches below, so lifted up here to share...
         json_cols = []
-        json_record_type = []
         json_projection = []
 
         def json_field(col_name, c):
@@ -424,16 +423,23 @@ class EntityElem (object):
             if c.type.is_array:
                 # extract field as JSON and transform to array
                 # since PostgreSQL json_to_recordset fails for native array extraction...
-                json_record_type.append('%s %s' % (col_name, 'json'))
-                json_projection.append('(SELECT array_agg(x::%s) FROM json_array_elements_text(%s) s (x)) AS %s' % (
+                json_projection.append("(SELECT array_agg(x::%s) FROM json_array_elements_text(j->'%s') s (x)) AS %s" % (
                     c.type.base_type.sql(basic_storage=True),
-                    col_name,
+                    c.name,
+                    col_name
+                ))
+            elif c.type.name in ['json', 'jsonb']:
+                json_projection.append("(j->'%s')::%s AS %s" % (
+                    c.name,
+                    c.type.sql(basic_storage=True),
                     col_name
                 ))
             else:
-                # pass-through for normal scalar types
-                json_record_type.append('%s %s' % (col_name, sql_type))
-                json_projection.append('%s AS %s' % (col_name, col_name))
+                json_projection.append("(j->>'%s')::%s AS %s" % (
+                    c.name,
+                    c.type.sql(basic_storage=True),
+                    col_name
+                ))
                         
         for c in mkcols:
             json_field(c.sql_name(mkcol_aliases.get(c)), c)
@@ -494,14 +500,13 @@ INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s 
 FROM (
   SELECT %(json_projection)s 
-  FROM json_to_recordset( %(input)s::json )
-    AS rs ( %(json_record_type)s )
+  FROM json_array_elements( %(input)s::json )
+    AS rs ( j )
 ) s
 """ % dict( 
     input_table = sql_identifier(input_table),
     cols = u','.join(json_cols),
     input = Type('text').sql_literal(buf),
-    json_record_type=','.join(json_record_type),
     json_projection=','.join(json_projection)
 )
                 )
@@ -518,14 +523,12 @@ INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s
 FROM (
   SELECT %(json_projection)s
-  FROM json_to_recordset( (SELECT json_agg(j) FROM %(input_json)s i) )
-    AS rs ( %(json_record_type)s )
+  FROM %(input_json)s i
 ) s
 """ % dict(
     input_table = sql_identifier(input_table),
     input_json = sql_identifier(input_json_table),
     cols = ','.join(json_cols),
-    json_record_type=','.join(json_record_type),
     json_projection=','.join(json_projection)
 )
                 )
