@@ -296,22 +296,32 @@ EOF
     dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_ctype_${ctype} -X DELETE
 done
 
-# create tables for extended types
-etypes=(
-    json
-    jsonb
-)
+doresponsediff()
+{
+    diff -q -w ${RESPONSE_CONTENT} ${TEST_DATA}
+    status=$?
 
-evals=(
-    '"{""foo"": ""bar""}"'
-    '"{""foo"": ""bar""}"'
-)
+    if [[ $status = 1 ]]
+    then
+	cat <<EOF
+FAILED: Data round-trip failed for $@
 
-for typeno in "${!etypes[@]}"
+$(diff -w ${RESPONSE_CONTENT} ${TEST_DATA})
+EOF
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+    else
+	if [[ "$VERBOSE" = true ]] || [[ "$VERBOSE" = brief ]]
+	then
+	    cat <<EOF
+TEST $(( ${NUM_TEST} + 1 )) OK: Entities round-tripped for $@
+EOF
+	fi
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+for etype in json jsonb
 do
-    etype="${etypes[$typeno]}"
-    eval="${evals[$typeno]}"
-    
     cat > ${TEST_DATA} <<EOF
 {
    "kind": "table",
@@ -330,19 +340,54 @@ EOF
     dotest "200::*::*" /catalog/${cid}/entity/test1:test_etype_${etype}
     dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_etype_${etype}
 
-    cat > ${TEST_DATA} <<EOF
+    write_urls=(
+	"/catalog/${cid}/entity/test1:test_etype_${etype}"
+	"/catalog/${cid}/attributegroup/test1:test_etype_${etype}/id;name,payload"
+    )
+    
+    read_urls=(
+	"${write_urls[@]}"
+	"/catalog/${cid}/attribute/test1:test_etype_${etype}/id,name,payload"
+    )
+
+    for eval_json in '5' '"foo"' '{"foo": "bar"}' '[5, 6]' '["foo", "bar"]' '[{"foo": "bar"}, {"foo": "bar"}]'
+    do
+	eval_csv="\"$(echo "${eval_json}" | sed -e "s/\"/\"\"/g")\""
+	[[ "${eval_csv}" = '"5"' ]] && eval_csv=5  # HACK: special case the above logic for integer test case
+    
+	cat > ${TEST_DATA} <<EOF
 id,name,payload
-1,row1,${eval}
-2,row2,${eval}
+1,row1,${eval_csv}
 EOF
-    dotest "200::*::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
-    dotest "200::text/csv::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Accept: text/csv"
+	for write_url in "${write_urls[@]}"
+	do
+	    dotest "200::*::*" "${write_url}" -H "Content-Type: text/csv" -T ${TEST_DATA}
+	    # these outputs look correct but have unstable order so don't work with diff testing...
+	    #doresponsediff "CSV encoded JSON ${eval_json} for ${write_url} PUT response"
 
-    dotest "409::*::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
-    dotest "200::*::*" /catalog/${cid}/entity/test1:test_etype_${etype} -H "Content-Type: text/csv" -T ${TEST_DATA}
-
-    dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_etype_${etype}/id;name,payload" -H "Content-Type: text/csv" -T ${TEST_DATA}
-    dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_etype_${etype}/id,name;payload" -H "Content-Type: text/csv" -T ${TEST_DATA}
+	    for read_url in "${read_urls[@]}"
+	    do
+		dotest "200::text/csv::*" "${read_url}@sort(id)" -H "Accept: text/csv"
+		doresponsediff "CSV encoded JSON ${eval_json} for ${write_url} to ${read_url}"
+	    done
+	done
+	    
+	cat > ${TEST_DATA} <<EOF
+[{"id": 1, "name": "row1", "payload": ${eval_json}}]
+EOF
+	for write_url in "${write_urls[@]}"
+	do
+	    dotest "200::*::*" "${write_url}" -H "Content-Type: application/json" -T ${TEST_DATA}
+	    # these outputs look correct but have unstable order so don't work with diff testing...
+	    #doresponsediff "JSON encoded JSON ${eval_json} for ${write_url} PUT response"
+	    
+	    for read_url in "${read_urls[@]}"
+	    do
+		dotest "200::application/json::*" "${read_url}@sort(id)" -H "Accept: application/json"
+		doresponsediff "JSON encoded JSON ${eval_json} for ${write_url} to ${read_url}"
+	    done
+	done
+    done
     
     dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_etype_${etype} -X DELETE
 done
