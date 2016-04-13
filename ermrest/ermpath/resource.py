@@ -25,6 +25,9 @@ import psycopg2
 import urllib
 import csv
 import web
+import json
+
+from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
@@ -45,9 +48,9 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
             for row in cur:
                 if hdr:
                     # need to defer accessing cur.description until after fetching 1st row
-                    yield row_to_csv([ col[0] for col in cur.description ]) + '\n'
+                    yield row_to_csv([ col.name for col in cur.description ]) + '\n'
                     hdr = False
-                yield row_to_csv(row) + '\n'
+                yield row_to_csv(row, cur.description) + '\n'
 
         elif content_type in [ 'application/json', 'application/x-json-stream' ]:
             for row in cur:
@@ -1556,12 +1559,16 @@ def row_to_dict(cur, row):
             for i in range(0, len(row))
             ])
 
-def val_to_csv(v):
+def val_to_csv(v, cdesc=None):
     def condquote(v):
-        if v.find(u',') > 0 or v.find(u'"') > 0:
+        if v.find(u',') > -1 or v.find(u'"') > -1:
             return u'"%s"' % (v.replace(u'"', u'""'))
         else:
             return v
+
+    if cdesc is not None:
+        if cdesc.type_code in [ JSON_OID, JSONB_OID ]:
+            return condquote(json.dumps(v))
 
     if v is None:
         return u''
@@ -1578,9 +1585,9 @@ def val_to_csv(v):
     else:
         return condquote(unicode(v))
 
-def row_to_csv(row):
+def row_to_csv(row, desc=None):
     try:
-        return (u','.join([ val_to_csv(v) for v in row ])).encode('utf8')
+        return (u','.join([ val_to_csv(row[i], desc[i] if desc is not None else None) for i in range(len(row)) ])).encode('utf8')
     except Exception, e:
         web.debug('row_to_csv', row, e)
 
