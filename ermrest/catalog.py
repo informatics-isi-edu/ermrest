@@ -289,6 +289,7 @@ SELECT txid_current();
         if not schema_exists(cur, self._SCHEMA_NAME):
             cur.execute("""
 CREATE SCHEMA %(schema)s;
+GRANT USAGE ON SCHEMA %(schema)s TO ermrest;
 """ % dict(schema=self._SCHEMA_NAME)
                         )
             
@@ -457,7 +458,12 @@ $$ LANGUAGE plpgsql;
 """ % dict(schema=self._SCHEMA_NAME,
            table=self._DATA_VERSION_TABLE_NAME)
                         )
-                
+
+        cur.execute("""
+GRANT ALL ON ALL TABLES IN SCHEMA _ermrest TO ermrest;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA _ermrest TO ermrest;
+""")
+            
         ## initial meta values
         owner = owner if owner else self.ANONYMOUS
         self.add_meta(cur, self.META_OWNER, owner)
