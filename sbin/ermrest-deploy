@@ -19,7 +19,13 @@
 if [[ $# -gt 0 ]]
 then
     # allow VAR=value args to be passed on command-line
-    exec /bin/env "$@" "$0"
+    if [[ -x /usr/bin/env ]]
+    then
+	exec /usr/bin/env "$@" "$0"
+    else
+	echo could not find 'env'
+	exit 1
+    fi
 fi
 
 # paths set for installation
