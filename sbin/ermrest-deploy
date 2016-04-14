@@ -150,6 +150,10 @@ COMMIT;
 EOF
 }
 
+# prevent overwrites
+[[ -r /home/${DAEMONUSER2}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
+[[ -r /home/${DAEMONUSER1}/ermrest_config.json ]] || $SU -c "ln -s /home/${DAEMONUSER2}/ermrest_config.json ." - "${DAEMONUSER1}"
+
 if pgdbid 'ermrest'
 then
     # idempotently fill in missing parts and update role assignments for 2-role deployment
@@ -183,10 +187,6 @@ else
     $SU -c "psql -e -c 'GRANT CREATE ON DATABASE ermrest TO ${DAEMONUSER2}'" - ${PGADMIN}
 fi
 
-
-# prevent overwrites
-[[ -r /home/${DAEMONUSER2}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
-[[ -r /home/${DAEMONUSER1}/ermrest_config.json ]] || $SU -c "ln -s /home/${DAEMONUSER2}/ermrest_config.json ." - "${DAEMONUSER1}"
 
 # these are supposed to be idempotent too...
 $SU -c "createlang -d ermrest plpgsql" - "${PGADMIN}"
