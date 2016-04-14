@@ -67,7 +67,7 @@ include ermrest/makefile-rules
 include test/makefile-rules
 
 deploy: force install
-	$(SBINDIR)/ermrest-deploy HTTPDCONFDIR=$(HTTPDCONFDIR)
+	$(SBINDIR)/ermrest-deploy HTTPCONFDIR=$(HTTPCONFDIR)
 
 undeploy: force $(SBINDIR)/ermrest-undeploy
 	$(SBINDIR)/ermrest-undeploy || true
