@@ -1,17 +1,17 @@
-# ERMrest Installation (CentOS 6)
+# ERMrest Installation (CentOS 7)
 
-This guide provides instructions for installing ERMrest on the CentOS 6.x Linux
+This guide provides instructions for installing ERMrest on the CentOS 7.x Linux
 distribution.
 
 ## Prerequisites
 
 ERMrest depends on the following prerequisites:
-- CentOS 6.x
-- EPEL 6 repository
-- PostgreSQL 9.2 or above
+- CentOS 7.x
+- EPEL 7 repository
+- PostgreSQL 9.4 or above (note: we recommend latest stable version)
 - WebAuthn
 
-This guide assumes only that you have installed the CentOS 6.x Linux
+This guide assumes only that you have installed the CentOS 7.x Linux
 distribution. See http://www.centos.org for more information.
 
 In this document, commands that begin with `#` should be run as root or with
@@ -22,48 +22,21 @@ normal user.
 
 Run the following commands to install the EPEL repository.
 
-For CentOS 6 use:
-
-```
-# rsync -v rsync://mirrors.kernel.org/fedora-epel/6/x86_64/epel-release*.rpm .
-# yum localinstall epel-release*.rpm
-```
-
-For CentOS 7 use:
-
 ```
 # rsync -v rsync://mirrors.kernel.org/fedora-epel/7/x86_64/e/epel-release*.rpm .
 # yum localinstall epel-release*.rpm
 ```
 
-### Workaround HTTPD errors related to mod_wsgi not finding its sockets
+### PostgreSQL 9.4 or above
 
-With older deployments, you may encounter errors in the
-Apache SSL server log similar to `Unable to connect to WSGI daemon
-process on '/var/run/wsgi/wsgi.1331.1.1.sock'`.
+PostgreSQL must be installed and configured to operate within the
+[SE-Linux] access control mechanism.  We recommend using the latest
+stable release, i.e. Postgres 9.5 at time of writing.
 
-The solution is to use `/var/run/httpd/wsgi` as the WSGI socket
-directory in the `/etc/httpd/conf.d/wsgi_ermrest.conf` file. This
-location will have appropriate SE-Linux context to work with the
-default Apache httpd sandboxing.
-
-### PostgreSQL 9.2 or above
-
-PostgreSQL must be installed and configured to operate within the [SE-Linux]
-access control mechanism.
-
-1. Install the PostgreSQL 9.4 repository
-
-   For CentOS 6 use:
+1. Install the PostgreSQL 9.x repository
 
    ```
-   # yum install http://yum.postgresql.org/9.4/redhat/rhel-6-x86_64/pgdg-redhat94-9.4-1.noarch.rpm
-   ```
-
-   For CentOS 7 use:
-
-   ```
-   # yum install http://yum.postgresql.org/9.4/redhat/rhel-7-x86_64/pgdg-centos94-9.4-1.noarch.rpm
+   # yum install https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-2.noarch.rpm
    ```
 
 2. Install the required packages. You may first want to uninstall any
@@ -73,24 +46,11 @@ access control mechanism.
    ```
    # yum install policycoreutils-python
    # yum erase postgresql{,-server}
-   # yum install postgresql94{,-server,-docs,-contrib}
+   # yum install postgresql95{,-server,-docs,-contrib}
    ```
 
 3. Add local labeling rules to [SE-Linux] since the files are not where CentOS
    expects them.
-
-   For CentOS 6 use:
-
-   ```
-   # semanage fcontext --add --ftype "" --type postgresql_tmp_t "/tmp/\.s\.PGSQL\.[0-9]+.*"
-   # semanage fcontext --add --ftype "" --type postgresql_exec_t "/usr/pgsql-9\.[0-9]/bin/(initdb|postgres)"
-   # semanage fcontext --add --ftype "" --type postgresql_log_t "/var/lib/pgsql/9\.[0-9]/pgstartup\.log"
-   # semanage fcontext --add --ftype "" --type postgresql_db_t "/var/lib/pgsql/9\.[0-9]/data(/.*)?"
-   # restorecon -rv /var/lib/pgsql/
-   # restorecon -rv /usr/pgsql-9.*
-   ```
-
-  For CentOS 7 use:
 
   ```
   # semanage fcontext --add --type postgresql_tmp_t "/tmp/\.s\.PGSQL\.[0-9]+.*"
@@ -103,16 +63,6 @@ access control mechanism.
 
 4. Initialize and enable the `postgresql` service.
 
-   For CentOS 6 use:
-
-   ```
-   # service postgresql-9.4 initdb
-   # service postgresql-9.4 start
-   # chkconfig postgresql-9.4 on
-   ```
-
-   For CentOS 7 use:
-
    ```
    # /usr/pgsql-9.4/bin/postgresql94-setup initdb
    # systemctl enable postgresql-9.4.service
@@ -121,21 +71,6 @@ access control mechanism.
 
 5. Verify that postmaster is running under the right SE-Linux context
    `postgresql_t` (though process IDs will vary of course).
-
-   For CentOS 6 use:
-
-   ```
-   # ps -eZ | grep postmaster
-   unconfined_u:system_r:postgresql_t:s0 2278 ?   00:00:00 postmaster
-   unconfined_u:system_r:postgresql_t:s0 2280 ?   00:00:00 postmaster
-   unconfined_u:system_r:postgresql_t:s0 2282 ?   00:00:00 postmaster
-   unconfined_u:system_r:postgresql_t:s0 2283 ?   00:00:00 postmaster
-   unconfined_u:system_r:postgresql_t:s0 2284 ?   00:00:00 postmaster
-   unconfined_u:system_r:postgresql_t:s0 2285 ?   00:00:00 postmaster
-   unconfined_u:system_r:postgresql_t:s0 2286 ?   00:00:00 postmaster
-   ```
-
-   For CentOS 7 use:
 
    ```
    # ps -eZ | grep postgres
@@ -152,6 +87,13 @@ access control mechanism.
 
    ```
    # setsebool -P httpd_can_network_connect_db=1
+   ```
+
+### Other Prerequisites
+
+   ```
+   # yum install httpd mod_{ssl,wsgi} python{,-psycopg2,-dateutil,-setuptools,-ply} pytz
+   # pip install web.py
    ```
 
 ### WebAuthn
@@ -174,13 +116,6 @@ access control mechanism.
 
    This will install the WebAuthn Python module under
    `/usr/lib/python2*/site-packages/webauthn2/`.
-
-   **NOTE**: the above step will partially fail on CentOS 7. The python-webpy
-   package is not yet available on CentOS 7. It may be installed using:
-
-   ```
-   # easy_install web.py
-   ```
 
 ## Installing ERMrest
 
@@ -212,16 +147,14 @@ After installing the prerequisite, you are ready to install ERMrest.
    ```
 
    The deployment script:
-   - attempts a `yum install` of essential dependencies
    - runs install target
    - prepares service environment (makes ERMrest daemon user, creates directories)
    - creates and initializes ERMrest-specific database, owned by daemon user
-   - creates default service config as `/etc/httpd/conf.d/zz_ermrest.conf`.
+   - creates default service config as `/etc/httpd/conf.d/wsgi_ermrest.conf`.
 
    CentOS notes:
    - you may need to uninstall mod_python to use mod_wsgi
    - you may need to uncomment `/etc/httpd/conf.d/wsgi.conf` load module.
-
 
 4. Restart the Apache httpd service
 
@@ -237,11 +170,16 @@ commands.
 ```
 # cd path/to/ermrest
 # make install [PLATFORM=centos7]
+# service httpd restart
 ```
 
-The script updates files under `/usr/lib/python2*/site-packages/ermrest` and
-`/var/www/html/ermrest`. It then restarts `httpd` to force reload of all service
-code.
+The install target updates files under `/usr/lib/python2*/site-packages/ermrest`.
+
+You may want to review `/usr/share/ermrest/ermrest_config.json` and
+`/usr/share/ermrest/wsgi_ermrest.conf` for changes, as these are
+deployed to `/home/ermrest/` and `/etc/httpd/conf.d/`, respectively,
+during fresh installs but will not overwrite deployed configurations
+during an updating install.
 
 ## Setup User Accounts
 
@@ -285,13 +223,13 @@ any local user.
 
    ```
    $ curl -k -c cookie -d username=root -d password='your password here' \
-   > https://localhost/ermrest/authn/session
+   > https://$(hostname)/ermrest/authn/session
    ```
 
 2. Create a catalog.
 
    ```
-   $ curl -k -b cookie -XPOST https://localhost/ermrest/catalog/
+   $ curl -k -b cookie -XPOST https://$(hostname)/ermrest/catalog/
    ```
 
 3. Inspect the catalog metadata. (Readable indentation added here.)
@@ -329,10 +267,9 @@ service from remote hosts. There are multiple ways to do this.
 
 https://fedoraproject.org/wiki/How_to_edit_iptables_rules
 
-The `system-config-firewall-tui` is one simple utility for making basic
-modifications to a CentOS 6 firewall configuration.
-
-https://fedoraproject.org/wiki/How_to_edit_iptables_rules#TUI_.28text-based_user_interface.29
+Normally, you need to expose the HTTPS port (TCP 443) to client
+machines. Contact your local system administrator if you need help
+accomplishing this.
 
 
 [Basic authentication]: https://en.wikipedia.org/wiki/Basic_access_authentication (Basic authentication)
