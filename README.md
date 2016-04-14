@@ -29,7 +29,7 @@ As a protocol, the [ERMrest REST API](api-doc/index.md) can be easily accessed b
 	- Schema management
 	- Data retrieval
 	- Data modification
-  - Experimental support leveraging PostgreSQL 9.5 *row level security* policies
+  - Experimental [support for PostgreSQL 9.5 row level security](user-doc/row-level-security.md)
     - Web client identity and attributes (groups/roles) exposed during data processing
 	- Local, DBA-applied row level policies can test against web identity and attributes (no REST management of these policies yet)
 
