@@ -460,7 +460,10 @@ $$ LANGUAGE plpgsql;
                         )
 
         cur.execute("""
-GRANT ALL ON ALL TABLES IN SCHEMA _ermrest TO ermrest;
+GRANT SELECT -- INSERT, UPDATE, DELETE
+  ON _ermrest.meta, _ermrest.model_psuedo_key, _ermrest.model_psuedo_keyref, 
+     _ermrest.model_version, _ermrest.data_version 
+  TO ermrest;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA _ermrest TO ermrest;
 """)
             

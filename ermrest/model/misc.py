@@ -145,7 +145,7 @@ DELETE FROM _ermrest.model_%s_annotation WHERE %s;
         keys = keying.keys() + ['annotation_uri']
         cur.execute("""
 CREATE TABLE _ermrest.model_%(restype)s_annotation (%(cols)s);
-GRANT ALL ON _ermrest.model_%(restype)s_annotation TO ermrest;
+GRANT SELECT ON _ermrest.model_%(restype)s_annotation TO ermrest;
 """ % dict(
     restype=restype,
     cols=', '.join([ '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0]) for k in keys ]
@@ -270,7 +270,7 @@ SELECT _ermrest.model_change_event();
 DROP TABLE IF EXISTS _ermrest.valuemap ;
 CREATE TABLE _ermrest.valuemap ("schema", "table", "column", "value")
 AS %s ;
-GRANT ALL ON _ermrest.valuemap TO ermrest;
+GRANT SELECT ON _ermrest.valuemap TO ermrest;
 CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "table", "column");
 CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
 """ % ' UNION '.join(vmap_parts)
