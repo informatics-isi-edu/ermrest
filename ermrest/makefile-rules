@@ -3,12 +3,13 @@ $(WSGISOCKETDIR):
 	mkdir -p $(WSGISOCKETDIR)
 
 $(SHAREDIR)/ermrest_config.json: ermrest/ermrest_config.json.in
-	[ -f $@ ] && touch $@ || ./install-script -M ref -R HOSTNAME=$(shell hostname) \
+	./install-script -M ref -R HOSTNAME=$(shell hostname) \
 		-o root -g root -m a+r -Z "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" -p -D $< $@
 
-$(HTTPCONFDIR)/wsgi_ermrest.conf: ermrest/wsgi_ermrest.conf.in $(WSGISOCKETDIR)
+$(SHAREDIR)/wsgi_ermrest.conf: ermrest/wsgi_ermrest.conf.in
 	./install-script -M sed -R @PYLIBDIR@=$(PYLIBDIR) @WSGISOCKETPREFIX@=$(WSGISOCKETPREFIX) \
-		@DAEMONUSER@=$(DAEMONUSER) @HTMLDIR@=$(HTMLDIR) @AUTHDIRECTIVES@="$(AUTHDIRECTIVES)" \
+		@DAEMONUSER1@=$(DAEMONUSER1) @DAEMONUSER2@=$(DAEMONUSER2) \
+		@HTMLDIR@=$(HTMLDIR) @AUTHDIRECTIVES@="$(AUTHDIRECTIVES)" \
 		-o root -g root -m a+r -p -D $< $@
 
 $(SHAREDIR)/%: ermrest/%

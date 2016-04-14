@@ -4,15 +4,5 @@
 $(VARLIBDIR):
 	mkdir -p $(VARLIBDIR)
 
-$(PREDEPLOY): $(VARLIBDIR)
-	yum -y --skip-broken install httpd mod_{ssl,wsgi} python{,-psycopg2,-webpy,-dateutil,-json,-simplejson,-setuptools,-ply,-suds} pytz || true
-	useradd -m -r $(DAEMONUSER) || true
-	semanage fcontext --add --ftype d --type "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" "$(SVCHOMEDIR)" || true
-	semanage fcontext --add --type "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" "$(SVCHOMEDIR)/ermrest_config.json" || true
-	restorecon -v $(SVCHOMEDIR) || true
-	systemctl enable httpd || true
-	setsebool -P httpd_enable_homedirs on || true
-	touch $(PREDEPLOY)
-
 httpd_restart: force
-	systemctl stop httpd && systemctl start httpd
+	systemctl stop httpd > /dev/null 2>&1 && systemctl start httpd > /dev/null 2>&1

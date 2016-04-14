@@ -1,10 +1,9 @@
 # arguments that can be set via make target params or environment?
-PLATFORM=centos6
-
-INSTALLSVC=ermrest
+PLATFORM=centos7
 
 PGADMIN=postgres
-DAEMONUSER=$(INSTALLSVC)
+DAEMONUSER1=ermrestddl
+DAEMONUSER2=ermrest
 USERADD=true
 USERDEL=false
 CREATEUSER=true
@@ -23,10 +22,6 @@ INSTALL_FILES=
 INSTALL_DIRS=
 EDIT_FILES=Makefile install-script
 CLEAN_FILES= $(EDIT_FILES:%=%~)
-
-# bump the revision when changing predeploy side-effects
-PREDEPLOY=$(VARLIBDIR)/predeploy.r5055
-DEPLOYLOCK=$(VARLIBDIR)/deploy.lock
 
 # get sub-directory variables (e.g. modular file groups)
 include sbin/makefile-vars
@@ -56,8 +51,7 @@ INSTALL_SCRIPT=./install-script -R \
 		SU=$(SU)
 
 # make this the default target
-install: $(PREDEPLOY) $(INSTALL_FILES)
-	make httpd_restart
+install: $(INSTALL_FILES)
 
 uninstall: force
 	rm -f $(INSTALL_FILES)
@@ -72,15 +66,8 @@ include sbin/makefile-rules
 include ermrest/makefile-rules
 include test/makefile-rules
 
-predeploy: $(PREDEPLOY)
-
-unpredeploy: force
-	rm -f $(PREDEPLOY)
-
-$(DEPLOYLOCK): predeploy install $(VARLIBDIR)
-	$(SBINDIR)/ermrest-deploy
-
-deploy: $(DEPLOYLOCK)
+deploy: force install
+	$(SBINDIR)/ermrest-deploy HTTPCONFDIR=$(HTTPDCONFDIR)
 
 undeploy: force $(SBINDIR)/ermrest-undeploy
 	$(SBINDIR)/ermrest-undeploy || true

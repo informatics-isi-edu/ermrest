@@ -4,11 +4,5 @@
 $(VARLIBDIR):
 	mkdir -p $(VARLIBDIR)
 
-$(PREDEPLOY): $(VARLIBDIR)
-	apt-get -y install chkconfig apache2 postgresql-9.4 ssl-cert libapache2-mod-wsgi python python-psycopg2 python-dateutil python-ply python-webpy python-tz
-	id $(DAEMONUSER) || useradd -m -r $(DAEMONUSER)
-	chkconfig apache2 on
-	touch $(PREDEPLOY)
-
 httpd_restart: force
-	service apache2 stop && service apache2 start
+	service apache2 stop > /dev/null 2>&1 && service apache2 start > /dev/null 2>&1

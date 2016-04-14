@@ -27,6 +27,7 @@ VARLIBDIR=/var/lib/ermrest
 LIBEXECDIR=/usr/libexec/ermrest
 SHAREDIR=/usr/share/ermrest
 SBINDIR=/usr/sbin
+HTTPDCONFDIR=${HTTPDCONFDIR:-/etc/httpd/conf.d}
 SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
@@ -34,39 +35,59 @@ SU=su
 DEPLOYLOCK="${DEPLOYLOCK}"          # deploy mutual-exclusion marker, if non-empty
 
 PGADMIN="${PGADMIN:-postgres}"
-DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name for service daemon
-CREATEUSER="${CREATEUSER:-true}"    # whether to try to create PostgreSQL role
-DROPDB="${DROPDB:-false}"           # whether to try to drop any existing database
-CREATEDB="${CREATEDB:-true}"        # whether to try to create the database
+DAEMONUSER1="${DAEMONUSER:-ermrestddl}" # Unix and DB user name for service daemon doing DDL
+DAEMONUSER2="${DAEMONUSER:-ermrest}"    # Unix and DB user name for service daemon doing SQL
 
 # make these available to child processes
 export PGADMIN
 export DAEMONUSER
 
-[[ -n "$DEPLOYLOCK" ]] && [[ -e "$DEPLOYLOCK" ]] && {
-    echo "refusing to deploy with existing deploy lock $DEPLOYLOCK" >&2
-    exit 1
+id ${DAEMONUSER1} || useradd -m -r ${DAEMONUSER1}
+id ${DAEMONUSER2} || useradd -m -r ${DAEMONUSER2}
+
+chmod og+rx /home/${DAEMONUSER1}
+chmod og+rx /home/${DAEMONUSER2}
+
+pgid()
+{
+    line=$($SU -c "psql -q -t -A -c \"select * from pg_roles where rolname = '$1'\"" - "${PGADMIN}")
+    status=$?
+    [[ $status -eq 0 ]] || return $status
+    [[ -n "$line" ]] || return 1
+    echo "$line"
+    return 0
 }
 
-[[ "$CREATEUSER" = "true" ]] && $SU -c "createuser -d -R -S \"$DAEMONUSER\"" - "${PGADMIN}"
-[[ "$DROPDB" = "true" ]] && $SU -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
-[[ "$CREATEDB" = "true" ]] && {
-    $SU -c "createdb -O \"$DAEMONUSER\" \"$DAEMONUSER\"" - "${PGADMIN}"
-    $SU -c "createlang -d \"$DAEMONUSER\" plpgsql" - "${PGADMIN}"
-    $SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - "${PGADMIN}"
-    $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
-    $SU -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
-    $SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
-    # add deploy tasks here...
-    [[ -n "$DEPLOYLOCK" ]] && cat > "$DEPLOYLOCK" <<EOF
-DATE="$(date)"
-PGADMIN="$PGADMIN"
-DAEMONUSER="$DAEMONUSER"
-#USERADD="$USERADD"
-#CREATEUSER="$CREATEUSER"
-#DROPDB="$DROPDB"
-#CREATEDB="$CREATEDB"
-EOF
-    true
+pgcreateuser()
+{
+    $SU -c "createuser -d -R -S $1" - ${PGADMIN}
 }
+
+pgid ${DAEMONUSER1} || pgcreateuser ${DAEMONUSER1}
+pgid ${DAEMONUSER2} || pgcreateuser ${DAEMONUSER2}
+$SU -c "psql -c 'grant ermrest to ermrestddl'" - ${PGADMIN}
+
+if [[ -r /etc/redhat-release ]]
+then
+    SEMANAGE_HTTPD_SYS_CONTENT_T=httpd_sys_content_t
+    
+    for daemon in ${DAEMONUSER1} ${DAEMONUSER2}
+    do
+	semanage fcontext --add --ftype d --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${daemon}"
+	semanage fcontext --add --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${daemon}/ermrest_config.json"
+	restorecon -v /home/${daemon}
+	setsebool -P httpd_enable_homedirs on
+    done
+fi
+
+[[ ! -r ${HTTPDCONFDIR}/wsgi_ermrest.conf ]] && cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPCONFDIR}/.
+
+$SU -c "createdb -O \"$DAEMONUSER1\" ermrest" - ${PGADMIN}
+$SU -c "psql -c 'GRANT ALL ON DATABASE ermrest TO ermrest'" - ${PGADMIN}
+$SU -c "createlang -d ermrest plpgsql" - "${PGADMIN}"
+$SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - ${PGADMIN}
+$SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
+$SU -c "ln -s /home/${DAEMONUSER2}/ermrest_config.json ." - "${DAEMONUSER1}"
+$SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER1}"
+$SU -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER2}"
 

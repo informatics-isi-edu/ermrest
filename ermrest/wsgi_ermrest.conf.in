@@ -2,7 +2,8 @@
 AllowEncodedSlashes On
 
 WSGIPythonOptimize 1
-WSGIDaemonProcess @DAEMONUSER@ processes=4 threads=4 user=@DAEMONUSER@ maximum-requests=2000
+WSGIDaemonProcess @DAEMONUSER1@ processes=4 threads=4 user=@DAEMONUSER1@ maximum-requests=2000
+WSGIDaemonProcess @DAEMONUSER2@ processes=4 threads=4 user=@DAEMONUSER2@ maximum-requests=2000
 WSGIScriptAlias /ermrest @PYLIBDIR@/ermrest/ermrest.wsgi
 WSGIPassAuthorization On
 
@@ -10,27 +11,19 @@ WSGISocketPrefix @WSGISOCKETPREFIX@
 
 Alias /ermrest/static @HTMLDIR@/static
 
-<Location /ermrest>
-
+<Location "/ermrest" >
    @AUTHDIRECTIVES@
-
-   WSGIProcessGroup @DAEMONUSER@
+   WSGIProcessGroup @DAEMONUSER1@
     
    # site can disable redundant service logging by adding env=!dontlog to their CustomLog or similar directives
    SetEnv dontlog
-
 </Location>
 
-<Location /ermrest/static>
-
+<LocationMatch "/ermrest/catalog/[^/]+/(entity|attribute|attributegroup|aggregate)" >
    @AUTHDIRECTIVES@
-
-   <IfModule mod_expires.c>
-      ExpiresActive On
-      ExpiresDefault "access plus 1 hour"
-   </IfModule>
-
-   UnsetEnv dontlog
-
-</Location>
+   WSGIProcessGroup @DAEMONUSER2@
+    
+   # site can disable redundant service logging by adding env=!dontlog to their CustomLog or similar directives
+   SetEnv dontlog
+</LocationMatch>
 
