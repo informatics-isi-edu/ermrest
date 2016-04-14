@@ -30,6 +30,7 @@ before_install:
 install:
   - sudo make install PLATFORM=ubuntu1204
   - sudo make deploy PLATFORM=ubuntu1204
+  - sudo service apache2 restart
 
 before_script:
   - sudo -H -u ermrest ermrest-webauthn2-manage adduser test1
