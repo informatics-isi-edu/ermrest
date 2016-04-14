@@ -461,7 +461,7 @@ $$ LANGUAGE plpgsql;
 
         cur.execute("""
 GRANT SELECT -- INSERT, UPDATE, DELETE
-  ON _ermrest.meta, _ermrest.model_pseudo_key, _ermrest.model_pseudo_keyref, 
+  ON _ermrest.meta, _ermrest.model_pseudo_key, _ermrest.model_pseudo_keyref
   TO ermrest;
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON _ermrest.model_version, _ermrest.data_version 
