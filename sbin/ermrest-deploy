@@ -51,6 +51,9 @@ export DAEMONUSER
 id ${DAEMONUSER1} || useradd -m -r ${DAEMONUSER1}
 id ${DAEMONUSER2} || useradd -m -r ${DAEMONUSER2}
 
+usermod -a -G apache ${DAEMONUSER1}
+usermod -a -G apache ${DAEMONUSER2}
+
 chmod og+rx /home/${DAEMONUSER1}
 chmod og+rx /home/${DAEMONUSER2}
 
