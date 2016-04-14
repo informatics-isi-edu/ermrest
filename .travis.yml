@@ -31,6 +31,8 @@ install:
   - sudo make install PLATFORM=ubuntu1204
   - sudo make deploy PLATFORM=ubuntu1204
   - sudo service apache2 restart
+  - sudo ls -l /etc/apache2/conf.d
+  - sudo ls -lR /var/run/apache2
 
 before_script:
   - sudo -H -u ermrest ermrest-webauthn2-manage adduser test1
@@ -39,6 +41,7 @@ before_script:
   - sudo -H -u ermrest ermrest-webauthn2-manage assign test1 admin
 
 script:
+  - sudo netstat -tap
   - sudo ./test/ermrest-registry-purge-tests.sh
   - curl --fail -k -b $COOKIES -c $COOKIES -d username=test1 -d password=dummypassword https://${HOSTNAME}/ermrest/authn/session
   - bash ./test/rest-tests.sh
