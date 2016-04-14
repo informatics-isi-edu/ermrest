@@ -25,7 +25,7 @@ SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
 
-DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name for service daemon
+DAEMONUSER="${DAEMONUSER:-ermrestddl}" # Unix and DB user name for service daemon
 
 # make these available to child processes
 export PGADMIN
