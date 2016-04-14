@@ -89,7 +89,7 @@ fi
 [[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]] && cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPCONFDIR}/.
 
 $SU -c "createdb -O \"$DAEMONUSER1\" ermrest" - ${PGADMIN}
-#$SU -c "psql -c 'GRANT ALL ON DATABASE ermrest TO ermrest'" - ${PGADMIN}
+$SU -c "psql -c 'GRANT CREATE ON DATABASE ermrest TO ermrest'" - ${PGADMIN}
 $SU -c "createlang -d ermrest plpgsql" - "${PGADMIN}"
 $SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - ${PGADMIN}
 $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
