@@ -86,7 +86,7 @@ then
     done
 fi
 
-[[ ! -r ${HTTPDCONFDIR}/wsgi_ermrest.conf ]] && cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPCONFDIR}/.
+[[ ! -r ${HTTPDCONFDIR}/wsgi_ermrest.conf ]] && cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPDCONFDIR}/.
 
 $SU -c "createdb -O \"$DAEMONUSER1\" ermrest" - ${PGADMIN}
 $SU -c "psql -c 'GRANT ALL ON DATABASE ermrest TO ermrest'" - ${PGADMIN}
