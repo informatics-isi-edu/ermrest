@@ -1,4 +1,3 @@
-
 # 
 # Copyright 2013-2015 University of Southern California
 # 
@@ -167,8 +166,38 @@ def page_filter_sql(keynames, descendings, types, boundary, is_before):
 
     result = helper(keynames, descendings, types, boundary)
     return result
-        
 
+
+def sort_components(sortvec, is_before):
+    """Return (sortvec, sort1, sort2) SQL clauses.
+
+       Results:
+         (sortvec, None, None) means no sort
+         (sortvec, sort1, None) means order by sort1 clause
+         (sortvec, sort1, sort2) means order by sort1 and limit, then order by sort2
+
+       The latter happens if is_before is True.
+    """
+    norm_parts = []
+    revs_parts = []
+    
+    direction = { True: ' DESC' }
+
+    for i in range(len(sortvec)):
+        keyname = sortvec[i][0]
+        descending = sortvec[i][1]
+        keyname = sql_identifier(keyname)
+        norm_parts.append( '%s%s NULLS LAST' % (keyname, direction.get(descending, '')) )
+        revs_parts.append( '%s%s NULLS FIRST' % (keyname, direction.get(not descending, '')) )
+
+    norm_parts = ', '.join(norm_parts)
+    revs_parts = ', '.join(revs_parts)
+
+    if is_before:
+        return (sortvec, revs_parts, norm_parts)
+    else:
+        return (sortvec, norm_parts, None)
+        
 class EntityElem (object):
     """Wrapper for instance of entity table in path.
 
@@ -675,7 +704,7 @@ class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
 
     """
-    def sql_get(self, row_content_type='application/json'):
+    def sql_get(self, row_content_type='application/json', limit=None):
         """Generate SQL query to get the resources described by this path.
 
            The query will be of the form:
@@ -760,10 +789,7 @@ class AnyPath (object):
         """
         # TODO: refactor this common code between 
 
-        sql = self.sql_get(row_content_type=content_type)
-
-        if limit is not None:
-            sql += (' LIMIT %d' % limit)
+        sql = self.sql_get(row_content_type=content_type, limit=limit)
 
         #web.debug(sql)
 
@@ -808,7 +834,6 @@ class EntityPath (AnyPath):
         self._path = None
         self._context_index = None
         self.sort = None
-        self.page_filters = []
         self.after = None
         self.before = None
         self.aliases = {}
@@ -889,36 +914,15 @@ WHERE %(pred)s
 
            Each column must be part of the entity type associated with current path.
         """
-        table = self.current_entity_table()
-
-        if not sort:
-            self.sort = None
-        else:
-            parts = []
-            self.page_keys = []
-            self.page_desc = []
-            self.page_type = []
-            for key in sort:
-                if key.keyname not in table.columns:
-                    raise ConflictModel('Sort key "%s" not found in table "%s".' % (key.keyname, table.name))
-                parts.append( '%s%s NULLS LAST' % (
-                        sql_identifier(key.keyname), 
-                        { True: ' DESC'}.get(key.descending, '')
-                        )
-                              )
-                self.page_keys.append( key.keyname )
-                self.page_desc.append( key.descending )
-                self.page_type.append( table.columns[key.keyname].type )
-
-            self.sort = 'ORDER BY ' + ', '.join(parts)
+        self.sort = sort
 
     def add_paging(self, after, before):
         """Add page key specification(s) for the final output.
         """
-        if after is not None:
-            self.page_filters.append( page_filter_sql(self.page_keys, self.page_desc, self.page_type, after, is_before=False) )
-        if before is not None:
-            self.page_filters.append( page_filter_sql(self.page_keys, self.page_desc, self.page_type, before, is_before=True) )
+        if after is not None and before is not None:
+            raise BadSyntax('At most one @before() or @after() modifier is permitted in a single request.')
+        self.after = after
+        self.before = before
             
     def add_link(self, keyref, refop, ralias=None, lalias=None):
         """Extend the path by linking in another table.
@@ -964,7 +968,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, sort=None, distinct_on=True, page_filters=None, row_content_type='application/json'):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1008,22 +1012,41 @@ FROM %(tables)s
 """ % dict(distinct_on = distinct_on and ('DISTINCT ON (%s)' % ', '.join(distinct_on_cols)) or '',
            selects     = selects,
            tables      = ' JOIN '.join(tables),
-           where       = wheres and ('WHERE ' + ' AND '.join(['(%s)' % w for w in wheres])) or '',
-           order       = self.sort
+           where       = wheres and ('WHERE ' + ' AND '.join(['(%s)' % w for w in wheres])) or ''
            )
 	
 	# This subquery is ugly and inefficient but necessary due to DISTINCT ON above
-	if sort is None:
-            sort = self.sort
-            
-        if page_filters is None:
-            page_filters = self.page_filters
+	if self.sort is not None:
+            table = self.current_entity_table()
 
-    	if sort is not None:
-            page = ''
-            if page_filters:
-                page = 'WHERE %s' % (' AND '.join(page_filters))
-            sql = "SELECT * FROM (%s) s %s %s" % (sql, page, sort)
+            def sort_lookup(key):
+                if key.keyname not in table.columns:
+                    raise ConflictModel('Sort key "%s" not found in table "%s".' % (key.keyname, table.name))
+                return (key.keyname, key.descending, table.columns[key.keyname].type)
+
+            sortvec, sort1, sort2 = sort_components(map(sort_lookup, self.sort), self.before is not None)
+        else:
+            sortvec, sort1, sort2 = (None, None, None)
+
+        limit = 'LIMIT %d' % limit if limit is not None else ''
+            
+    	if sort1 is not None:
+            a, b, c = map(lambda x: x[0], sortvec), map(lambda x: x[1], sortvec), map(lambda x: x[2], sortvec)
+            if self.after is not None:
+                page = 'WHERE %s' % page_filter_sql(a, b, c, self.after, is_before=False)
+            elif self.before is not None:
+                page = 'WHERE %s' % page_filter_sql(a, b, c, self.before, is_before=True)
+            else:
+                page = ''
+
+            sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
+
+            if sort2 is not None:
+                if not limit:
+                    raise BadSyntax('Page @before(...) modifier not allowed without limit parameter.')
+                sql = "SELECT * FROM (%s) s ORDER BY %s" % (sql, sort2)
+        else:
+            sql = "%s %s" % (sql, limit)
 
         return sql
 
@@ -1133,7 +1156,6 @@ class AttributePath (AnyPath):
         self.epath = epath
         self.attributes = attributes
         self.sort = None
-        self.page_filters = []
         self.after = None
         self.before = None
 
@@ -1148,10 +1170,12 @@ class AttributePath (AnyPath):
     def add_paging(self, after, before):
         """Add page key specification(s) for the final output.
         """
+        if after is not None and before is not None:
+            raise BadSyntax('At most one @before() or @after() modifier is permitted in a single request.')
         self.after = after
         self.before = before
             
-    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json'):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1204,37 +1228,45 @@ class AttributePath (AnyPath):
                 selects.append('%s AS %s' % (select, col.sql_name()))
 
         if self.sort:
-            parts = []
-            self.page_keys = []
-            self.page_desc = []
-            self.page_type = []
-            for key in self.sort:
+            def sort_lookup(key):
                 if key.keyname not in outputs:
                     raise BadData('Sort key "%s" not among output columns.' % key.keyname)
-                parts.append( '%s%s NULLS LAST' % (
-                        sql_identifier(key.keyname), 
-                        { True: ' DESC'}.get(key.descending, '')
-                        )
-                              )
-                self.page_keys.append( key.keyname )
-                self.page_desc.append( key.descending )
-                self.page_type.append( output_types[key.keyname] )
-
-            self.sort = 'ORDER BY ' + ', '.join(parts)
-
-            if self.after:
-                self.page_filters.append( page_filter_sql(self.page_keys, self.page_desc, self.page_type, self.after, is_before=False) )
+                return (key.keyname, key.descending, output_types[key.keyname])
             
-            if self.before:
-                self.page_filters.append( page_filter_sql(self.page_keys, self.page_desc, self.page_type, self.before, is_before=True) )
+            sortvec, sort1, sort2 = sort_components(map(sort_lookup, self.sort), self.before is not None)
+        else:
+            sortvec, sort1, sort2 = (None, None, None)
+
+        page = ''
             
+        if sort1 is not None:
+            a, b, c = map(lambda x: x[0], sortvec), map(lambda x: x[1], sortvec), map(lambda x: x[2], sortvec)
+            if self.after is not None:
+                page = 'WHERE %s' % page_filter_sql(a, b, c, self.after, is_before=False)
+            elif self.before is not None:
+                page = 'WHERE %s' % page_filter_sql(a, b, c, self.before, is_before=True)
+                
         selects = ', '.join(selects)
 
+        limit = 'LIMIT %d' % limit if limit is not None else ''
+
         if split_sort:
-            # let the caller compose the query and the sort clause
-            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on), self.sort, self.page_filters)
+            # let the caller compose the query and the sort clauses
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on), page, sort1, limit, sort2)
         else:
-            return self.epath.sql_get(selects=selects, sort=self.sort, page_filters=self.page_filters, distinct_on=distinct_on)
+            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on)
+                
+            if sort1 is not None:
+                sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
+
+                if sort2 is not None:
+                    if not limit:
+                        raise BadSyntax('Page @before(...) modifier not allowed without limit parameter.')
+                    sql = "SELECT * FROM (%s) s ORDER BY %s" % (sql, sort2)
+            else:
+                sql = "%s %s" % (sql, limit)        
+
+            return sql
 
     def sql_delete(self, del_columns, equery=None):
         """Generate SQL statement to delete the attributes described by this apath.
@@ -1327,10 +1359,12 @@ class AttributeGroupPath (AnyPath):
     def add_paging(self, after, before):
         """Add page key specification(s) for the final output.
         """
+        if after is not None and before is not None:
+            raise BadSyntax('At most one @before() or @after() modifier is permitted in a single request.')
         self.after = after
         self.before = before
             
-    def sql_get(self, row_content_type='application/json'):
+    def sql_get(self, row_content_type='application/json', limit=None):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1364,13 +1398,7 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
-        asql, sort, page_filters = apath.sql_get(split_sort=True, distinct_on=False)
-        if not sort:
-            sort = ''
-        if not page_filters:
-            page_filters = ''
-        else:
-            page_filters = 'WHERE %s' % (' AND '.join(page_filters))
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False)
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
@@ -1387,8 +1415,6 @@ JOIN (
     %(groupextras)s
   FROM ( %(asql)s ) s
 ) e ON ( %(joinons)s ) ) s
-%(where)s
-%(sort)s
 """
         else:
             # a pure aggregate query has only group keys and aggregates
@@ -1396,13 +1422,9 @@ JOIN (
 SELECT %(groupaggs)s
 FROM ( %(asql)s ) s
 GROUP BY %(groupkeys)s
-%(where)s
-%(sort)s
 """
-        return sql % dict(
+        sql = sql % dict(
             asql=asql,
-            sort=sort,
-            where=page_filters,
             selects=', '.join(['g.%s' % k for k in groupkeys + [ a[1] for a in aggregates]]
                               + [ 'e.%s' % e for e in extras ]),
             groupkeys=', '.join(groupkeys),
@@ -1413,6 +1435,18 @@ GROUP BY %(groupkeys)s
                     for k in groupkeys
                     ])
             )
+
+        if sort1 is not None:
+            sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
+
+            if sort2 is not None:
+                if not limit:
+                    raise BadSyntax('Page @before(...) modifier not allowed without limit parameter.')
+                sql = "SELECT * FROM (%s) s ORDER BY %s" % (sql, sort)
+        else:
+            sql = "%s %s" % (sql, limit)
+
+        return sql
 
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
         """Update entity attributes.
@@ -1530,13 +1564,13 @@ class AggregatePath (AnyPath):
         # to honour generic API.  actually gated on self.add_sort() above so no need to test again
         pass
         
-    def sql_get(self, row_content_type='application/json'):
+    def sql_get(self, row_content_type='application/json', limit=None):
         """Generate SQL query to get the resources described by this apath.
 
         """
         apath = AttributePath(self.epath, self.attributes)
         aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
-        asql, sort, page_filters = apath.sql_get(split_sort=True, distinct_on=False)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False)
 
         # a pure aggregate query has aggregates
         sql = """

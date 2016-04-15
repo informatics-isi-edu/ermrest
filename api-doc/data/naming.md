@@ -279,29 +279,29 @@ The sort modifier is only meaningful on retrieval requests using the `GET` metho
 
 ## Paging Modifiers
 
-Optional paging modifiers can designate results that come _before_ or _after_ a designated page key in a sorted sequence. A page key is a vector of values taken from a row that falls outside the page, with one component per field in the sort modifier. Both paging modifiers MAY be included in the same resource to designate rows falling _between_ two page keys. The page key boundaries form an "open interval", where rows matching the page keys MUST NOT appear in the resulting data resource.
+Optional paging modifiers can designate results that come _before_ or _after_ a designated page key in a sorted sequence. A page key is a vector of values taken from a row that falls outside the page, with one component per field in the sort modifier. Only one modifier is allowed in a single request.
 
-These modifiers MUST be accompanied by a sort modifier to define the ordering of rows in the result set as well as the ordering of fields of the page key vector. The paging modifiers support a special symbol `::null::` to represent a NULL column value in a page key.
+The modifier MUST be accompanied by a sort modifier to define the ordering of rows in the result set as well as the ordering of fields of the page key vector. The paging modifiers support a special symbol `::null::` to represent a NULL column value in a page key.
 
 ### Before Modifier
 
-The `@before` modifier designates a result set of rows antecedent to the encoded page key:
+The `@before` modifier designates a result set of rows immediately antecedent to the encoded page key:
 
 - `@sort(` _output column_ ...`)@before(` `,` ... `)` (i.e. empty string)
 - `@sort(` _output column_ ...`)@before(` _value_ `,` ... `)` (i.e. literal string)
 - `@sort(` _output column_ ...`)@before(` `::null::` `,` ... `)` (i.e. NULL)
 
-For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _before_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last).
+For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately before_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
 
 ### After Modifier
 
-The `@after` modifier designates a result set of rows subsequent to the encoded page key:
+The `@after` modifier designates a result set of rows immediately subsequent to the encoded page key:
 
 - `@sort(` _output column_ ...`)@after(` `,` ... `)` (i.e. empty string)
 - `@sort(` _output column_ ...`)@after(` _value_ `,` ... `)` (i.e. literal string)
 - `@sort(` _output column_ ...`)@after(` `::null::` `,` ... `)` (i.e. NULL)
 
-For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _after_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last).
+For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately after_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
 
 ## Limit Query Parameter
 
@@ -335,7 +335,7 @@ A client can choose an arbitrary application-oriented sort order with paging. Ho
 1. Fetch subsequent page by encoding a page key projected from the **last** row of the preceding page:
   - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
 1. Fetch antecedent page by encoding a page key projected from the **first** row of the subsequent page:
-  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
+  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@before(` _limit value_ `,` ...`)` `?limit=` _n_
 
 Realize that a sequence of forward and backward page requests through a dataset might not land on the same page boundaries on both visits!
 
