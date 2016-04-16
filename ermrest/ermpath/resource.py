@@ -121,48 +121,33 @@ def page_filter_sql(keynames, descendings, types, boundary, is_before):
             ops = {True: '>', False: '<'}
         else:
             ops = {True: '<', False: '>'}
-            
+
+        # only handles non-null to non-null sub-case!
         term = '%s %s %s' % (
             sql_identifier(keynames[0]),
             ops[is_before],
             boundary[0].sql_literal(types[0]) if not boundary[0].is_null() else 'NULL'
         )
+
+        if is_before:
+            if boundary[0].is_null():
+                # all non-null come before this boundary
+                term += ' OR %s IS NOT NULL' % sql_identifier(keynames[0])
+        else:
+            if not boundary[0].is_null():
+                # all null come after this boundary
+                term += ' OR %s IS NULL' % sql_identifier(keynames[0])
         
         if len(keynames) == 1:
-            if boundary[0].is_null():
-                if is_before:
-                    # all non-NULLs come before NULL
-                    return '%s IS NOT NULL' % sql_identifier(keynames[0])
-                else:
-                    # nothing comes after NULL
-                    return 'False'
-            else:
-                if is_before:
-                    return term
-                else:
-                    # NULLs come after non-NULL page key
-                    return '(%s OR %s IS NULL)' % (term, sql_identifier(keynames[0]))
+            return term
         else:
-            sub_filter = helper(keynames[1:], descendings[1:], types[1:], boundary[1:])
-            if boundary[0].is_null():
-                if is_before:
-                    # all non-NULLs come before NULL
-                    return '%s IS NOT NULL' % sql_identifier(keynames[0])
-                else:
-                    # minor sub-keys may put rows after ours
-                    return '%s IS NULL AND (%s)' % (sql_identifier(keynames[0]), sub_filter)
-            else:
-                # minor sub-keys may put rows beyond ours when our key is equal
-                oterm = '(%s) OR (%s = %s AND %s)' % (
-                    term,
-                    sql_identifier(keynames[0]), boundary[0].sql_literal(types[0]),
-                    sub_filter
-                )
-                if is_before:
-                    return oterm
-                else:
-                    # NULLs come after non-NULL page key
-                    return '(%s OR %s IS NULL)' % (oterm, sql_identifier(keynames[0]))
+            # if row field matches boundary, check secondary sort order
+            return '(%s) OR (%s IS NOT DISTINCT FROM %s AND (%s))' % (
+                term,
+                sql_identifier(keynames[0]),
+                boundary[0].sql_literal(types[0]) if not boundary[0].is_null() else 'NULL',
+                helper(keynames[1:], descendings[1:], types[1:], boundary[1:])
+            )
 
     result = helper(keynames, descendings, types, boundary)
     return result
@@ -1398,7 +1383,7 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit)
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
@@ -1442,7 +1427,7 @@ GROUP BY %(groupkeys)s
             if sort2 is not None:
                 if not limit:
                     raise BadSyntax('Page @before(...) modifier not allowed without limit parameter.')
-                sql = "SELECT * FROM (%s) s ORDER BY %s" % (sql, sort)
+                sql = "SELECT * FROM (%s) s ORDER BY %s" % (sql, sort2)
         else:
             sql = "%s %s" % (sql, limit)
 
