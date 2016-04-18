@@ -342,7 +342,7 @@ CREATE TABLE %(schema)s.%(table)s (
     snap_txid bigint PRIMARY KEY
 );
 
-CREATE OR REPLACE FUNCTION %(schema)s.current_client() RETURNS text AS $$
+CREATE OR REPLACE FUNCTION %(schema)s.current_client() RETURNS text STABLE AS $$
 BEGIN
   RETURN current_setting('webauthn2.client');
 EXCEPTION WHEN OTHERS THEN
@@ -350,7 +350,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION %(schema)s.current_attributes() RETURNS text[] AS $$
+CREATE OR REPLACE FUNCTION %(schema)s.current_attributes() RETURNS text[] STABLE AS $$
 BEGIN
   RETURN (SELECT array_agg(value) FROM json_array_elements_text(current_setting('webauthn2.attributes')::json));
 EXCEPTION WHEN OTHERS THEN

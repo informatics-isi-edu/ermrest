@@ -884,6 +884,13 @@ do
     dopagetest 16 "200::*::*" "${query}@sort(name,value)@after(bar,3)"
     dopagetest 14 "200::*::*" "${query}@sort(name,value)@after(bar,::null::)"
     dopagetest  0 "200::*::*" "${query}@sort(name,value)@after(::null::,::null::)"
+    dopagetest  2 "200::*::*" "${query}@sort(value,id)@after(::null::,12)"
+
+    dopagetest  0 "200::*::*" "${query}@sort(name,value)@before(,4)?limit=50"
+    dopagetest  3 "200::*::*" "${query}@sort(name,value)@before(bar,3)?limit=50"
+    dopagetest  5 "200::*::*" "${query}@sort(name,value)@before(bar,::null::)?limit=50"
+    dopagetest 19 "200::*::*" "${query}@sort(name,value)@before(::null::,::null::)?limit=50"
+    dopagetest 17 "200::*::*" "${query}@sort(value,id)@before(::null::,12)?limit=50"
 done
 
 for query in "/catalog/${cid}/entity/pagedata" \
