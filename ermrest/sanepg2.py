@@ -172,6 +172,10 @@ class PooledConnection (object):
     def final(self):
         if self.conn is not None:
             self.cur.close()
+            try:
+                self.conn.commit()
+            except:
+                pass
             self.used_pool.putconn(self.conn)
             self.conn = None
 
