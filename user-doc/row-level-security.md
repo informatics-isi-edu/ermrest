@@ -29,8 +29,8 @@ when additional data constraints are met, considering:
 
   - The content of existing rows for SELECT, UPDATE, and DELETE.
   - The new or replacement row content for INSERT and UPDATE.
-  - The value of `(SELECT _ermrest.current_client())` scalar subquery of type `text`.
-  - The value of `(SELECT _ermrest.current_attributes())` scalar subquery of type `text[]`.
+  - The value of `_ermrest.current_client()` scalar subquery of type `text`.
+  - The value of `_ermrest.current_attributes()` scalar subquery of type `text[]`.
   - Other scalar subqueries which MAY lookup indirect values from other tables to find links between the affected row content and the current ermrest client or attributes context.
 
 Note: row-level security policies can compute arbitrary boolean
@@ -106,12 +106,12 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     CREATE POLICY select_group
     ON my_example
         FOR SELECT
-        USING ( 'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())::text[]) );
+        USING ( 'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY (_ermrest.current_attributes()) );
 
     CREATE POLICY select_user
     ON my_example
       FOR SELECT
-      USING ( 'devuser' = (SELECT _ermrest.current_client()) );
+      USING ( 'devuser' = _ermrest.current_client() );
 
 ### Example 5: Consider row-data in more complete example, assuming the table includes `owner` and `acl` columns of type `text` and `text[]`, respectively
 
@@ -120,8 +120,8 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     ON my_example
       FOR INSERT
       WITH CHECK (
-        'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY ((SELECT _ermrest.current_attributes())::text[])
-      AND owner = (SELECT _ermrest.current_client())
+        'g:f69e0a7a-99c6-11e3-95f6-12313809f035' = ANY (_ermrest.current_attributes())
+      AND owner = _ermrest.current_client()
     );
 
     -- owner can update his own rows
@@ -129,14 +129,14 @@ At this point, all data access is possible again.  In general, the `USING (expr)
     CREATE POLICY update_owner
     ON my_example
       FOR UPDATE
-      USING ( owner = (SELECT _ermrest.current_client()) )
-      WITH CHECK ( owner = (SELECT _ermrest.current_client()) ) ;
+      USING ( owner = _ermrest.current_client() )
+      WITH CHECK ( owner = _ermrest.current_client() ) ;
 
     -- owner can delete his own rows
     CREATE POLICY delete_owner
       ON my_example
       FOR DELETE
-      USING ( owner = (SELECT _ermrest.current_client()) );
+      USING ( owner = _ermrest.current_client() );
 
     -- owner can read
     -- as can members of groups in ACL
@@ -144,6 +144,6 @@ At this point, all data access is possible again.  In general, the `USING (expr)
       ON my_example
       FOR SELECT
       USING (
-        owner = (SELECT _ermrest.current_client())
-      OR acl && (SELECT _ermrest.current_attributes())
+        owner = _ermrest.current_client()
+      OR acl && _ermrest.current_attributes()
     );
