@@ -530,7 +530,6 @@ FROM (
         elif in_content_type == 'application/x-json-stream':
             try:
                 cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
-
                 cur.execute(
                 """
 INSERT INTO %(input_table)s (%(cols)s)
@@ -554,6 +553,7 @@ FROM (
 
         #  -- check for duplicate keys
         if not skip_key_tests:
+            cur.execute("ANALYZE %s;" % sql_identifier(input_table))
             cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
             total_rows = cur.fetchone()[0]
             cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (
@@ -567,72 +567,85 @@ FROM (
         correlating_sql = [
             "SELECT %(inmkcols)s FROM %(input_table)s",
             "SELECT %(mkcols)s FROM %(table)s"
-            ]
+        ]
         correlating_sql = tuple([
-            sql % dict(table = self.table.sql_name(), 
-                       inmkcols = ','.join(
-                        [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
-                        ),
-                       mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-                       input_table = sql_identifier(input_table))
+            sql % dict(
+                table = self.table.sql_name(),
+                inmkcols = ','.join(
+                    [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
+                ),
+                mkcols = ','.join([ c.sql_name() for c in mkcols ]),
+                input_table = sql_identifier(input_table)
+            )
             for sql in correlating_sql
-            ])
+        ])
+
+        def jsonfix(sql, c):
+            return '%s::jsonb' % sql if c.type.name == 'json' else sql
         
-        update_sql = u"""
-UPDATE %(table)s AS t SET %(assigns)s
-FROM %(input_table)s AS i
-WHERE %(keymatches)s 
---  AND (%(valnonmatches)s) -- disable comparisons that may not always be possible
-RETURNING %(tcols)s
-""" % dict(
+        # reusable parts interpolated into several SQL statements
+        parts = dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
             assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
-            keymatches = u' AND '.join([ u"t.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]),
-            valnonmatches = u' OR '.join([ u"t.%s IS DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]),
+            keymatches = u' AND '.join([
+                u"((t.%(t)s = i.%(i)s) OR (t.%(t)s IS NULL AND i.%(i)s IS NULL))" % dict(t=c.sql_name(), i=c.sql_name(mkcol_aliases.get(c)))
+                for c in mkcols
+            ]),
+            cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
+            ecols = ','.join([ jsonfix('e.%s' % c.sql_name(), c) for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
+            icols = ','.join([
+                jsonfix('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols if use_defaults is None or c.name not in use_defaults
+            ] + [
+                jsonfix('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols if use_defaults is None or c.name not in use_defaults
+            ]),
+            mkcols = ','.join([ c.sql_name() for c in mkcols ]),
             tcols = u','.join(
-        [ u'i.%s AS %s' % (c.sql_name(mkcol_aliases.get(c)), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
-        + [ u't.%s AS %s' % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
-        )
+                [ u'i.%s AS %s' % (jsonfix(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+                + [ u't.%s AS %s' % (jsonfix(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
             )
+        )
+        
+        update_sql = u"""
+UPDATE %(table)s AS t SET %(assigns)s
+FROM (
+  SELECT %(icols)s FROM %(input_table)s i
+  EXCEPT ALL SELECT %(ecols)s FROM %(table)s e
+) i
+WHERE %(keymatches)s 
+RETURNING %(tcols)s
+        """ % parts
+
+        identical_sql = u"""
+SELECT %(icols)s FROM %(input_table)s i
+INTERSECT ALL SELECT %(ecols)s FROM %(table)s e
+        """ % parts
 
 	# NOTE: insert only happens for /entity/ API which does not support column aliases
+        parts.update(
+            tcols = ','.join([ jsonfix(c.sql_name(), c) for c in (mkcols + nmkcols) ])
+        )
 	if skip_key_tests:
             insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
-SELECT %(icols)s
-FROM %(input_table)s
+SELECT %(icols)s FROM %(input_table)s i
 RETURNING %(tcols)s
-            """ % dict(
-                table = self.table.sql_name(),
-                input_table = sql_identifier(input_table),
-                cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
-                icols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
-                tcols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ])
-            )
-
+            """ % parts
         else:
             insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s
 FROM (
-  SELECT %(mkcols)s FROM %(input_table)s
+  SELECT %(mkcols)s FROM %(input_table)s i
   EXCEPT
-  SELECT %(mkcols)s FROM %(table)s
-) k
+  SELECT %(mkcols)s FROM %(table)s e
+) t
 JOIN %(input_table)s AS i ON (%(keymatches)s)
 RETURNING %(tcols)s
-            """ % dict(
-                table = self.table.sql_name(),
-                input_table = sql_identifier(input_table),
-                cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ]),
-                icols = ','.join([ 'i.%s' % c.sql_name() for c in (mkcols + nmkcols) ]),
-                mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-                keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name()) for c in mkcols ]),
-                tcols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ])
-            )
+            """ % parts
         
         updated_sql = "SELECT * FROM updated_rows"
+        ignored_sql = "SELECT * FROM identical_rows"
         inserted_sql = "SELECT * FROM inserted_rows"
         upsert_sql = "WITH %s %s"
         
@@ -655,6 +668,8 @@ RETURNING %(tcols)s
         if allow_existing and nmkcols:
             upsert_ctes.append("updated_rows AS (%s)" % update_sql)
             upsert_queries.append(updated_sql)
+            upsert_ctes.append("identical_rows AS (%s)" % identical_sql)
+            upsert_queries.append(ignored_sql)
 
         if attr_update is None and allow_missing:
             upsert_ctes.append("inserted_rows AS (%s)" % insert_sql)
