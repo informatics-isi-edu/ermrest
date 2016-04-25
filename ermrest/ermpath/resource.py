@@ -595,11 +595,10 @@ FROM (
             cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
             ecols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
             emkcols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in mkcols ]),
-            icols = ','.join([
-                jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols if use_defaults is None or c.name not in use_defaults
-            ] + [
-                jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols if use_defaults is None or c.name not in use_defaults
-            ]),
+            icols = ','.join(
+                [jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols]
+                + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols]
+            ),
             mkcols = ','.join([ c.sql_name() for c in mkcols ]),
             nmkcols = ','.join([ c.sql_name() for c in nmkcols ]),
             tcols = u','.join(
@@ -667,6 +666,10 @@ RETURNING %(tcols)s""") % parts
 
             if allow_missing:
                 parts.update(
+                    icols = ','.join(
+                        ['i.%s' % c.sql_name(mkcol_aliases.get(c)) for c in mkcols if use_defaults is None or c.name not in use_defaults]
+                        + ['i.%s' % c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols if use_defaults is None or c.name not in use_defaults]
+                    ),
                     tcols = ','.join([ jsonfix2(c.sql_name(), c) for c in (mkcols + nmkcols) ])
                 )
                 cur.execute(
