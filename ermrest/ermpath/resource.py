@@ -580,29 +580,32 @@ FROM (
             for sql in correlating_sql
         ])
 
-        def jsonfix(sql, c):
+        def jsonfix1(sql, c):
             return '%s::jsonb' % sql if c.type.name == 'json' else sql
+        
+        def jsonfix2(sql, c):
+            return '%s::json' % sql if c.type.name == 'json' else sql
         
         # reusable parts interpolated into several SQL statements
         parts = dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
-            assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
+            assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), jsonfix2(c.sql_name(nmkcol_aliases.get(c)), c) ) for c in nmkcols ]),
             keymatches = u' AND '.join([
                 u"((t.%(t)s = i.%(i)s) OR (t.%(t)s IS NULL AND i.%(i)s IS NULL))" % dict(t=c.sql_name(), i=c.sql_name(mkcol_aliases.get(c)))
                 for c in mkcols
             ]),
             cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
-            ecols = ','.join([ jsonfix('e.%s' % c.sql_name(), c) for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
+            ecols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
             icols = ','.join([
-                jsonfix('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols if use_defaults is None or c.name not in use_defaults
+                jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols if use_defaults is None or c.name not in use_defaults
             ] + [
-                jsonfix('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols if use_defaults is None or c.name not in use_defaults
+                jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols if use_defaults is None or c.name not in use_defaults
             ]),
             mkcols = ','.join([ c.sql_name() for c in mkcols ]),
             tcols = u','.join(
-                [ u'i.%s AS %s' % (jsonfix(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
-                + [ u't.%s AS %s' % (jsonfix(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
+                [ u'i.%s AS %s' % (jsonfix1(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+                + [ u't.%s AS %s' % (jsonfix1(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
             )
         )
         
@@ -623,7 +626,7 @@ INTERSECT ALL SELECT %(ecols)s FROM %(table)s e
 
 	# NOTE: insert only happens for /entity/ API which does not support column aliases
         parts.update(
-            tcols = ','.join([ jsonfix(c.sql_name(), c) for c in (mkcols + nmkcols) ])
+            tcols = ','.join([ jsonfix1(c.sql_name(), c) for c in (mkcols + nmkcols) ])
         )
 	if skip_key_tests:
             insert_sql = """
