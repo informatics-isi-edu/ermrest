@@ -671,7 +671,7 @@ RETURNING %(tcols)s""") % parts
                 )
                 cur.execute(
                     preserialize(("""
-INSERT INTO %(table)s AS t (%(cols)s)
+INSERT INTO %(table)s (%(cols)s)
 SELECT * FROM (
   SELECT %(icols)s FROM %(input_table)s i
 """ + ("""
