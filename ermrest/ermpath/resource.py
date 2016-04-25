@@ -604,8 +604,8 @@ FROM (
             ]),
             mkcols = ','.join([ c.sql_name() for c in mkcols ]),
             tcols = u','.join(
-                [ u'i.%s AS %s' % (jsonfix1(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
-                + [ u't.%s AS %s' % (jsonfix1(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
+                [ u'i.%s AS %s' % (jsonfix2(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+                + [ u't.%s AS %s' % (jsonfix2(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
             )
         )
         
@@ -619,15 +619,18 @@ WHERE %(keymatches)s
 RETURNING %(tcols)s
         """ % parts
 
-        identical_sql = u"""
-SELECT %(icols)s FROM %(input_table)s i
-INTERSECT ALL SELECT %(ecols)s FROM %(table)s e
-        """ % parts
-
 	# NOTE: insert only happens for /entity/ API which does not support column aliases
         parts.update(
-            tcols = ','.join([ jsonfix1(c.sql_name(), c) for c in (mkcols + nmkcols) ])
+            tcols = ','.join([ jsonfix2(c.sql_name(), c) for c in (mkcols + nmkcols) ])
         )
+
+        identical_sql = u"""
+SELECT %(tcols)s FROM (
+  SELECT %(icols)s FROM %(input_table)s i
+  INTERSECT ALL SELECT %(ecols)s FROM %(table)s e
+) s
+        """ % parts
+
 	if skip_key_tests:
             insert_sql = """
 INSERT INTO %(table)s (%(cols)s)
