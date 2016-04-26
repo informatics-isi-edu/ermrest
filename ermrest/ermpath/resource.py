@@ -530,7 +530,6 @@ FROM (
         elif in_content_type == 'application/x-json-stream':
             try:
                 cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
-
                 cur.execute(
                 """
 INSERT INTO %(input_table)s (%(cols)s)
@@ -552,118 +551,21 @@ FROM (
         else:
             raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
-        #  -- check for duplicate keys
-        if not skip_key_tests:
-            cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
-            total_rows = cur.fetchone()[0]
-            cur.execute("SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (
-                    ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols]),
-                    sql_identifier(input_table))
-                        )
-            total_mkeys = cur.fetchone()[0]
-            if total_rows > total_mkeys:
-                raise ConflictData('Multiple input rows share the same unique key information.')
-
         correlating_sql = [
             "SELECT %(inmkcols)s FROM %(input_table)s",
             "SELECT %(mkcols)s FROM %(table)s"
-            ]
+        ]
         correlating_sql = tuple([
-            sql % dict(table = self.table.sql_name(), 
-                       inmkcols = ','.join(
-                        [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
-                        ),
-                       mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-                       input_table = sql_identifier(input_table))
-            for sql in correlating_sql
-            ])
-        
-        update_sql = u"""
-UPDATE %(table)s AS t SET %(assigns)s
-FROM %(input_table)s AS i
-WHERE %(keymatches)s 
---  AND (%(valnonmatches)s) -- disable comparisons that may not always be possible
-RETURNING %(tcols)s
-""" % dict(
-            table = self.table.sql_name(),
-            input_table = sql_identifier(input_table),
-            assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), c.sql_name(nmkcol_aliases.get(c)) ) for c in nmkcols ]),
-            keymatches = u' AND '.join([ u"t.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]),
-            valnonmatches = u' OR '.join([ u"t.%s IS DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]),
-            tcols = u','.join(
-        [ u'i.%s AS %s' % (c.sql_name(mkcol_aliases.get(c)), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
-        + [ u't.%s AS %s' % (c.sql_name(), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
-        )
-            )
-
-	# NOTE: insert only happens for /entity/ API which does not support column aliases
-	if skip_key_tests:
-            insert_sql = """
-INSERT INTO %(table)s (%(cols)s)
-SELECT %(icols)s
-FROM %(input_table)s
-RETURNING %(tcols)s
-            """ % dict(
+            sql % dict(
                 table = self.table.sql_name(),
-                input_table = sql_identifier(input_table),
-                cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
-                icols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ]),
-                tcols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ])
-            )
-
-        else:
-            insert_sql = """
-INSERT INTO %(table)s (%(cols)s)
-SELECT %(icols)s
-FROM (
-  SELECT %(mkcols)s FROM %(input_table)s
-  EXCEPT
-  SELECT %(mkcols)s FROM %(table)s
-) k
-JOIN %(input_table)s AS i ON (%(keymatches)s)
-RETURNING %(tcols)s
-            """ % dict(
-                table = self.table.sql_name(),
-                input_table = sql_identifier(input_table),
-                cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ]),
-                icols = ','.join([ 'i.%s' % c.sql_name() for c in (mkcols + nmkcols) ]),
+                inmkcols = ','.join(
+                    [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
+                ),
                 mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-                keymatches = ' AND '.join([ "k.%s IS NOT DISTINCT FROM i.%s" % (c.sql_name(), c.sql_name()) for c in mkcols ]),
-                tcols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) ])
+                input_table = sql_identifier(input_table)
             )
-        
-        updated_sql = "SELECT * FROM updated_rows"
-        inserted_sql = "SELECT * FROM inserted_rows"
-        upsert_sql = "WITH %s %s"
-        
-        # generate rows to caller
-        if content_type == 'text/csv':
-            # TODO implement and use row_to_csv() stored procedure?
-            pass
-        elif content_type == 'application/json':
-            upsert_sql = "WITH %s SELECT COALESCE(array_to_json(array_agg(row_to_json(q)), True)::text, '[]') FROM (%s) q"
-        elif content_type == 'application/x-json-stream':
-            upsert_sql = "WITH %s SELECT row_to_json(q)::text FROM (%s) q"
-        elif content_type in [ dict, tuple ]:
-            pass
-        else:
-            raise NotImplementedError('content_type %s' % content_type)
-        
-        upsert_ctes = []
-        upsert_queries = []
-        
-        if allow_existing and nmkcols:
-            upsert_ctes.append("updated_rows AS (%s)" % update_sql)
-            upsert_queries.append(updated_sql)
-
-        if attr_update is None and allow_missing:
-            upsert_ctes.append("inserted_rows AS (%s)" % insert_sql)
-            upsert_queries.append(inserted_sql)
-    
-        upsert_sql = upsert_sql % (
-            ',\n'.join(upsert_ctes),
-            '\nUNION ALL\n'.join(upsert_queries)
-            )
+            for sql in correlating_sql
+        ])
 
         if allow_existing is False and not skip_key_tests:
             cur.execute("%s INTERSECT ALL %s" % correlating_sql)
@@ -675,15 +577,122 @@ RETURNING %(tcols)s
             for row in cur:
                 raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
 
+        def jsonfix1(sql, c):
+            return '%s::jsonb' % sql if c.type.name == 'json' else sql
+        
+        def jsonfix2(sql, c):
+            return '%s::json' % sql if c.type.name == 'json' else sql
+        
+        # reusable parts interpolated into several SQL statements
+        parts = dict(
+            table = self.table.sql_name(),
+            input_table = sql_identifier(input_table),
+            assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), jsonfix2(c.sql_name(nmkcol_aliases.get(c)), c) ) for c in nmkcols ]),
+            keymatches = u' AND '.join([
+                u"((t.%(t)s = i.%(i)s) OR (t.%(t)s IS NULL AND i.%(i)s IS NULL))" % dict(t=c.sql_name(), i=c.sql_name(mkcol_aliases.get(c)))
+                for c in mkcols
+            ]),
+            cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
+            ecols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
+            emkcols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in mkcols ]),
+            icols = ','.join(
+                [jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols]
+                + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols]
+            ),
+            mkcols = ','.join([ c.sql_name() for c in mkcols ]),
+            nmkcols = ','.join([ c.sql_name() for c in nmkcols ]),
+            tcols = u','.join(
+                [ u'i.%s AS %s' % (jsonfix2(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+                + [ u't.%s AS %s' % (jsonfix2(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
+            )
+        )
+
+        cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols)s);" % parts)
+        cur.execute("ANALYZE %s;" % sql_identifier(input_table))
+
+        #  -- check for duplicate keys
+        if not skip_key_tests:
+            cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
+            total_rows = cur.fetchone()[0]
+            cur.execute(
+                "SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (
+                    ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols]),
+                    sql_identifier(input_table)
+                )
+            )
+            total_mkeys = cur.fetchone()[0]
+            if total_rows > total_mkeys:
+                raise ConflictData('Multiple input rows share the same unique key information.')
+
+        def preserialize(sql):
+            if content_type == 'text/csv':
+                # TODO implement and use row_to_csv() stored procedure?
+                pass
+            elif content_type == 'application/json':
+                sql = "WITH q AS (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q)), True)::text, '[]') FROM q" % sql
+            elif content_type == 'application/x-json-stream':
+                sql = "WITH q AS (%s) SELECT row_to_json(q)::text FROM q" % sql
+            elif content_type in [ dict, tuple ]:
+                pass
+            else:
+                raise NotImplementedError('content_type %s' % content_type)
+            #web.debug(sql)
+            return sql
+
+        # NOTE: we already prefetch the whole result so might as well build incrementally...
+        results = []
+
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
             notify_data_change(cur, self.table)
-            #web.debug(upsert_sql)
-            cur.execute(upsert_sql)
+
+            if allow_existing:
+                cur.execute(
+                    preserialize(("""
+UPDATE %(table)s t SET %(assigns)s FROM (
+  SELECT %(icols)s FROM %(input_table)s i
+""" + (" EXCEPT SELECT %(ecols)s FROM %(table)s e" if use_defaults is None else ""
+) + """) i
+WHERE %(keymatches)s
+RETURNING %(tcols)s""") % parts
+                    )
+                )
+                results.extend(make_row_thunk(None, cur, content_type)())
+
+                if allow_missing is None:
+                    raise NotImplementedError("EntityElem.put allow_existing=%s allow_missing=%s" % (allow_existing, allow_missing))
+            else:
+                assert allow_missing
+
+            if allow_missing:
+                parts.update(
+                    icols = ','.join(
+                        ['i.%s' % c.sql_name(mkcol_aliases.get(c)) for c in mkcols if use_defaults is None or c.name not in use_defaults]
+                        + ['i.%s' % c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols if use_defaults is None or c.name not in use_defaults]
+                    ),
+                    tcols = ','.join([ jsonfix2(c.sql_name(), c) for c in (mkcols + nmkcols) ])
+                )
+                cur.execute(
+                    preserialize(("""
+INSERT INTO %(table)s (%(cols)s)
+SELECT * FROM (
+  SELECT %(icols)s FROM %(input_table)s i
+""" + ("""
+  JOIN (
+    SELECT %(emkcols)s FROM %(input_table)s e
+    EXCEPT SELECT %(mkcols)s FROM %(table)s e
+  ) t ON (%(keymatches)s)""" if use_defaults is None else ""
+) + ") i RETURNING %(tcols)s") % parts
+                    )
+                )
+                results.extend(make_row_thunk(None, cur, content_type)())
+
+            for table in drop_tables:
+                cur.execute("DROP TABLE %s" % sql_identifier(table))
         except psycopg2.IntegrityError, e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
             
-        return list(make_row_thunk(None, cur, content_type, drop_tables)())
+        return results
 
 class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
