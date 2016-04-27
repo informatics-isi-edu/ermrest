@@ -144,17 +144,18 @@ DELETE FROM _ermrest.model_%s_annotation WHERE %s;
             return
         keys = keying.keys() + ['annotation_uri']
         cur.execute("""
-CREATE TABLE _ermrest.model_%s_annotation (%s);
-""" % (
-    restype,
-    ', '.join([ '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0]) for k in keys ]
-              + [
-                  'annotation_value json',
-                  'UNIQUE(%s)' % ', '.join([ sql_identifier(k) for k in keys ])
-              ]
+CREATE TABLE _ermrest.model_%(restype)s_annotation (%(cols)s);
+GRANT SELECT ON _ermrest.model_%(restype)s_annotation TO ermrest;
+""" % dict(
+    restype=restype,
+    cols=', '.join([ '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0]) for k in keys ]
+                   + [
+                       'annotation_value json',
+                       'UNIQUE(%s)' % ', '.join([ sql_identifier(k) for k in keys ])
+                   ]
     )
 )
-            )
+        )
         
     @classmethod
     def introspect_helper(orig_class, cur, model):
@@ -232,9 +233,10 @@ class Model (object):
         if sname in self.schemas:
             raise exception.ConflictModel('Requested schema %s already exists.' % sname)
         cur.execute("""
-CREATE SCHEMA %s ;
+CREATE SCHEMA %(schema)s ;
+GRANT USAGE ON SCHEMA %(schema)s TO ermrest;
 SELECT _ermrest.model_change_event();
-""" % sql_identifier(sname))
+""" % dict(schema=sql_identifier(sname)))
         return Schema(self, sname)
 
     def delete_schema(self, conn, cur, sname):
@@ -268,6 +270,7 @@ SELECT _ermrest.model_change_event();
 DROP TABLE IF EXISTS _ermrest.valuemap ;
 CREATE TABLE _ermrest.valuemap ("schema", "table", "column", "value")
 AS %s ;
+GRANT SELECT ON _ermrest.valuemap TO ermrest;
 CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "table", "column");
 CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
 """ % ' UNION '.join(vmap_parts)

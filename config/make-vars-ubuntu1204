@@ -6,8 +6,6 @@ PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig
 
 SU=su
 
-SVCHOMEDIR=/home/$(DAEMONUSER)
-
 SBINDIR=/usr/bin
 LIBEXECDIR=/usr/lib/ermrest
 SHAREDIR=/usr/share/ermrest

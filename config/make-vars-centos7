@@ -6,8 +6,6 @@ PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig
 
 SU=runuser
 
-SVCHOMEDIR=/home/$(DAEMONUSER)
-
 SBINDIR=/usr/sbin
 LIBEXECDIR=/usr/libexec/ermrest
 SHAREDIR=/usr/share/ermrest
@@ -26,3 +24,5 @@ LOGROTATECONFDIR=/etc/logrotate.d
 SEMANAGE_HTTPD_SYS_CONTENT_T=httpd_sys_content_t
 
 AUTHDIRECTIVES=Satisfy Any \n   Allow from all
+
+

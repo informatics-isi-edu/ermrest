@@ -313,7 +313,7 @@ EOF
 	if [[ "$VERBOSE" = true ]] || [[ "$VERBOSE" = brief ]]
 	then
 	    cat <<EOF
-TEST $(( ${NUM_TEST} + 1 )) OK: Entities round-tripped for $@
+TEST $(( ${NUM_TESTS} + 1 )) OK: Entities round-tripped for $@
 EOF
 	fi
     fi

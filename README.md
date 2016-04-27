@@ -24,36 +24,49 @@ As a protocol, the [ERMrest REST API](api-doc/index.md) can be easily accessed b
   - Aggregate and grouped aggregate queries;
   - Convenient ERM _navigation_ to map common relational _inner join_ idioms into URL path structures.
 - Multi-tenancy to easily allow multiple _catalogs_, each with its own schema and data content.
+  - Group/role-based permissions for catalog-level access
+    - Catalog visibility
+	- Schema management
+	- Data retrieval
+	- Data modification
+  - Experimental [support for PostgreSQL 9.5 row level security](user-doc/row-level-security.md)
+    - Web client identity and attributes (groups/roles) exposed during data processing
+	- Local, DBA-applied row level policies can test against web identity and attributes (no REST management of these policies yet)
 
 ### Prerequisites
 
-ERMrest is developed and tested primarily on an enterprise Linux distribution with Python 2.6. It has a conventional web service stack:
+ERMrest is developed and tested primarily on the CentOS 7 enterprise Linux distribution with Python 2.7. It has a conventional web service stack:
 - Apache HTTPD
 - mod_wsgi
 - web.py lightweight web framework
 - psycopg2 database driver
-- PostgreSQL 9.2 or later
+- PostgreSQL 9.4 or later
 - webauthn security adaptation layer (another product of our group)
 
 ### Installation
 
-See [ERMrest Installation (CentOS 6)](user-doc/install-centos6.md).
+See [ERMrest Installation (CentOS 6)](user-doc/install-centos7.md).
 
 ### Operational Model
 
-1. The HTTP(S) connection is terminated by Apache HTTPD.
-1. The ERMrest service code executes as the `ermrest` daemon user.
+1. The HTTPS connection is terminated by Apache HTTPD.
+1. The ERMrest service code executes as a daemon user
+  - Catalog and schema management operations execute as the `ermrestddl` daemon user.
+  - Data access operations execute as the `ermrest` daemon user.
 1. The service configuration is loaded from `~ermrest/ermrest_config.json`:
-  - Core access control policies
+  - Security provider configuration via embedded webauthn configuration data (will change in future)
+  - Core access control policy for catalog creation.
   - Data type presentation.
 1. All dynamic data is stored in the RDBMS.
 1. Client authentication context is determined by callouts to the webauthn module:
   - Client identity
   - Client roles/group membership.
-1. Authorization of service requests is determined by the service code:
+1. Catalog-level authorization of service requests is determined by the service code:
   - ACLs retrieved from RDBMS
   - ACLs are intersected with authenticated client context.
-1. The RDBMS is accessed using deployed service credentials which have no necessary relation to client security model.
+1. The RDBMS is accessed using daemon service credentials
+  - Course-grained authorization is handled in service prior to executing SQL for clients
+  - PostgreSQL MAY enforce fine-grained data access authorization using row level security policies
 
 ## Help and Contact
 

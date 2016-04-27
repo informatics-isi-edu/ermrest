@@ -19,7 +19,13 @@
 if [[ $# -gt 0 ]]
 then
     # allow VAR=value args to be passed on command-line
-    exec /bin/env "$@" "$0"
+    if [[ -x /usr/bin/env ]]
+    then
+	exec /usr/bin/env "$@" "$0"
+    else
+	echo could not find 'env'
+	exit 1
+    fi
 fi
 
 # paths set for installation
@@ -27,6 +33,7 @@ VARLIBDIR=/var/lib/ermrest
 LIBEXECDIR=/usr/libexec/ermrest
 SHAREDIR=/usr/share/ermrest
 SBINDIR=/usr/sbin
+HTTPCONFDIR=${HTTPCONFDIR:-/etc/httpd/conf.d}
 SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
@@ -34,39 +41,176 @@ SU=su
 DEPLOYLOCK="${DEPLOYLOCK}"          # deploy mutual-exclusion marker, if non-empty
 
 PGADMIN="${PGADMIN:-postgres}"
-DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name for service daemon
-CREATEUSER="${CREATEUSER:-true}"    # whether to try to create PostgreSQL role
-DROPDB="${DROPDB:-false}"           # whether to try to drop any existing database
-CREATEDB="${CREATEDB:-true}"        # whether to try to create the database
+DAEMONUSER1="${DAEMONUSER:-ermrestddl}" # Unix and DB user name for service daemon doing DDL
+DAEMONUSER2="${DAEMONUSER:-ermrest}"    # Unix and DB user name for service daemon doing SQL
 
 # make these available to child processes
 export PGADMIN
 export DAEMONUSER
 
-[[ -n "$DEPLOYLOCK" ]] && [[ -e "$DEPLOYLOCK" ]] && {
-    echo "refusing to deploy with existing deploy lock $DEPLOYLOCK" >&2
-    exit 1
+id ${DAEMONUSER1} || useradd -m -r ${DAEMONUSER1}
+id ${DAEMONUSER2} || useradd -m -r ${DAEMONUSER2}
+
+usermod -a -G apache ${DAEMONUSER1}
+usermod -a -G apache ${DAEMONUSER2}
+
+chmod og+rx /home/${DAEMONUSER1}
+chmod og+rx /home/${DAEMONUSER2}
+
+pgid()
+{
+    line=$($SU -c "psql -q -t -A -c \"select * from pg_roles where rolname = '$1'\"" - "${PGADMIN}")
+    status=$?
+    [[ $status -eq 0 ]] || return $status
+    [[ -n "$line" ]] || return 1
+    echo "$line"
+    return 0
 }
 
-[[ "$CREATEUSER" = "true" ]] && $SU -c "createuser -d -R -S \"$DAEMONUSER\"" - "${PGADMIN}"
-[[ "$DROPDB" = "true" ]] && $SU -c "dropdb \"$DAEMONUSER\"" - "${PGADMIN}"
-[[ "$CREATEDB" = "true" ]] && {
-    $SU -c "createdb -O \"$DAEMONUSER\" \"$DAEMONUSER\"" - "${PGADMIN}"
-    $SU -c "createlang -d \"$DAEMONUSER\" plpgsql" - "${PGADMIN}"
-    $SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - "${PGADMIN}"
-    $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
-    $SU -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER}"
-    $SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
-    # add deploy tasks here...
-    [[ -n "$DEPLOYLOCK" ]] && cat > "$DEPLOYLOCK" <<EOF
-DATE="$(date)"
-PGADMIN="$PGADMIN"
-DAEMONUSER="$DAEMONUSER"
-#USERADD="$USERADD"
-#CREATEUSER="$CREATEUSER"
-#DROPDB="$DROPDB"
-#CREATEDB="$CREATEDB"
-EOF
-    true
+pgcreateuser()
+{
+    $SU -c "createuser $*" - ${PGADMIN}
 }
+
+pgid ${DAEMONUSER1} || pgcreateuser -d -R -S ${DAEMONUSER1}
+pgid ${DAEMONUSER2} || pgcreateuser -D -R -S ${DAEMONUSER2}
+$SU -c "psql -c 'grant ermrest to ermrestddl'" - ${PGADMIN}
+
+if [[ -r /etc/redhat-release ]]
+then
+    SEMANAGE_HTTPD_SYS_CONTENT_T=httpd_sys_content_t
+    
+    for daemon in ${DAEMONUSER1} ${DAEMONUSER2}
+    do
+	semanage fcontext --add --ftype d --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${daemon}"
+	semanage fcontext --add --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${daemon}/ermrest_config.json"
+	restorecon -v /home/${daemon}
+	setsebool -P httpd_enable_homedirs on
+    done
+fi
+
+[[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]] && cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPCONFDIR}/.
+
+pgdbid()
+{
+    line=$($SU -c "psql -q -t -A -c \"select * from pg_database where datname = '$1'\"" - ${PGADMIN})
+    status=$?
+    [[ $status -eq 0 ]] || return $status
+    [[ -n "$line" ]] || return 1
+    echo "$line"
+    return 0
+}
+
+pg_upgrade_catalog_sql()
+{
+    cat <<EOF
+BEGIN;
+ALTER DATABASE "$1" OWNER TO ${DAEMONUSER1};
+GRANT CREATE ON DATABASE "$1" TO ${DAEMONUSER2};
+EOF
+
+    $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('_ermrest', 'pg_toast', 'pg_catalog', 'information_schema') AND NOT pg_is_other_temp_schema(oid)\" '$1'" - ${PGADMIN} | {
+	while read schema
+	do
+	    cat <<EOF
+ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER1};
+GRANT USAGE ON SCHEMA "$schema" TO ${DAEMONUSER2};
+EOF
+	    
+	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema'\" '$1'" - ${PGADMIN} | {
+		while read table
+		do
+		    cat <<EOF
+ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER1};
+GRANT ALL ON TABLE "$schema"."$table" TO ${DAEMONUSER2};
+EOF
+		done
+	    }
+	    
+	    $SU -c "psql -q -t -A -c \"select sequence_name from information_schema.sequences where sequence_schema = '$schema'\" '$1'" - ${PGADMIN} | {
+		while read sequence
+		do
+	            cat <<EOF
+ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER1};
+GRANT ALL ON SEQUENCE "$schema"."$sequence" TO ${DAEMONUSER2};
+EOF
+		done
+	    }
+	done
+    }
+
+    cat <<EOF
+COMMIT;
+
+BEGIN;
+ALTER SCHEMA _ermrest OWNER TO ${DAEMONUSER1};
+GRANT USAGE ON SCHEMA _ermrest TO ${DAEMONUSER2};
+GRANT SELECT ON ALL TABLES IN SCHEMA _ermrest TO ${DAEMONUSER2};
+GRANT ALL ON ALL SEQUENCES IN SCHEMA _ermrest TO ${DAEMONUSER2};
+GRANT INSERT, UPDATE, DELETE ON _ermrest.model_version, _ermrest.data_version TO ${DAEMONUSER2};
+
+CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS \$\$
+BEGIN
+  RETURN current_setting('webauthn2.client');
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL::text;
+END;
+\$\$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE AS \$\$
+BEGIN
+  RETURN (SELECT array_agg(value) FROM json_array_elements_text(current_setting('webauthn2.attributes')::json));
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL::text[];
+END;
+\$\$ LANGUAGE plpgsql;
+
+COMMIT;
+
+EOF
+}
+
+# prevent overwrites
+[[ -r /home/${DAEMONUSER2}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
+[[ -r /home/${DAEMONUSER1}/ermrest_config.json ]] || $SU -c "ln -s /home/${DAEMONUSER2}/ermrest_config.json ." - "${DAEMONUSER1}"
+
+if pgdbid 'ermrest'
+then
+    # idempotently fill in missing parts and update role assignments for 2-role deployment
+    $SU -c "psql -e ermrest" - ${PGADMIN} <<EOF
+BEGIN;
+ALTER DATABASE ermrest OWNER TO ${DAEMONUSER1};
+CREATE SCHEMA IF NOT EXISTS ermrest;
+ALTER SCHEMA ermrest OWNER TO ${DAEMONUSER1};
+GRANT USAGE ON SCHEMA ermrest TO ${DAEMONUSER2};
+GRANT SELECT ON ermrest.simple_registry TO ${DAEMONUSER2};
+COMMIT;
+EOF
+
+    $SU -c "${SBINDIR}/ermrest-registry-deploy" - ${DAEMONUSER1}
+    
+    $SU -c "psql -q -t -A -c \"select descriptor::json->>'dbname' from ermrest.simple_registry\" ermrest" - ${DAEMONUSER1} | {
+	catalogs=()
+	while read line
+	do
+	    catalogs+=("$line")
+	done
+	< /dev/null
+
+	for catalog in "${catalogs[@]}"
+	do
+	    pg_upgrade_catalog_sql "$catalog" | $SU -c "psql -e '$catalog'" - ${PGADMIN}
+	done
+    }
+else
+    $SU -c "createdb -O \"$DAEMONUSER1\" ermrest" - ${PGADMIN}
+    $SU -c "psql -e -c 'GRANT CREATE ON DATABASE ermrest TO ${DAEMONUSER2}'" - ${PGADMIN}
+fi
+
+
+# these are supposed to be idempotent too...
+$SU -c "createlang -d ermrest plpgsql" - "${PGADMIN}"
+$SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - ${PGADMIN}
+$SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER1}"
+$SU -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER2}"
 

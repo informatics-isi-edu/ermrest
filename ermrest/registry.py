@@ -143,7 +143,10 @@ class SimpleRegistry(Registry):
         """
         def body(conn, cur):
             # create registry schema, if it doesn't exist
-            cur.execute("CREATE SCHEMA IF NOT EXISTS ermrest;")
+            cur.execute("""
+CREATE SCHEMA IF NOT EXISTS ermrest;
+GRANT USAGE ON SCHEMA ermrest TO ermrest;
+""")
 
             # create registry table, if it doesn't exist
             if not table_exists(cur, "ermrest", "simple_registry"):
@@ -155,6 +158,7 @@ CREATE TABLE ermrest.simple_registry (
 );
 CREATE INDEX ON ermrest.simple_registry (deleted_on);
 CREATE INDEX ON ermrest.simple_registry (id, deleted_on);
+GRANT SELECT ON ermrest.simple_registry TO ermrest;
 """)
             return None
         return self.pooled_perform(body)
