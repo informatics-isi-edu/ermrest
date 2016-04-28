@@ -416,6 +416,10 @@ def p_expr_name(p):
     """expr : name """
     p[0] = p[1]
 
+def p_expr_empty(p):
+    """expr : """
+    p[0] = ast.Value('')
+    
 def p_op(p):
     """op : '='"""
     p[0] = p[1]

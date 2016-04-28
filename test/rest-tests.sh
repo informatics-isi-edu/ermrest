@@ -411,7 +411,7 @@ dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
 # do basic parsing tests
 for path in "test_level1" "test1:test_level1"
 do
-    for filter in "" "/id=4"
+    for filter in "" "/id=4" "/name=foo" "/name="
     do
 	dotest "200::*::*" "/catalog/${cid}/entity/${path}${filter}"
 	dotest "200::*::*" "/catalog/${cid}/attribute/${path}${filter}/id,name"
