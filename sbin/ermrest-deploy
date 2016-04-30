@@ -48,6 +48,15 @@ DAEMONUSER2="${DAEMONUSER:-ermrest}"    # Unix and DB user name for service daem
 export PGADMIN
 export DAEMONUSER
 
+TMP_SQL=$(mktemp /tmp/ermrest-deploy.sql.XXXXX)
+
+cleanup()
+{
+    rm -f ${TMP_SQL}
+}
+
+trap cleanup 0
+
 id ${DAEMONUSER1} || useradd -m -r ${DAEMONUSER1}
 id ${DAEMONUSER2} || useradd -m -r ${DAEMONUSER2}
 
@@ -199,7 +208,8 @@ EOF
 
 	for catalog in "${catalogs[@]}"
 	do
-	    pg_upgrade_catalog_sql "$catalog" | $SU -c "psql -e '$catalog'" - ${PGADMIN}
+	    pg_upgrade_catalog_sql "$catalog" > ${TMP_SQL}
+	    $SU -c "psql -e '$catalog'" - ${PGADMIN} < ${TMP_SQL}
 	done
     }
 else
