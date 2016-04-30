@@ -690,7 +690,9 @@ SELECT * FROM (
                 new_results = list(make_row_thunk(None, cur, content_type)())
                 
                 if content_type == 'application/json':
-                    if results == ['[]\n']:
+                    if not results:
+                        pass
+                    elif results == ['[]\n']:
                         results = []
                     elif new_results == ['[]\n']:
                         new_results = []
@@ -698,7 +700,6 @@ SELECT * FROM (
                         # we need to splice together two serialized JSON arrays...
                         assert results[-1][-2:] == ']\n'
                         assert new_results[0][0] == '['
-                    
                         results[-1] = results[-1][:-2] # remote closing ']\n'
                         results.append(',\n') # add separator
                         new_results[0] = new_results[0][1:] # remove opening '['
