@@ -121,6 +121,9 @@ SELECT
     END::text
     ORDER BY a.attnum) AS element_types,
   array_agg(
+    a.attnotnull
+    ORDER BY a.attnum) AS notnull,
+  array_agg(
     col_description(c.oid, a.attnum)
     ORDER BY a.attnum) AS comments
 FROM pg_catalog.pg_attribute a
@@ -255,7 +258,7 @@ FROM _ermrest.model_pseudo_keyref ;
 
     # get columns
     cur.execute(SELECT_COLUMNS)
-    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types, comments in cur:
+    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types, notnull, comments in cur:
 
         cols = []
         for i in range(0, len(cnames)):
@@ -273,7 +276,7 @@ FROM _ermrest.model_pseudo_keyref ;
                 # TODO: raise informative exception instead of masking error
                 default_value = None
 
-            col = Column(cnames[i].decode('utf8'), i, base_type, default_value, comments[i])
+            col = Column(cnames[i].decode('utf8'), i, base_type, default_value, not notnull[i], comments[i])
             cols.append( col )
             columns[(dname, sname, tname, cnames[i])] = col
         
