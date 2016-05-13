@@ -57,6 +57,7 @@ here is a quick matrix to locate them.
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
 | [2016 Sequence](#2016-sequence) | - | - | X | - | - | Column as a Gene Sequence |
+| [2016 Ignore](#2016-ignore) | X | X | X | - | X | Ignore model element |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
@@ -403,3 +404,24 @@ Supported JSON payload patterns:
   into smaller subsequences.
 - `{`... `"separator":` _character_ ...`}`: The _character_ to use as the
   separator between subsequence strings.
+
+### 2016 Ignore
+
+`tag:isrd.isi.edu,2016:ignore`
+
+This key is allowed on any number of the following model elements:
+
+- Schema
+- Table
+- Column
+- Foreign Key Reference
+
+This annotation indicates that the annotated model element should be ignored in typical model-driven user interfaces, with the presentation behaving as if the model element were not present. The JSON payload contextualizes the user interface mode or modes which should ignore the model element.
+
+Supported JSON payload patterns:
+- `null` or `[]`: Ignore in any presentation context. Equivalent to `tag:misd.isi.edu,2015:hidden` for backward-compatibility.
+- `[` _context_ `,` ... `]: Ignore **only** in specific listed contexts drawn from the following list, otherwise including the model element as per default heuristics:
+  - `entry`: Avoid prompting of the user for input to whole schemas, whole tables, or individual columns; or, ignore foreign key constraints while obtaining user input.
+  - `filter`: Avoid offering filtering options on whole schemas, whole tables, or individual columns; or, avoid offering filtering options based on traversing foreign keys.
+  - `compact`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in compact, tabular formats. Or, avoid traversing foreign keys in the same mode.
+  - `detailed`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in detailed, entity-level formats. 
