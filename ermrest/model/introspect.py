@@ -78,6 +78,15 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
+
+    HEAL_DATA_VERSIONS = '''
+INSERT INTO _ermrest.data_version ("schema", "table", "snap_txid")
+SELECT t.table_schema, t.table_name, txid_current()
+FROM (
+  SELECT DISTINCT t.table_schema, t.table_name FROM (%s) t
+  EXCEPT SELECT "schema", "table" FROM _ermrest.data_version
+) t
+''' % SELECT_TABLES
     
     SELECT_COLUMNS = '''
 SELECT
@@ -245,6 +254,8 @@ FROM _ermrest.model_pseudo_keyref ;
     fkeyrefs = dict()
 
     model = Model()
+
+    cur.execute(HEAL_DATA_VERSIONS);
     
     #
     # Introspect schemas, tables, columns
