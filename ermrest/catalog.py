@@ -342,6 +342,8 @@ CREATE TABLE %(schema)s.%(table)s (
     snap_txid bigint PRIMARY KEY
 );
 
+CREATE DOMAIN longtext text;
+
 CREATE OR REPLACE FUNCTION %(schema)s.current_client() RETURNS text STABLE AS $$
 BEGIN
   RETURN current_setting('webauthn2.client');
