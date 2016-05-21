@@ -63,6 +63,7 @@
         "int4": { "aliases": [ "integer", "int" ] },
         "int8": { "aliases": [ "bigint" ] },
         "interval": null,
+	"longtext": null,
         "serial2": { "aliases": [ "smallserial" ] },
         "serial4": { "aliases": [ "serial" ] },
         "serial8": { "aliases": [ "bigserial" ] },
