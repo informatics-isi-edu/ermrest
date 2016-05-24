@@ -39,7 +39,8 @@ _default_config = {
     
     "column_types_readonly": {
         "json": None,
-        "text": { 
+        "text": {
+            "aliases": [ "char", "bpchar", "varchar" ],
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
             },
         "timestamp": { "aliases": [ "timestamp without time zone" ] }

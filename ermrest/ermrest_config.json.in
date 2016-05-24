@@ -78,6 +78,7 @@
         "json": null,
         "numeric": null,
         "text": {
+            "aliases": [ "char", "bpchar", "varchar" ],
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
             },
         "time": { "aliases": [ "time with time zone", "time without time zone" ] },
