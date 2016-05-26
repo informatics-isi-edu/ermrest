@@ -550,6 +550,36 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2"
 
+# key API tests
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
+dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id -X DELETE
+dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
+
+cat > ${TEST_DATA} <<EOF
+{ "unique_columns": [ "id" ] }
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/key -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
+
+# foreign key API tests
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id
+dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id -X DELETE
+dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id
+
+cat > ${TEST_DATA} <<EOF
+{ 
+  "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2", "column_name": "level1_id"}],
+  "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id
+
+# load test data
 cat > ${TEST_DATA} <<EOF
 id,name,level1_id
 1,foo 1,1
