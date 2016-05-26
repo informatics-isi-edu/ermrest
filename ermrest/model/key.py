@@ -368,11 +368,11 @@ SELECT _ermrest.model_change_event();
                 ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
                 ))
 
-    def pre_delet(self, conn, cur):
+    def pre_delete(self, conn, cur):
         self.delete_annotation(conn, cur, None)
     
     def add(self, conn, cur):
-        self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+        self.foreign_key.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
