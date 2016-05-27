@@ -550,7 +550,19 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2"
 
+# column API tests
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column/name
+dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/column/name -X DELETE
+
+cat > ${TEST_DATA} <<EOF
+{ "type": { "typename": "text" }, "name": "name" }
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/column -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column/name
+
 # key API tests
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
 dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id -X DELETE
 dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
