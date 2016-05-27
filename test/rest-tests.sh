@@ -426,17 +426,17 @@ do
     dotest "400::*::*" "/catalog/${cid}/aggregate/id=4/n:=cnt(id),ndistinct:=cnt_d(name)"
 done
 
-# create table for composite-key tests
+# create table for composite-key tests and also nullok input
 cat > ${TEST_DATA} <<EOF
 {
    "kind": "table",
    "schema_name": "test1",
    "table_name": "test_composite",
    "column_definitions": [ 
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
       { "type": { "typename": "timestamptz" }, "name": "last_update" },
-      { "type": { "typename": "text" }, "name": "name" },
-      { "type": { "typename": "int8" }, "name": "site" }
+      { "type": { "typename": "text" }, "name": "name", "nullok": true },
+      { "type": { "typename": "int8" }, "name": "site", "nullok": false }
    ],
    "keys": [ 
       { "unique_columns": [ "id", "site" ] } 
@@ -510,8 +510,23 @@ cat > ${TEST_DATA} <<EOF
 id,last_update,name,site
 1,2010-01-01,Foo1,1
 2,2010-01-04,Foo1,1
+3,,,2
 EOF
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite" -H "Content-Type: text/csv" -T ${TEST_DATA} -X PUT
+
+cat > ${TEST_DATA} <<EOF
+id,last_update,name,site
+1,2010-01-02,Foo,2
+,2010-01-01,FooN,1
+EOF
+dotest "409::*::*" "/catalog/${cid}/entity/test1:test_composite" -H "Content-Type: text/csv" -T ${TEST_DATA} -X PUT
+
+cat > ${TEST_DATA} <<EOF
+id,last_update,name,site
+1,2010-01-02,Foo,2
+1,2010-01-01,FooN,
+EOF
+dotest "409::*::*" "/catalog/${cid}/entity/test1:test_composite" -H "Content-Type: text/csv" -T ${TEST_DATA} -X PUT
 
 cat > ${TEST_DATA} <<EOF
 {
@@ -535,6 +550,48 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2"
 
+# column API tests
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column/name
+dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/column/name -X DELETE
+
+cat > ${TEST_DATA} <<EOF
+{ "type": { "typename": "text" }, "name": "name" }
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/column -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column/name
+
+# key API tests
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
+dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id -X DELETE
+dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
+
+cat > ${TEST_DATA} <<EOF
+{ "unique_columns": [ "id" ] }
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/key -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
+
+# foreign key API tests
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id
+dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id -X DELETE
+dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id
+
+cat > ${TEST_DATA} <<EOF
+{ 
+  "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2", "column_name": "level1_id"}],
+  "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/level1_id/reference/test1:test_level1/id
+
+# load test data
 cat > ${TEST_DATA} <<EOF
 id,name,level1_id
 1,foo 1,1

@@ -43,12 +43,13 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value, comment=None, annotations={}):
+    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}):
         self.table = None
         self.name = name
         self.position = position
         self.type = type
         self.default_value = default_value
+        self.nullok = nullok if nullok is not None else True
         self.comment = comment
         self.annotations = dict()
         self.annotations.update(annotations)
@@ -154,6 +155,8 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
             ]
         if self.default_value:
             parts.append('DEFAULT %s' % sql_literal(self.default_value))
+        if self.nullok is False:
+            parts.append('NOT NULL')
         return ' '.join(parts)
 
     def input_ddl(self, alias=None):
@@ -176,12 +179,14 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
         ctype = Type.fromjson(columndoc['type'], ermrest_config)
         comment = columndoc.get('comment', None)
         annotations = columndoc.get('annotations', {})
+        nullok = columndoc.get('nullok', True)
         try:
             return Column(
                 columndoc['name'],
                 position,
                 ctype,
                 columndoc.get('default'),
+                nullok,
                 comment,
                 annotations
             )
@@ -200,6 +205,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(column)s gin_trgm_o
             name=self.name, 
             type=self.type.prejson(),
             default=self.default_value,
+            nullok=self.nullok,
             comment=self.comment,
             annotations=self.annotations
             )

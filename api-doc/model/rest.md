@@ -290,6 +290,7 @@ In this operation, the `application/json` _column representation_ is supplied as
       "name": column name,
       "type": column type,
       "default": default value,
+	  "nullok": boolean,
       "comment": column comment,
       "annotations": {
         annotation key: annotation document, ...
@@ -301,6 +302,7 @@ The input _column representation_ is a long JSON document too verbose to show ve
 - `name`: whose value is the _column name_ string for the new column which must be distinct from all existing columns in the table
 - `type`: whose value is the _column type_ drawn from a limited set of supported types in ERMrest
 - `default`: whose value is an appropriate default value consistent with the _column type_ or the JSON `null` value to indicate that NULL values should be used (the default when `default` is omitted from the _column representation_)
+- `nullok`: JSON `true` if NULL values are allowed or `false` if NULL values are disallowed in this column (default `true` if this field is absent in the input column representation)
 - `comment`: whose value is the human-readable comment string for the column
 - `annotations`: whose value is a sub-object use as a dictionary where each field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
 

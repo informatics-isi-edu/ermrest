@@ -181,6 +181,22 @@ deployed to `/home/ermrest/` and `/etc/httpd/conf.d/`, respectively,
 during fresh installs but will not overwrite deployed configurations
 during an updating install.
 
+## Change web_authn config
+
+Change the following config files to use database authentication instead of globus authentication. 
+* /home/hatrac/webauthn2_config.json
+* /home/ermrest/ermrest_config.json
+
+```
+  "sessionids_provider": "webcookie", 
+  "sessionstates_provider": "database", 
+  "clients_provider": "database", 
+  "attributes_provider": "database", 
+  "preauth_provider": "database",
+```  
+
+See config example [here](https://github.com/informatics-isi-edu/webauthn/blob/master/samples/database/webauthn2_config.json).  
+  
 ## Setup User Accounts
 
 The WebAuthn framework allows for pluggable security providers for
@@ -219,11 +235,10 @@ a catalog, and read its meta properties. The following commands can be run as
 any local user.
 
 1. Login to ERMrest using an 'admin' account previously created with
-   `ermrest-webauthn-manage`. Do not include the single quotes in the parameter.
+   `ermrest-webauthn-manage`. Do not include the single quotes in the parameter. The following script will create a cookie file named `cookie`.
 
    ```
-   $ curl -k -c cookie -d username=root -d password='your password here' \
-   > https://$(hostname)/ermrest/authn/session
+   $ curl -k -c cookie -d username=root -d password='your password here' https://$(hostname)/ermrest/authn/session
    ```
 
 2. Create a catalog.

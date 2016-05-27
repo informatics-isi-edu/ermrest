@@ -217,6 +217,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         column = Column.fromjson_single(columndoc, position, ermrest_config)
         if column.name in self.columns:
             raise exception.ConflictModel('Column %s already exists in table %s:%s.' % (column.name, self.schema.name, self.name))
+        column.table = self
         self.alter_table(conn, cur, 'ADD COLUMN %s' % column.sql_def())
         column.set_comment(conn, cur, column.comment)
         self.columns[column.name] = column

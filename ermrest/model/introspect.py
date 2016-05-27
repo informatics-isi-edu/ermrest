@@ -78,6 +78,15 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
+
+    HEAL_DATA_VERSIONS = '''
+INSERT INTO _ermrest.data_version ("schema", "table", "snap_txid")
+SELECT t.table_schema, t.table_name, txid_current()
+FROM (
+  SELECT DISTINCT t.table_schema, t.table_name FROM (%s) t
+  EXCEPT SELECT "schema", "table" FROM _ermrest.data_version
+) t
+''' % SELECT_TABLES
     
     SELECT_COLUMNS = '''
 SELECT
@@ -90,36 +99,33 @@ SELECT
   array_agg(pg_get_expr(ad.adbin, ad.adrelid)::text ORDER BY a.attnum) AS default_values,
   array_agg(
     CASE
-      WHEN t.typtype = 'd'::"char" THEN
-        CASE
-          WHEN bt.typelem <> 0::oid AND bt.typlen = (-1) THEN 'ARRAY'::text
-          WHEN nbt.nspname = 'pg_catalog'::name THEN format_type(t.typbasetype, NULL::integer)
-          ELSE 'USER-DEFINED'::text
-        END
-      ELSE
-        CASE
-          WHEN t.typelem <> 0::oid AND t.typlen = (-1) THEN 'ARRAY'::text
-          WHEN nt.nspname = 'pg_catalog'::name THEN format_type(a.atttypid, NULL::integer)
-          ELSE 'USER-DEFINED'::text
-        END
+      WHEN t.typtype = 'd'::char AND bt.typelem <> 0::oid AND bt.typlen = (-1) 
+        OR t.typtype != 'd'::char AND t.typelem <> 0::oid AND t.typlen = (-1)
+        THEN 'ARRAY'
+      ELSE t.typname
     END::text
     ORDER BY a.attnum) AS data_types,
   array_agg(
     CASE
-      WHEN t.typtype = 'd'::"char" THEN
+      WHEN t.typtype = 'd'::char THEN
         CASE
-          WHEN bt.typelem <> 0::oid AND bt.typlen = (-1) THEN format_type(bt.typelem, NULL::integer)
-          WHEN nbt.nspname = 'pg_catalog'::name THEN NULL
-          ELSE 'USER-DEFINED'::text
+          WHEN bt.typelem <> 0::oid AND bt.typlen = (-1) THEN
+            CASE 
+              WHEN t.typname ~ '.*[[][]]$' THEN substring(t.typname from '(.*)[[][]]')
+              ELSE bet.typname
+            END
+          ELSE NULL
         END
       ELSE
         CASE
-          WHEN t.typelem <> 0::oid AND t.typlen = (-1) THEN format_type(t.typelem, NULL::integer)
-          WHEN nt.nspname = 'pg_catalog'::name THEN NULL
-          ELSE 'USER-DEFINED'::text
+          WHEN t.typelem <> 0::oid AND t.typlen = (-1) THEN et.typname
+          ELSE NULL
         END
     END::text
     ORDER BY a.attnum) AS element_types,
+  array_agg(
+    a.attnotnull
+    ORDER BY a.attnum) AS notnull,
   array_agg(
     col_description(c.oid, a.attnum)
     ORDER BY a.attnum) AS comments
@@ -129,7 +135,9 @@ JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
 LEFT JOIN pg_catalog.pg_attrdef ad ON (a.attrelid = ad.adrelid AND a.attnum = ad.adnum)
 JOIN pg_catalog.pg_type t ON (t.oid = a.atttypid)
 JOIN pg_catalog.pg_namespace nt ON (t.typnamespace = nt.oid)
+LEFT JOIN pg_catalog.pg_type et ON (t.typelem = et.oid)
 LEFT JOIN pg_catalog.pg_type bt ON (t.typtype = 'd'::"char" AND t.typbasetype = bt.oid)
+LEFT JOIN pg_catalog.pg_type bet ON (bt.typelem = bet.oid)
 LEFT JOIN pg_catalog.pg_namespace nbt ON (bt.typnamespace = nbt.oid)
 WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND NOT pg_is_other_temp_schema(nc.oid) 
@@ -242,6 +250,8 @@ FROM _ermrest.model_pseudo_keyref ;
     fkeyrefs = dict()
 
     model = Model()
+
+    cur.execute(HEAL_DATA_VERSIONS);
     
     #
     # Introspect schemas, tables, columns
@@ -255,7 +265,7 @@ FROM _ermrest.model_pseudo_keyref ;
 
     # get columns
     cur.execute(SELECT_COLUMNS)
-    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types, comments in cur:
+    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types, notnull, comments in cur:
 
         cols = []
         for i in range(0, len(cnames)):
@@ -273,7 +283,7 @@ FROM _ermrest.model_pseudo_keyref ;
                 # TODO: raise informative exception instead of masking error
                 default_value = None
 
-            col = Column(cnames[i].decode('utf8'), i, base_type, default_value, comments[i])
+            col = Column(cnames[i].decode('utf8'), i, base_type, default_value, not notnull[i], comments[i])
             cols.append( col )
             columns[(dname, sname, tname, cnames[i])] = col
         

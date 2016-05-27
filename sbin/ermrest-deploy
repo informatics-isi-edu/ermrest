@@ -179,14 +179,9 @@ COMMIT;
 EOF
 }
 
-# prevent overwrites
-[[ -r /home/${DAEMONUSER2}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
-[[ -r /home/${DAEMONUSER1}/ermrest_config.json ]] || $SU -c "ln -s /home/${DAEMONUSER2}/ermrest_config.json ." - "${DAEMONUSER1}"
-
-if pgdbid 'ermrest'
-then
-    # idempotently fill in missing parts and update role assignments for 2-role deployment
-    $SU -c "psql -e ermrest" - ${PGADMIN} <<EOF
+pg_upgrade_registry_sql()
+{
+    cat <<EOF
 BEGIN;
 ALTER DATABASE ermrest OWNER TO ${DAEMONUSER1};
 CREATE SCHEMA IF NOT EXISTS ermrest;
@@ -194,11 +189,51 @@ ALTER SCHEMA ermrest OWNER TO ${DAEMONUSER1};
 GRANT USAGE ON SCHEMA ermrest TO ${DAEMONUSER2};
 GRANT SELECT ON ermrest.simple_registry TO ${DAEMONUSER2};
 GRANT CREATE ON DATABASE ermrest TO ${DAEMONUSER2};
+EOF
+
+    $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname ~ '^webauthn' AND NOT pg_is_other_temp_schema(oid)\" ermrest" - ${PGADMIN} | {
+	while read schema
+	do
+	    cat <<EOF
+ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER2};
+EOF
+	    
+	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema'\" ermrest" - ${PGADMIN} | {
+		while read table
+		do
+		    cat <<EOF
+ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER2};
+EOF
+		done
+	    }
+	    
+	    $SU -c "psql -q -t -A -c \"select sequence_name from information_schema.sequences where sequence_schema = '$schema'\" ermrest" - ${PGADMIN} | {
+		while read sequence
+		do
+	            cat <<EOF
+ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER2};
+EOF
+		done
+	    }
+	done
+    }
+
+    cat <<EOF
 COMMIT;
 EOF
 
-    $SU -c "${SBINDIR}/ermrest-registry-deploy" - ${DAEMONUSER1}
-    
+}
+
+# prevent overwrites
+[[ -r /home/${DAEMONUSER2}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
+[[ -r /home/${DAEMONUSER1}/ermrest_config.json ]] || $SU -c "ln -s /home/${DAEMONUSER2}/ermrest_config.json ." - "${DAEMONUSER1}"
+
+if pgdbid 'ermrest'
+then
+    # idempotently fill in missing parts and update role assignments for 2-role deployment
+    pg_upgrade_registry_sql > ${TMP_SQL}
+    $SU -c "psql -e ermrest" - ${PGADMIN} < ${TMP_SQL}
+
     $SU -c "psql -q -t -A -c \"select descriptor::json->>'dbname' from ermrest.simple_registry\" ermrest" - ${DAEMONUSER1} | {
 	catalogs=()
 	while read line
