@@ -660,7 +660,7 @@ dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2b" -H "Content-Type:
 # test basic table-linking
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(test1:test_level2b:level1_id1)"
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(test1:test_level2b:level1_id2)"
-dotest "409::*::*" "/catalog/${cid}/entity/test1:test_level1/test1:test_level2b"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/test1:test_level2b"
 
 # do comment tests
 resources=(

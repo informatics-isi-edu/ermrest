@@ -201,21 +201,14 @@ class EntityElem (object):
         self.filters = []
 
     def _link_parts(self):
-        fkcols = [ c.name for c in self.keyref.foreign_key.columns ]
-        pkcols = [ c.name for c in self.keyref.unique.columns ]
-
         if self.refop == '=@':
             # left to right reference
             ltable = self.keyref.foreign_key.table
-            lcnames, rcnames = fkcols, pkcols
-            refop = 'refs'
         else:
             # right to left reference
             ltable = self.keyref.unique.table
-            lcnames, rcnames = pkcols, fkcols
-            refop = 'refby'
 
-        return ltable, lcnames, rcnames, refop
+        return ltable, self.refop
 
     def __str__(self):
         s = unicode(self.table)
@@ -224,17 +217,14 @@ class EntityElem (object):
             s += ' AS %s' % self.alias
 
         if self.keyref:
-            ltable, lcnames, rcnames, refop = self._link_parts()
+            ltable, refop = self._link_parts()
         
             if self.keyref_alias:
                 ltname = self.keyref_alias
             else:
                 ltname = '..'
 
-            lcols = ltname + ':' + ','.join(lcnames)
-            rcols = '.' + ':' + ','.join(rcnames)
-
-            s += ' ON (%s %s %s)' % (lcols, refop, rcols)
+            s += ' ON (%s)' % self.keyref.join_str(refop, ltname, '.')
 
         if self.filters:
             s += ' WHERE ' + ' AND '.join([ unicode(f) for f in self.filters ])
@@ -257,22 +247,14 @@ class EntityElem (object):
         if not self.keyref:
             raise NotImplementedError('self.keyref')
 
-        ltable, lcnames, rcnames, refop = self._link_parts()
+        ltable, refop = self._link_parts()
 
         if self.keyref_alias:
             ltnum = self.epath.aliases[self.keyref_alias]
         else:
             ltnum = self.context_pos
-        
-        return ' AND '.join([
-                't%d.%s = t%d.%s' % (
-                    ltnum, 
-                    sql_identifier(lcnames[i]),
-                    self.pos, 
-                    sql_identifier(rcnames[i])
-                    )
-                for i in range(0, len(lcnames))
-                ])
+
+        return self.keyref.join_sql(refop, 't%d' % ltnum, 't%d' % self.pos)
 
     def sql_wheres(self):
         """Generate SQL row conditions for filtering this element in the epath.

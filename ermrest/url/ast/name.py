@@ -28,6 +28,7 @@ import web
 
 from ...util import sql_identifier, sql_literal
 from ... import exception
+from ...model.key import MultiKeyReference
 
 def _default_link_cols(cols, left=True, reftable=None):
     """Find default reference link anchored at cols list.
@@ -70,7 +71,6 @@ def _default_link_cols(cols, left=True, reftable=None):
     else:
         raise exception.ConflictModel('Ambiguous links found involving columns %s' % [ str(c) for c in cols ])
 
-
 def _default_link_table2table(left, right):
     """Find default reference link between left and right tables.
 
@@ -104,7 +104,7 @@ def _default_link_table2table(left, right):
     elif len(links) == 1:
         return links[0]
     else:
-        raise exception.ConflictModel('Ambiguous links found between tables %s and %s' % (left, right))
+        return (MultiKeyReference(links), '=@')
 
 class Name (object):
     """Represent a qualified or unqualified name in an ERMREST URL.

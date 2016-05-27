@@ -287,6 +287,51 @@ def _guarded_add(s, new_fkr):
     # otherwise this is a new leader
     s.add(new_fkr)
 
+def _keyref_join_str(self, refop, lname, rname):
+    if refop == '=@':
+        lcols = self._from_column_names()
+        rcols = self._to_column_names()
+    else:
+        lcols = self._to_column_names()
+        rcols = self._from_column_names()
+    return '%s:%s%s%s:%s' % (lname, ','.join(lcols), refop, rname, ','.join(rcols))
+
+def _keyref_join_sql(self, refop, lname, rname):
+    if refop == '=@':
+        lcols = self._from_column_names()
+        rcols = self._to_column_names()
+    else:
+        lcols = self._to_column_names()
+        rcols = self._from_column_names()
+    return ' AND '.join([
+        '%s.%s = %s.%s' % (lname, sql_identifier(lcols[i]), rname, sql_identifier(rcols[i]))
+        for i in range(len(lcols))
+    ])
+
+def _keyref_from_column_names(self):
+    f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
+    f_cnames.sort()
+    return f_cnames
+
+def _keyref_to_column_names(self):
+    return [
+        unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
+        for colname in self._from_column_names()
+    ]
+
+def _keyref_prejson(self):
+    fcs = []
+    pcs = []
+    for fc in self.reference_map.keys():
+        fcs.append( fc.prejson_ref() )
+        pcs.append( self.reference_map[fc].prejson_ref() )
+    return dict(
+        foreign_key_columns=fcs,
+        referenced_columns=pcs,
+        comment=self.comment,
+        annotations=self.annotations
+    )
+
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
     from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
@@ -348,11 +393,14 @@ SELECT _ermrest.model_change_event();
             if fkr != self:
                 fkr.set_comment(conn, cur, comment)
         
+    def join_str(self, refop, lname, rname):
+        return _keyref_join_str(self, refop, lname, rname)
+
+    def join_sql(self, refop, lname, rname):
+        return _keyref_join_sql(self, refop, lname, rname)
+    
     def __str__(self):
-        interp = self._interp_annotation(None, sql_wrap=False)
-        interp['from_column_names'] = ','.join(interp['from_column_names'])
-        interp['to_column_names'] = ','.join(interp['to_column_names'])
-        return ':%(from_schema_name)s:%(from_table_name)s(%(from_column_names)s)==>:%(to_schema_name)s:%(to_table_name)s(%(to_column_names)s)' % interp
+        return self.join_str('=@', str(self.foreign_key.table), str(self.unique.table))
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
@@ -385,16 +433,11 @@ SELECT _ermrest.model_change_event();
         
     def _from_column_names(self):
         """Canonicalized from-column names list."""
-        f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
-        f_cnames.sort()
-        return f_cnames
+        return _keyref_from_column_names(self)
         
     def _to_column_names(self):
         """Canonicalized to-column names list."""
-        return [
-            unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
-            for colname in self._from_column_names()
-        ]
+        return _keyref_to_column_names(self)
         
     @staticmethod
     def fromjson(model, refdoc, fkey=None, fktable=None, pkey=None, pktable=None, outfkeys=None):
@@ -470,17 +513,7 @@ SELECT _ermrest.model_change_event();
             yield fkey.references[fk_ref_map]
 
     def prejson(self):
-        fcs = []
-        pcs = []
-        for fc in self.reference_map.keys():
-            fcs.append( fc.prejson_ref() )
-            pcs.append( self.reference_map[fc].prejson_ref() )
-        return dict(
-            foreign_key_columns=fcs,
-            referenced_columns=pcs,
-            comment=self.comment,
-            annotations=self.annotations
-            )
+        return _keyref_prejson(self)
 
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
@@ -532,38 +565,26 @@ SELECT _ermrest.model_change_event();
         for fkr in self.constraints:
             if fkr != self:
                 fkr.set_comment(conn, cur, comment)
-        
+
+    def join_str(self, refop, lname, rname):
+        return _keyref_join_str(self, refop, lname, rname)
+                
+    def join_sql(self, refop, lname, rname):
+        return _keyref_join_sql(self, refop, lname, rname)
+    
     def __str__(self):
-        interp = self._interp_annotation(None, sql_wrap=False)
-        interp['from_column_names'] = ','.join(interp['from_column_names'])
-        interp['to_column_names'] = ','.join(interp['to_column_names'])
-        return ':%(from_schema_name)s:%(from_table_name)s(%(from_column_names)s)==>:%(to_schema_name)s:%(to_table_name)s(%(to_column_names)s)' % interp
+        return self.join_str('=@', str(self.foreign_key.table), str(self.unique.table))
 
     def _from_column_names(self):
         """Canonicalized from-column names list."""
-        f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
-        f_cnames.sort()
-        return f_cnames
+        return _keyref_from_column_names(self)
         
     def _to_column_names(self):
         """Canonicalized to-column names list."""
-        return [
-            unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
-            for colname in self._from_column_names()
-        ]
+        return _keyref_to_column_names(self)
         
     def prejson(self):
-        fcs = []
-        pcs = []
-        for fc in self.reference_map.keys():
-            fcs.append( fc.prejson_ref() )
-            pcs.append( self.reference_map[fc].prejson_ref() )
-        return dict(
-            foreign_key_columns=fcs,
-            referenced_columns=pcs,
-            comment=self.comment,
-            annotations=self.annotations
-            )
+        return _keyref_prejson(self)
 
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
@@ -599,4 +620,53 @@ SELECT _ermrest.model_change_event();
         for fkr in self.constraints:
             if fkr != self:
                 fkr.delete(conn, cur)
+
+class _Endpoint(object):
+
+    def __init__(self, table):
+        self.table = table
+                
+class MultiKeyReference (object):
+    """A disjunctive join condition collecting several links.
+
+       This abstraction simulates a left-to-right reference.
+    """
+
+    def __init__(self, links):
+        assert len(links) > 0
         
+        self.ltable = None
+        self.rtable = None
+
+        for keyref, refop in links:
+            if refop == '=@':
+                ltable = keyref.foreign_key.table
+                rtable = keyref.unique.table
+            else:
+                ltable = keyref.unique.table
+                rtable = keyref.foreign_key.table
+                
+            assert self.ltable is None or self.ltable == ltable
+            assert self.rtable is None or self.rtable == rtable
+
+            self.ltable = ltable
+            self.rtable = rtable
+
+        self.links = links
+        self.foreign_key = _Endpoint(ltable)
+        self.unique = _Endpoint(rtable)
+
+    def join_str(self, refop, lname='..', rname='.'):
+        """Build a simplified representation of the join condition."""
+        assert refop == '=@'
+        parts = []
+        for keyref, refop in self.links:
+            parts.append(keyref.join_str(refop, lname, rname))
+        return '(%s)' % (' OR '.join(parts))
+                         
+    def join_sql(self, refop, lname, rname):
+        assert refop == '=@'
+        return ' OR '.join([
+            '(%s)' % keyref.join_sql(refop, lname, rname)
+            for keyref, refop in self.links
+        ])

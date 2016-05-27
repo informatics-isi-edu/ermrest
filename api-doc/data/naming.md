@@ -123,9 +123,9 @@ An entity link element can augment a path with an additional related or joined t
 - _parent path_ `/` _table name_
 - _parent path_ `/` _schema name_ `:` _table name_
 
-as in the path root, _table name_ may be explicitly schema qualified or left unqualified if it is unambiguous within the catalog. In order for this basic table link element to be valid, there must be an unambiguous foreign-key relationship linking the entity set denoted by _parent path_ and the table denoted by _table name_. The link may point in either direction, i.e. the _parent path_ entity set may contain foreign keys which reference _table name_ or _table name_ may contain foreign keys which reference the _parent path_ entities.
+as in the path root, _table name_ may be explicitly schema qualified or left unqualified if it is unambiguous within the catalog. In order for this basic table link element to be valid, there must be at least one foreign-key relationship linking the entity set denoted by _parent path_ and the table denoted by _table name_. The links may point in either direction, i.e. the _parent path_ entity set may contain foreign keys which reference _table name_ or _table name_ may contain foreign keys which reference the _parent path_ entities.
 
-When there are multiple possible linkages to choose from, such a basic entity link element is ambiguous. In these cases, a more precise entity link element can identify an endpoint of the linkage as a set of columns:
+When there are multiple possible linkages to choose from, the link is formed using the disjunction of all applicable link conditions. A more precise entity link element can choose one link condition by identifying an endpoint of the linkage as a set of columns:
 
 - _parent path_ `/(` _column name_, ... `)`
 - _parent path_ `/(` _table name_ `:` _column name_, ... `)`
