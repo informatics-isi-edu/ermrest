@@ -257,6 +257,8 @@ annotation on the entity type `S`:`E1` in a catalog:
 
 `tag:misd.isi.edu,2015:hidden`
 
+This annotation has been _deprecated_ in favor of [2016 Ignore](#2016-ignore).
+
 This key is allowed on any number of the following model elements:
 
 - Schema
