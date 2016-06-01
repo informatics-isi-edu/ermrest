@@ -292,7 +292,7 @@ If this annotation is applied at the table level, any presentation instructions 
 
 Supported JSON payload patterns:
 
-- `{`... `"url":` _pattern_ ...`}`: The actual URL is obtained by expanding the _pattern_ (see below).
+- `{`... `"url":` _pattern_ ...`}`: The actual URL is obtained by expanding the _pattern_ (see [Pattern Expansion](#pattern-expansion)).
 - `{`... `"url": [` _pattern_`,`...`]`...`}`: A set of URLs is obtained by expanding the list of _pattern_.
 - `{`... `"caption":` _pattern_ ...`}`: The optional caption to go along with the URL where applicable. The actual caption is obtained by expanding the _pattern_ (see below).
 - `{`... `"caption": [` _pattern_`,`...`]`...`}`: A set of captions is obtained by expanding the list of _pattern_. The list of captions MUST be the same length as the list of URLs.
@@ -314,26 +314,7 @@ These optional descriptive fields are mostly additive in their semantics.
 7. A retrieved representation that does not satisfy the `thumbnail`, `content-type`, or `content-type-column` expectations designated by the annotation SHOULD be handled as an erroneous condition.
 8. When a single annotation instruction includes an array of `url` patterns, the URL presentation is a composite of those URLs. If the array is empty or the effective array is empty due to null value exceptions in patterns, the enclosing presentation instruction is disabled.
 
-#### Pattern expansion
-
-When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
-
-For example, a _table_ may have a `tag:misd.isi.edu,2015:url` annotation containing the following payload:
-
-```
-{
-    "pattern": "https://www.example.org/collections/{collection}/media/{object}",
-    "presentation": "embed"
-}
-```
-
-A web user agent that consumes this annotation and the related table data would likely embed the following `<iframe>` tag for each entity:
-
-```
-<iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
-```
-
-##### Null value exceptions
+#### Null value exceptions
 
 If any field value in a _pattern_ is NULL in the source data record, the entire _pattern_ evaluates to NULL for this row.
 
@@ -426,7 +407,7 @@ Supported JSON payload patterns:
   - `entry`: Avoid prompting of the user for input to whole schemas, whole tables, or individual columns; or, ignore foreign key constraints while obtaining user input.
   - `filter`: Avoid offering filtering options on whole schemas, whole tables, or individual columns; or, avoid offering filtering options based on traversing foreign keys.
   - `compact`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in compact, tabular formats. Or, avoid traversing foreign keys in the same mode.
-  - `detailed`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in detailed, entity-level formats. 
+  - `detailed`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in detailed, entity-level formats.
 
 ### 2016 Record Link
 
@@ -454,4 +435,21 @@ using a hierarchical scoping mode:
 3. Schema-level annotation overrides server-level or codebase behaviors.
 4. Table-level annotation overrides schema-level, server-level, or codebase behaviors.
 
+### Pattern Expansion
 
+When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
+
+For example, a _table_ may have a [`tag:misd.isi.edu,2015:url`](#2015-url) annotation containing the following payload:
+
+```
+{
+    "pattern": "https://www.example.org/collections/{collection}/media/{object}",
+    "presentation": "embed"
+}
+```
+
+A web user agent that consumes this annotation and the related table data would likely embed the following `<iframe>` tag for each entity:
+
+```
+<iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
+```
