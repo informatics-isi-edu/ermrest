@@ -184,6 +184,7 @@ used to override the default display name of the model element.
 Supported JSON payload patterns:
 
 - `{`... `"name":` _name_ ...`}`: The _name_ to use in place of the model element's original name.
+- `{`... `"row_name":` _pattern_ ...`}`: The _row_name_ indicates the presentation name to use to represent a row from a table. The row name is specified in the form of a _pattern_ as defined by the [Pattern Expansion](#pattern-expansion) section. This option only applies when annotating a Table.
 
 ### 2015 Facets
 
