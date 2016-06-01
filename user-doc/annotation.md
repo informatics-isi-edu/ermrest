@@ -56,8 +56,10 @@ here is a quick matrix to locate them.
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
-| [2016 Record Link](#2016-record-link) | X | X | - | - | - | Intra-Chaise record-level app links |
+| [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
 | [2016 Ignore](#2016-ignore) | X | X | X | - | X | Ignore model element |
+| [2016 Immutable](#2016-immutable) | - | - | X | - | - | Immutable column element |
+| [2016 Record Link](#2016-record-link) | X | X | - | - | - | Intra-Chaise record-level app links |
 | [2016 Sequence](#2016-sequence) | - | - | X | - | - | Column as a Gene Sequence |
 
 
@@ -438,7 +440,7 @@ using a hierarchical scoping mode:
 3. Schema-level annotation overrides server-level or codebase behaviors.
 4. Table-level annotation overrides schema-level, server-level, or codebase behaviors.
 
-### 2016 Mutable
+### 2016 Immutable
 
 `tag:isrd.isi.edu,2016:immutable`
 
