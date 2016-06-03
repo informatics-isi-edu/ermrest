@@ -355,7 +355,6 @@ Supported JSON payload patterns:
 2. In the absence of a `term` assertion
   - Try to find a single-column key named `term`
   - Try to find a single-column key named `name`
-  - Try to find a unambiguous single-column textual key
   - If no term column is found table SHOULD NOT be interpreted as a vocabulary.
 3. In the absence of an `id` assertion
   - Try to find a column named `id`
