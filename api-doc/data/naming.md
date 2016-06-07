@@ -54,7 +54,7 @@ The `aggregate` resource space denotes computed (global) aggregates using names 
 
 - _service_ `/catalog/` _cid_ `/aggregate/` _path_ `/` _aggregate_ `,` ...
 
-The _path_ is interpreted identically to the `attribute` resource space. However, rather than denoting a set of whole entities, the `aggregate` resource space denotes a single aggregated result computed over that set. The computed _aggregate_ list elements can be in one of several forms:
+The _path_ is interpreted slightly differently than in the `attribute` resource space. Rather than denoting a set of entities drawn from the final table instance in _path_, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of intermediate records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to a single _aggregate_ tuple. The computed _aggregate_ tuple elements can be in one of several forms:
 
 - _out alias_ `:=` _function_ `(` _column name_ `)`
 - _out alias_ `:=` _function_ `(*)`
