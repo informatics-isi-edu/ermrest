@@ -407,8 +407,10 @@ This annotation indicates that the annotated model element should be ignored in 
 
 Supported JSON payload patterns:
 - `null` or `[]`: Ignore in any presentation context. Equivalent to `tag:misd.isi.edu,2015:hidden` for backward-compatibility.
-- `[` _context_ `,` ... `]: Ignore **only** in specific listed contexts drawn from the following list, otherwise including the model element as per default heuristics:
+- `[` _context_ `,` ... `]`: Ignore **only** in specific listed contexts drawn from the following list, otherwise including the model element as per default heuristics:
   - `entry`: Avoid prompting of the user for input to whole schemas, whole tables, or individual columns; or, ignore foreign key constraints while obtaining user input.
+    - `edit`: A sub-context of `entry` that only applies to editing existing resources.
+	- `create`: A sub-context of `entry` that only applies to creating new resources.
   - `filter`: Avoid offering filtering options on whole schemas, whole tables, or individual columns; or, avoid offering filtering options based on traversing foreign keys.
   - `compact`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in compact, tabular formats. Or, avoid traversing foreign keys in the same mode.
   - `detailed`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in detailed, entity-level formats.
