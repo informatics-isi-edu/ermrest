@@ -46,7 +46,7 @@ stable release, i.e. Postgres 9.5 at time of writing.
    For Fedora 23, use:
    
    ```
-   dnf install https://download.postgresql.org/pub/repos/yum/9.5/fedora/fedora-23-x86_64/pgdg-fedora95-9.5-3.noarch.rpm
+   # dnf install https://download.postgresql.org/pub/repos/yum/9.5/fedora/fedora-23-x86_64/pgdg-fedora95-9.5-3.noarch.rpm
    ```
 
 2. Install the required packages. You may first want to uninstall any
@@ -101,16 +101,16 @@ stable release, i.e. Postgres 9.5 at time of writing.
 
 ### Other Prerequisites
 
-   ```
-   # dnf install httpd mod_{ssl,wsgi} python{,-psycopg2,-dateutil,-setuptools,-ply} pytz
-   # dnf install python-webpy
-   ```
+```
+# dnf install httpd mod_{ssl,wsgi} python{,-psycopg2,-dateutil,-setuptools,-ply} pytz
+# dnf install python-webpy
+```
 
-   If `python-webpy` does not exist in the package repo, install it with `pip`.
+If `python-webpy` does not exist in the package repo, install it with `pip`.
 
-   ```
-   # pip install web.py
-   ```
+```
+# pip install web.py
+```
 
 ### WebAuthn
 
