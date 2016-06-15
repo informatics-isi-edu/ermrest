@@ -267,7 +267,7 @@ any local user.
 
    ```
    $ curl -k -b cookie -H "Accept: application/json" \
-   > https://localhost/ermrest/catalog/1
+   > https://$(hostname)/ermrest/catalog/1
    {
      "meta": [
        {"k": "owner", "v": "testuser"},
@@ -284,7 +284,7 @@ any local user.
 
    ```
    $ curl -k -b cookie -H "Accept: application/json" \
-   > https://localhost/ermrest/catalog/1/schema
+   > https://$(hostname)/ermrest/catalog/1/schema
    {
       "schemas": {
       ...
