@@ -14,7 +14,8 @@
       "sessionids_provider": "webcookie", 
       "sessionstates_provider": "database", 
       "clients_provider": "database", 
-      "attributes_provider": "database", 
+      "attributes_provider": "database",
+      "preauth_provider": "database",
             
       "handler_uri_usersession": "/ermrest/authn/session", 
             
