@@ -24,7 +24,7 @@ Run the following commands to install the EPEL repository.
 
 ```
 # rsync -v rsync://mirrors.kernel.org/fedora-epel/7/x86_64/e/epel-release*.rpm .
-# yum localinstall epel-release*.rpm
+# dnf install epel-release*.rpm
 ```
 
 ### PostgreSQL 9.4 or above
