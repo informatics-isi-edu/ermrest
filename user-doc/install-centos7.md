@@ -33,10 +33,20 @@ PostgreSQL must be installed and configured to operate within the
 [SE-Linux] access control mechanism.  We recommend using the latest
 stable release, i.e. Postgres 9.5 at time of writing.
 
-1. Install the PostgreSQL 9.x repository
+1. Install the PostgreSQL 9.x repository.
+
+   Check the list of packages for the version of PostgreSQL and your 
+   distribution from the list at `http://yum.postgresql.org/`.
+
+   For CentOS 7, use:
 
    ```
-   # yum install https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-2.noarch.rpm
+   # dnf install https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-2.noarch.rpm
+   ```
+   For Fedora 23, use:
+   
+   ```
+   dnf install https://download.postgresql.org/pub/repos/yum/9.5/fedora/fedora-23-x86_64/pgdg-fedora95-9.5-3.noarch.rpm
    ```
 
 2. Install the required packages. You may first want to uninstall any
@@ -44,9 +54,9 @@ stable release, i.e. Postgres 9.5 at time of writing.
    your base CentOS installation.
 
    ```
-   # yum install policycoreutils-python
-   # yum erase postgresql{,-server}
-   # yum install postgresql95{,-server,-docs,-contrib}
+   # dnf install policycoreutils-python
+   # dnf remove postgresql{,-server}
+   # dnf install postgresql95{,-server,-docs,-contrib}
    ```
 
 3. Add local labeling rules to [SE-Linux] since the files are not where CentOS
@@ -64,9 +74,9 @@ stable release, i.e. Postgres 9.5 at time of writing.
 4. Initialize and enable the `postgresql` service.
 
    ```
-   # /usr/pgsql-9.4/bin/postgresql94-setup initdb
-   # systemctl enable postgresql-9.4.service
-   # systemctl start postgresql-9.4.service
+   # /usr/pgsql-9.5/bin/postgresql95-setup initdb
+   # systemctl enable postgresql-9.5.service
+   # systemctl start postgresql-9.5.service
    ```
 
 5. Verify that postmaster is running under the right SE-Linux context
@@ -92,7 +102,13 @@ stable release, i.e. Postgres 9.5 at time of writing.
 ### Other Prerequisites
 
    ```
-   # yum install httpd mod_{ssl,wsgi} python{,-psycopg2,-dateutil,-setuptools,-ply} pytz
+   # dnf install httpd mod_{ssl,wsgi} python{,-psycopg2,-dateutil,-setuptools,-ply} pytz
+   # dnf install python-webpy
+   ```
+
+   If `python-webpy` does not exist in the package repo, install it with `pip`.
+
+   ```
    # pip install web.py
    ```
 
@@ -111,7 +127,7 @@ stable release, i.e. Postgres 9.5 at time of writing.
 
    ```
    # cd webauthn
-   # make install
+   # make [PLATFORM=fedora23+] install
    ```
 
    This will install the WebAuthn Python module under
