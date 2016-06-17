@@ -27,7 +27,11 @@ def catalog_auto_index(catalog, conn, cur, schema_names):
                 if s:
                     cur.execute(s)
             for column in table.columns.values():
-                execute_if(column.btree_index_sql())
+                cur.execute('SAVEPOINT svpoint1')
+                try:
+                    execute_if(column.btree_index_sql())
+                except:
+                    cur.execute('ROLLBACK TO SAVEPOINT svpoint1')
                 execute_if(column.pg_trgm_index_sql())
 
 def usage():
