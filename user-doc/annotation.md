@@ -187,6 +187,14 @@ Supported JSON payload patterns:
 
 - `{`... `"name":` _name_ ...`}`: The _name_ to use in place of the model element's original name.
 - `{`... `"row_name":` _pattern_ ...`}`: The _row_name_ indicates the presentation name to use to represent a row from a table. The row name is specified in the form of a _pattern_ as defined by the [Pattern Expansion](#pattern-expansion) section. This option only applies when annotating a Table.
+- `{`... `"row_order":` `[` _sortkey_ ... `]` `}`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
+
+Supported JSON _sortkey_ patterns:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column in descending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `::desc::` `)`.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column in ascending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `)`.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
 
 ### 2015 Facets
 
