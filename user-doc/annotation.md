@@ -414,7 +414,8 @@ This key is allowed on any number of the following model elements:
 This annotation indicates that the annotated model element should be ignored in typical model-driven user interfaces, with the presentation behaving as if the model element were not present. The JSON payload contextualizes the user interface mode or modes which should ignore the model element.
 
 Supported JSON payload patterns:
-- `null` or `[]`: Ignore in any presentation context. Equivalent to `tag:misd.isi.edu,2015:hidden` for backward-compatibility.
+- `null` or `true`: Ignore in any presentation context. `null` is equivalent to `tag:misd.isi.edu,2015:hidden` for backward-compatibility.
+- `[]` or `false`: Do **not** ignore in any presentation context.
 - `[` _context_ `,` ... `]`: Ignore **only** in specific listed contexts drawn from the following list, otherwise including the model element as per default heuristics:
   - `entry`: Avoid prompting of the user for input to whole schemas, whole tables, or individual columns; or, ignore foreign key constraints while obtaining user input.
     - `edit`: A sub-context of `entry` that only applies to editing existing resources.
