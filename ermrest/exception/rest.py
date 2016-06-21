@@ -30,6 +30,10 @@ class WebException (web.HTTPError):
             data = data.decode('utf8')
         data = ('%s\n%s\n' % (status, desc)) % data
         headers['Content-Type'] = 'text/plain'
+        try:
+            web.ctx.ermrest_request_trace(data)
+        except:
+            pass
         web.HTTPError.__init__(self, status, headers=headers, data=data)
 
 class NotModified(WebException):
