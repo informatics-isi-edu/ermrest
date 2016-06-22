@@ -424,6 +424,16 @@ Supported JSON payload patterns:
   - `compact`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in compact, tabular formats. Or, avoid traversing foreign keys in the same mode.
   - `detailed`: Avoid presenting data related to whole schemas, whole tables, or individual columns when presenting data in detailed, entity-level formats.
 
+This annotation provides an override guidance for Chaise applications
+using a hierarchical scoping mode:
+
+1. Hard-coded default behavior in Chaise codebase.
+2. Server-level configuration in `chaise-config.js` on web server overrides hard-coded default.
+3. Schema-level annotation overrides server-level or codebase behaviors.
+4. Table-level annotation overrides schema-level, server-level, or codebase behaviors.
+5. Annotations on the column or foreign key reference levels override table-level, schema-level, server-level, or codebase behaviors.
+
+
 ### 2016 Record Link
 
 `tag:isrd.isi.edu,2016:recordlink`
