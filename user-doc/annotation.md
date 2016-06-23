@@ -97,16 +97,27 @@ user interface requires a scope selection in order to function.
 
 `tag:misd.isi.edu,2015:display`
 
-This key is allowed on any number of schemas, tables, and columns. This
-annotation indicates display options for the indicated element. At the
-time of this writing, the only supported option is 'name', which may be
-used to override the default display name of the model element.
+This key is allowed on any number of schemas, tables, and
+columns. This annotation indicates display options for the indicated
+element and its nested model elements.
 
 Supported JSON payload patterns:
 
 - `{`... `"name":` _name_ ...`}`: The _name_ to use in place of the model element's original name.
+- `{`... `"name_style":` `{` `"underline_space"`: _uspace_ `,` `"title_case":` _tcase_ `}` ...`}`: Element name conversion instructions.
 - `{`... `"row_name":` _pattern_ ...`}`: The _row_name_ indicates the presentation name to use to represent a row from a table. The row name is specified in the form of a _pattern_ as defined by the [Pattern Expansion](#pattern-expansion) section. This option only applies when annotating a Table.
 - `{`... `"row_order":` `[` _sortkey_ ... `]` `}`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
+- `{`... `"row_order":` null `}`: No preferred order is known.
+
+Supported JSON _uspace_ patterns:
+
+- `true`: Convert underline characters (`_`) into space characters in model element names.
+- `false` | `null`: Leave underline characters unmodified (this is also the default if the setting is completely absent).
+
+Supported JSON _tcase_ patterns:
+
+- `true`: Convert element names to "title case" meaning the first character of each word is capitalized and the rest are lower cased regardless of model element name casing. Word separators include white-space, hyphen, and underline characters.
+- `false` | `null`: Leave character casing unmodified (this is also the default if the setting is completely absent).
 
 Supported JSON _sortkey_ patterns:
 
@@ -114,6 +125,14 @@ Supported JSON _sortkey_ patterns:
 - `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column in ascending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `)`.
 - `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
 - `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
+
+#### 2015 Display Settings Hierarchy
+
+- The `"name"` setting applies *only* to the model element which is annotated.
+- The `"name_style"` setting applies to the annotated model element and is also the default for any nested element.
+- The `"row_name"` and `"row_order"` settings apply only to tables, but MAY be annotated at the schema level to set a schema-wide default, if appropriate in a particular model. Any table-level specification of these settings will override the behavior for that table. These settings on other model elements are meaningless and ignored.
+
+For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
 
 ### 2015 Facets
 
