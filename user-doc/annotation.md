@@ -56,6 +56,7 @@ here is a quick matrix to locate them.
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
+| [2016 Column Order](#2016-column-order) | - | X | - | - | - | Column presentation order |
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
 | [2016 Ignore](#2016-ignore) | X | X | X | - | X | Ignore model element |
 | [2016 Immutable](#2016-immutable) | - | - | X | - | - | Immutable column element |
@@ -432,3 +433,18 @@ A web user agent that consumes this annotation and the related table data would 
 ```
 <iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
 ```
+
+### 2016 Column Order
+
+`tag:isrd.isi.edu,2016:column-order`
+
+This key indicates that the presentation order for columns in a table
+are different than the stored order in the database.
+
+Supported JSON payload pattern:
+
+- `[` _colname_ `,` ... `]`: The list of _colname_ provides the presentation order.
+  - Visibility of columns is determined independently from this ordering specification. Invisible columns MAY be included in the _colname_ list and do not affect the relative presentation order of visible columns.
+  - Any _colname_ that is not present in the actual table definition is ignored.
+  - Any visible column that is present in the table definition but absent from the _colname_ list SHOULD be presented **after** the columns named in this annotation. The relative order of all such visibile and unlisted columns SHOULD be consistent with their storage order in the database.
+
