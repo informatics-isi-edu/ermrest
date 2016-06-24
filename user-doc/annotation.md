@@ -56,13 +56,13 @@ here is a quick matrix to locate them.
 | [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
-| [2016 Column Order](#2016-column-order) | - | X | - | - | - | Column presentation order |
 | [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
 | [2016 Ignore](#2016-ignore) | X | X | X | - | X | Ignore model element |
 | [2016 Immutable](#2016-immutable) | - | - | X | - | - | Immutable column element |
 | [2016 Record Link](#2016-record-link) | X | X | - | - | - | Intra-Chaise record-level app links |
 | [2016 Sequence](#2016-sequence) | - | - | X | - | - | Column as a Gene Sequence |
+| [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 
 
 For brevity, the annotation keys are listed above by their section
@@ -435,19 +435,28 @@ A web user agent that consumes this annotation and the related table data would 
 <iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
 ```
 
-### 2016 Column Order
+### 2016 Visible Columns
 
-`tag:isrd.isi.edu,2016:column-order`
+`tag:isrd.isi.edu,2016:visible-columns`
 
-This key indicates that the presentation order for columns in a table
-are different than the stored order in the database.
+This key indicates that the presentation order and visibility for
+columns in a table, overriding the defined table structure.
 
 Supported JSON payload pattern:
 
-- `[` _colname_ `,` ... `]`: The list of _colname_ provides the presentation order.
-  - Visibility of columns is determined independently from this ordering specification. Invisible columns MAY be included in the _colname_ list and do not affect the relative presentation order of visible columns.
-  - Any _colname_ that is not present in the actual table definition is ignored.
-  - Any visible column that is present in the table definition but absent from the _colname_ list SHOULD be presented **after** the columns named in this annotation. The relative order of all such visibile and unlisted columns SHOULD be consistent with their storage order in the database.
+- `{` ... _context_ `:` _columnlist_ `,` ... `}`: A separate _columnlist_ can be specified for any number of _context_ names.
+
+Supported _context_ names:
+
+- `entry`: Any data-entry presentation context, i.e. when prompting the user for input column values.
+  - `edit`: A sub-context of `entry` that only applies to editing existing resources.
+  - `create`: A sub-context of `entry` that only applies to creating new resources.
+- `filter`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
+- `compact`: Any compact, tabular presentation of data from multiple entities.
+
+Supported _columnlist_ patterns:
+
+- `[` _colname_ `,` ... `]`: Present columns from the table with name matching _colname_, in the order specified in the list. Ignore listed _colname_ values that do not correspond to column in the table. Do not present table columns that are not specified in the list.
 
 ### 2016 Foreign Key
 
