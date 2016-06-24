@@ -57,6 +57,7 @@ here is a quick matrix to locate them.
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
 | [2016 Column Order](#2016-column-order) | - | X | - | - | - | Column presentation order |
+| [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
 | [2016 Ignore](#2016-ignore) | X | X | X | - | X | Ignore model element |
 | [2016 Immutable](#2016-immutable) | - | - | X | - | - | Immutable column element |
@@ -447,4 +448,27 @@ Supported JSON payload pattern:
   - Visibility of columns is determined independently from this ordering specification. Invisible columns MAY be included in the _colname_ list and do not affect the relative presentation order of visible columns.
   - Any _colname_ that is not present in the actual table definition is ignored.
   - Any visible column that is present in the table definition but absent from the _colname_ list SHOULD be presented **after** the columns named in this annotation. The relative order of all such visibile and unlisted columns SHOULD be consistent with their storage order in the database.
+
+### 2016 Foreign Key
+
+`tag:isrd.isi.edu,2016:foreign-key`
+
+This key allows augmentation of a foreign key reference constraint
+with additional presentation information.
+
+Supported JSON payload patterns:
+
+- `{` ... `"id":` _id_ ... `}`: A unique _id_ can be assigned to one foreign key reference constraint for easier cross-referencing. (See related [2016 Visible Foreign Keys](#2016-visible-foreign-keys) annotation.) The _id_ MUST be unique among all uses of this annotation in the same catalog.
+- `{` ... `"from_name":` _fname_ ... `}`: The _fname_ string is a preferred name for the set of entities containing foreign key references described by this constraint.
+- `{` ... `"to_name":` _tname_ ... `}`: The _tname_ string is a preferred name for the set of entities containing keys described by this constraint.
+
+Heuristics (use first applicable rule):
+
+1. A set of "related entities" make foreign key reference to a presentation context:
+  - The _fname_ is a preferred name for the related entity set.
+  - The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.
+  - The name of the table can be composed with other contextual information, e.g. "Tablename having columnname = value".
+2. To name a set of "related entities" linked to a presentation context by an association table:
+  - The _tname_ of the foreign key from association table to related entities is a preferred name for the related entity set.
+  - The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.
 
