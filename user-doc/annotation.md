@@ -446,6 +446,8 @@ Supported JSON payload pattern:
 
 - `{` ... _context_ `:` _columnlist_ `,` ... `}`: A separate _columnlist_ can be specified for any number of _context_ names.
 
+For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available columns SHOULD be presented in their defined order unless the application has guidance from other sources.
+
 Supported _context_ names:
 
 - `entry`: Any data-entry presentation context, i.e. when prompting the user for input column values.
