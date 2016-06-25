@@ -63,7 +63,7 @@ here is a quick matrix to locate them.
 | [2016 Record Link](#2016-record-link) | X | X | - | - | - | Intra-Chaise record-level app links |
 | [2016 Sequence](#2016-sequence) | - | - | X | - | - | Column as a Gene Sequence |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
-
+| [2016 visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
@@ -480,4 +480,31 @@ Heuristics (use first applicable rule):
 2. To name a set of "related entities" linked to a presentation context by an association table:
   - The _tname_ of the foreign key from association table to related entities is a preferred name for the related entity set.
   - The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.
+
+### 2016 Visible Foreign Keys
+
+`tag:isrd.isi.edu,2016:visible-foreign-keys`
+
+This key indicates that the presentation order and visibility for
+foreign keys in a table, useful when presenting "related entities".
+
+Supported JSON payload pattern:
+
+- `{` ... _context_ `:` _fkeylist_ `,` ... `}`: A separate _fkeylist_ can be specified for any number of _context_ names.
+
+For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available foreign keys SHOULD be presented unless the application has guidance from other sources.
+
+Supported _context_ names:
+
+- `entry`: Any data-entry presentation context, i.e. when prompting the user for input column values.
+  - `edit`: A sub-context of `entry` that only applies to editing existing resources.
+  - `create`: A sub-context of `entry` that only applies to creating new resources.
+- `filter`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
+- `compact`: Any compact, tabular presentation of data from multiple entities.
+
+Supported _keylist_ patterns:
+
+- `[` _id_ `,` ... `]`: Present foreign keys with matching _id_, in the order specified in the list. Ignore listed _id_ values that do not correspond to foreign keys in the catalog. Do not present foreign keys that are not specified in the list.
+
+The _id_ value for a foreign key is established using the `"id"` field of the related [2016 Foreign Key](#2016-foreign-key) annotation.
 
