@@ -62,6 +62,7 @@ here is a quick matrix to locate them.
 | [2016 Immutable](#2016-immutable) | - | - | X | - | - | Immutable column element |
 | [2016 Record Link](#2016-record-link) | X | X | - | - | - | Intra-Chaise record-level app links |
 | [2016 Sequence](#2016-sequence) | - | - | X | - | - | Column as a Gene Sequence |
+| [2016 Table Display](#2016-table-display) | X | X | - | - | - | Table-specific display options |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 | [2016 visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
 
@@ -107,9 +108,6 @@ Supported JSON payload patterns:
 
 - `{`... `"name":` _name_ ...`}`: The _name_ to use in place of the model element's original name.
 - `{`... `"name_style":` `{` `"underline_space"`: _uspace_ `,` `"title_case":` _tcase_ `}` ...`}`: Element name conversion instructions.
-- `{`... `"row_name":` _pattern_ ...`}`: The _row_name_ indicates the presentation name to use to represent a row from a table. The row name is specified in the form of a _pattern_ as defined by the [Pattern Expansion](#pattern-expansion) section. This option only applies when annotating a Table.
-- `{`... `"row_order":` `[` _sortkey_ ... `]` `}`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
-- `{`... `"row_order":` null `}`: No preferred order is known.
 
 Supported JSON _uspace_ patterns:
 
@@ -121,18 +119,10 @@ Supported JSON _tcase_ patterns:
 - `true`: Convert element names to "title case" meaning the first character of each word is capitalized and the rest are lower cased regardless of model element name casing. Word separators include white-space, hyphen, and underline characters.
 - `false` | `null`: Leave character casing unmodified (this is also the default if the setting is completely absent).
 
-Supported JSON _sortkey_ patterns:
-
-- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column in descending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `::desc::` `)`.
-- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column in ascending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `)`.
-- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
-- `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
-
 #### 2015 Display Settings Hierarchy
 
 - The `"name"` setting applies *only* to the model element which is annotated.
 - The `"name_style"` setting applies to the annotated model element and is also the default for any nested element.
-- The `"row_name"` and `"row_order"` settings apply only to tables, but MAY be annotated at the schema level to set a schema-wide default, if appropriate in a particular model. Any table-level specification of these settings will override the behavior for that table. These settings on other model elements are meaningless and ignored.
 
 For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
 
@@ -485,6 +475,31 @@ Heuristics (use first applicable rule):
 2. To name a set of "related entities" linked to a presentation context by an association table:
   - The _tname_ of the foreign key from association table to related entities is a preferred name for the related entity set.
   - The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.
+
+### 2016 Table Display
+
+`tag:isrd.isi.edu,2016:table-display`
+
+This key allows specification of table presentation options at the table or schema level of the model.
+
+Supported JSON payload patterns:
+
+- `{`... `"row_name":` _pattern_ ...`}`: The _row_name_ indicates the presentation name to use to represent a row from a table. The row name is specified in the form of a _pattern_ as defined by the [Pattern Expansion](#pattern-expansion) section. This option only applies when annotating a Table.
+- `{`... `"row_order":` `[` _sortkey_ ... `]` `}`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
+- `{`... `"row_order":` null `}`: No preferred order is known.
+
+Supported JSON _sortkey_ patterns:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column in descending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `::desc::` `)`.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column in ascending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `)`.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
+
+#### 2016 Table Display Settings Hierarchy
+
+The `"row_name"` and `"row_order"` settings apply only to tables, but MAY be annotated at the schema level to set a schema-wide default, if appropriate in a particular model. Any table-level specification of these settings will override the behavior for that table. These settings on other model elements are meaningless and ignored.
+
+For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
 
 ### 2016 Visible Foreign Keys
 
