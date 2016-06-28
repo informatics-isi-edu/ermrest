@@ -662,6 +662,15 @@ dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(test1:test_level2b
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(test1:test_level2b:level1_id2)"
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/test1:test_level2b"
 
+# test aliased attributegroup updates
+cat > ${TEST_DATA} <<EOF
+old,new
+foo 1,foo 1B
+foo 2,foo 2B
+bar 1,bar 1B
+EOF
+dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_level2b/old:=name;new:=name" -H "Content-Type: text/csv" -T ${TEST_DATA}
+
 # do comment tests
 resources=(
     /schema/test1
