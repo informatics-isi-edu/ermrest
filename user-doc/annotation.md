@@ -112,19 +112,29 @@ Supported JSON payload patterns:
 Supported JSON _uspace_ patterns:
 
 - `true`: Convert underline characters (`_`) into space characters in model element names.
-- `false` | `null`: Leave underline characters unmodified (this is also the default if the setting is completely absent).
+- `false`: Leave underline characters unmodified (this is also the default if the setting is completely absent).
 
 Supported JSON _tcase_ patterns:
 
 - `true`: Convert element names to "title case" meaning the first character of each word is capitalized and the rest are lower cased regardless of model element name casing. Word separators include white-space, hyphen, and underline characters.
-- `false` | `null`: Leave character casing unmodified (this is also the default if the setting is completely absent).
+- `false`: Leave character casing unmodified (this is also the default if the setting is completely absent).
 
 #### 2015 Display Settings Hierarchy
 
 - The `"name"` setting applies *only* to the model element which is annotated.
 - The `"name_style"` setting applies to the annotated model element and is also the default for any nested element.
 
-For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
+This annotation provides an override guidance for Chaise applications using a hierarchical scoping mode:
+
+1. Column-level name
+2. Column-level name_style. 
+3. Table-level name_style. 
+4. Schema-level name_style. 
+
+Note: 
+- An explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
+- The name_style has to be derived separately for each field e.g. one can set `underline_space=true` at the schema-level and doesn't have to set this again.   
+
 
 ### 2015 Facets
 
