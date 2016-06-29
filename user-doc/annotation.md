@@ -448,16 +448,19 @@ columns in a table, overriding the defined table structure.
 Supported JSON payload pattern:
 
 - `{` ... _context_ `:` _columnlist_ `,` ... `}`: A separate _columnlist_ can be specified for any number of _context_ names.
+- `{` ... _context1_ `:` _context2_ `,` ... `}`: Configure _context1_ to use the same _columnlist_ configured for _context2_.
 
 For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available columns SHOULD be presented in their defined order unless the application has guidance from other sources.
 
 Supported _context_ names:
 
-- `entry`: Any data-entry presentation context, i.e. when prompting the user for input column values.
-  - `edit`: A sub-context of `entry` that only applies to editing existing resources.
-  - `create`: A sub-context of `entry` that only applies to creating new resources.
-- `filter`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
-- `compact`: Any compact, tabular presentation of data from multiple entities.
+- `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
+  - `"edit"`: A sub-context of `entry` that only applies to editing existing resources.
+  - `"create"`: A sub-context of `entry` that only applies to creating new resources.
+- `"record"`: Any detailed record-level presentation context.
+- `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
+- `"compact"`: Any compact, tabular presentation of data from multiple entities.
+- `"*"`: A default to apply for any context not matched by a more specific context name.
 
 Supported _columnlist_ patterns:
 
