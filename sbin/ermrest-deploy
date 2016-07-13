@@ -258,5 +258,4 @@ fi
 $SU -c "createlang -d ermrest plpgsql" - "${PGADMIN}"
 $SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - ${PGADMIN}
 $SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER1}"
-$SU -c "${SBINDIR}/ermrest-webauthn2-deploy" - "${DAEMONUSER2}"
 

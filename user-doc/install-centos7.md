@@ -123,15 +123,19 @@ If `python-webpy` does not exist in the package repo, install it with `pip`.
    $ git clone https://github.com/informatics-isi-edu/webauthn.git webauthn
    ```
 
-2. From the WebAuthn source directory, run the installation script.
+2. From the WebAuthn source directory, run the installation and deployment scripts.
 
    ```
    # cd webauthn
-   # make [PLATFORM=fedora23+] install
+   # make install
+   # make deploy
    ```
 
    This will install the WebAuthn Python module under
-   `/usr/lib/python2*/site-packages/webauthn2/`.
+   `/usr/lib/python2*/site-packages/webauthn2/`. It will also create a
+   daemon account `webauthn` and place a default security config under
+   `~webauthn/webauthn2_config.json`. A new web service will be
+   enabled under `/etc/httpd/conf.d/wsgi_webauthn2.conf`.
 
 ## Installing ERMrest
 
@@ -199,9 +203,8 @@ during an updating install.
 
 ## Change web_authn config
 
-Change the following config files to use database authentication instead of globus authentication. 
-* /home/hatrac/webauthn2_config.json
-* /home/ermrest/ermrest_config.json
+Change the following config file to use different authentication modes:
+* /home/webauthn/webauthn2_config.json
 
 ```
   "sessionids_provider": "webcookie", 
@@ -209,9 +212,9 @@ Change the following config files to use database authentication instead of glob
   "clients_provider": "database", 
   "attributes_provider": "database", 
   "preauth_provider": "database",
-```  
+```
 
-See config example [here](https://github.com/informatics-isi-edu/webauthn/blob/master/samples/database/webauthn2_config.json).  
+See config example [here](https://github.com/informatics-isi-edu/webauthn/blob/master/samples/database/webauthn2_config.json).
   
 ## Setup User Accounts
 
@@ -219,29 +222,29 @@ The WebAuthn framework allows for pluggable security providers for
 authenticating clients. The simplest configuration assumes [basic authentication]
 against an internal database of usernames and passwords and attributes.
 
-1. Switch to the `ermrest` user in order to perform the  configuration steps.
+1. Switch to the `webauthn` user in order to perform the  configuration steps.
 
    ```
-   # su - ermrest
+   # su - webauthn
    ```
 
 2. Setup an administrator account.
 
    ```
-   $ ermrest-webauthn2-manage adduser root
-   $ ermrest-webauthn2-manage addattr admin
-   $ ermrest-webauthn2-manage assign root admin
-   $ ermrest-webauthn2-manage passwd root 'your password here'
+   $ webauthn2-manage adduser root
+   $ webauthn2-manage addattr admin
+   $ webauthn2-manage assign root admin
+   $ webauthn2-manage passwd root 'your password here'
    ```
 
    The `admin` attribute has special meaning only because it appears in
-   `~ermrest/ermrest-config.json` in some ACLs.
+   `~webauthn/webauthn2_config.json` in some ACLs.
 
 3. Setup a user account.
 
    ```
-   $ ermrest-webauthn2-manage adduser myuser
-   $ ermrest-webauthn2-manage passwd myuser 'your password here'
+   $ webauthn2-manage adduser myuser
+   $ webauthn2-manage passwd myuser 'your password here'
    ```
 
 ## Create Your First Catalog
