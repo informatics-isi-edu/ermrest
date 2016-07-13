@@ -84,6 +84,8 @@ pgcreateuser()
 pgid ${DAEMONUSER1} || pgcreateuser -d -R -S ${DAEMONUSER1}
 pgid ${DAEMONUSER2} || pgcreateuser -D -R -S ${DAEMONUSER2}
 $SU -c "psql -c 'grant ermrest to ermrestddl'" - ${PGADMIN}
+$SU -c "psql -c 'grant webauthn to ermrestddl'" - ${PGADMIN}
+$SU -c "psql -c 'grant webauthn to ermrestddl'" - ${PGADMIN}
 
 if [[ -r /etc/redhat-release ]]
 then
