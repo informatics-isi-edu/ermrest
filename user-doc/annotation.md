@@ -52,8 +52,8 @@ here is a quick matrix to locate them.
 | [2015 Binary Relationship](#2015-binary-relationship) | - | - | - | - | - | Retracted. |
 | [2015 Default](#2015-default) | X | X | - | - | - | Default scope |
 | [2015 Display](#2015-display) | X | X | X | - | - | Display options |
-| [2015 Facets](#2015-facets) | - | X | - | - | - | Facet grouping |
-| [2015 Hidden](#2015-hidden) | X | X | X | - | X | Hide model element |
+| [2015 Facets](#2015-facets) | - | X | - | - | - | Retracted. |
+| [2015 Hidden](#2015-hidden) | X | X | X | - | X | Retracted. |
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
 | [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
@@ -136,36 +136,11 @@ Note:
 - The name_style has to be derived separately for each field e.g. one can set `underline_space=true` at the schema-level and doesn't have to set this again.   
 
 
-### 2015 Facets
+### ~~2015 Facets~~
 
 `tag:misd.isi.edu,2015:facets`
 
-This key is allowed on zero or more tables in a model. The purpose of
-the annotation is to customize how an entity type might be interpreted
-as faceted data.
-
-Supported JSON payload pattern:
-
-- `[` _facetspec_ ... `]`: The ordered list of _facetspec_ facet specifications SHOULD be considered its primary facets.
-
-Supported JSON _facetspec_ pattern:
-
-- `{ "path": [` _linkspec_ ... `],` _facets_ `}`: One ordered list of columns are facets drawn from the table linked to the current table by the ordered sequence of _linkspec_ link specifications. The ordered path is interpreted left-to-right with the same logic as ERMrest entity paths in the REST API.
-- `{` _linkspec_  _facets_ `}`: Short-hand equivalent when the sequence of link specifications has exactly one _linkspec_ entry.
-- `{` _facets_ `}`: Short-hand equivalent when the sequence of link specifications has zero entries, and facets are drawn from the current table itself.
-
-Supported JSON _linkspec_ patterns:
-
-- `"table":` _tname_: Draw facets from the table _tname_ in the same schema as the current table and which MUST have an unambiguous linkage to the current table.
-- `"schema":` _sname_, `"table":` _tname_ `,`: Draw facets from table _sname_:_tname_ which MUST have an unambiguous linkage to the current table.
-- `"lcolumns": [` _lname_ `],`: Draw facets from the table with an unambiguous link to the current table involving link column(s) _lname_ in the current table.
-- `"table": ` _tname_ `,"lcolumns": [` _lname_ `],`: Draw facets from the table _tname_ in the same schema as the current table and with an unambiguous link to the current table involving link column(s) _lname_ from _sname_:_tname_.
-- `"schema":` _sname_, `"table": ` _tname_ `,"lcolumns": [` _lname_ `],`: Draw facets from the table _sname_:_tname_ with an unambiguous link to the current table involving link column(s) _lname_ from _sname_:_tname_.
-
-Supported JSON _facets_ patterns:
-
-- (empty): All columns of the table are considered heuristically as facets.
-- `"fcolumns": [` _fname_ ... `]`: The ordered list of column(s) _fname_ are considered as facets.
+This proposal is retracted. At time of retraction, no known uses of this annotation exist in the wild.
 
 #### Examples
 
@@ -204,7 +179,7 @@ annotation on the entity type `S`:`E1` in a catalog:
   - An empty set of valid elements SHOULD be interpreted as if no annotation was present.
 4. Offer other reachable facets (found via model-driven interpretation) through "see more" or similar advanced interfaces. The annotation is meant to group or prioritize facets but SHOULD NOT block facet interpretation.
 
-### 2015 Hidden
+### ~~2015 Hidden~~
 
 `tag:misd.isi.edu,2015:hidden`
 
@@ -519,7 +494,7 @@ For hierarchically inheritable settings, an explicit setting of `null` will turn
 `tag:isrd.isi.edu,2016:visible-foreign-keys`
 
 This key indicates that the presentation order and visibility for
-foreign keys in a table, useful when presenting "related entities".
+foreign keys referencing a table, useful when presenting "related entities".
 
 Supported JSON payload pattern:
 
