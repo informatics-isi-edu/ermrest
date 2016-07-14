@@ -50,6 +50,6 @@ script:
   - bash ./test/rest-tests.sh
 
 after_failure:
-  - sudo cat /etc/apache2/conf.d/wsgi_webauthn.conf
+  - sudo cat /etc/apache2/conf.d/wsgi_webauthn2.conf
   - sudo cat /etc/apache2/conf.d/wsgi_ermrest.conf
   - sudo cat ${HTTPD_ERROR_LOG}
