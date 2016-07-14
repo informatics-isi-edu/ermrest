@@ -343,6 +343,7 @@ CREATE TABLE %(schema)s.%(table)s (
 );
 
 CREATE DOMAIN longtext text;
+CREATE DOMAIN markdown text;
 
 CREATE OR REPLACE FUNCTION %(schema)s.current_client() RETURNS text STABLE AS $$
 BEGIN

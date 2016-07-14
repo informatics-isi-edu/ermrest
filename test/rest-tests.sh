@@ -182,6 +182,8 @@ ctypes=(
     int4
     int8
     text
+    longtext
+    markdown
     timestamptz
     date
     uuid
@@ -200,6 +202,8 @@ cvals=(
     1
     1
     one
+    oneoneoneone
+    '**one**'
     '2015-03-11T11:32:56-0700'
     '2015-03-11'
     '2648a44e-c81d-11e4-b6d7-00221930f5cc'
@@ -217,9 +221,9 @@ do
     # apply url-escaping in limited form to cover cvals array above
     cval_uri=$(sed -e 's/:/%3A/g' <<<"${cval}")
 
-    if [[ "$ctype" == serial* ]]
+    if [[ "$ctype" == serial* ]] || [[ "$ctype" == longtext ]] || [[ "$ctype" == markdown ]]
     then
-	# do not try to test serial[] array types...
+	# do not try to test array types based on serial nor domain
 	col3_type="{ \"typename\": \"${ctype}\" }"
     else
 	col3_type="{ \"typename\": \"${ctype}[]\", \"is_array\": true, \"base_type\": { \"typename\": \"${ctype}\" } }"
@@ -248,7 +252,7 @@ EOF
     if ! grep -q "\"typename\": \"${ctype}\"" ${RESPONSE_CONTENT}
     then
 	cat <<EOF	
-FAILED: Core type ${ctype} failed to round-trip for est1:test_ctype_${ctype}:column1
+FAILED: Core type ${ctype} failed to round-trip for test1:test_ctype_${ctype}:column1
 
 $(cat ${RESPONSE_CONTENT})
 EOF
