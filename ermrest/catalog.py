@@ -1,5 +1,5 @@
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -325,6 +325,7 @@ CREATE TABLE _ermrest.model_pseudo_key (
             cur.execute("""
 CREATE TABLE _ermrest.model_pseudo_keyref (
   id serial PRIMARY KEY,
+  name text UNIQUE,
   from_schema_name text NOT NULL,
   from_table_name text NOT NULL,
   from_column_names text[] NOT NULL,

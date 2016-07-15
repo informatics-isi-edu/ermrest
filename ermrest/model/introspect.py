@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ needed by other modules of the ermrest project.
 import web
 
 from .. import exception
-from ..util import table_exists, view_exists
+from ..util import table_exists, view_exists, column_exists
 from .misc import frozendict, Model, Schema, annotatable_classes
 from .type import Type, ArrayType, canonicalize_column_type
 from .column import Column
@@ -250,6 +250,12 @@ FROM _ermrest.model_pseudo_keyref ;
     fkeyrefs = dict()
 
     model = Model()
+
+    # upgrade catalogs in the field to support named pseudo keyrefs
+    if table_exists(cur, "_ermrest", "model_pseudo_keyref") \
+       and not column_exists(cur, "_ermrest", "model_pseudo_keyref", "name"):
+        web.debug('NOTICE: adding _ermrest.model_psuedo_keyref.name column during model introspection')
+        cur.execute('ALTER TABLE _ermrest.model_pseudo_keyref ADD COLUMN "name" text UNIQUE;')
 
     cur.execute(HEAL_DATA_VERSIONS);
     
