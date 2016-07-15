@@ -1,5 +1,5 @@
 # 
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -90,6 +90,10 @@ WHERE table_schema = %(schema)s
     )
     exists = cur.rowcount > 0
     return exists
+
+def constraint_exists(cur, constraintname):
+    cur.execute("SELECT * FROM pg_catalog.pg_constraint WHERE conname = %s" % sql_literal(constraintname))
+    return cur.rowcount > 0
 
 def view_exists(cur, schemaname, tablename):
     """Return True or False depending on whether (schema.)tablename view exists in our database."""
