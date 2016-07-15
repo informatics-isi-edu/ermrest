@@ -76,6 +76,21 @@ AND table_name = %(table)s
     exists = cur.rowcount > 0
     return exists
 
+def column_exists(cur, schemaname, tablename, columnname):
+    cur.execute("""
+SELECT * FROM information_schema.columns
+WHERE table_schema = %(schema)s
+  AND table_name = %(table)s
+  AND column_name = %(column)s
+""" % dict(
+    schema=sql_literal(schemaname),
+    table=sql_literal(tablename),
+    column=sql_literal(columnname)
+)
+    )
+    exists = cur.rowcount > 0
+    return exists
+
 def view_exists(cur, schemaname, tablename):
     """Return True or False depending on whether (schema.)tablename view exists in our database."""
 
