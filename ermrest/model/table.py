@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,7 +117,6 @@ class Table (object):
         comment = tabledoc.get('comment')
         table = Table(schema, tname, columns, 'r', comment, annotations)
         keys = Unique.fromjson(table, tabledoc.get('keys', []))
-        fkeys = ForeignKey.fromjson(table, tabledoc.get('foreign_keys', []))
 
         clauses = []
         for column in columns:
@@ -126,10 +125,6 @@ class Table (object):
         for key in keys:
             clauses.append(key.sql_def())
 
-        for fkey in fkeys:
-            for ref in fkey.references.values():
-                clauses.append(ref.sql_def())
-        
         cur.execute("""
 CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
@@ -148,6 +143,11 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
            )
                     )
 
+        for fkeydoc in tabledoc.get('foreign_keys', []):
+            for fkr in table.add_fkeyref(conn, cur, fkeydoc):
+                # need to drain this generating function
+                pass
+        
         for k, v in annotations.items():
             table.set_annotation(conn, cur, k, v)
 
@@ -156,11 +156,6 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                 column.set_comment(conn, cur, column.comment)
             for k, v in column.annotations.items():
                 column.set_annotation(conn, cur, k, v)
-
-        for fkey in table.fkeys.values():
-            for fkeyref in fkey.references.values():
-                for k, v in fkeyref.annotations.items():
-                    fkeyref.set_annotation(conn, cur, k, v)
 
         return table
 
