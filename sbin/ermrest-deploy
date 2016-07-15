@@ -120,7 +120,7 @@ ALTER DATABASE "$1" OWNER TO ${DAEMONUSER1};
 GRANT CREATE ON DATABASE "$1" TO ${DAEMONUSER2};
 EOF
 
-    $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('_ermrest', 'pg_toast', 'pg_catalog', 'information_schema') AND NOT pg_is_other_temp_schema(oid)\" '$1'" - ${PGADMIN} | {
+    $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('pg_toast', 'pg_catalog', 'information_schema') AND NOT pg_is_other_temp_schema(oid)\" '$1'" - ${PGADMIN} | {
 	while read schema
 	do
 	    cat <<EOF
