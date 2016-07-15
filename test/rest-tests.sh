@@ -926,7 +926,7 @@ dofkrnamestest()
    "foreign_keys": [
       {
         "names": ${fkrnames},
-        "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2b", "column_name": "level1_id1"}],
+        "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2c", "column_name": "level1_id1"}],
         "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
       }
    ]
@@ -935,7 +935,7 @@ EOF
     dotest "$testpattern" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
     if [[ "$testpattern" == 201* ]]
     then
-	dotest "204::*::*" "/catalog/${cid}/entity/test1:test_level2c" -X DELETE
+	dotest "204::*::*" "/catalog/${cid}/schema/test1/table/test_level2c" -X DELETE
     fi
 }
 
