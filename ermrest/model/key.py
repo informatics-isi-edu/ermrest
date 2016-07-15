@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 
 from .. import exception
-from ..util import sql_identifier, sql_literal
+from ..util import sql_identifier, sql_literal, constraint_exists
 from .misc import frozendict, AltDict, annotatable, commentable
 
 import json
@@ -322,6 +322,10 @@ def _keyref_to_column_names(self):
 def _keyref_prejson(self):
     fcs = []
     pcs = []
+
+    def constraint_name_prejson(c):
+        return [ c.constraint_name[0], c.constraint_name[1] ]
+    
     for fc in self.reference_map.keys():
         fcs.append( fc.prejson_ref() )
         pcs.append( self.reference_map[fc].prejson_ref() )
@@ -329,7 +333,8 @@ def _keyref_prejson(self):
         foreign_key_columns=fcs,
         referenced_columns=pcs,
         comment=self.comment,
-        annotations=self.annotations
+        annotations=self.annotations,
+        names=[ constraint_name_prejson(c) for c in self.constraints ]
     )
 
 @annotatable('keyref', dict(
@@ -408,18 +413,28 @@ SELECT _ermrest.model_change_event();
     def sql_def(self):
         """Render SQL table constraint clause for DDL."""   
         fk_cols = list(self.foreign_key.columns)
-        return ('FOREIGN KEY (%s) REFERENCES %s.%s (%s)'
-                % (
+        return (
+            '%s FOREIGN KEY (%s) REFERENCES %s.%s (%s)' % (
+                ('CONSTRAINT %s' % sql_identifier(self.constraint_name[1]) if self.constraint_name else ''),
                 ','.join([ sql_identifier(fk_cols[i].name) for i in range(0, len(fk_cols)) ]),
                 sql_identifier(self.unique.table.schema.name),
                 sql_identifier(self.unique.table.name),
                 ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ])
-                ))
+            )
+        )
 
     def pre_delete(self, conn, cur):
         self.delete_annotation(conn, cur, None)
     
     def add(self, conn, cur):
+        if not self.constraint_name:
+            n = 1
+            while True:
+                name = '%s_%s_fkey%d' % (self.foreign_key.table.name, list(self.foreign_key.columns)[0].name, n)
+                if not constraint_exists(cur, name):
+                    break
+                n += 1
+            self.constraint_name = (self.foreign_key.table.schema.name, name)
         self.foreign_key.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
                 
     def delete(self, conn, cur):
@@ -445,6 +460,17 @@ SELECT _ermrest.model_change_event();
         pk_cols = []
         refs = []
 
+        def check_names(names):
+            if not names:
+                return []
+            for n in names:
+                if type(n) is not list \
+                   or len(n) != 2:
+                    raise exception.BadData('Foreign key name %s must be an 2-element array [ schema_name, constraint_name ].' % n)
+                if type(n[1]) not in [str, unicode]:
+                    raise exception.BadData('Foreign key constraint_name %s must be textual' % n[1])
+            return names
+                
         def check_columns(cols, kind):
             tnames = set(map(lambda d: (d.get('schema_name'), d.get('table_name')), cols))
             if len(tnames) != 1:
@@ -495,6 +521,7 @@ SELECT _ermrest.model_change_event();
 
             return colset, key, table
 
+        fk_names = check_names(refdoc.get('names', []))
         fk_columns = list(check_columns(refdoc.get('foreign_key_columns', []), 'foreign-key'))
         pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
         annotations = refdoc.get('annotations', {})
@@ -503,12 +530,14 @@ SELECT _ermrest.model_change_event();
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
-        
+
+        fk_name = fk_names[0] if fk_names else None
+            
         if fk_ref_map not in fkey.references:
             if fktable.kind == 'r' and pktable.kind == 'r':
-                fkr = KeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+                fkr = KeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment)
             else:
-                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, annotations=annotations, comment=comment)
+                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment)
             fkey.references[fk_ref_map] = fkr
             yield fkey.references[fk_ref_map]
 
@@ -530,7 +559,7 @@ SELECT _ermrest.model_change_event();
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, id=None, annotations={}, comment=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -544,6 +573,7 @@ class PseudoKeyReference (object):
             unique.table_references[foreign_key.table] = set()
         _guarded_add(unique.table_references[foreign_key.table], self)
         self.id = id
+        self.constraint_name = constraint_name
         self.constraints = set([self])
         self.annotations = dict()
         self.annotations.update(annotations)
@@ -595,9 +625,11 @@ SELECT _ermrest.model_change_event();
     def add(self, conn, cur):
         fk_cols = list(self.foreign_key.columns)
         cur.execute("""
+SELECT _ermrest.model_change_event();
 INSERT INTO _ermrest.model_pseudo_keyref
-  (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, comment)
+  (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, comment, name)
   VALUES (%s, %s, ARRAY[%s], %s, %s, ARRAY[%s], %s)
+  RETURNING id
 """ % (
     sql_literal(unicode(self.foreign_key.table.schema.name)),
     sql_literal(unicode(self.foreign_key.table.name)),
@@ -605,9 +637,15 @@ INSERT INTO _ermrest.model_pseudo_keyref
     sql_literal(unicode(self.unique.table.schema.name)),
     sql_literal(unicode(self.unique.table.name)),
     ', '.join([ sql_literal(unicode(self.reference_map[fk_cols[i]].name)) for i in range(len(fk_cols)) ]),
-    sql_literal(self.comment)
+    sql_literal(self.comment),
+    sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL'
 )
         )
+        self.id = cur.fetchone()[0]
+        self.constraint_name = [
+            "",
+            self.constraint_name[1] if self.constraint_name else self.id
+        ]
         
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)

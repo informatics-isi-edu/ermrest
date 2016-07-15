@@ -906,6 +906,46 @@ do
     dotest "200::*::*" "/catalog/${cid}/textfacet/${pattern}"
 done
 
+# test foreign key reference names
+dofkrnamestest()
+{
+    testpattern="$1"
+    fkrnames="$2"
+
+    cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_level2c",
+   "column_definitions": [
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "level1_id1"},
+      { "type": { "typename": "text" }, "name": "name" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ] } ],
+   "foreign_keys": [
+      {
+        "names": ${fkrnames},
+        "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2b", "column_name": "level1_id1"}],
+        "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
+      }
+   ]
+}
+EOF
+    dotest "$testpattern" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+    if [[ "$testpattern" == 201* ]]
+    then
+	dotest "204::*::*" "/catalog/${cid}/entity/test1:test_level2c" -X DELETE
+    fi
+}
+
+dofkrnamestest "201::*::*" "[]"
+dofkrnamestest "201::*::*" "null"
+dofkrnamestest "201::*::*" "[[\"test1\", \"mytestconstraint\"]]"
+dofkrnamestest "400::*::*" "[[\"test1\", 5]]"
+dofkrnamestest "400::*::*" "[5]"
+dofkrnamestest "400::*::*" "[[\"test1\", \"mytestconstraint\", \"too many names\"]"
+
 # create table for paging tests
 cat > ${TEST_DATA} <<EOF
 {

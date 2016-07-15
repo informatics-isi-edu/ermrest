@@ -532,6 +532,9 @@ In this operation, the `application/json` _foreign key reference representation_
     Content-Type: application/json
 
     {
+	  "names": [
+	    [ schema name, constraint name ], ...
+	  ]
       "foreign_key_columns": [
         {
           "schema_name": schema name,
@@ -554,6 +557,7 @@ In this operation, the `application/json` _foreign key reference representation_
 
 The input _foreign key reference representation_ is a long JSON document too verbose to show verbatim in this documentation. Its general structure is a single object with the following fields:
 
+- `names`: an array of `[` _schema name_ `,` _constraint name_ `]` pairs representing names of underlying constraints that enforce this foreign key reference pattern.
 - `foreign_key_columns`: an array of column reference objects comprising the composite foreign key, each consisting of a sub-object with the fields:
   - `schema_name`: whose value is the same _schema name_ addressed in the request URL (optional content in this request)
   - `table_name`: whose value is the same _table name_ addressed in the request URL (optional content in this request)
@@ -565,7 +569,15 @@ The input _foreign key reference representation_ is a long JSON document too ver
 - `comment`: whose value is the human-readable comment string for the foreign key reference constraint
 - `annotations`: whose value is a sub-object used as a dictionary where each field field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
 
-The two arrays MUST have the same length and the order is important in that the two composite keys are mapped to one another element-by-element, so the first column of the composite foreign key refers to the first column of the composite referenced key, etc. In the `referenced_columns` list, the _schema name_ and _table name_ values MUST be identical for all referenced columns. If both referencing and referenced _table name_ refer to tables, a real constraint is created; if either referencing or referenced _table name_ refer to a view, a pseudo-constraint is created instead.
+During foreign key creation, the `names` field SHOULD have at most one name pair. Other `names` inputs MAY be ignored by the server. When the `names` field is omitted, the server MUST assign constraint names of its own choosing. In introspection, the `names` field represents the actual state of the database and MAY include generalities not controlled by the foreign key creation REST API:
+
+- Redundant constraints MAY exist in the RDBMS for the same foreign key mapping constraint, and hence the `names` list MAY list more than one existing constraint. This can happen when the catalog database is manipulated directly in SQL by the local operator.
+- The chosen _schema name_ for a newly created constraint MAY differ from the one requested by the client.
+  - The server MAY create the constraint in the same schema as the referencing table, regardless of client request.
+  - Pseudo foreign keys are qualified by a special _schema name_ of `""` which is not a valid SQL schema name.
+  - Pseudo foreign keys MAY have an integer _constraint name_ assigned by the server.
+
+The two column arrays MUST have the same length and the order is important in that the two composite keys are mapped to one another element-by-element, so the first column of the composite foreign key refers to the first column of the composite referenced key, etc. In the `referenced_columns` list, the _schema name_ and _table name_ values MUST be identical for all referenced columns. If both referencing and referenced _table name_ refer to tables, a real constraint is created; if either referencing or referenced _table name_ refer to a view, a pseudo-constraint is created instead.
 
 On success, the response is:
 

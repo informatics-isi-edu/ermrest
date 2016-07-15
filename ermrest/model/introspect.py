@@ -228,6 +228,7 @@ FROM _ermrest.model_pseudo_key ;
     PSEUDO_FKEY_COLUMNS = '''
 SELECT
   id AS fk_id,
+  name AS fk_constraint_name,
   from_schema_name AS fk_table_schema,
   from_table_name AS fk_table_name,
   from_column_names AS fk_column_names,
@@ -392,13 +393,14 @@ FROM _ermrest.model_pseudo_keyref ;
         )
         
     cur.execute(PSEUDO_FKEY_COLUMNS)
-    for fk_id, fk_table_schema, fk_table_name, fk_column_names, \
+    for fk_id, fk_constraint_name, fk_table_schema, fk_table_name, fk_column_names, \
             uq_table_schema, uq_table_name, uq_column_names, fk_comment \
             in cur:
+        fk_constraint_name = ("", (fk_constraint_name if fk_constraint_name is not None else fk_id))
         _introspect_fkr(
             fk_table_schema, fk_table_name, fk_column_names,
             uq_table_schema, uq_table_name, uq_column_names, fk_comment,
-            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, fk_id, comment=fk_comment)
+            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, fk_id, fk_constraint_name, comment=fk_comment)
         )
     
     #
