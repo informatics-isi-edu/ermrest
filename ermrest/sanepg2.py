@@ -87,7 +87,7 @@ class PoolManager (object):
     def __init__(self):
         # map dsn -> [pool, timestamp]
         self.pools = dict()
-        self.max_idle_seconds = 60 * 60 # 1 hour
+        self.max_idle_seconds = 60 * 15 # 15 minutes
 
     def __getitem__(self, dsn):
         """Lookup existing or create new pool for database on demand.
@@ -108,7 +108,11 @@ class PoolManager (object):
                 if delta_seconds < self.max_idle_seconds:
                     # this pool is sufficiently active so put it back!
                     boundpair = self.pools.setdefault(key, pair)
-                # if pair is still removed at this point, let garbage collector deal with it
+                
+                if self.pools.get(key, [None])[0] != pair[0]:
+                    # our pool is not registered anymore
+                    pair[0].closeall()
+                        
             except KeyError:
                 # another thread could have purged key before we got to it
                 pass
