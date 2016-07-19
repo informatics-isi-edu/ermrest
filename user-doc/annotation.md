@@ -78,7 +78,7 @@ lower-cased with hyphens replacing whitespace. For example, the first
 
 `tag:misd.isi.edu,2015:binary-relationship`
 
-This annotation proposal has been retracted. At time of retraction, no none uses of the annotation exist in the wild.
+This annotation proposal has been retracted. At time of retraction, no uses of the annotation exist in the wild.
 
 ### 2015 Default
 
