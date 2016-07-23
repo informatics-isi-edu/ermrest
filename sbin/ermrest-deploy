@@ -128,12 +128,21 @@ ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER1};
 GRANT USAGE ON SCHEMA "$schema" TO ${DAEMONUSER2};
 EOF
 	    
-	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema'\" '$1'" - ${PGADMIN} | {
+	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema' AND table_type = 'BASE TABLE'\" '$1'" - ${PGADMIN} | {
 		while read table
 		do
 		    cat <<EOF
 ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER1};
 GRANT ALL ON TABLE "$schema"."$table" TO ${DAEMONUSER2};
+EOF
+		done
+	    }
+	    
+	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema' AND table_type = 'VIEW'\" '$1'" - ${PGADMIN} | {
+		while read table
+		do
+		    cat <<EOF
+ALTER VIEW "$schema"."$table" OWNER TO ${DAEMONUSER2};
 EOF
 		done
 	    }
