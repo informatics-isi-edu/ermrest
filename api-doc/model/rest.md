@@ -655,3 +655,202 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Model Annotations
+
+Annotations are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
+
+And the annotation sub-resources are named by appending `/annotation/` to the _subject_ resource as described in the following operations.
+
+### Annotation List Retrieval
+
+The GET operation is used to retrieve a document describing a set of annotations on one subject resource:
+
+- _subject_ `/annotation/`
+
+In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
+
+    GET subject/annotation/ HTTP/1.1
+	Host: www.example.com
+	Accept: application/json
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+    
+    {
+      annotation key: annotation document, ...
+    }
+
+Its general structure is a single object containing the `annotations` dictionary from the enclosing _subject_ resource. Each field of the object is an _annotation key_ and its corresponding value is the nested _annotation document_ content.
+
+Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized
+
+### Annotation Creation
+
+The PUT operation is used to add or replace a single annotation:
+
+- _subject_ `/annotation/` _annotation key_
+
+In this operation, the `application/json` _annotation document_ is supplied as input:
+
+    POST subject/annotation/annotation_key HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+    
+    annotation document
+
+The input _annotation document_ is a arbitrary JSON payload appropriate to the chosen _annotation key_.
+
+On success, the response is:
+
+    HTTP/1.1 201 Created
+
+or:
+
+    HTTP/1.1 200 OK
+
+without any response body. The `200` response indicates the _annotation document_ replaces a previous one, while `201` responses indicate that a new _annotation key_ has been added to the parent resource.
+
+Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized
+
+### Annotation Retrieval
+
+The GET operation is used to retrieve a document describing one annotation using a model-level resource name of the form:
+
+- _subject_ `/annotation/` _annotation key_
+
+In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
+
+    GET subject/annotation/annotation_key HTTP/1.1
+	Host: www.example.com
+	Accept: application/json
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+    
+    annotation document
+
+Its general structure is a single object containing _annotation document_ content associated with _annotation key_.
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+### Annotation Deletion
+
+The DELETE method is used to delete an annotation using a model-level resource name of the form:
+
+- _subject_ `/annotation/` _annotation key_
+
+The request does not require content-negotiation since there is no response representation:
+
+    DELETE subject/annotation/annotation_key HTTP/1.1
+    Host: www.example.com
+    
+On success, this request yields a description:
+
+    HTTP/1.1 204 No Content
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+## Model Comments
+
+Comments are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... 
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
+
+And the comment sub-resources are named by appending `/comment` to the _subject_ resource as described in the following operations.
+
+### Comment Creation
+
+The PUT operation is used to add or replace a single comment:
+
+- _subject_ `/comment`
+- _subject_ `/comment/`
+
+In this operation, the `text/plain` _comment text_ is supplied as input:
+
+    POST subject/comment/ HTTP/1.1
+	Host: www.example.com
+	Content-Type: text/plain
+    
+    comment text
+
+The input _comment text_ is a arbitrary UTF-8 text payload.
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+
+without any response body.
+
+Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized
+
+### Comment Retrieval
+
+The GET operation is used to retrieve a document describing one comment using a model-level resource name of the form:
+
+- _subject_ `/comment`
+
+In this operation, content-negotiation is not necessary:
+
+    GET subject/comment HTTP/1.1
+	Host: www.example.com
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: text/plain
+    
+    comment text
+
+Its general structure is raw _comment text_.
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+### Comment Deletion
+
+The DELETE method is used to delete an comment using a model-level resource name of the form:
+
+- _subject_ `/comment`
+
+The request does not require content-negotiation since there is no response representation:
+
+    DELETE subject/comment HTTP/1.1
+    Host: www.example.com
+    
+On success, this request yields a description:
+
+    HTTP/1.1 204 No Content
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
