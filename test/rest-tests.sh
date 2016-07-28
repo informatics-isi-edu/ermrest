@@ -696,6 +696,71 @@ EOF
     dotest "404::*::*" "/catalog/${cid}${resource}/comment"
 done
 
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_comments",
+   "comment": "TABLE1",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id", "comment": "COLUMN1" },
+      { "type": { "typename": "int8" }, "name": "level1_id", "comment": "COLUMN2" },
+      { "type": { "typename": "text" }, "name": "name", "comment": "COLUMN3" },
+      { "type": { "typename": "int8" }, "name": "level1_id2", "comment": "COLUMN4" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ], "comment": "KEY1" } ],
+   "foreign_keys": [
+      { 
+        "comment": "FKEY1",
+        "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_comments", "column_name": "level1_id"}],
+        "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
+      }
+   ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+{ "unique_columns": [ "name" ], "comment": "KEY2" }
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_comments/key -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+cat > ${TEST_DATA} <<EOF
+{
+  "comment": "FKEY2",
+  "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_comments", "column_name": "level1_id2"}],
+  "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_comments/foreignkey -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+
+do_comment_test()
+{
+    local resource="$1" comment="$2"
+
+    dotest "200::*::*" "/catalog/${cid}${resource}/comment"
+    if ! grep -q "${comment}" ${RESPONSE_CONTENT}
+    then
+	cat <<EOF
+FAILED: Comment value mismatch.
+  Expected: ${comment}  (${#test_value} bytes)
+  Actual: $(cat ${RESPONSE_CONTENT})  ($(wc -c ${RESPONSE_CONTENT}) bytes)
+
+EOF
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+do_comment_test /schema/test1/table/test_comments                  TABLE1
+do_comment_test /schema/test1/table/test_comments/column/id        COLUMN1
+do_comment_test /schema/test1/table/test_comments/column/level1_id COLUMN2
+do_comment_test /schema/test1/table/test_comments/column/name      COLUMN3
+do_comment_test /schema/test1/table/test_comments/key/id           KEY1
+do_comment_test /schema/test1/table/test_comments/key/name           KEY2
+do_comment_test /schema/test1/table/test_comments/foreignkey/level1_id/reference/test1:test_level1/id FKEY1
+do_comment_test /schema/test1/table/test_comments/foreignkey/level1_id2/reference/test1:test_level1/id FKEY2
+
 # do annotation tests
 do_annotation_phase1_tests()
 {

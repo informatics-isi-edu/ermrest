@@ -116,15 +116,11 @@ class Table (object):
         columns = Column.fromjson(tabledoc.get('column_definitions',[]), ermrest_config)
         comment = tabledoc.get('comment')
         table = Table(schema, tname, columns, 'r', comment, annotations)
-        keys = Unique.fromjson(table, tabledoc.get('keys', []))
 
         clauses = []
         for column in columns:
             clauses.append(column.sql_def())
             
-        for key in keys:
-            clauses.append(key.sql_def())
-
         cur.execute("""
 CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
@@ -143,6 +139,11 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
            )
                     )
 
+        for keydoc in tabledoc.get('keys', []):
+            for key in table.add_unique(conn, cur, keydoc):
+                # need to drain this generating function
+                pass
+        
         for fkeydoc in tabledoc.get('foreign_keys', []):
             for fkr in table.add_fkeyref(conn, cur, fkeydoc):
                 # need to drain this generating function

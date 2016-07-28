@@ -80,7 +80,10 @@ SELECT _ermrest.model_change_event();
 
     def sql_def(self):
         """Render SQL table constraint clause for DDL."""
-        return 'UNIQUE(%s)' % (','.join([sql_identifier(c.name) for c in self.columns]))
+        return '%s UNIQUE(%s)' % (
+            ('CONSTRAINT %s' % sql_identifier(self.constraint_name[1]) if self.constraint_name else ''),
+            ','.join([sql_identifier(c.name) for c in self.columns]),
+        )
 
     def _column_names(self):
         """Canonicalized column names list."""
@@ -120,7 +123,16 @@ SELECT _ermrest.model_change_event();
                 fkeyref.pre_delete(conn, cur)
 
     def add(self, conn, cur):
+        if not self.constraint_name:
+            n = 1
+            while True:
+                name = '%s_%s_key%d' % (self.table.name, list(self.columns)[0].name, n)
+                if not constraint_exists(cur, name):
+                    break
+                n += 1
+            self.constraint_name = (self.table.schema.name, name)
         self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+        self.set_comment(conn, cur, self.comment)
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -436,6 +448,7 @@ SELECT _ermrest.model_change_event();
                 n += 1
             self.constraint_name = (self.foreign_key.table.schema.name, name)
         self.foreign_key.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+        self.set_comment(conn, cur, self.comment)
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
