@@ -109,6 +109,7 @@ Supported JSON payload patterns:
 
 - `{`... `"name":` _name_ ...`}`: The _name_ to use in place of the model element's original name.
 - `{`... `"name_style":` `{` `"underline_space"`: _uspace_ `,` `"title_case":` _tcase_ `}` ...`}`: Element name conversion instructions.
+- `{`... `"show_nulls":` `{` _ncontext_ `:` _nshow_ `,` ... `}`: How to display NULL data values.
 
 Supported JSON _uspace_ patterns:
 
@@ -120,10 +121,28 @@ Supported JSON _tcase_ patterns:
 - `true`: Convert element names to "title case" meaning the first character of each word is capitalized and the rest are lower cased regardless of model element name casing. Word separators include white-space, hyphen, and underline characters.
 - `false`: Leave character casing unmodified (this is also the default if the setting is completely absent).
 
+Supported JSON _nshow_ patterns:
+
+- `true` (or `""`): Show NULL values as an empty field.
+- `"` _marker_ `"` (a quoted string literal): For any string literal _marker_, display the marker text value in place of NULLs.
+- `false`: Completely eliminate the field if feasible in the presentation.
+
+Supported JSON _ncontext_ patterns:
+
+- `edit`: Use _nshow_ instruction when displaying NULL values for data editing.
+- `filter`: Use _nshow_ instruction when displaying NULL values in filtering controls.
+- `compact`: Use _nshow_ instruction when presenting data in compact, tabular formats.
+- `detailed`: Use _nshow_ instruction when presenting data in detailed, entity-level formats.
+- `"*"`: Use _nshow_ instruction as the default for any context not specifically configured in this annotation.
+
 #### 2015 Display Settings Hierarchy
 
 - The `"name"` setting applies *only* to the model element which is annotated.
 - The `"name_style"` setting applies to the annotated model element and is also the default for any nested element.
+- The `"show_nulls"` settings applies to the annotated model element and is also the default for any nested element.
+  - The annotation is allowed on schemas in order to set the default for all tables in the schema.
+  - Each _ncontext_ `:` _nshow_ instruction overrides the inherited instruction for the same _ncontext_ while still deferring to the inherited annotation for any unspecified _ncontext_. The `"*"` wildcard _ncontext_ allows masking of any inherited instruction.
+  - A global default is assumed: `{`... `"show_nulls": { "detailed": false, "*": true` ... `}`
 
 This annotation provides an override guidance for Chaise applications using a hierarchical scoping mode:
 
