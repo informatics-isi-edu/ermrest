@@ -666,6 +666,12 @@ dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(test1:test_level2b
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(test1:test_level2b:level1_id2)"
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/test1:test_level2b"
 
+# test explicit join linking
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(id)=(test1:test_level2b:level1_id1)"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(id)=(test1:test_level2b:level1_id2)"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2/(level1_id)=(test1:test_level2b:level1_id2)"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2/(id)=(test1:test_level2b:level1_id2)"
+
 # test aliased attributegroup updates
 cat > ${TEST_DATA} <<EOF
 old,new

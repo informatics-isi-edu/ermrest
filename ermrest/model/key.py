@@ -721,3 +721,31 @@ class MultiKeyReference (object):
             '(%s)' % keyref.join_sql(refop, lname, rname)
             for keyref, refop in self.links
         ])
+
+class ExplicitJoinReference (object):
+
+    def __init__(self, lcols, rcols):
+        assert len(lcols) == len(rcols)
+
+        self.lcols = lcols
+        self.rcols = rcols
+
+        ltable = lcols[0].table
+        rtable = rcols[0].table
+
+        self.foreign_key = _Endpoint(ltable)
+        self.unique = _Endpoint(rtable)
+
+    def _from_column_names(self):
+        return [ c.name for c in self.lcols ]
+
+    def _to_column_names(self):
+        return [ c.name for c in self.rcols ]
+        
+    def join_str(self, refop, lname='..', rname='.'):
+        assert refop == '=@'
+        return _keyref_join_str(self, refop, lname, rname)
+        
+    def join_sql(self, refop, lname, rname):
+        assert refop == '=@'
+        return _keyref_join_sql(self, refop, lname, rname)

@@ -127,25 +127,39 @@ as in the path root, _table name_ may be explicitly schema qualified or left unq
 
 When there are multiple possible linkages to choose from, the link is formed using the disjunction of all applicable link conditions. A more precise entity link element can choose one link condition by identifying an endpoint of the linkage as a set of columns:
 
-- _parent path_ `/(` _column name_, ... `)`
-- _parent path_ `/(` _table name_ `:` _column name_, ... `)`
-- _parent path_ `/(` _schema name_ `:` _table name_ `:` _column name_, ... `)`
+- _parent path_ `/(` _column name_ `,` ... `)`
+- _parent path_ `/(` _table name_ `:` _column name_ `,` ... `)`
+- _parent path_ `/(` _schema name_ `:` _table name_ `:` _column name_ `,` ... `)`
 
-This set of columns MUST comprise either a primary key or a foreign key which unambiguously identifies a single possible linkage between the _parent path_ and a single possible linked entity table.  The resolution procedure for these column sets is as follows:
+This set of columns MUST comprise either a primary key or a foreign key which unambiguously identifies a single possible linkage between the _parent path_ and a single possible linked entity table. As a convenience, the _schema name_ and _table name_ need not be repeated for additional _column name_ elements in the list after the first one; each unqualified _column name_ will be resolved against the same table as the first _column name_ in the sequence.
 
-1. Column resolution:
+The resolution procedure for these column sets is as follows:
+
+1. First column resolution:
   1. Each bare _column name_ MUST be a column of the entity set denoted by _parent path_;
   1. Each qualified name pair _table name_ `:` _column name_ MUST be a column in a table instance within _parent path_ if _table name_ is bound as an alias in _parent path_ (see following sub-section on table instance aliases);
   1. Each qualified name pair _table name_ `:` _column name_ MUST be a column in a table known unambiguously by _table name_ if _table name_ is not bound as an alias in _parent path_;
   1. Each qualified name triple _schema name_ `:` _table name_ `:` _column name_ MUST be a column within a table in the catalog.
 1. Endpoint resolution:
   1. All columns in the column set MUST resolve to the same table in the catalog or the same table instance in the _parent path_;
+  1. When a sequence of more than one _column name_ is presented, the second and subsequent column names MAY be unqualified and are resolved first to the table associated with the first (possibly qualified) _column name_ in the sequence.
   1. The set of columns MUST comprise either a foreign key or a key in their containing table but not both.
 1. Link resolution:
   1. If the endpoint is a key or foreign key in a table in the catalog, that endpoint MUST unambiguously participate in exactly one link between that table and the entity set denoted by _parent path_;
   1. If the endpoint is a key or foreign key of a table instance in _parent path_ (whether referenced by alias-qualified or unqualified column names), that endpoint MUST unambiguously participate in exactly one link between that table instance and exactly one table in the catalog.
   
 The path extended with an entity link element denotes the entities of a new table drawn from the catalog and joined to the existing entities in _parent path_, with the default entity context of the extended path being the newly joined (i.e. right-most) table instance.
+
+When one endpoint is not sufficient to unambiguously select path linkage, a fully explicit join condition can be specified as a sequence of left-hand columns which are equated to a corresponding sequence of right-hand columns:
+
+- _parent path_ `/(` _left column name_ `,` ... `)=(` _right table name_ `:` _right column name_ `,` ... `)`
+- _parent path_ `/(` _left column name_ `,` ... `)=(` _right schema name_ `:` _right table name_ `:` _right column name_ `,` ... `)`
+
+This notation requires that the _left hand column_ list resolve from _parent path_ and the _right hand column_ list resolve from a table found in the model. This notation resolves the first and subsequent columns of each list as per the preceding column resolution rule. However, it relaxes the other endpoint and link resolution rules. Because it fully expresses an unambiguous join condition, it does not require a corresponding foreign key reference link to be found in the catalog model.  For a hypothetical join condition:
+
+- _parent path_ `/(L1,L2,L3)=(T:R1,R2,R3)`
+
+The indicated join condition corresponds to the SQL `L1 = T.R1 AND L2 = T.R2 AND L3 = T.R3`. Each positional _left column_ and _right column_ MUST have compatible types in order for their values to be tested for equality.
 
 ### Table Instance Aliases
 

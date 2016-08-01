@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,13 @@ import web
 
 from ...util import sql_identifier, sql_literal
 from ... import exception
-from ...model.key import MultiKeyReference
+from ...model.key import MultiKeyReference, ExplicitJoinReference
+
+def _exact_link_cols(lcols, rcols):
+    if len(lcols) != len(rcols):
+        raise exception.BadSyntax('Left and right name lists in (left)=(right) link notation must be equal length.')
+
+    return (ExplicitJoinReference(lcols, rcols), '=@')
 
 def _default_link_cols(cols, left=True, reftable=None):
     """Find default reference link anchored at cols list.
@@ -284,7 +290,51 @@ class NameList (list):
 
     """
     
-    def resolve_link(self, model, epath):
+    def resolve_link_complete(self, model, epath, rnames):
+        """Resolve self (self)=(rnames) against a specific database model and epath context.
+
+           Returns (keyref, refop, lalias) as resolved key reference
+           configuration.
+        
+           Raises exception.ConflictModel on failed resolution.
+        """
+        lalias = None
+        left = True
+        reftable = None
+
+        c0, base = self[0].resolve_column(model, epath)
+        if base in epath.aliases:
+            lalias = base
+        elif base == epath:
+            pass
+        else:
+            raise exception.ConflictModel('Left names in (left)=(right) link notation must resolve to columns in entity path.')
+
+        lcols = [ c0 ]
+
+        for n in self[1:]:
+            c, b = n.resolve_column(model, epath, c0.table)
+            if c.table != c0.table or base != b and not lalias:
+                raise exception.ConflictModel('Linking columns must belong to the same table.')
+            lcols.append( c )
+
+        c0, base = rnames[0].resolve_column(model, epath)
+        if base in epath.aliases or base == epath:
+            raise exception.ConflictModel('Right names in (left)=(right) link notation must not resolve to new table instance.')
+
+        rcols = [ c0 ]
+
+        for n in rnames[1:]:
+            c, b = n.resolve_column(model, epath, c0.table)
+            if c.table != c0.table or base != b and not lalias:
+                raise exception.ConflictModel('Linking columns must belong to the same table.')
+            rcols.append( c )
+            
+        keyref, refop = _exact_link_cols(lcols, rcols)
+
+        return keyref, refop, lalias
+
+    def resolve_link(self, model, epath, rnames=None):
         """Resolve self against a specific database model and epath context.
 
            Returns (keyref, refop, lalias) as resolved key reference
@@ -300,6 +350,9 @@ class NameList (list):
         
            Raises exception.ConflictModel on failed resolution.
         """
+        if rnames is not None:
+            return self.resolve_link_complete(model, epath, rnames)
+        
         lalias = None
         left = True
         reftable = None

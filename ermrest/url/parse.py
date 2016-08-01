@@ -241,9 +241,18 @@ def p_entityelem1_bind(p):
     p[3].set_alias(p[1])
     p[0] = p[3]
 
-def p_entityelem_cols(p):
-    """entityelem : '(' snamelist1 ')' """
+def p_columnselem(p):
+    """columnselem : '(' snamelist1 ')' """
     p[0] = ast.data.path.ColumnsElem(p[2])
+
+def p_linkelem(p):
+    """linkelem : columnselem '=' '(' snamelist1 ')' """
+    p[0] = p[1].add_link_rhs(p[4])
+
+def p_entityelem_link(p):
+    """entityelem : columnselem 
+                  | linkelem"""
+    p[0] = p[1]
 
 def p_entityelem2(p):
     """entityelem2 : entityelem"""

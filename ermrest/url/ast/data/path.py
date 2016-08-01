@@ -46,9 +46,26 @@ class ColumnsElem (PathElem):
         self.alias = alias
 
     def resolve_link(self, model, epath):
-        """Resolve self.name as a link in the model and epath context."""
+        """Resolve (self.names) as a link in the model and epath context."""
         return self.names.resolve_link(model, epath)
 
+    def add_link_rhs(self, names):
+        return LinkElem(self.names, names)
+
+class LinkElem (PathElem):
+    """A path element with a fully join spec equating two parenthetic lists of columns."""
+    def __init__(self, lnames, rnames):
+        self.lnames = lnames
+        self.rnames = rnames
+        self.alias = None
+
+    def set_alias(self, alias):
+        self.alias = alias
+
+    def resolve_link(self, model, epath):
+        """Resolve (self.lnames)=(self.rnames) as a link in the model and epath context."""
+        return self.lnames.resolve_link(model, epath, rnames=self.rnames)
+    
 class FilterElem (PathElem):
     """A path element that applies a filter."""
     is_filter = True
