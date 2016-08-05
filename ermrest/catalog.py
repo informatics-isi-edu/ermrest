@@ -244,7 +244,7 @@ SELECT txid_current();
             if self._model is None:
                 try:
                     self._model = introspect(cur, config)
-                except Exception, te:
+                except ValueError, te:
                     raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
                 self.MODEL_CACHE[cache_key] = self._model
         return self._model
