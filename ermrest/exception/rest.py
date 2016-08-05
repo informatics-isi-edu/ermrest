@@ -58,6 +58,8 @@ class Forbidden (WebException):
     def __init__(self, data=u'', headers={}):
         status = '403 Forbidden'
         desc = u'The requested %s is forbidden.'
+        if web.ctx.webauthn2_context.client is None:
+            status = '401 Unauthorized'
         WebException.__init__(self, status, headers=headers, data=data, desc=desc)
 
 class NotFound (WebException):
