@@ -57,6 +57,7 @@ here is a quick matrix to locate them.
 | [2015 URL](#2015-url) | - | X | X | - | - | Column or table data as URLs |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
 | [2016 Abstracts Table](#2016-abstracts-table) | - | X | - | _ | _ | Table abstracts another table |
+| [2016 Column Display](#2016-column-display) | - | - | X | - | - | Column-specific display options |
 | [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
 | [2016 Ignore](#2016-ignore) | X | X | - | - | - | Ignore model element |
@@ -482,6 +483,39 @@ Heuristics (use first applicable rule):
 2. To name a set of "related entities" linked to a presentation context by an association table:
   - The _tname_ of the foreign key from association table to related entities is a preferred name for the related entity set.
   - The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.
+
+### 2016 Column Display
+
+`tag:isrd.isi.edu,2016:column-display`
+
+This key allows specification of column data presentation options at the column level of the model.
+
+Supported JSON payload patterns:
+
+- `{` _context_ `:` `{` _option_ ... `}` ... `}`: Apply _options_ to the presentation of column values in the given _context_.
+
+Supported _context_ names:
+
+- `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
+  - `"edit"`: A sub-context of `entry` that only applies to editing existing resources.
+  - `"create"`: A sub-context of `entry` that only applies to creating new resources.
+- `"record"`: Any detailed record-level presentation context.
+- `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
+- `"compact"`: Any compact, tabular presentation of data from multiple entities.
+- `"*"`: A default to apply for any context not matched by a more specific context name.
+
+If more than one _context_ name in the annotation payload matches, the _options_ should be combined in the following order (first occurrence wins):
+
+1. Prefer _option_ set in matching sub-contexts `edit` or `create`.
+2. Prefer _option_ set in matching contexts `entry`, `record`, `filter`, or `compact`.
+3. Use default _option_ set in context `*`.
+
+Supported _option_ syntax:
+
+- `"pre_format"`: _format_: The column value SHOULD be pre-formatted by evaluating the _format_ string with the raw column value as its sole argument. The exact format string dialect is TDB but means to align with POSIX format strings e.g. `%d` to format a decimal number.
+- `"markdown_pattern":` _pattern_: The visual presentation of the column SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
+
+All `pre_format` options for all columns in the table SHOULD be evaluated **prior** to any `markdown_pattern`, thus allowing raw data values to be adjusted by each column's _format_ option before they are substituted into any column's _pattern_.
 
 ### 2016 Table Display
 
