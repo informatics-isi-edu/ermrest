@@ -492,7 +492,8 @@ This key allows specification of column data presentation options at the column 
 
 Supported JSON payload patterns:
 
-- `{` _context_ `:` `{` _option_ ... `}` ... `}`: Apply _options_ to the presentation of column values in the given _context_.
+- `{` ... _context_ `:` `{` _option_ ... `}` ... `}`: Apply each _option_ to the presentation of column values in the given _context_.
+- `{` ... _context1_ `:` _context2_ ... `}`: Short-hand to allow _context1_ to use the same options configured for _context2_.
 
 Supported _context_ names:
 
@@ -552,6 +553,7 @@ foreign keys referencing a table, useful when presenting "related entities".
 Supported JSON payload pattern:
 
 - `{` ... _context_ `:` _fkeylist_ `,` ... `}`: A separate _fkeylist_ can be specified for any number of _context_ names.
+- `{` ... _context1_ `:` _context2_ ... `}`: Short-hand to allow _context1_ to use the same fkeylist configured for _context2_.
 
 For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available foreign keys SHOULD be presented unless the application has guidance from other sources.
 
