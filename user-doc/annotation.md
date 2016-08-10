@@ -549,7 +549,7 @@ Supported JSON _setpresent_ patterns:
   - If _pathsuffix_ is specified, use the ERMrest `/attribute/` API and append _pathsuffix_ to a data path denoting the desired set of entities and which binds `S` as the table alias for this entire entity set.
     - The provided _pathsuffix_ MUST provide the appropriate projection-list to form a valid `/attribute/` API URI.
 	- The _pathsuffix_ MAY join additional tables to the path and MAY project from these tables as well as the table bound to the `S` table alias.
-	- The _pathsuffix_ SHOULD reset the path context to `$A` if it has joined other tables.
+	- The _pathsuffix_ SHOULD reset the path context to `$S` if it has joined other tables.
 	
 It is not meaningful to use both `row_markdown_pattern` and `module` in the _setpresent_ for the same table. If both are specified, it is RECOMMENDED that the application prefer the `module` configuration and ignore the markdown instructions.
 
