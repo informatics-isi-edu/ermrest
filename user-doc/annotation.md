@@ -528,7 +528,7 @@ Supported JSON payload patterns:
 
 - `{`... `"row_name":` _pattern_ ...`}`: The _row_name_ indicates the presentation name to use to represent a row from a table. The row name is specified in the form of a _pattern_ as defined by the [Pattern Expansion](#pattern-expansion) section. This option only applies when annotating a Table.
 - `{`... `"row_order":` `[` _sortkey_ ... `]` `}`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
-- `{`... `"row_order":` null `}`: No preferred order is known.
+- `{`... `"set_presentation"`:  _setpresent_ ... `}`: Use an alternate presentation style when presenting sets of entities from this table. Default behavior is to present the entities in a tabular format.
 
 Supported JSON _sortkey_ patterns:
 
@@ -537,11 +537,27 @@ Supported JSON _sortkey_ patterns:
 - `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
 - `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
 
+Supported JSON _setpresent_ patterns:
+
+- `{"row_markdown_pattern":` _rowpattern_ `, "separator_markdown":` _separator_  `, "prefix_markdown"`: _prefix_ `, "suffix_markdown":` _suffix_ `}`: Render the set by composing a markdown representation only when `row_markdown_pattern` is non-null:
+  - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
+  - Insert _prefix_ markdown before the first _rowpattern_ expansion. (Default empty string `""`.)
+  - Insert _separator_ markdown text between each expanded _rowpattern_. (Default new-line `"\n"`.)
+  - Insert _suffix_ markdown after the last _rowpattern_ expansion. (Default empty string `""`.)
+- `{"module":` _module_`, "attribute_path":` _pathsuffix_`}`: Activate _module_ to present the entity set. The _module_ value is a literal string name that Chaise associates with a set-presentation plug-in.
+  - If _pathsuffix_ is omitted, use the ERMrest `/entity/` API and a data path denoting the desired set of entities.
+  - If _pathsuffix_ is specified, use the ERMrest `/attribute/` API and append _pathsuffix_ to a data path denoting the desired set of entities and which binds `S` as the table alias for this entire entity set.
+    - The provided _pathsuffix_ MUST provide the appropriate projection-list to form a valid `/attribute/` API URI.
+	- The _pathsuffix_ MAY join additional tables to the path and MAY project from these tables as well as the table bound to the `S` table alias.
+	- The _pathsuffix_ SHOULD reset the path context to `$A` if it has joined other tables.
+	
+It is not meaningful to use both `row_markdown_pattern` and `module` in the _setpresent_ for the same table. If both are specified, it is RECOMMENDED that the application prefer the `module` configuration and ignore the markdown instructions.
+
 #### 2016 Table Display Settings Hierarchy
 
-The `"row_name"` and `"row_order"` settings apply only to tables, but MAY be annotated at the schema level to set a schema-wide default, if appropriate in a particular model. Any table-level specification of these settings will override the behavior for that table. These settings on other model elements are meaningless and ignored.
+The table display settings apply only to tables, but MAY be annotated at the schema level to set a schema-wide default, if appropriate in a particular model. Any table-level specification of these settings will override the behavior for that table. These settings on other model elements are meaningless and ignored.
 
-For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
+For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritence and restore default behavior for that model element and any of its nested elements.
 
 ### 2016 Visible Foreign Keys
 
