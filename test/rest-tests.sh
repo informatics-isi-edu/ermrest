@@ -459,7 +459,6 @@ dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_compo
 dotest "200::application/json::*" "/catalog/${cid}/schema/test1/table/test_composite/key/id,site"
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_composite/key/id"
 
-
 cat > ${TEST_DATA} <<EOF
 { "unique_columns": ["id", "name"] }
 EOF
@@ -553,6 +552,39 @@ cat > ${TEST_DATA} <<EOF
 EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2"
+
+# create table for composite-fkey tests and also nullok input
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_composite2",
+   "column_definitions": [ 
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
+      { "type": { "typename": "timestamptz" }, "name": "last_update" },
+      { "type": { "typename": "text" }, "name": "name", "nullok": true },
+      { "type": { "typename": "int8" }, "name": "site", "nullok": false }
+   ],
+   "keys": [ 
+      { "unique_columns": [ "id", "site" ] } 
+   ],
+   "foreign_keys": [
+      { 
+        "foreign_key_columns": [
+          {"schema_name": "test1", "table_name": "test_composite2", "column_name": "id"},
+          {"schema_name": "test1", "table_name": "test_composite2", "column_name": "site"}
+
+        ],
+        "referenced_columns": [
+          {"schema_name": "test1", "table_name": "test_composite", "column_name": "id"},
+          {"schema_name": "test1", "table_name": "test_composite", "column_name": "site"}
+        ]
+      }
+   ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite2"
 
 # column API tests
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column
@@ -671,6 +703,18 @@ dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(id)=(test1:test_le
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1/(id)=(test1:test_level2b:level1_id2)"
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2/(level1_id)=(test1:test_level2b:level1_id2)"
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2/(id)=(test1:test_level2b:level1_id2)"
+
+# test composite link resolution
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite/(id,site)"
+dotest "200::*::*" "/catalog/${cid}/entity/A:=test1:test_composite/(A:id,A:site)"
+dotest "200::*::*" "/catalog/${cid}/entity/A:=test1:test_composite/(A:id,site)"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite/(test1:test_composite2:id,test1:test_composite2:site)"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite/(test1:test_composite2:id,site)"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite/(id,site)=(test1:test_composite2:id,test1:test_composite2:site)"
+dotest "200::*::*" "/catalog/${cid}/entity/A:=test1:test_composite/(A:id,A:site)=(test1:test_composite2:id,test1:test_composite2:site)"
+dotest "200::*::*" "/catalog/${cid}/entity/A:=test1:test_composite/(A:id,site)=(test1:test_composite2:id,test1:test_composite2:site)"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_composite/(id,site)=(test1:test_composite2:id,site)"
+dotest "200::*::*" "/catalog/${cid}/entity/A:=test1:test_composite/(A:id,site)=(test1:test_composite2:id,site)"
 
 # test aliased attributegroup updates
 cat > ${TEST_DATA} <<EOF

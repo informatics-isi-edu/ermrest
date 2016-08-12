@@ -150,19 +150,19 @@ class Name (object):
         self.nameparts.append(namepart)
         return self
         
-    def resolve_column(self, model, epath, table=None):
+    def resolve_column(self, model, epath, base=None):
         """Resolve self against a specific database model and epath context.
 
            Returns (column, base) where base is one of:
 
-            -- a left table alias string if column is relative to alias
-            -- epath if column is relative to epath or table arg
-            -- None if column is relative to model
+            -- a left table alias string if column is relative to alias or base arg which is alias string
+            -- epath if column is relative to epath or base arg which is epath
+            -- None if column is relative to model or base arg which is a table
         
            The name must be resolved in this preferred order:
 
-             1. a relative 'n0' must be a column in the current epath
-                table type or the provided table arg if not None
+             1. a relative 'n0' must be a column in the base arg
+                or current epath table type if base arg is None
 
              2. a relative '*' may be a freetext virtual column
                 on the current epath table
@@ -182,21 +182,34 @@ class Name (object):
         """
         ptable = epath.current_entity_table()
 
-        if table is None:
-            table = ptable
-        
         if len(self.nameparts) == 3:
             n0, n1, n2 = self.nameparts
             return (model.schemas[n0].tables[n1].columns[n2],None)
         
         else:
             if len(self.nameparts) == 1:
-                if self.nameparts[0] in table.columns:
-                    return (table.columns[self.nameparts[0]], epath)
+                if base is epath:
+                    if self.nameparts[0] in ptable.columns:
+                        return (ptable.columns[self.nameparts[0]], epath)
+                    else:
+                        raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(ptable)))
+                elif base in epath.aliases:
+                    if self.nameparts[0] in epath[base].table.columns:
+                        return (epath[base].table.columns[self.nameparts[0]], base)
+                    else:
+                        raise exception.ConflictModel('Column %s does not exist in table alias %s.' % (self.nameparts[0], base))
+                elif base is not None:
+                    assert hasattr(base, 'columns')
+                    if self.nameparts[0] in base.columns:
+                        return (base.columns[self.nameparts[0]], None)
+                    else:
+                        raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(base)))
+                elif self.nameparts[0] in ptable.columns:
+                    return (ptable.columns[self.nameparts[0]], epath)
                 elif self.nameparts[0] == '*':
                     return (ptable.freetext_column(), epath)
                 else:
-                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(table)))
+                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(ptable)))
 
             elif len(self.nameparts) == 2:
                 n0, n1 = self.nameparts
@@ -313,7 +326,7 @@ class NameList (list):
         lcols = [ c0 ]
 
         for n in self[1:]:
-            c, b = n.resolve_column(model, epath, c0.table)
+            c, b = n.resolve_column(model, epath, base if base else c0.table)
             if c.table != c0.table or base != b and not lalias:
                 raise exception.ConflictModel('Linking columns must belong to the same table.')
             lcols.append( c )
@@ -325,7 +338,7 @@ class NameList (list):
         rcols = [ c0 ]
 
         for n in rnames[1:]:
-            c, b = n.resolve_column(model, epath, c0.table)
+            c, b = n.resolve_column(model, epath, base if base else c0.table)
             if c.table != c0.table or base != b and not lalias:
                 raise exception.ConflictModel('Linking columns must belong to the same table.')
             rcols.append( c )
@@ -369,7 +382,7 @@ class NameList (list):
         cols = [ c0 ]
 
         for n in self[1:]:
-            c, b = n.resolve_column(model, epath, c0.table)
+            c, b = n.resolve_column(model, epath, base if base else c0.table)
             if c.table != c0.table or base != b and not lalias:
                 raise exception.ConflictModel('Linking columns must belong to the same table.')
             cols.append( c )
