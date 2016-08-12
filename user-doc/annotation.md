@@ -130,7 +130,9 @@ Supported JSON _nshow_ patterns:
 
 Supported JSON _ncontext_ patterns:
 
-- `edit`: Use _nshow_ instruction when displaying NULL values for data editing.
+- `entry`: Use _nshow_ instruction when displaying NULL values for data-entry.
+  - `entry/create`: Use _nshow_ instruction when displaying NULL values for creation (such as in a drop-down list?).
+  - `entry/edit`: Use _nshow_ instruction when displaying existing NULL values to be edited.
 - `filter`: Use _nshow_ instruction when displaying NULL values in filtering controls.
 - `compact`: Use _nshow_ instruction when presenting data in compact, tabular formats.
 - `detailed`: Use _nshow_ instruction when presenting data in detailed, entity-level formats.
@@ -357,8 +359,8 @@ Supported JSON payload patterns:
 - `[]` or `false`: Do **not** ignore in any presentation context.
 - `[` _context_ `,` ... `]`: Ignore **only** in specific listed contexts drawn from the following list, otherwise including the model element as per default heuristics:
   - `entry`: Avoid prompting of the user for input to whole schemas or whole tables while obtaining user input.
-    - `edit`: A sub-context of `entry` that only applies to editing existing resources.
-	- `create`: A sub-context of `entry` that only applies to creating new resources.
+    - `entry/edit`: A sub-context of `entry` that only applies to editing existing resources.
+	- `entry/create`: A sub-context of `entry` that only applies to creating new resources.
   - `filter`: Avoid offering filtering options on whole schemas or whole tables.
   - `compact`: Avoid presenting data related to whole schemas or whole tables when presenting data in compact, tabular formats.
   - `detailed`: Avoid presenting data related to whole schemas or whole tables when presenting data in detailed, entity-level formats.
@@ -451,8 +453,8 @@ For presentation contexts which are not listed in the annotation, or when the an
 Supported _context_ names:
 
 - `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
-  - `"edit"`: A sub-context of `entry` that only applies to editing existing resources.
-  - `"create"`: A sub-context of `entry` that only applies to creating new resources.
+  - `"entry/edit"`: A sub-context of `entry` that only applies to editing existing resources.
+  - `"entry/create"`: A sub-context of `entry` that only applies to creating new resources.
 - `"record"`: Any detailed record-level presentation context.
 - `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
 - `"compact"`: Any compact, tabular presentation of data from multiple entities.
@@ -498,8 +500,8 @@ Supported JSON payload patterns:
 Supported _context_ names:
 
 - `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
-  - `"edit"`: A sub-context of `entry` that only applies to editing existing resources.
-  - `"create"`: A sub-context of `entry` that only applies to creating new resources.
+  - `"entry/edit"`: A sub-context of `entry` that only applies to editing existing resources.
+  - `"entry/create"`: A sub-context of `entry` that only applies to creating new resources.
 - `"record"`: Any detailed record-level presentation context.
 - `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
 - `"compact"`: Any compact, tabular presentation of data from multiple entities.
@@ -507,8 +509,8 @@ Supported _context_ names:
 
 If more than one _context_ name in the annotation payload matches, the _options_ should be combined in the following order (first occurrence wins):
 
-1. Prefer _option_ set in matching sub-contexts `edit` or `create`.
-2. Prefer _option_ set in matching contexts `entry`, `record`, `filter`, or `compact`.
+1. Prefer _option_ set in matching contexts with exact matching context name.
+2. Prefer _option_ set in matching contexts with longest matching prefix, e.g. an option for `entry` can match application context `entry/edit` or `entry/create`.
 3. Use default _option_ set in context `*`.
 
 Supported _option_ syntax:
@@ -576,8 +578,8 @@ For presentation contexts which are not listed in the annotation, or when the an
 Supported _context_ names:
 
 - `entry`: Any data-entry presentation context, i.e. when prompting the user for input column values.
-  - `edit`: A sub-context of `entry` that only applies to editing existing resources.
-  - `create`: A sub-context of `entry` that only applies to creating new resources.
+  - `entry/edit`: A sub-context of `entry` that only applies to editing existing resources.
+  - `entry/create`: A sub-context of `entry` that only applies to creating new resources.
 - `filter`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
 - `compact`: Any compact, tabular presentation of data from multiple entities.
 
