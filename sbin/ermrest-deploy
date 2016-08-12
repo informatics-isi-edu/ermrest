@@ -187,6 +187,10 @@ END;
 
 COMMIT;
 
+BEGIN;
+SELECT _ermrest.model_change_event();
+COMMIT;
+
 EOF
 }
 
