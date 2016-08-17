@@ -296,7 +296,12 @@ Supported _context_ names:
 
 Supported _columnlist_ patterns:
 
-- `[` _colname_ `,` ... `]`: Present columns from the table with name matching _colname_, in the order specified in the list. Ignore listed _colname_ values that do not correspond to column in the table. Do not present table columns that are not specified in the list.
+- `[` ... _colentry_ `,` ... `]`: Present content corresponding to each _colentry_, in the order specified in the list. Ignore listed _colentry_ values that do not correspond to content from the table. Do not present table columns that are not specified in the list.
+
+Supported _columnentry_ patterns:
+
+- _columnname_: A string literal _columnname_ identifies a constituent column of the table. The value of the column SHOULD be presented, possibly with representation guided by other annotations or heuristics.
+- `[` _schemaname_ `,` _constraintname_ `]`: A two-element list of string literal _schemaname_ and _constraintname_ identifies a constituent foreign key of the table. The value of the external entity referenced by the foreign key SHOULD be presented, possibly with representation guided by other annotations or heuristics.
 
 ### 2016 Foreign Key
 
