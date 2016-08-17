@@ -365,11 +365,37 @@ All `pre_format` options for all columns in the table SHOULD be evaluated **prio
 
 This key allows specification of table presentation options at the table or schema level of the model.
 
-Supported JSON payload patterns:
+- `{` ... _context_ `:` `{` _option_ ... `}` ... `}`: Apply each _option_ to the presentation of table content in the given _context_.
+- `{` ... _context1_ `:` _context2_ ... `}`: Short-hand to allow _context1_ to use the same options configured for _context2_.
 
-- `{`... `"row_name":` _pattern_ ...`}`: The _row_name_ indicates the presentation name to use to represent a row from a table. The row name is specified in the form of a _pattern_ as defined by the [Pattern Expansion](#pattern-expansion) section. This option only applies when annotating a Table.
-- `{`... `"row_order":` `[` _sortkey_ ... `]` `}`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
-- `{`... `"set_presentation"`:  _setpresent_ ... `}`: Use an alternate presentation style when presenting sets of entities from this table. Default behavior is to present the entities in a tabular format.
+Supported _context_ names:
+
+- `"name"`: Any abbreviated title-like presentation context.
+- `"record"`: Any detailed record-level presentation context.
+- `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
+- `"compact"`: Any compact, tabular presentation of data from multiple entities.
+- `"*"`: A default to apply for any context not matched by a more specific context name.
+
+Supported JSON _option_ payload patterns:
+
+- `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
+- `"row_markdown_pattern":` _rowpattern_: Render the row by composing a markdown representation only when `row_markdown_pattern` is non-null.
+  - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
+- `"separator_markdown":` _separator_: Insert _separator_ markdown text between each expanded _rowpattern_ when presenting row sets. (Default new-line `"\n"`.)
+  - Ignore if `"row_markdown_pattern"` is not also configured.
+- `"prefix_markdown":` _prefix_: Insert _prefix_ markdown before the first _rowpattern_ expansion when presenting row sets. (Default empty string `""`.)
+  - Ignore if `"row_markdown_pattern"` is not also configured.
+- `"suffix_markdown":` _suffix_: Insert _suffix_ markdown after the last _rowpattern_ expansion when presenting row sets. (Default empty string `""`.)
+  - Ignore if `"row_markdown_pattern"` is not also configured.
+- `"module":` _module_: Activate _module_ to present the entity set. The string literal _module_ name SHOULD be one that Chaise associates with a table-presentation plug-in.
+- `"module_attribute_path":` _pathsuffix_: Configure the data source for activated _module_. Ignore if _module_ is not configured or not understood.
+  - If _pathsuffix_ is omitted, use the ERMrest `/entity/` API and a data path denoting the desired set of entities.
+  - If _pathsuffix_ is specified, use the ERMrest `/attribute/` API and append _pathsuffix_ to a data path denoting the desired set of entities and which binds `S` as the table alias for this entire entity set.
+    - The provided _pathsuffix_ MUST provide the appropriate projection-list to form a valid `/attribute/` API URI.
+	- The _pathsuffix_ MAY join additional tables to the path and MAY project from these tables as well as the table bound to the `S` table alias.
+	- The _pathsuffix_ SHOULD reset the path context to `$S` if it has joined other tables.
+	
+It is not meaningful to use both `row_markdown_pattern` and `module` in for the same _context_. If both are specified, it is RECOMMENDED that the application prefer the `module` configuration and ignore the markdown instructions.
 
 Supported JSON _sortkey_ patterns:
 
@@ -377,22 +403,6 @@ Supported JSON _sortkey_ patterns:
 - `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column in ascending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `)`.
 - `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
 - `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
-
-Supported JSON _setpresent_ patterns:
-
-- `{"row_markdown_pattern":` _rowpattern_ `, "separator_markdown":` _separator_  `, "prefix_markdown"`: _prefix_ `, "suffix_markdown":` _suffix_ `}`: Render the set by composing a markdown representation only when `row_markdown_pattern` is non-null:
-  - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
-  - Insert _prefix_ markdown before the first _rowpattern_ expansion. (Default empty string `""`.)
-  - Insert _separator_ markdown text between each expanded _rowpattern_. (Default new-line `"\n"`.)
-  - Insert _suffix_ markdown after the last _rowpattern_ expansion. (Default empty string `""`.)
-- `{"module":` _module_`, "attribute_path":` _pathsuffix_`}`: Activate _module_ to present the entity set. The _module_ value is a literal string name that Chaise associates with a set-presentation plug-in.
-  - If _pathsuffix_ is omitted, use the ERMrest `/entity/` API and a data path denoting the desired set of entities.
-  - If _pathsuffix_ is specified, use the ERMrest `/attribute/` API and append _pathsuffix_ to a data path denoting the desired set of entities and which binds `S` as the table alias for this entire entity set.
-    - The provided _pathsuffix_ MUST provide the appropriate projection-list to form a valid `/attribute/` API URI.
-	- The _pathsuffix_ MAY join additional tables to the path and MAY project from these tables as well as the table bound to the `S` table alias.
-	- The _pathsuffix_ SHOULD reset the path context to `$S` if it has joined other tables.
-	
-It is not meaningful to use both `row_markdown_pattern` and `module` in the _setpresent_ for the same table. If both are specified, it is RECOMMENDED that the application prefer the `module` configuration and ignore the markdown instructions.
 
 #### 2016 Table Display Settings Hierarchy
 
