@@ -134,7 +134,8 @@ class SimpleRegistry(Registry):
         try:
             return pc.perform(body, post_commit).next()
         finally:
-            pc.final()
+            if pc is not None:
+                pc.final()
 
     def deploy(self):
         """Deploy the SimpleRegistry.
