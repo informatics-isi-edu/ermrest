@@ -816,9 +816,9 @@ class AnyPath (object):
             else:
                 raise NotImplementedError('content_type %s' % content_type)
 
-            cur = conn.execute(sql)
+            cur.execute(sql)
             
-            return make_row_thunk(conn, cur, content_type)()
+            return make_row_thunk(None, cur, content_type)()
         
 class EntityPath (AnyPath):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
