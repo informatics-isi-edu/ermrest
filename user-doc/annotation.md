@@ -423,3 +423,14 @@ If more than one _context_ name in the annotation payload matches, the _options_
 1. Prefer _option_ set in matching contexts with exact matching context name.
 2. Prefer _option_ set in matching contexts with longest matching prefix, e.g. an option for `entry` can match application context `entry/edit` or `entry/create`.
 3. Use default _option_ set in context `*`.
+
+The following matrix illustrates which context is meaningful in which annotation.
+| Annotation                                              | compact | detialed | entry | entry/edit | entry/create | fiilter | name | * |
+|---------------------------------------------------------|---------|----------|-------|------------|--------------|---------|------|---|
+| [2015 Display](#2015-display)                           | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Ignore](#2016-ignore)                             | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Visible Columns](#2016-visible-columns)           | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Column Display](#2016-column-display)             | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Table Display](#2016-table-display)               |  X      | X        | -     | -          | -            | X       | X    | X |
+| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -        | X     | X          | X            | X       | -    | X |
+| [2016 Abstracts Table](#2016-abstracts-table)             | X       | X        | -     | -          | -            | X       | -    | X |
