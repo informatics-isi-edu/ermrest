@@ -7,7 +7,7 @@ usage()
     cat <<EOF
 usage: $0
 
-Runs test against local host (https://$(hostname)/ermrest/).
+Runs test against BASE_URL environment (${BASE_URL}), default (https://$(hostname)/ermrest/).
 
 Uses cookie store named in COOKIES environment ($COOKIES), if
 specified.
@@ -73,7 +73,7 @@ mycurl()
 NUM_FAILURES=0
 NUM_TESTS=0
 
-BASE_URL="https://$(hostname)/ermrest"
+BASE_URL=${BASE_URL:-"https://$(hostname)/ermrest"}
 
 logtest()
 {
