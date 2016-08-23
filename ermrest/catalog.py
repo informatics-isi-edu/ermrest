@@ -238,15 +238,14 @@ SELECT txid_current();
         # TODO: turn this into a @property
         if config is None:
             config = self._config
-        if not self._model:
-            cache_key = (str(self.descriptor), self.get_model_version(cur))
-            self._model = self.MODEL_CACHE.get(cache_key)
-            if self._model is None:
-                try:
-                    self._model = introspect(cur, config)
-                except ValueError, te:
-                    raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
-                self.MODEL_CACHE[cache_key] = self._model
+        cache_key = (str(self.descriptor), self.get_model_version(cur))
+        self._model = self.MODEL_CACHE.get(cache_key)
+        if self._model is None:
+            try:
+                self._model = introspect(cur, config)
+            except ValueError, te:
+                raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
+            self.MODEL_CACHE[cache_key] = self._model
         return self._model
     
     def destroy(self):
