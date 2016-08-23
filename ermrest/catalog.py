@@ -234,18 +234,19 @@ SELECT txid_current();
 """ % dict(schema=self._SCHEMA_NAME, table=self._MODEL_VERSION_TABLE_NAME))
         return cur.next()[0] 
 
-    def get_model(self, cur, config=None):
+    def get_model(self, cur, config=None, private=False):
         # TODO: turn this into a @property
         if config is None:
             config = self._config
         cache_key = (str(self.descriptor), self.get_model_version(cur))
         self._model = self.MODEL_CACHE.get(cache_key)
-        if self._model is None:
+        if self._model is None or private:
             try:
                 self._model = introspect(cur, config)
             except ValueError, te:
                 raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
-            self.MODEL_CACHE[cache_key] = self._model
+            if not private:
+                self.MODEL_CACHE[cache_key] = self._model
         return self._model
     
     def destroy(self):

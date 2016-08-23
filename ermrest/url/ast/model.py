@@ -66,7 +66,9 @@ def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
         handler.enforce_content_read(cur)
         handler.enforce_schema_write(cur)
-        handler.catalog.manager.get_model(cur)
+        # we need a private (uncached) copy of model because we mutate it optimistically
+        # and this could corrupt a cached copy if our operation is not committed to DB
+        handler.catalog.manager.get_model(cur, private=True)
         handler.set_http_etag( handler.catalog.manager._model_version )
         handler.http_check_preconditions(method='PUT')
         result = thunk(conn, cur)
