@@ -425,6 +425,8 @@ If more than one _context_ name in the annotation payload matches, the _options_
 3. Use default _option_ set in context `*`.
 
 The following matrix illustrates which context is meaningful in which annotation.
+
+
 | Annotation                                              | compact | detialed | entry | entry/edit | entry/create | fiilter | name | * |
 |---------------------------------------------------------|---------|----------|-------|------------|--------------|---------|------|---|
 | [2015 Display](#2015-display)                           | X       | X        | X     | X          | X            | X       | -    | X |
