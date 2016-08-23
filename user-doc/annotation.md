@@ -99,15 +99,7 @@ Supported JSON _nshow_ patterns:
 - `"` _marker_ `"` (a quoted string literal): For any string literal _marker_, display the marker text value in place of NULLs.
 - `false`: Completely eliminate the field if feasible in the presentation.
 
-Supported JSON _ncontext_ patterns:
-
-- `entry`: Use _nshow_ instruction when displaying NULL values for data-entry.
-  - `entry/create`: Use _nshow_ instruction when displaying NULL values for creation (such as in a drop-down list?).
-  - `entry/edit`: Use _nshow_ instruction when displaying existing NULL values to be edited.
-- `filter`: Use _nshow_ instruction when displaying NULL values in filtering controls.
-- `compact`: Use _nshow_ instruction when presenting data in compact, tabular formats.
-- `detailed`: Use _nshow_ instruction when presenting data in detailed, entity-level formats.
-- `"*"`: Use _nshow_ instruction as the default for any context not specifically configured in this annotation.
+See [Context Names](#context-names) section for the list of supported JSON _ncontext_ patterns.
 
 #### 2015 Display Settings Hierarchy
 
@@ -191,13 +183,7 @@ This annotation indicates that the annotated model element should be ignored in 
 Supported JSON payload patterns:
 - `null` or `true`: Ignore in any presentation context. `null` is equivalent to `tag:misd.isi.edu,2015:hidden` for backward-compatibility.
 - `[]` or `false`: Do **not** ignore in any presentation context.
-- `[` _context_ `,` ... `]`: Ignore **only** in specific listed contexts drawn from the following list, otherwise including the model element as per default heuristics:
-  - `entry`: Avoid prompting of the user for input to whole schemas or whole tables while obtaining user input.
-    - `entry/edit`: A sub-context of `entry` that only applies to editing existing resources.
-	- `entry/create`: A sub-context of `entry` that only applies to creating new resources.
-  - `filter`: Avoid offering filtering options on whole schemas or whole tables.
-  - `compact`: Avoid presenting data related to whole schemas or whole tables when presenting data in compact, tabular formats.
-  - `detailed`: Avoid presenting data related to whole schemas or whole tables when presenting data in detailed, entity-level formats.
+- `[` _context_ `,` ... `]`: Ignore **only** in specific listed contexts, otherwise including the model element as per default heuristics. See [Context Names](#context-names) section for the list of supported _context_ names.
 
 This annotation provides an override guidance for Chaise applications
 using a hierarchical scoping mode:
@@ -284,15 +270,7 @@ Supported JSON payload pattern:
 
 For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available columns SHOULD be presented in their defined order unless the application has guidance from other sources.
 
-Supported _context_ names:
-
-- `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
-  - `"entry/edit"`: A sub-context of `entry` that only applies to editing existing resources.
-  - `"entry/create"`: A sub-context of `entry` that only applies to creating new resources.
-- `"record"`: Any detailed record-level presentation context.
-- `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
-- `"compact"`: Any compact, tabular presentation of data from multiple entities.
-- `"*"`: A default to apply for any context not matched by a more specific context name.
+See [Context Names](#context-names) section for the list of supported _context_ names.
 
 Supported _columnlist_ patterns:
 
@@ -336,21 +314,7 @@ Supported JSON payload patterns:
 - `{` ... _context_ `:` `{` _option_ ... `}` ... `}`: Apply each _option_ to the presentation of column values in the given _context_.
 - `{` ... _context1_ `:` _context2_ ... `}`: Short-hand to allow _context1_ to use the same options configured for _context2_.
 
-Supported _context_ names:
-
-- `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
-  - `"entry/edit"`: A sub-context of `entry` that only applies to editing existing resources.
-  - `"entry/create"`: A sub-context of `entry` that only applies to creating new resources.
-- `"record"`: Any detailed record-level presentation context.
-- `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
-- `"compact"`: Any compact, tabular presentation of data from multiple entities.
-- `"*"`: A default to apply for any context not matched by a more specific context name.
-
-If more than one _context_ name in the annotation payload matches, the _options_ should be combined in the following order (first occurrence wins):
-
-1. Prefer _option_ set in matching contexts with exact matching context name.
-2. Prefer _option_ set in matching contexts with longest matching prefix, e.g. an option for `entry` can match application context `entry/edit` or `entry/create`.
-3. Use default _option_ set in context `*`.
+See [Context Names](#context-names) section for the list of supported _context_ names.
 
 Supported _option_ syntax:
 
@@ -368,13 +332,7 @@ This key allows specification of table presentation options at the table or sche
 - `{` ... _context_ `:` `{` _option_ ... `}` ... `}`: Apply each _option_ to the presentation of table content in the given _context_.
 - `{` ... _context1_ `:` _context2_ ... `}`: Short-hand to allow _context1_ to use the same options configured for _context2_.
 
-Supported _context_ names:
-
-- `"name"`: Any abbreviated title-like presentation context.
-- `"record"`: Any detailed record-level presentation context.
-- `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
-- `"compact"`: Any compact, tabular presentation of data from multiple entities.
-- `"*"`: A default to apply for any context not matched by a more specific context name.
+See [Context Names](#context-names) section for the list of supported _context_ names.
 
 Supported JSON _option_ payload patterns:
 
@@ -422,15 +380,7 @@ Supported JSON payload pattern:
 - `{` ... _context_ `:` _fkeylist_ `,` ... `}`: A separate _fkeylist_ can be specified for any number of _context_ names.
 - `{` ... _context1_ `:` _context2_ ... `}`: Short-hand to allow _context1_ to use the same fkeylist configured for _context2_.
 
-For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available foreign keys SHOULD be presented unless the application has guidance from other sources.
-
-Supported _context_ names:
-
-- `entry`: Any data-entry presentation context, i.e. when prompting the user for input column values.
-  - `entry/edit`: A sub-context of `entry` that only applies to editing existing resources.
-  - `entry/create`: A sub-context of `entry` that only applies to creating new resources.
-- `filter`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
-- `compact`: Any compact, tabular presentation of data from multiple entities.
+For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available foreign keys SHOULD be presented unless the application has guidance from other sources. See [Context Names](#context-names) section for the list of supported _context_ names.
 
 Supported _keylist_ patterns:
 
@@ -452,10 +402,37 @@ Supported JSON payload patterns:
 
 A table which abstracts another table _SHOULD_ have a non-null (primary) key which is also a foreign key to the table it abstracts. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.
 
-Supported _context_ names:
 
-- `filter`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
-- `compact`: Any compact, tabular presentation of data from multiple entities.
-- `detailed`: Any read-only, entity-level presentation.
+See [Context Names](#context-names) section for the list of supported _context_ names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
 
-It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
+
+### Context Names
+
+List of _context_ names that are used in ermrest:
+- `"compact"`: Any compact, tabular presentation of data from multiple entities.
+- `"detailed"`: Any detailed read-only, entity-level presentation context.
+- `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
+  - `"entry/edit"`: A sub-context of `entry` that only applies to editing existing resources.
+  - `"entry/create"`: A sub-context of `entry` that only applies to creating new resources.
+- `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
+- `"name"`: Any abbreviated title-like presentation context.
+- `"*"`: A default to apply for any context not matched by a more specific context name.
+
+If more than one _context_ name in the annotation payload matches, the _options_ should be combined in the following order (first occurrence wins):
+
+1. Prefer _option_ set in matching contexts with exact matching context name.
+2. Prefer _option_ set in matching contexts with longest matching prefix, e.g. an option for `entry` can match application context `entry/edit` or `entry/create`.
+3. Use default _option_ set in context `*`.
+
+The following matrix illustrates which context is meaningful in which annotation.
+
+
+| Annotation                                              | compact | detialed | entry | entry/edit | entry/create | fiilter | name | * |
+|---------------------------------------------------------|---------|----------|-------|------------|--------------|---------|------|---|
+| [2015 Display](#2015-display)                           | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Ignore](#2016-ignore)                             | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Visible Columns](#2016-visible-columns)           | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Column Display](#2016-column-display)             | X       | X        | X     | X          | X            | X       | -    | X |
+| [2016 Table Display](#2016-table-display)               |  X      | X        | -     | -          | -            | X       | X    | X |
+| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -        | X     | X          | X            | X       | -    | X |
+| [2016 Abstracts Table](#2016-abstracts-table)             | X       | X        | -     | -          | -            | X       | -    | X |
