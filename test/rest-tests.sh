@@ -16,6 +16,10 @@ A successful run will exit with status 0 and an empty standard output.
 
 A failure will exit with status 1 and a non-empty standard output.
 
+Test case failures will not abort testing unless ABORT_ON_FAILURE is
+set to "true". However, 500 Internal Server Error responses will
+always abort testing.
+
 Setting VERBOSE=true will include full per-test information on
 standard output for successes as well as failures. VERBOSE=brief will
 output a single line per successful test.
@@ -121,18 +125,17 @@ dotest()
     hash1=
     hash2=
 
-    errorpattern="500::*::*"
-    
-    if [[ "$summary" = $errorpattern ]]
-    then
-	logtest FAILED "$@"
-	error terminating on internal server error
-    fi
-    
     if [[ "$summary" != $pattern ]]
     then
 	logtest FAILED "$@"
 	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+
+	errorpattern="500::*::*"
+    
+	if [[ "$summary" = $errorpattern ]] || [[ "${ABORT_ON_FAILURE:-false}" = "true" ]]
+	then
+	    error terminating on "$summary"
+	fi
     else
 	if [[ "$VERBOSE" = "true" ]]
 	then
