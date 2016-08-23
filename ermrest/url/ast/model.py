@@ -115,9 +115,8 @@ class Schema (Api):
         return Table(self, name)
 
     def GET_body(self, conn, cur):
-        model = self.catalog.manager.get_model(cur)
         try:
-            return model.schemas[unicode(self.name)]
+            return self.catalog.manager._model.schemas[unicode(self.name)]
         except exception.ConflictModel:
             raise exception.NotFound(u'Schema %s not found.' % unicode(self.name))
     
