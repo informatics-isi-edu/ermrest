@@ -156,7 +156,7 @@ class PooledConnection (object):
                     yield d
             else:
                 yield result
-        except psycopg2.InterfaceError, e:
+        except (psycopg2.InterfaceError, psycopg2.OperationalError), e:
             # reset bad connection
             self.used_pool.putconn(self.conn, close=True)
             self.conn = None

@@ -115,6 +115,9 @@ class Dispatcher (object):
             raise rest.BadRequest(str(te))
         except rest.WebException, te:
             raise te
+        except psycopg2.Error, te:
+            # e.g. DB connection errors while getting Catalog instance, already logged by web_method
+            raise te
         except:
             et, ev, tb = sys.exc_info()
             web.debug('got exception "%s" during URI parse' % str(ev),
