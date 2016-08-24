@@ -93,12 +93,10 @@ class CatalogFactory (object):
         # generate a random database name
         dbname = random_name(prefix='_ermrest_')
 
-        def body(conn, ignored_cur):
+        def body(conn, cur):
             # create database
-            cur = None
             try:
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-                cur = conn.cursor()
                 cur.execute("CREATE DATABASE " + sql_identifier(dbname))
             except psycopg2.Error, ev:
                 msg = str(ev)
@@ -107,8 +105,6 @@ class CatalogFactory (object):
                     msg = msg[0:idx]
                 raise RuntimeError(msg)
             finally:
-                if cur:
-                    cur.close()
                 # just in case caller didn't use sanepg2 which resets this already...
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
 
