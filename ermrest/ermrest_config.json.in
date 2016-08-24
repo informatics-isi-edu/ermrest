@@ -28,6 +28,7 @@
         "interval": null,
 	"longtext": null,
 	"markdown": null,
+	"gene_sequence": null,
         "serial2": { "aliases": [ "smallserial" ] },
         "serial4": { "aliases": [ "serial" ] },
         "serial8": { "aliases": [ "bigserial" ] },
