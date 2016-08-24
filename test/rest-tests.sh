@@ -62,7 +62,7 @@ curl_options=(
 
 if [[ -n "$COOKIES" ]]
 then
-    curl_options+=( -b "$COOKIES" -c "$COOKIES" )
+    curl_options+=( -b "$COOKIES" )
 fi
 
 mycurl()
