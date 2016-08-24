@@ -110,6 +110,10 @@ $(cat ${RESPONSE_HEADERS} | sed -e "s/^\(.*\)/    \1/")
   Response body:
 $(cat ${RESPONSE_CONTENT} | sed -e "s/^\(.*\)/    \1/")
 
+  Curl options:
+
+   ${curl_options[@]}
+
 EOF
 
 }
@@ -134,6 +138,10 @@ dotest()
     
 	if [[ "$summary" = $errorpattern ]] || [[ "${ABORT_ON_FAILURE:-false}" = "true" ]]
 	then
+	    if [[ -n "$cid" ]] && [[ "${DESTROY_CATALOG}" = "true" ]]
+	    then
+		mycurl -X DELETE "${BASE_URL}/catalog/${cid}"
+	    fi
 	    error terminating on "$summary"
 	fi
     else
