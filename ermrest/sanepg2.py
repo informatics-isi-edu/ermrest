@@ -87,7 +87,7 @@ class PoolManager (object):
     def __init__(self):
         # map dsn -> [pool, timestamp]
         self.pools = dict()
-        self.max_idle_seconds = 60 * 15 # 15 minutes
+        self.max_idle_seconds = 60 * 5 # 5 minutes
 
     def __getitem__(self, dsn):
         """Lookup existing or create new pool for database on demand.
