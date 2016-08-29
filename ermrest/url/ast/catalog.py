@@ -205,7 +205,16 @@ class Meta (Api):
         def post_commit(meta):
             web.header('Content-Type', content_type)
             web.ctx.ermrest_request_content_type = content_type
-            response = json.dumps(list(meta)) + '\n'
+            if self.key is not None:
+                # project out single ACL from ACL set
+                meta = meta.get(self.key, [])
+                if self.value is not None:
+                    if meta:
+                        # this should always work or we have a design problem
+                        meta = meta[meta.index(self.value)]
+                    else:
+                        raise exception.rest.NotFound(uri)
+            response = json.dumps(meta) + '\n'
             web.header('Content-Length', len(response))
             return response
 
@@ -215,7 +224,7 @@ class Meta (Api):
         """Perform HTTP PUT of catalog metadata.
         """
         # disallow PUT of META
-        if not self.key:
+        if not self.key or not self.value:
             raise exception.rest.NoMethod(uri)
         
         def body(conn, cur):
@@ -224,13 +233,8 @@ class Meta (Api):
             if self.key == self.catalog.manager.META_OWNER:
                 # must be owner to change owner
                 self.enforce_owner(cur, uri)
-                # must set owner to a rolename (TODO: better validation)
-                if not self.value or self.value == '':
-                    raise exception.rest.Forbidden(uri)
-                # if all passed, SET the new owner
-                self.catalog.manager.set_meta(cur, self.key, self.value)
-            else:
-                self.catalog.manager.add_meta(cur, self.key, self.value)
+
+            self.catalog.manager.add_meta(cur, self.key, self.value)
             
         def post_commit(ignore):
             web.ctx.status = '204 No Content'
@@ -246,18 +250,22 @@ class Meta (Api):
         if not self.key:
             raise exception.rest.NoMethod(uri)
         
-        # disallow DELETE of OWNER
-        if self.key == self.catalog.manager.META_OWNER:
-            raise exception.rest.NoMethod(uri)
-            
         def body(conn, cur):
             self.enforce_write(cur, uri)
+
+            if self.key == self.catalog.manager.META_OWNER:
+                # must be owner to change owner
+                self.enforce_owner(cur, uri)
 
             meta = self.catalog.manager.get_meta(cur, self.key, self.value)
             if not meta:
                 raise exception.rest.NotFound(uri)
         
             self.catalog.manager.remove_meta(cur, self.key, self.value)
+
+            if self.key == self.catalog.manager.META_OWNER:
+                # must still be owner after change to prevent orphans
+                self.enforce_owner(cur, uri)
 
         def post_commit(ignore):
             web.ctx.status = '204 No Content'

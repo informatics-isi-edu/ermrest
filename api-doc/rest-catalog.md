@@ -57,6 +57,35 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Access Control Lists Retrieval
+
+The GET method is used to get a summary of all access control (ACL)
+lists:
+
+    GET /ermrest/catalog/42/meta HTTP/1.1
+	Host: www.example.com
+
+On success, this request yields the ACL content as an object with one value list for each named ACL:
+
+	HTTP/1.1 200 OK
+	Content-Type: application/json
+
+	{
+	  "schema_write_user": ["user1"],
+	  "content_write_user": ["user1", "group2"],
+	  "content_read_user": ["user1"],
+	  "read_user": ["*"],
+	  "owner": ["user1"],
+	  "write_user": ["user1"]
+	}
+
+White-space is added above for readability. This legacy representation is likely to change in future revisions.
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
 ## Access Control List Retrieval
 
 The GET method is used to get a summary of a specific access control (ACL)
@@ -65,12 +94,12 @@ list (`content_read_user` in this example):
     GET /ermrest/catalog/42/meta/content_read_user HTTP/1.1
 	Host: www.example.com
 
-On success, this request yields the ACL content as a key-value list:
+On success, this request yields the ACL content as a value list:
 
 	HTTP/1.1 200 OK
 	Content-Type: application/json
 
-	[{"k": "content_read_user", "v": "user1"}, {"k": "content_read_user", "v": "group2"}, ...]
+	["user1", "group2", ...]
 
 This legacy representation is likely to change in future revisions.
 
@@ -85,6 +114,10 @@ The PUT method is used to add a role name, i.e. a user or group, to an ACL:
 
     PUT /ermrest/catalog/42/meta/content_read_user/user2 HTTP/1.1
 	Host: www.example.com
+
+The role name MUST be URL-encoded.  The special entry value `*`,
+i.e. `%2A` when encoded in the URL, is the wild-card entry which will
+match any client.
 
 On success, this request yields an empty response:
 
@@ -103,12 +136,14 @@ control (ACL) list (`user2` of `content_read_user` in this example):
     GET /ermrest/catalog/42/meta/content_read_user/user2 HTTP/1.1
 	Host: www.example.com
 
-On success, this request yields the ACL entry as a key-value list:
+The role name MUST be URL-encoded.
+
+On success, this request yields the ACL entry as a single JSON value:
 
 	HTTP/1.1 200 OK
 	Content-Type: application/json
 
-	[{"k": "content_read_user", "v": "user2"}]
+	"user2"
 
 This legacy representation is likely to change in future revisions.
 
@@ -123,6 +158,8 @@ The DELETE method is used to add a role name, i.e. a user or group, to an ACL:
 
     DELETE /ermrest/catalog/42/meta/content_read_user/user2 HTTP/1.1
 	Host: www.example.com
+
+The role name MUST be URL-encoded.
 
 On success, this request yields an empty response:
 

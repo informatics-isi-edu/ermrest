@@ -496,14 +496,17 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _ermrest TO ermrest;
                     where += " AND value = %s" % sql_literal(value)
 
         cur.execute("""
-SELECT * FROM %(schema)s.%(table)s
+SELECT key, array_agg(value) AS values FROM %(schema)s.%(table)s
 %(where)s
+GROUP BY key
 ;""" % dict(schema=self._SCHEMA_NAME,
             table=self._TABLE_NAME,
             where=where) 
                     )
+        result = {}
         for k, v in cur:
-            yield dict(k=k, v=v)
+            result[k] = v
+        return result
     
     def add_meta(self, cur, key, value):
         """Adds a metadata (key, value) pair.
@@ -513,31 +516,14 @@ INSERT INTO %(schema)s.%(table)s
   (key, value)
 VALUES
   (%(key)s, %(value)s)
+EXCEPT
+SELECT key, value FROM %(schema)s.%(table)s
 ;
 """ % dict(schema=self._SCHEMA_NAME,
            table=self._TABLE_NAME,
            key=sql_literal(key),
            value=sql_literal(value)
            )
-                    )
-            
-    def set_meta(self, cur, key, value):
-        """Sets a metadata (key, value) pair.
-        """
-        cur.execute("""
-DELETE FROM %(schema)s.%(table)s
-WHERE key=%(key)s
-;
-INSERT INTO %(schema)s.%(table)s
-  (key, value)
-VALUES
-  (%(key)s, %(value)s)
-;
-""" % dict(schema=self._SCHEMA_NAME,
-           table=self._TABLE_NAME,
-           key=sql_literal(key),
-           value=sql_literal(value)
-           ) 
                     )
             
     def remove_meta(self, cur, key, value=None):
@@ -564,7 +550,7 @@ DELETE FROM %(schema)s.%(table)s
         if not (type(roles) is set or type(roles) is list):
             roles = [roles]
         roles = set([ r['id'] if type(r) is dict else r for r in roles ])
-        return len(list(self.get_meta(cur, perm, roles.union(self.ANONYMOUS)))) > 0
+        return len(self.get_meta(cur, perm, roles.union(self.ANONYMOUS))) > 0
                                   
     def has_read(self, cur, roles):
         """Tests whether the user roles have read permission.
