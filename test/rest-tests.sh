@@ -508,6 +508,7 @@ id,name
 1,foo
 2,bar
 3,baz
+4,unreferenced
 EOF
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
@@ -645,6 +646,7 @@ id,name,level1_id
 2,foo 2,1
 3,bar 1,2
 4,baz 1,3
+5,disconnected,
 EOF
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level2" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
@@ -659,6 +661,54 @@ dotest "200::*::*" "/catalog/${cid}/aggregate/A:=test1:test_level1/B:=test1:test
 dotest "200::*::*" "/catalog/${cid}/aggregate/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/count:=cnt(*)"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/id,B:name"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/B:id;name"
+
+dojointest()
+{
+    expected_cnt=$1
+    shift 1
+    dotest "200::*::*" "$@" -H "Accept: text/csv"
+    got_cnt=$(( $(tail -1 < ${RESPONSE_CONTENT} ) ))
+
+    if [[ ${expected_cnt} -ne ${got_cnt} ]]
+    then
+	cat <<EOF
+FAILED: result count ${got_cnt} does not match expected ${expected_cnt} for $@
+
+$(cat ${RESPONSE_CONTENT})
+EOF
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+	if [[ "$summary" = $errorpattern ]] || [[ "${ABORT_ON_FAILURE:-false}" = "true" ]]
+	then
+	    if [[ -n "$cid" ]] && [[ "${DESTROY_CATALOG}" = "true" ]]
+	    then
+		mycurl -X DELETE "${BASE_URL}/catalog/${cid}"
+	    fi
+	    error terminating on "$summary"
+	fi
+    elif [[ "$VERBOSE" = "true" ]] || [[ "$VERBOSE" = "brief" ]]
+    then
+	cat <<EOF
+TEST $(( ${NUM_TESTS} + 1 )) OK: row count ${got_cnt} matches expected ${expected_cnt}
+EOF
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+# test outer join modes
+dojointest 3 "/catalog/${cid}/aggregate/A:=test_level1/(id)=(test_level2:level1_id)/c:=cnt_d(A:id)"
+dojointest 4 "/catalog/${cid}/aggregate/A:=test_level1/left(id)=(test_level2:level1_id)/c:=cnt_d(A:id)"
+dojointest 3 "/catalog/${cid}/aggregate/A:=test_level1/right(id)=(test_level2:level1_id)/c:=cnt_d(A:id)"
+dojointest 4 "/catalog/${cid}/aggregate/A:=test_level1/full(id)=(test_level2:level1_id)/c:=cnt_d(A:id)"
+
+dojointest 4 "/catalog/${cid}/aggregate/test_level1/(id)=(test_level2:level1_id)/c:=cnt_d(id)"
+dojointest 4 "/catalog/${cid}/aggregate/test_level1/left(id)=(test_level2:level1_id)/c:=cnt_d(id)"
+dojointest 5 "/catalog/${cid}/aggregate/test_level1/right(id)=(test_level2:level1_id)/c:=cnt_d(id)"
+dojointest 5 "/catalog/${cid}/aggregate/test_level1/full(id)=(test_level2:level1_id)/c:=cnt_d(id)"
+
+dojointest 4 "/catalog/${cid}/aggregate/test_level1/(id)=(test_level2:level1_id)/c:=cnt(*)"
+dojointest 5 "/catalog/${cid}/aggregate/test_level1/left(id)=(test_level2:level1_id)/c:=cnt(*)"
+dojointest 5 "/catalog/${cid}/aggregate/test_level1/right(id)=(test_level2:level1_id)/c:=cnt(*)"
+dojointest 6 "/catalog/${cid}/aggregate/test_level1/full(id)=(test_level2:level1_id)/c:=cnt(*)"
 
 # test wildcard expansion variations
 dotest "200::*::*" "/catalog/${cid}/attribute/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/*"

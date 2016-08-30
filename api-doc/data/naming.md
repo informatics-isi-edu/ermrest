@@ -125,7 +125,11 @@ An entity link element can augment a path with an additional related or joined t
 
 as in the path root, _table name_ may be explicitly schema qualified or left unqualified if it is unambiguous within the catalog. In order for this basic table link element to be valid, there must be at least one foreign-key relationship linking the entity set denoted by _parent path_ and the table denoted by _table name_. The links may point in either direction, i.e. the _parent path_ entity set may contain foreign keys which reference _table name_ or _table name_ may contain foreign keys which reference the _parent path_ entities.
 
-When there are multiple possible linkages to choose from, the link is formed using the disjunction of all applicable link conditions. A more precise entity link element can choose one link condition by identifying an endpoint of the linkage as a set of columns:
+When there are multiple possible linkages to choose from, the link is formed using the disjunction of all applicable link conditions.
+
+#### Linkage by Foreign-Key Endpoint
+
+A more precise entity link element can choose one link condition by identifying an endpoint of the linkage as a set of columns:
 
 - _parent path_ `/(` _column name_ `,` ... `)`
 - _parent path_ `/(` _table name_ `:` _column name_ `,` ... `)`
@@ -150,6 +154,8 @@ The resolution procedure for these column sets is as follows:
   
 The path extended with an entity link element denotes the entities of a new table drawn from the catalog and joined to the existing entities in _parent path_, with the default entity context of the extended path being the newly joined (i.e. right-most) table instance.
 
+#### Linkage by Explicit Column Mapping
+
 When one endpoint is not sufficient to unambiguously select path linkage, a fully explicit join condition can be specified as a sequence of left-hand columns which are equated to a corresponding sequence of right-hand columns:
 
 - _parent path_ `/(` _left column name_ `,` ... `)=(` _right table name_ `:` _right column name_ `,` ... `)`
@@ -160,6 +166,16 @@ This notation requires that the _left hand column_ list resolve from _parent pat
 - _parent path_ `/(L1,L2,L3)=(T:R1,R2,R3)`
 
 The indicated join condition corresponds to the SQL `L1 = T.R1 AND L2 = T.R2 AND L3 = T.R3`. Each positional _left column_ and _right column_ MUST have compatible types in order for their values to be tested for equality.
+
+#### Outer-Join Linkage by Column Mapping
+
+With the preceding notation, an optional join type is also allowed as a prefix to the column mapping notation:
+
+- _parent path_ `/left(` _left columns_ ... `)=(` _right columns_ ... `)`
+- _parent path_ `/right(` _left columns_ ... `)=(` _right columns_ ... `)`
+- _parent path_ `/full(` _left columns_ ... `)=(` _right columns_ ... `)`
+
+These three keywords `left`, `right`, and `full` denote a "left outer join", "right outer join", or "full outer join", respectively. When no such keyword is present, the default join type is an "inner join". Presently, the outer-join modes are only available with fully explicit column mapping notation.
 
 ### Table Instance Aliases
 

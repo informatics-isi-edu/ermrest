@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -211,7 +211,8 @@ class Entity (Api):
             self.epath.set_context(alias)
         else:
             keyref, refop, lalias = elem.resolve_link(self.model, self.epath)
-            self.epath.add_link(keyref, refop, elem.alias, lalias)
+            outer_type = elem.outer_type if hasattr(elem, 'outer_type') else None
+            self.epath.add_link(keyref, refop, elem.alias, lalias, outer_type=outer_type)
             
     def GET(self, uri):
         """Perform HTTP GET of entities.

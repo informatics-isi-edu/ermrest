@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,26 +38,31 @@ class TableElem (PathElem):
 
 class ColumnsElem (PathElem):
     """A path element with parenthetic name list must be columns."""
-    def __init__(self, names):
+    def __init__(self, names, outer_type=None):
         self.names = names
         self.alias = None
+        self.outer_type = outer_type
 
     def set_alias(self, alias):
         self.alias = alias
+
+    def set_outer_type(self, outer_type):
+        self.outer_type = outer_type
 
     def resolve_link(self, model, epath):
         """Resolve (self.names) as a link in the model and epath context."""
         return self.names.resolve_link(model, epath)
 
     def add_link_rhs(self, names):
-        return LinkElem(self.names, names)
+        return LinkElem(self.names, names, outer_type=self.outer_type)
 
 class LinkElem (PathElem):
     """A path element with a fully join spec equating two parenthetic lists of columns."""
-    def __init__(self, lnames, rnames):
+    def __init__(self, lnames, rnames, outer_type=None):
         self.lnames = lnames
         self.rnames = rnames
         self.alias = None
+        self.outer_type = outer_type
 
     def set_alias(self, alias):
         self.alias = alias

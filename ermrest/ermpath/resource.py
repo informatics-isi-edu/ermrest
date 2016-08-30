@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ class EntityElem (object):
     """Wrapper for instance of entity table in path.
 
     """
-    def __init__(self, epath, alias, table, pos, keyref=None, refop=None, keyref_alias=None, context_pos=None):
+    def __init__(self, epath, alias, table, pos, keyref=None, refop=None, keyref_alias=None, context_pos=None, outer_type=None):
         self.epath = epath
         self.alias = alias
         self.table = table
@@ -199,6 +199,7 @@ class EntityElem (object):
         self.refop = refop
         self.keyref_alias = keyref_alias
         self.filters = []
+        self.outer_type = outer_type
 
     def _link_parts(self):
         if self.refop == '=@':
@@ -270,7 +271,8 @@ class EntityElem (object):
             return '%s AS t0' % self.table.sql_name()
 
         else:
-            return '%s AS t%d ON (%s)' % (
+            return '%s JOIN %s AS t%d ON (%s)' % (
+                {"left": "LEFT OUTER", "right": "RIGHT OUTER", "full": "FULL OUTER", None: ""}[self.outer_type],
                 self.table.sql_name(),
                 self.pos,
                 self.sql_join_condition()
@@ -920,7 +922,7 @@ WHERE %(pred)s
         self.after = after
         self.before = before
             
-    def add_link(self, keyref, refop, ralias=None, lalias=None):
+    def add_link(self, keyref, refop, ralias=None, lalias=None, outer_type=None):
         """Extend the path by linking in another table.
 
            keyref specifies the foreign key and primary keys used
@@ -955,7 +957,7 @@ WHERE %(pred)s
         else:
             rcontext = rpos - 1
         
-        self._path.append( EntityElem(self, ralias, rtable, rpos, keyref, refop, lalias, rcontext) )
+        self._path.append( EntityElem(self, ralias, rtable, rpos, keyref, refop, lalias, rcontext, outer_type) )
         self._context_index = -1
 
         if ralias is not None:
@@ -1007,7 +1009,7 @@ FROM %(tables)s
 %(where)s
 """ % dict(distinct_on = distinct_on and ('DISTINCT ON (%s)' % ', '.join(distinct_on_cols)) or '',
            selects     = selects,
-           tables      = ' JOIN '.join(tables),
+           tables      = ' '.join(tables),
            where       = wheres and ('WHERE ' + ' AND '.join(['(%s)' % w for w in wheres])) or ''
            )
 	

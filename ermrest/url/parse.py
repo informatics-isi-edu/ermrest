@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2015 University of Southern California
+# Copyright 2010-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -240,6 +240,17 @@ def p_entityelem1_bind(p):
     """entityelem1 : string ASSIGN entityelem1"""
     p[3].set_alias(p[1])
     p[0] = p[3]
+
+def p_outer(p):
+    """outer : LEFT 
+             | RIGHT 
+             | FULL """
+    p[0] = p[1]
+    
+def p_outer_columnselem(p):
+    """columnselem : outer '(' snamelist1 ')' """
+    p[0] = ast.data.path.ColumnsElem(p[3])
+    p[0].set_outer_type(p[1])
 
 def p_columnselem(p):
     """columnselem : '(' snamelist1 ')' """
@@ -694,7 +705,7 @@ def make_parser():
     # NullLogger attribute not supported by Python 2.4
     # return yacc.yacc(debug=False, errorlog=yacc.NullLogger())
     return yacc.yacc(debug=False, optimize=1, tabmodule='url_parsetab', write_tables=0)
-#    return yacc.yacc()
+    #return yacc.yacc()
 
 def make_parse():
     lock = threading.Lock()

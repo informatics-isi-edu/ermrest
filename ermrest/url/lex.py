@@ -1,7 +1,6 @@
 
-
 # 
-# Copyright 2010-2013 University of Southern California
+# Copyright 2010-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,10 +70,12 @@ keywords = [
     'desc',
     'entity',
     'foreignkey',
+    'full',
     'geq',
     'gt',
     'key',
     'leq',
+    'left',
     'lt',
     'meta',
     'null',
@@ -82,6 +83,7 @@ keywords = [
     'reference',
     'referencedby',
     'regexp',
+    'right',
     'schema',
     'sort',
     'table',
