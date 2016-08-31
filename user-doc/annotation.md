@@ -51,7 +51,7 @@ here is a quick matrix to locate them.
 |------------|--------|-------|--------|-----|-----|---------|
 | [2015 Display](#2015-display) | X | X | X | - | - | Display options |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
-| [2016 Table Alternatives](#2016-abstracts-table) | - | X | - | _ | _ | Table abstracts another table |
+| [2016 Table Alternatives](#2016-table-alternatives) | - | X | - | _ | _ | Table abstracts another table |
 | [2016 Column Display](#2016-column-display) | - | - | X | - | - | Column-specific display options |
 | [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
@@ -397,11 +397,11 @@ the alternative one has modified the representation of each entity in some way.
 Supported JSON payload patterns:
 
 - `{` ... _context_ `:` [ _sname_, _tname_] `,` ... `}`: The table identified by _sname_:_tname_ is an alternative table to be used instead of the annoted table in the specified context. 
-- `{` ... `"contexts" : [` _context_ `,` ... `]` ... `}`: The abstraction is preferred in the listed application context(s).
+- `{` ... `"contexts" : [` _context_ `,` ... `]` ... `}`: The alternative table is preferred in the listed application context(s).
 
 A alternative table or view which abstracts another table _SHOULD_ have a non-null (psuedo) primary key which is also a foreign key to the base storage table. The base storage table is the one bearing this annotation. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.
  
-See [Context Names](#context-names) section for the list of supported _context_ names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
+See [Context Names](#context-names) section for the list of supported _context_ names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` or `compact` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` or `compact` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
 
 
 ### Context Names
