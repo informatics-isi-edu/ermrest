@@ -51,7 +51,7 @@ here is a quick matrix to locate them.
 |------------|--------|-------|--------|-----|-----|---------|
 | [2015 Display](#2015-display) | X | X | X | - | - | Display options |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
-| [2016 Abstracts Table](#2016-abstracts-table) | - | X | - | _ | _ | Table abstracts another table |
+| [2016 Table Alternatives](#2016-abstracts-table) | - | X | - | _ | _ | Table abstracts another table |
 | [2016 Column Display](#2016-column-display) | - | - | X | - | - | Column-specific display options |
 | [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
@@ -387,23 +387,20 @@ Supported _keylist_ patterns:
 
 - `[` `[` _schema name_`,` _constraint name_ `]` `,` ... `]`: Present foreign keys with matching _schema name_ and _constraint name_, in the order specified in the list. Ignore constraint names that do not correspond to foreign keys in the catalog. Do not present foreign keys that are not mentioned in the list. These 2-element lists use the same format as each element in the `names` property of foreign keys in the JSON model introspection output of ERMrest.
 
-### 2016 Abstracts Table
+### 2016 Table Alternatives
 
-`tag:isrd.isi.edu,2016:abstracts-table`
+`tag:isrd.isi.edu,2016:table-alternatives`
 
-This key indicates that the annotated table _abstracts_ another
-table. This means that they both represent the same _entity set_ but
-the abstraction has modified the representation of each entity in some
-way.
+This key indicates that the annotated table (e.g. the base storage table) has abstracted views/tables that should be used as _alternataive_ tables in different contexts. This means that they both represent the same _entity set_ but
+the alternative one has modified the representation of each entity in some way.
 
 Supported JSON payload patterns:
 
-- `{` ... `"schema" :` _sname_, `"table" :` _tname_ ... `}`: The table identified by _sname_:_tname_ is the base storage table being abstracted by the table bearing this annotation.
+- `{` ... _context_ `:` [ _sname_, _tname_] `,` ... `}`: The table identified by _sname_:_tname_ is an alternative table to be used instead of the annoted table in the specified context. 
 - `{` ... `"contexts" : [` _context_ `,` ... `]` ... `}`: The abstraction is preferred in the listed application context(s).
 
-A table which abstracts another table _SHOULD_ have a non-null (primary) key which is also a foreign key to the table it abstracts. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.
-
-
+A alternative table or view which abstracts another table _SHOULD_ have a non-null (psuedo) primary key which is also a foreign key to the base storage table. The base storage table is the one bearing this annotation. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.
+ 
 See [Context Names](#context-names) section for the list of supported _context_ names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
 
 
@@ -437,4 +434,4 @@ The following matrix illustrates which context is meaningful in which annotation
 | [2016 Column Display](#2016-column-display)             | X       |  -            | X        | X     | X          | X            | X       | -    | X |
 | [2016 Table Display](#2016-table-display)               | X       | X             | X        | -     | -          | -            | X       | X    | X |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | -        | X     | X          | X            | X       | -    | X |
-| [2016 Abstracts Table](#2016-abstracts-table)           | X       | -             | X        | -     | -          | -            | X       | -    | X |
+| [2016 Table Alternatives](#2016-abstracts-table)           | X       | -             | X        | -     | -          | -            | X       | -    | X |
