@@ -337,6 +337,7 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 Supported JSON _option_ payload patterns:
 
 - `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
+- `"page_size":` `_number_`: The default number of rows to be shown on a page.  
 - `"row_markdown_pattern":` _rowpattern_: Render the row by composing a markdown representation only when `row_markdown_pattern` is non-null.
   - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
 - `"separator_markdown":` _separator_: Insert _separator_ markdown text between each expanded _rowpattern_ when presenting row sets. (Default new-line `"\n"`.)
@@ -410,12 +411,13 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 
 List of _context_ names that are used in ermrest:
 - `"compact"`: Any compact, tabular presentation of data from multiple entities.
+- `"compact/brief"`: A limited compact, tabular presentation of data from multiple entities to be shown under the `detailed` context. In this context, only a page of data will be shown with a link to the access the `compact` context for more detail.  
 - `"detailed"`: Any detailed read-only, entity-level presentation context.
 - `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
   - `"entry/edit"`: A sub-context of `entry` that only applies to editing existing resources.
   - `"entry/create"`: A sub-context of `entry` that only applies to creating new resources.
 - `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
-- `"name"`: Any abbreviated title-like presentation context.
+- `"row_name"`: Any abbreviated title-like presentation context.
 - `"*"`: A default to apply for any context not matched by a more specific context name.
 
 If more than one _context_ name in the annotation payload matches, the _options_ should be combined in the following order (first occurrence wins):
@@ -427,12 +429,12 @@ If more than one _context_ name in the annotation payload matches, the _options_
 The following matrix illustrates which context is meaningful in which annotation.
 
 
-| Annotation                                              | compact | detialed | entry | entry/edit | entry/create | fiilter | name | * |
-|---------------------------------------------------------|---------|----------|-------|------------|--------------|---------|------|---|
-| [2015 Display](#2015-display)                           | X       | X        | X     | X          | X            | X       | -    | X |
-| [2016 Ignore](#2016-ignore)                             | X       | X        | X     | X          | X            | X       | -    | X |
-| [2016 Visible Columns](#2016-visible-columns)           | X       | X        | X     | X          | X            | X       | -    | X |
-| [2016 Column Display](#2016-column-display)             | X       | X        | X     | X          | X            | X       | -    | X |
-| [2016 Table Display](#2016-table-display)               |  X      | X        | -     | -          | -            | X       | X    | X |
-| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -        | X     | X          | X            | X       | -    | X |
-| [2016 Abstracts Table](#2016-abstracts-table)             | X       | X        | -     | -          | -            | X       | -    | X |
+| Annotation                                              | compact | compact/brief | detialed | entry | entry/edit | entry/create | fiilter | name | * |
+|---------------------------------------------------------|---------|---------------|----------|-------|------------|--------------|---------|------|---|
+| [2015 Display](#2015-display)                           | X       | -             | X        | X     | X          | X            | X       | -    | X |
+| [2016 Ignore](#2016-ignore)                             | X       | -             | X        | X     | X          | X            | X       | -    | X |
+| [2016 Visible Columns](#2016-visible-columns)           | X       | -             | X        | X     | X          | X            | X       | -    | X |
+| [2016 Column Display](#2016-column-display)             | X       |  -            | X        | X     | X          | X            | X       | -    | X |
+| [2016 Table Display](#2016-table-display)               | X       | X             | X        | -     | -          | -            | X       | X    | X |
+| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | -        | X     | X          | X            | X       | -    | X |
+| [2016 Abstracts Table](#2016-abstracts-table)           | X       | -             | X        | -     | -          | -            | X       | -    | X |
