@@ -155,10 +155,12 @@ GRANT USAGE ON SCHEMA ermrest TO ermrest;
 CREATE TABLE ermrest.simple_registry (
     id bigserial PRIMARY KEY,
     descriptor text,
-    deleted_on timestamp with time zone DEFAULT NULL
+    deleted_on timestamp with time zone DEFAULT NULL,
+    created_on timestamp with time zone DEFAULT (now())
 );
 CREATE INDEX ON ermrest.simple_registry (deleted_on);
 CREATE INDEX ON ermrest.simple_registry (id, deleted_on);
+CREATE INDEX ON ermrest.simple_registry (created_on);
 GRANT SELECT ON ermrest.simple_registry TO ermrest;
 """)
             return None
