@@ -431,7 +431,7 @@ If more than one _context_ name in the annotation payload matches, the _options_
 The following matrix illustrates which context is meaningful in which annotation.
 
 
-| Annotation                                              | compact | compact/brief | detialed | entry | entry/edit | entry/create | fiilter | name | * |
+| Annotation                                              | compact | compact/brief | detailed | entry | entry/edit | entry/create | filter | name | * |
 |---------------------------------------------------------|---------|---------------|----------|-------|------------|--------------|---------|------|---|
 | [2015 Display](#2015-display)                           | X       | -             | X        | X     | X          | X            | X       | -    | X |
 | [2016 Ignore](#2016-ignore)                             | X       | -             | X        | X     | X          | X            | X       | -    | X |
