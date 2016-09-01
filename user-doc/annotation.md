@@ -57,7 +57,7 @@ here is a quick matrix to locate them.
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
 | [2016 Ignore](#2016-ignore) | X | X | - | - | - | Ignore model element |
 | [2016 Immutable](#2016-immutable) | - | - | X | - | - | Immutable column element |
-| [2016 Record Link](#2016-record-link) | X | X | - | - | - | Intra-Chaise record-level app links |
+| [2016 App Links](#2016-app-links) | X | X | - | - | - | Intra-Chaise app links |
 | [2016 Table Display](#2016-table-display) | X | X | - | - | - | Table-specific display options |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
@@ -195,28 +195,33 @@ using a hierarchical scoping mode:
 5. Annotations on the column or foreign key reference levels override table-level, schema-level, server-level, or codebase behaviors.
 
 
-### 2016 Record Link
+### 2016 App Links
 
-`tag:isrd.isi.edu,2016:recordlink`
+`tag:isrd.isi.edu,2016:app-links`
 
 This key is allowed on any number of schemas or tables in the
-model. It is used to indicate which record-level application in the
-Chaise suite should be linked from rows in a search or other row-set
-presentation.
+model. It is used to indicate which application in the Chaise suite 
+should be used for presentation in different context. 
 
 Supported JSON payload patterns:
 
-- `{ "mode":` _mode_ `, "resource":` _relpath_ `}`: Link to _relpath_ app resource, forming a URL using linking _mode_.
-  - The `mode` _mode_ SHOULD be the following fixed constant (unless additional modes are defined in a future revision):
-    - `"tag:isrd.isi.edu,2016:recordlink/fragmentfilter"`: form an application link as, e.g., `/chaise/` _relpath_ `?` _catalog_ `/` _schema_ `:` _table_ `/` _filter_ where _filter_ is a simple ERMrest predicate such as `columnname:eq:value`.
-  - The `resource` _relpath_ SHOULD be a relative path to one of the supported Chaise record-level applications:
-    - `"record/"`
-    - `"viewer/"`
+- `{` ... _context_ `:` _app name_ `,` ... `}`: An _app name_ to be linked to in a different _context_ name.
+  * _app name_ is one of the following chaise apps: 
+    - `tag:isrd.isi.edu,2016:chaise:record`,
+    - `tag:isrd.isi.edu,2016:chaise:record-two`,
+    - `tag:isrd.isi.edu,2016:chaise:viewer`,
+    - `tag:isrd.isi.edu,2016:chaise:search`,
+    - `tag:isrd.isi.edu,2016:chaise:recordset`
+- `{` ... _context1_ `:` _context2_ `,` ... `}`: Configure _context1_ to use the same _app name_ configured for _context2_.
+
+See [Context Names](#context-names) section for the list of supported _context_ names.
 
 This annotation provides an override guidance for Chaise applications
 using a hierarchical scoping mode:
 
-1. Hard-coded default behavior in Chaise codebase.
+1. Hard-coded default behavior in Chaise codebase:
+  - `detailed` `:` `tag:isrd.isi.edu,2016:chaise:record`,
+  - `compact` `:` `tag:isrd.isi.edu,2016:chaise:resultset`
 2. Server-level configuration in `chaise-config.js` on web server overrides hard-coded default.
 3. Schema-level annotation overrides server-level or codebase behaviors.
 4. Table-level annotation overrides schema-level, server-level, or codebase behaviors.
