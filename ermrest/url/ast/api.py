@@ -237,7 +237,10 @@ class Api (object):
             try:
                 client = web.ctx.webauthn2_context.client
                 if type(client) is dict:
+                    client_obj = client
                     client = client['id']
+                else:
+                    client_obj = { 'id': client }
 
                 attributes = [
                     a['id'] if type(a) is dict else a
@@ -246,9 +249,11 @@ class Api (object):
                 
                 cur.execute("""
 SELECT set_config('webauthn2.client', %s, false);
+SELECT set_config('webauthn2.client_json', %s, false);
 SELECT set_config('webauthn2.attributes', %s, false);
 """ % (
     sql_literal(client),
+    sql_literal(json.dumps(client_obj)),
     sql_literal(json.dumps(attributes)),
 )
                 )
