@@ -27,7 +27,6 @@ from . import path
 from .predicate import predicatecls
 from ..name import Name
 from .... import ermpath, exception
-from ....util import negotiated_content_type
     
 def _preprocess_attributes(epath, attributes):
     """Expand '*' wildcards in attributes into explicit projections understood by ermpath."""
@@ -66,7 +65,7 @@ def _preprocess_attributes(epath, attributes):
 def _GET(handler, uri, dresource, vresource):
     """Perform HTTP GET of generic data resources.
     """
-    content_type = negotiated_content_type(default=handler.default_content_type)
+    content_type = handler.negotiated_content_type()
     limit = handler.negotiated_limit()
         
     def body(conn, cur):
@@ -96,7 +95,7 @@ def _PUT(handler, uri, put_thunk, vresource):
     except:
         in_content_type = handler.default_content_type
 
-    content_type = negotiated_content_type(default=in_content_type)
+    content_type = handler.negotiated_content_type(default=in_content_type)
 
     input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
 

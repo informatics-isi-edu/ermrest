@@ -88,9 +88,14 @@ The [data resources](data/naming.md) make use of a model-driven language for den
   1. [Conjunctive Normal Form](data/naming.md#conjunctive-normal-form)
   1. [Disjunctive Normal Form](data/naming.md#disjunctive-normal-form)
 1. [Sort Modifer](data/naming.md#sort-modifier)
+1. [Paging Modifiers](data/naming.md#paging-modifiers)
+  1. [Before Modifier](data/naming.md#before-modifier)
+  1. [After Modifier](data/naming.md#after-modifier)
+1. [Accept Query Parameter](data/naming.md#accept-query-parameter)
+1. [Defaults Query Parameter](data/naming.md#defaults-query-parameter)
 1. [Limit Query Parameter](data/naming.md#limit-query-parameter)
 
-The filter, sort, and limit syntax together can support [paged data access](data/naming.md#data-paging):
+The sort, paging, and limit syntax together can support [paged data access](data/naming.md#data-paging):
   1. [Simple Paging by Entity Key](data/naming.md#simple-paging-by-entity-key)
   1. [Paging with Application Sort Order](data/naming.md#paging-with-application-sort-order)
 

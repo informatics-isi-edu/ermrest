@@ -26,8 +26,9 @@ import re
 
 from ...exception import *
 from ... import sanepg2
-from ...util import sql_literal
+from ...util import sql_literal, negotiated_content_type
 import json
+
 
 class Api (object):
 
@@ -107,6 +108,23 @@ class Api (object):
                 % (len(after), len(self.sort))
             )
         return self
+
+    def negotiated_content_type(self, supported_types=None, default=None):
+        if supported_types is None:
+            supported_types = ['text/csv', 'application/json', 'application/x-json-stream']
+
+        if default is None:
+            default = self.default_content_type
+
+        try:
+            accept = self.queryopts['accept']
+            accept = {'csv': 'text/csv', 'json': 'application/json' }.get(accept, accept)
+            if accept in supported_types:
+                return accept
+        except KeyError:
+            pass
+
+        return negotiated_content_type(supported_types=supported_types, default=default)
 
     def negotiated_limit(self):
         """Determine query result size limit to use."""

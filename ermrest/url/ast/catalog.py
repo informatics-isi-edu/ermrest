@@ -23,7 +23,7 @@ import web
 
 import model
 import data
-from .api import Api
+from .api import Api, negotiated_content_type
 from ... import exception, catalog, sanepg2
 from ...apicore import web_method
 from ...exception import *
@@ -42,8 +42,7 @@ class Catalogs (object):
         """Perform HTTP POST of catalogs.
         """
         # content negotiation
-        content_type = data.negotiated_content_type(self.supported_types, 
-                                                    self.default_content_type)
+        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
 
         # registry acl enforcement
         allowed = web.ctx.ermrest_registry.can_create(web.ctx.webauthn2_context.attributes)
@@ -146,8 +145,7 @@ class Catalog (Api):
         """Perform HTTP GET of catalog.
         """
         # content negotiation
-        content_type = data.negotiated_content_type(self.supported_types, 
-                                                    self.default_content_type)
+        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
         
@@ -196,8 +194,7 @@ class Meta (Api):
     def GET(self, uri):
         """Perform HTTP GET of catalog metadata.
         """
-        content_type = data.negotiated_content_type(self.supported_types, 
-                                                    self.default_content_type)
+        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
         def body(conn, cur):
             self.enforce_read(cur, uri)
             return self.catalog.manager.get_meta(cur, self.key, self.value)

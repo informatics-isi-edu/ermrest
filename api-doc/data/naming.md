@@ -333,6 +333,30 @@ The `@after` modifier designates a result set of rows immediately subsequent to 
 
 For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately after_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
 
+## Accept Query Parameter
+
+An optional `accept` query parameter can override the `Accept` HTTP header and content-negotiation in data access:
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ ... `?accept=` _t_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_  ... `?accept=` _t_
+- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_  `;` _projection_  ... `?accept=` _t_
+- _service_ `/catalog/` _cid_ `/aggregate/` _path_ `/` _projection_ ... `?accept=` _t_
+
+If the specified MIME content-type _t_ is one of those supported by the data API, it is selected in preference to normal content-negotiation rules. Otherwise, content-negotiation proceeds as usual. Two short-hand values are recognized:
+
+- `accept=csv` is interpreted as `accept=text%2Fcsv`
+- `accept=json` is interpreted as `accept=application%2Fjson`
+
+Note that the content-type _t_ MUST be URL-escaped to protect the `/` character unless using the short-hands above.
+
+## Defaults Query Parameter
+
+An optional `defaults` query parameter can be used with the `POST` operation on the `entity` API:
+
+- _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?defaults=` _column name_ `,` ...
+
+A list of one or more _column name_ indicates columns of the target table which should be populated using server-assigned defaults values, ignoring any values provided by the client. See the [Entity Creation with Defaults](rest.md#entity-creation-with-defaults) operation documentation for more explanation.
+
 ## Limit Query Parameter
 
 An optional `limit` query parameter can truncate the length of set-based resource representations denoted by `entity`, `attribute`, and `attributegroup` resource names:

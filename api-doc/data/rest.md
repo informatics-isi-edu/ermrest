@@ -48,7 +48,7 @@ Typical error response codes include:
 The POST operation is also used to create new entity records in a table where some values are assigned default values, using an entity resource data name of the form:
 
 - _service_ `/catalog/` _cid_ `/entity/` _table name_ `?defaults=` _column name_
-- _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?defaults=` _column name_
+- _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?defaults=` _column name_ `,` ...
 
 In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:
 
@@ -63,7 +63,9 @@ In this operation, complex entity paths with filter and linked entity elements a
     1,baz
     1,bof
 
-The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. All columns should still be present. However, the values for the column (or columns) named in the `defaults` query parameter will be ignored and server-assigned values generated instead. It is an error for any existing key in the stored table to match any key in the input data, as this would denote the creation of multiple rows with the same keys.
+The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. If multiple columns are to be set to defaults, they are provided as a comma-separated list of column names on the right-hand-side of the `accept=...` query parameter binding.
+
+All columns should still be present in the input. However, the values for the column (or columns) named in the `defaults` query parameter will be ignored and server-assigned values generated instead. It is an error for any existing key in the stored table to match any key in the input data, as this would denote the creation of multiple rows with the same keys.
 
 On success, the response is:
 

@@ -75,7 +75,7 @@ from .exception import *
 
 from .registry import get_registry
 from .catalog import get_catalog_factory
-from .util import negotiated_content_type, urlquote
+from .util import urlquote
 
 # expose webauthn REST APIs
 webauthn2_handler_factory = webauthn2.RestHandlerFactory(manager=webauthn2_manager)
