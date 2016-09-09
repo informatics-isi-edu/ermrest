@@ -402,7 +402,6 @@ the alternative one has modified the representation of each entity in some way.
 Supported JSON payload patterns:
 
 - `{` ... _context_ `:` [ _sname_, _tname_] `,` ... `}`: The table identified by _sname_:_tname_ is an alternative table to be used instead of the annoted table in the specified context. 
-- `{` ... `"contexts" : [` _context_ `,` ... `]` ... `}`: The alternative table is preferred in the listed application context(s).
 
 A alternative table or view which abstracts another table _SHOULD_ have a non-null (psuedo) primary key which is also a foreign key to the base storage table. The base storage table is the one bearing this annotation. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.
  
