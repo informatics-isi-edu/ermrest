@@ -351,6 +351,14 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION %(schema)s.current_client_obj() RETURNS json STABLE AS $$
+BEGIN
+  RETURN current_setting('webauthn2.client_json')::json;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL::json;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION %(schema)s.current_attributes() RETURNS text[] STABLE AS $$
 BEGIN
   RETURN (SELECT array_agg(value) FROM json_array_elements_text(current_setting('webauthn2.attributes')::json));
