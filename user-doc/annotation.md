@@ -437,5 +437,5 @@ The following matrix illustrates which context is meaningful in which annotation
 | [2016 Visible Columns](#2016-visible-columns)           | X       | -             | X        | X     | X          | X            | X       | -    | X |
 | [2016 Column Display](#2016-column-display)             | X       |  -            | X        | X     | X          | X            | X       | -    | X |
 | [2016 Table Display](#2016-table-display)               | X       | X             | X        | -     | -          | -            | X       | X    | X |
-| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | -        | X     | X          | X            | X       | -    | X |
+| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | X        | X     | X          | X            | X       | -    | X |
 | [2016 Table Alternatives](#2016-abstracts-table)           | X       | -             | X        | -     | -          | -            | X       | -    | X |
