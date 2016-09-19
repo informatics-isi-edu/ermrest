@@ -92,6 +92,7 @@ The [data resources](data/naming.md) make use of a model-driven language for den
   1. [Before Modifier](data/naming.md#before-modifier)
   1. [After Modifier](data/naming.md#after-modifier)
 1. [Accept Query Parameter](data/naming.md#accept-query-parameter)
+1. [Download Query Parameter](data/naming.md#download-query-parameter)
 1. [Defaults Query Parameter](data/naming.md#defaults-query-parameter)
 1. [Limit Query Parameter](data/naming.md#limit-query-parameter)
 

@@ -1051,6 +1051,48 @@ dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9
 dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: text/csv"
 dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: application/json"
 
+# test download filename
+dodownloadtest()
+{
+    quoted_name="$1"
+    ct="$2"
+    url="$3"
+    
+    dotest "200::${ct}::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87?download=${quoted_name}" -H "Accept: $ct"
+
+    got_disposition=$(grep -i "^Content-Disposition: attachment; filename[*]=UTF-8''${quoted_name}[.].*" < ${RESPONSE_HEADERS})
+    status=$?
+    
+    if [[ -z "${got_disposition}" ]] || [[ $status -ne 0 ]]
+    then
+	cat <<EOF
+FAILED: response headers do not have expected download name for download=${quoted_name}
+
+$(cat ${RESPONSE_HEADERS})
+EOF
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+	if [[ "$summary" = $errorpattern ]] || [[ "${ABORT_ON_FAILURE:-false}" = "true" ]]
+	then
+	    if [[ -n "$cid" ]] && [[ "${DESTROY_CATALOG}" = "true" ]]
+	    then
+		mycurl -X DELETE "${BASE_URL}/catalog/${cid}"
+	    fi
+	    error terminating on "$summary"
+	fi
+    elif [[ "$VERBOSE" = "true" ]] || [[ "$VERBOSE" = "brief" ]]
+    then
+	cat <<EOF
+TEST $(( ${NUM_TESTS} + 1 )) OK: response header ${got_disposition} for download=${quoted_name}
+EOF
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
+dodownloadtest table application/json "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+dodownloadtest table text/csv "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+dodownloadtest "%C7%9Dlq%C9%90%CA%87" application/json "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+dodownloadtest "%C7%9Dlq%C9%90%CA%87" text/csv "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+
 # test CSV error cases including that unicode data passes through OK
 cat > ${TEST_DATA} <<EOF
 id,ǝɯɐu

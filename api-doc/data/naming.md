@@ -349,6 +349,32 @@ If the specified MIME content-type _t_ is one of those supported by the data API
 
 Note that the content-type _t_ MUST be URL-escaped to protect the `/` character unless using the short-hands above.
 
+## Download Query Parameter
+
+An optional `download` query parameter can activate a `Content-Disposition: attachment` response header for GET operations on data resources.
+
+- _service_ `/catalog/` _cid_ `/entity/` _path_ ... `?download=` _bn_
+- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_  ... `?download=` _bn_
+- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_  `;` _projection_  ... `?download=` _bn_
+- _service_ `/catalog/` _cid_ `/aggregate/` _path_ `/` _projection_ ... `?download=` _bn_
+
+The specified file base-name _bn_ MUST be non-empty and SHOULD NOT include a file-extension suffix to indicate the download file type. The _bn_, when URL-decoded, MUST be a valid UTF-8 string. The service SHOULD append an appropriate suffix based on the negotiated response content type, e.g. `.json' or `.csv`.
+
+As an example:
+
+    GET /ermrest/catalog/1/entity/MyTable?download=My%20File
+
+will produce a response like:
+
+    200 OK
+	Content-Type: application/json
+	Content-Length: 3
+	Content-Disposition: attachment; download*=UTF-8''My%20File.json
+	
+	[]
+
+which the browser will interpret to suggest a local filename such as `My File.json`.
+
 ## Defaults Query Parameter
 
 An optional `defaults` query parameter can be used with the `POST` operation on the `entity` API:

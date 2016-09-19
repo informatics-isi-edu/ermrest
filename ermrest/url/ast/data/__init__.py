@@ -27,7 +27,8 @@ from . import path
 from .predicate import predicatecls
 from ..name import Name
 from .... import ermpath, exception
-    
+from webauthn2.util import urlquote
+
 def _preprocess_attributes(epath, attributes):
     """Expand '*' wildcards in attributes into explicit projections understood by ermpath."""
     results = []
@@ -80,6 +81,17 @@ def _GET(handler, uri, dresource, vresource):
         if lines is None:
             return
         web.header('Content-Type', content_type)
+        if 'download' in handler.queryopts and handler.queryopts['download']:
+            fname = handler.queryopts['download']
+            fname += {
+                'application/json': '.json',
+                'application/x-json-stream': '.json',
+                'text/csv': '.csv'
+            }.get(content_type, '.txt')
+            web.header(
+                'Content-Disposition',
+                "attachment; filename*=UTF-8''%s" % urlquote(fname.encode('utf8'))
+            )
         web.ctx.ermrest_content_type = content_type
         for line in lines:
             yield line
