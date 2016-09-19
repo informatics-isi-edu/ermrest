@@ -279,7 +279,7 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 
 Supported _columnlist_ patterns:
 
-- `[` ... _colentry_ `,` ... `]`: Present content corresponding to each _colentry_, in the order specified in the list. Ignore listed _colentry_ values that do not correspond to content from the table. Do not present table columns that are not specified in the list.
+- `[` ... _columnentry_ `,` ... `]`: Present content corresponding to each _columnentry_, in the order specified in the list. Ignore listed _columnentry_ values that do not correspond to content from the table. Do not present table columns that are not specified in the list.
 
 Supported _columnentry_ patterns:
 
@@ -388,7 +388,7 @@ Supported JSON payload pattern:
 
 For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available foreign keys SHOULD be presented unless the application has guidance from other sources. See [Context Names](#context-names) section for the list of supported _context_ names.
 
-Supported _keylist_ patterns:
+Supported _fkeylist_ patterns:
 
 - `[` `[` _schema name_`,` _constraint name_ `]` `,` ... `]`: Present foreign keys with matching _schema name_ and _constraint name_, in the order specified in the list. Ignore constraint names that do not correspond to foreign keys in the catalog. Do not present foreign keys that are not mentioned in the list. These 2-element lists use the same format as each element in the `names` property of foreign keys in the JSON model introspection output of ERMrest.
 
