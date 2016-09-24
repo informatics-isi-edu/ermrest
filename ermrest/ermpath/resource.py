@@ -804,6 +804,8 @@ class AnyPath (object):
 
             cur.copy_expert(sql, output_file)
 
+            return output_file
+
         else:
             # generate rows to caller
             if content_type == 'text/csv':

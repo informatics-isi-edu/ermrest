@@ -21,6 +21,7 @@
 
 import cStringIO
 import web
+import tempfile
 
 from ..api import Api
 from . import path
@@ -68,13 +69,18 @@ def _GET(handler, uri, dresource, vresource):
     """
     content_type = handler.negotiated_content_type()
     limit = handler.negotiated_limit()
+
+    if content_type == 'text/csv':
+        results = tempfile.TemporaryFile()
+    else:
+        results = None
         
     def body(conn, cur):
         handler.set_http_etag( vresource.get_data_version(cur) )
         handler.http_check_preconditions()
         dresource.add_sort(handler.sort)
         dresource.add_paging(handler.after, handler.before)
-        return dresource.get(conn, cur, content_type=content_type, limit=limit)
+        return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit)
 
     def post_commit(lines):
         handler.emit_headers()
@@ -93,8 +99,25 @@ def _GET(handler, uri, dresource, vresource):
                 "attachment; filename*=UTF-8''%s" % urlquote(fname.encode('utf8'))
             )
         web.ctx.ermrest_content_type = content_type
-        for line in lines:
-            yield line
+        
+        if lines is results:
+            # special case for CSV bouncing through temporary file
+            results.seek(0, 2)
+            pos = results.tell()
+            results.seek(0, 0)
+            web.header('Content-Length', '%d' % pos)
+            
+            bufsize = 1024 * 1024
+            while True:
+                buf = results.read(bufsize)
+                if buf:
+                    yield buf
+                else:
+                    break
+            results.close()
+        else:
+            for line in lines:
+                yield line
 
     return handler.perform(body, post_commit)
 
