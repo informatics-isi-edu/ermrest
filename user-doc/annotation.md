@@ -61,11 +61,12 @@ here is a quick matrix to locate them.
 | [2016 Table Display](#2016-table-display) | X | X | - | - | - | Table-specific display options |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
+| [2016 Asset](#2016-asset) | - | X | - | - | - | Describes assets |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
 `tag:misd.isi.edu,` _date_ `:` _key_ where the _key_ part is
-lower-cased with hyphens replacing whitespace. For example, the 
+lower-cased with hyphens replacing whitespace. For example, the
 `2015 Display` annotation key URI is actually
 `tag:misd.isi.edu,2015:display`.
 
@@ -113,11 +114,11 @@ See [Context Names](#context-names) section for the list of supported JSON _ncon
 This annotation provides an override guidance for Chaise applications using a hierarchical scoping mode:
 
 1. Column-level name
-2. Column-level name_style. 
-3. Table-level name_style. 
-4. Schema-level name_style. 
+2. Column-level name_style.
+3. Table-level name_style.
+4. Schema-level name_style.
 
-Note: 
+Note:
 - An explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
 - The name_style has to be derived separately for each field e.g. one can set `underline_space=true` at the schema-level and doesn't have to set this again.   
 
@@ -200,13 +201,13 @@ using a hierarchical scoping mode:
 `tag:isrd.isi.edu,2016:app-links`
 
 This key is allowed on any number of schemas or tables in the
-model. It is used to indicate which application in the Chaise suite 
-should be used for presentation in different context. 
+model. It is used to indicate which application in the Chaise suite
+should be used for presentation in different context.
 
 Supported JSON payload patterns:
 
 - `{` ... _context_ `:` _app name_ `,` ... `}`: An _app name_ to be linked to in a different _context_ name.
-  * _app name_ is one of the following chaise apps: 
+  * _app name_ is one of the following chaise apps:
     - `tag:isrd.isi.edu,2016:chaise:record`,
     - `tag:isrd.isi.edu,2016:chaise:record-two`,
     - `tag:isrd.isi.edu,2016:chaise:viewer`,
@@ -358,7 +359,7 @@ Supported JSON _option_ payload patterns:
     - The provided _pathsuffix_ MUST provide the appropriate projection-list to form a valid `/attribute/` API URI.
 	- The _pathsuffix_ MAY join additional tables to the path and MAY project from these tables as well as the table bound to the `S` table alias.
 	- The _pathsuffix_ SHOULD reset the path context to `$S` if it has joined other tables.
-	
+
 It is not meaningful to use both `row_markdown_pattern` and `module` in for the same _context_. If both are specified, it is RECOMMENDED that the application prefer the `module` configuration and ignore the markdown instructions.
 
 Supported JSON _sortkey_ patterns:
@@ -401,12 +402,42 @@ the alternative one has modified the representation of each entity in some way.
 
 Supported JSON payload patterns:
 
-- `{` ... _context_ `:` [ _sname_, _tname_] `,` ... `}`: The table identified by _sname_:_tname_ is an alternative table to be used instead of the annoted table in the specified context. 
+- `{` ... _context_ `:` [ _sname_, _tname_] `,` ... `}`: The table identified by _sname_:_tname_ is an alternative table to be used instead of the annoted table in the specified context.
 
 A alternative table or view which abstracts another table _SHOULD_ have a non-null (psuedo) primary key which is also a foreign key to the base storage table. The base storage table is the one bearing this annotation. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.
- 
+
 See [Context Names](#context-names) section for the list of supported _context_ names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` or `compact` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` or `compact` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
 
+### 2016 Asset
+
+`tag:isrd.isi.edu,2016:asset`
+
+This key indicates that the annotated table may be interpreted as asset metadata.
+
+Supported JSON payload patterns:
+
+- `null` or `{}`: Default heuristics apply.
+- `{`... `"internal":` [_column_, ...] ...`}`: The one or more named _columns_ store internal identifiers for the term, used for efficient normalized storage in the database but not meaningful to typical users. The referenced columns MUST each comprise a single-column key for the table.
+- `{`... `"identifier": ` _column_ ...`}`: The _column_ stores the unique identifier for the asset. Preferred identifier schemes include MINID, DOI, ARK, PURL, or other schemes derived from standard URIs.
+- `{`... `"accession_number": ` _column_ ...`}`: The _column_ stores the "accession number" for the asset. The scheme for an accession number is defined by an application and is only guaranteed to be unique within the application. In general, they are not globally unique. As an example, accession numbers often take the following form `PREFIX + SERIAL NUMBER [ '.' + REVISION NUMBER ]`, such as `GDS6248` but this format is non-normative.
+- `{`... `"name": ` _pattern_ ...`}`: A name for the asset to be derived by a [Pattern Expansion](#pattern-expansion) on _pattern_. The name may be used to represent a file name, but is not required to do so.
+- `{`... `"size": ` _column_ ...`}`: The _column_ stores the file size in bytes of the asset. It should be an integer typed column.
+- `{`... `"sha256_checksum": ` _column_ ...`}`: The _column_ stores the checksum generated by the 'sha256' cryptographic hash function.
+- `{`... `"creator": ` _column_ ...`}`: The _column_ stores the _creator_ of the asset. The _column_ may be defined as a foreign key that references a person or user table in the model. The usual model introspection applies.
+- `{`... `"description": ` _pattern_ ...`}`: A description for the asset to be derived by a [Pattern Expansion](#pattern-expansion) on _pattern_.
+- `{`... `"date": ` _column_ ...`}`: The _column_ stores the date that the asset metadata was recorded in the system.
+- `{`... `"mediatype": ` _column_ ...`}`: The _column_ stores the 'mediatype' of the asset, for example `application/dicom`.
+- `{`... `"format": ` _column_ ...`}`: The _column_ stores the file format that the asset _conforms to_, for example `http://edamontology.org/format_3548`.
+- `{`... `"contributor": ` _column_ ...`}`: The _column_ stores the "contributors" of the asset. The concept of contributor is not strictly defined here and left up to the application to define the exact criteria for what constitutes a contributor. When this key is present in the JSON payload the _column_ should be a JSON list of contributors. If this key is not present, applications should look for an inbound foreign key reference with a `from_name` annotation set to `'contributor'`, or the application should look for a relationship via a binary association table with a `to_name` annotation set to `'contributor'`. The entities of that related table should be interpreted as the set of contributors to the asset.
+
+#### Heuristics
+
+1. In the absence of this annotation, assume that a table represents assets if it defines the following set of columns.
+   - `"identifier"`
+   - `"mediatype"`
+2. In the absence of any of other keys, look for columns of the same name that match the property names of the annotation specification.
+  - For example, assume that a column named `"format"` represents the file format for the asset.
+3. In the absence of an `internal` assertion, assume all keys are potentially meaningful to users.
 
 ### Context Names
 
