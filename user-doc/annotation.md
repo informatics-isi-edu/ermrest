@@ -432,7 +432,7 @@ Supported JSON payload patterns:
 
 #### Required Properties
 
-The following table specifies the required properties for the annotation. We also recommend the use of additional properties that enable client tooling to make full advantage of assets described in the system.
+The following table specifies the required properties for the annotation. We also recommend additional properties for enhanced functionality provided by some client tooling.
 
 | Property     | Required | Recommended |
 |:-------------|:--------:|:-----------:|
