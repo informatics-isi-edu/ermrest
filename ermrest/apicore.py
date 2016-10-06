@@ -22,6 +22,7 @@
 
 """
 
+import threading
 import logging
 from logging.handlers import SysLogHandler
 import web
@@ -90,6 +91,67 @@ log_template = u"%(elapsed_s)d.%(elapsed_ms)3.3ds %(client_ip)s user=%(client_id
 log_trace_template = log_template + u" -- %(tracedata)s"
 log_final_template = log_template + u" (%(status)s) %(method)s %(proto)s://%(host)s/%(uri)s %(range)s %(type)s"
 
+# setup AMQP notices path
+try:
+    import pika
+
+    class AmqpChangeNotifier (object):
+        def __init__(self, config):
+            self._config = config
+            self._lock = threading.Lock()
+            self._connection_config = pika.ConnectionParameters(**config['connection'])
+            self._exchange_name = config['exchange']
+            self._routing_key = config['routing_key']
+            self._connection = None
+            self._channel = None
+            self._pika_init()
+            
+        def _pika_init(self):
+            connection = pika.BlockingConnection(self._connection_config)
+            channel = connection.channel()
+            channel.exchange_declare(exchange=self._exchange_name, type="fanout")
+            self._connection = connection
+            self._channel = channel
+
+        def _pika_publish(self):
+            self._channel.basic_publish(
+                exchange=self._exchange_name,
+                routing_key=self._routing_key,
+                body='change'
+            )
+        
+        def notify(self):
+            try:
+                self._lock.acquire()
+                try:
+                    if self._connection is None:
+                        self._pika_init()
+                    self._pika_publish()
+                except pika.exceptions.AMQPError, e:
+                    # retry once more on errors?
+                    try:
+                        self._connection.close()
+                    except:
+                        pass
+                    try:
+                        self._pika_init()
+                        self._pika_publish()
+                    except:
+                        pass
+            finally:
+                try:
+                    self._lock.release()
+                except:
+                    pass
+                
+    amqp_notifier = AmqpChangeNotifier(global_env['change_notification']['AMQP'])
+except:
+    et, ev, tb = sys.exc_info()
+    logger.info( ('Change notification via AMQP disabled due to initialization error: %s\n%s' % (
+        str(ev),
+        traceback.format_exception(et, ev, tb)
+    )).encode('utf-8') )
+    amqp_notifier = None
 
 def log_parts():
     """Generate a dictionary of interpolation keys used by our logging template."""
@@ -135,6 +197,7 @@ def request_init():
     web.ctx.ermrest_catalog_factory = catalog_factory
     web.ctx.ermrest_config = global_env
     web.ctx.ermrest_catalog_pc = None
+    web.ctx.ermrest_change_notify = amqp_notifier.notify if amqp_notifier else lambda : None
 
     try:
         # get client authentication context

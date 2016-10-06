@@ -135,6 +135,11 @@ class Dispatcher (object):
 
             astmethod = getattr(ast, methodname)
             result = astmethod(uri)
+
+            if methodname in set(['PUT', 'POST', 'DELETE']):
+                # put AMQP advisory message here?
+                web.ctx.ermrest_change_notify()
+            
             if hasattr(result, 'next'):
                 # force any transaction deferred in iterator
                 for res in result:
