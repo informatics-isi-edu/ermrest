@@ -786,6 +786,13 @@ bar 1,bar 1B
 EOF
 dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_level2b/old:=name;new:=name" -H "Content-Type: text/csv" -T ${TEST_DATA}
 
+cat > ${TEST_DATA} <<EOF
+[{"old": "foo 1B", "new": "foo 1C"},
+ {"old": "foo 2B", "new": "foo 2C"},
+ {"old": "bar 1B", "new": "bar 1B"}]
+EOF
+dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_level2b/old:=name;new:=name" -H "Content-Type: application/json" -T ${TEST_DATA}
+
 # do comment tests
 resources=(
     /schema/test1

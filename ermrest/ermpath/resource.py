@@ -415,35 +415,38 @@ class EntityElem (object):
         json_projection = []
 
         def json_field(col_name, c):
-            json_cols.append(col_name)
+            if col_name is None:
+                col_name = c.name
+            
+            json_cols.append(c.sql_name(col_name))
             sql_type = c.type.sql(basic_storage=True)
-                    
+            
             if c.type.is_array:
                 # extract field as JSON and transform to array
                 # since PostgreSQL json_to_recordset fails for native array extraction...
                 json_projection.append("(SELECT array_agg(x::%s) FROM json_array_elements_text(j->'%s') s (x)) AS %s" % (
                     c.type.base_type.sql(basic_storage=True),
-                    c.name,
-                    col_name
+                    col_name,
+                    c.sql_name(col_name)
                 ))
             elif c.type.name in ['json', 'jsonb']:
                 json_projection.append("(j->'%s')::%s AS %s" % (
-                    c.name,
+                    col_name,
                     c.type.sql(basic_storage=True),
-                    col_name
+                    c.sql_name(col_name)
                 ))
             else:
                 json_projection.append("(j->>'%s')::%s AS %s" % (
-                    c.name,
+                    col_name,
                     c.type.sql(basic_storage=True),
-                    col_name
+                    c.sql_name(col_name)
                 ))
                         
         for c in mkcols:
-            json_field(c.sql_name(mkcol_aliases.get(c)), c)
+            json_field(mkcol_aliases.get(c), c)
                         
         for c in nmkcols:
-            json_field(c.sql_name(nmkcol_aliases.get(c)), c)
+            json_field(nmkcol_aliases.get(c), c)
                     
         # copy input data to temp table
         if in_content_type == 'text/csv':
