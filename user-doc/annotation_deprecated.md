@@ -196,3 +196,29 @@ Supported JSON payload patterns:
 - `{`... `"separator":` _character_ ...`}`: The _character_ to use as the
   separator between subsequence strings.
 
+### 2016 Record Link
+
+`tag:isrd.isi.edu,2016:recordlink`
+
+This key is allowed on any number of schemas or tables in the
+model. It is used to indicate which record-level application in the
+Chaise suite should be linked from rows in a search or other row-set
+presentation.
+
+Supported JSON payload patterns:
+
+- `{ "mode":` _mode_ `, "resource":` _relpath_ `}`: Link to _relpath_ app resource, forming a URL using linking _mode_.
+  - The `mode` _mode_ SHOULD be the following fixed constant (unless additional modes are defined in a future revision):
+    - `"tag:isrd.isi.edu,2016:recordlink/fragmentfilter"`: form an application link as, e.g., `/chaise/` _relpath_ `?` _catalog_ `/` _schema_ `:` _table_ `/` _filter_ where _filter_ is a simple ERMrest predicate such as `columnname:eq:value`.
+  - The `resource` _relpath_ SHOULD be a relative path to one of the supported Chaise record-level applications:
+    - `"record/"`
+    - `"viewer/"`
+
+This annotation provides an override guidance for Chaise applications
+using a hierarchical scoping mode:
+
+1. Hard-coded default behavior in Chaise codebase.
+2. Server-level configuration in `chaise-config.js` on web server overrides hard-coded default.
+3. Schema-level annotation overrides server-level or codebase behaviors.
+4. Table-level annotation overrides schema-level, server-level, or codebase behaviors.
+
