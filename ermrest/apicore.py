@@ -297,6 +297,10 @@ def web_method():
                         raise rest.ServiceUnavailable('Database connection error.')
                     elif e.pgcode[0:2] == '53':
                         raise rest.ServiceUnavailable('Resources unavailable.')
+                    elif e.pgcode[0:2] == '40':
+                        raise rest.ServiceUnavailable('Transaction aborted.')
+                    elif e.pgcode[0:2] == 'XX':
+                        raise rest.ServiceUnavailable('Internal error.')
                     else:
                         # TODO: simplify postgres error text?
                         raise rest.Conflict( str(e) )
