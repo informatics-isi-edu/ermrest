@@ -158,7 +158,10 @@ class Api (object):
         #etag.append( source_checksum )
 
         if 'cookie' in self.http_vary:
-            etag.append( '%s' % web.ctx.webauthn2_context.client )
+            client = web.ctx.webauthn2_context.client
+            if isinstance(client, dict):
+                client = client['id']
+            etag.append( '%s' % client )
         else:
             etag.append( '*' )
             
