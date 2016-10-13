@@ -189,6 +189,9 @@ class Api (object):
             if s[0:2] == 'W/':
                 strong = False
                 s = s[2:]
+            if s[-6:] == '-gzip"':
+                # remove stupid suffix added by mod_deflate
+                s = s[:-6] + '"'
             return (s, strong)
 
         s = header
