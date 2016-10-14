@@ -95,8 +95,6 @@ def annotatable(restype, keying):
     def set_annotation(self, conn, cur, key, value):
         """Set annotation on %s, returning previous value for updates or None.""" % restype
         assert key is not None
-        if value is None:
-            raise exception.BadData('Null value is not a valid annotation.')
         interp = self._interp_annotation(key)
         where = ' AND '.join([
             "%s = %s" % (sql_identifier(k), v)
