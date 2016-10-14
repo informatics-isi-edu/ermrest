@@ -55,7 +55,7 @@ here is a quick matrix to locate them.
 | [2016 Column Display](#2016-column-display) | - | - | X | - | - | Column-specific display options |
 | [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
 | [2016 Generated](#2016-generated) | - | - | X | - | - | Generated column element |
-| [2016 Ignore](#2016-ignore) | X | X | - | - | - | Ignore model element |
+| [2016 Ignore](#2016-ignore) | X | X | X | - | - | Ignore model element |
 | [2016 Immutable](#2016-immutable) | - | - | X | - | - | Immutable column element |
 | [2016 App Links](#2016-app-links) | X | X | - | - | - | Intra-Chaise app links |
 | [2016 Table Display](#2016-table-display) | X | X | - | - | - | Table-specific display options |
@@ -173,6 +173,7 @@ This key is allowed on any number of the following model elements:
 
 - Schema
 - Table
+- Column
 
 This key was previously specified for these model elements but such use is deprecated:
 
