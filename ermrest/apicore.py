@@ -293,17 +293,18 @@ def web_method():
                     raise rest.ServiceUnavailable(e.message)
                 except psycopg2.Error, e:
                     request_trace("Postgres error: %s (%s)" % (e.pgerror, e.pgcode))
-                    if e.pgcode[0:2] == '08':
-                        raise rest.ServiceUnavailable('Database connection error.')
-                    elif e.pgcode[0:2] == '53':
-                        raise rest.ServiceUnavailable('Resources unavailable.')
-                    elif e.pgcode[0:2] == '40':
-                        raise rest.ServiceUnavailable('Transaction aborted.')
-                    elif e.pgcode[0:2] == 'XX':
-                        raise rest.ServiceUnavailable('Internal error.')
-                    else:
-                        # TODO: simplify postgres error text?
-                        raise rest.Conflict( str(e) )
+                    if e.pgcode is not None:
+                        if e.pgcode[0:2] == '08':
+                            raise rest.ServiceUnavailable('Database connection error.')
+                        elif e.pgcode[0:2] == '53':
+                            raise rest.ServiceUnavailable('Resources unavailable.')
+                        elif e.pgcode[0:2] == '40':
+                            raise rest.ServiceUnavailable('Transaction aborted.')
+                        elif e.pgcode[0:2] == 'XX':
+                            raise rest.ServiceUnavailable('Internal error.')
+                        
+                    # TODO: simplify postgres error text?
+                    raise rest.Conflict( str(e) )
                 except Exception, e:
                     et, ev, tb = sys.exc_info()
                     web.debug('got exception "%s"' % str(ev), traceback.format_exception(et, ev, tb))
