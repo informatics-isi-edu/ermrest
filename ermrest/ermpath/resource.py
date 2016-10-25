@@ -635,16 +635,18 @@ FROM (
             notify_data_change(cur, self.table)
 
             if allow_existing:
-                cur.execute(
-                    preserialize(("""
+                if nmkcols:
+                    # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
+                    cur.execute(
+                        preserialize(("""
 UPDATE %(table)s t SET %(assigns)s FROM (
   SELECT %(icols)s FROM %(input_table)s i
 """ + (" EXCEPT SELECT %(ecols)s FROM %(table)s e" if use_defaults is None else ""
 ) + """) i
 WHERE %(keymatches)s
 RETURNING %(tcols)s""") % parts
+                        )
                     )
-                )
 
                 results.extend(make_row_thunk(None, cur, content_type)())
 

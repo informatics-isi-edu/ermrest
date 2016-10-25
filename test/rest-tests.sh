@@ -183,6 +183,40 @@ dotest "409::*::*" /catalog/${cid}/schema/public -X POST
 dotest "201::*::*" /catalog/${cid}/schema/test1 -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema
 
+# sanity-check table with only key material
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_keyonly",
+   "column_definitions": [
+      { "type": { "typename": "int8" }, "name": "key1" },
+      { "type": { "typename": "text" }, "name": "key2" }
+   ],
+   "keys": [
+      { "unique_columns": [ "key1" ] },
+      { "unique_columns": [ "key2" ] }
+   ]
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_keyonly"
+
+cat > ${TEST_DATA} <<EOF
+key1,key2
+1,name1
+2,name2
+3,name3
+EOF
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_keyonly" -T ${TEST_DATA} -X POST -H "Content-Type: text/csv"
+dotest "409::*::*" "/catalog/${cid}/entity/test1:test_keyonly" -T ${TEST_DATA} -X POST -H "Content-Type: text/csv"
+dotest "200::*::*" "/catalog/${cid}/entity/test1:test_keyonly" -T ${TEST_DATA} -H "Content-Type: text/csv"
+
+cat > ${TEST_DATA} <<EOF
+key1,key2
+1,name2
+EOF
+dotest "409::*::*" "/catalog/${cid}/entity/test1:test_keyonly" -T ${TEST_DATA} -H "Content-Type: text/csv"
 
 # create tables using each core column type
 ctypes=(
