@@ -293,7 +293,7 @@ def web_method():
                     raise rest.BadRequest(e.message)
                 except UnsupportedMediaType, e:
                     raise rest.UnsupportedMediaType(e.message)
-                except psycopg2.pool.PoolError, e:
+                except (psycopg2.pool.PoolError, psycopg2.OperationalError), e:
                     raise rest.ServiceUnavailable(e.message)
                 except psycopg2.Error, e:
                     request_trace("Postgres error: %s (%s)" % (e.pgerror, e.pgcode))
@@ -308,6 +308,7 @@ def web_method():
                             raise rest.ServiceUnavailable('Internal error.')
                         
                     # TODO: simplify postgres error text?
+                    web.debug(e, e.pgcode, e.pgerror)
                     raise rest.Conflict( str(e) )
                 except Exception, e:
                     et, ev, tb = sys.exc_info()
