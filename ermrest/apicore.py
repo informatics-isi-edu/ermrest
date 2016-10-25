@@ -269,6 +269,10 @@ def web_method():
                         if e.pgcode == '42501':
                             # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
                             raise rest.Forbidden(e.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
+                        elif e.pgcode == '42601':
+                            # SQL syntax error means we have buggy code!
+                            web.debug(e.pgcode, e.pgerror)
+                            raise rest.RuntimeError('Query generation error, contact ERMrest administrator')
                         else:
                             # re-raise and let outer handlers below do something more generic
                             raise e
