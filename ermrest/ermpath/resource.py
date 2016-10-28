@@ -1008,6 +1008,9 @@ WHERE %(pred)s
         for elem in self._path:
             wheres.extend( elem.sql_wheres() )
 
+        if len(self._path) == 1:
+            distinct_on = False
+            
         sql = """
 SELECT 
   %(distinct_on)s
