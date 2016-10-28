@@ -361,7 +361,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION %(schema)s.current_attributes() RETURNS text[] STABLE AS $$
 BEGIN
-  RETURN (SELECT array_agg(value) FROM json_array_elements_text(current_setting('webauthn2.attributes')::json));
+  RETURN current_setting('webauthn2.attributes_array')::text[];
 EXCEPTION WHEN OTHERS THEN
   RETURN NULL::text[];
 END;
