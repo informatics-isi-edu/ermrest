@@ -275,10 +275,15 @@ class Api (object):
 SELECT set_config('webauthn2.client', %s, false);
 SELECT set_config('webauthn2.client_json', %s, false);
 SELECT set_config('webauthn2.attributes', %s, false);
+SELECT set_config('webauthn2.attributes_array', (ARRAY[%s]::text[])::text, false);
 """ % (
     sql_literal(client),
     sql_literal(json.dumps(client_obj)),
     sql_literal(json.dumps(attributes)),
+    ','.join([
+        sql_literal(attr)
+        for attr in attributes
+    ])
 )
                 )
                 return body(conn, cur)
