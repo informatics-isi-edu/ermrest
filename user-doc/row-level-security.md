@@ -43,7 +43,116 @@ of row data to make access control decisions. There is no distinction
 between access control or non-access control data at the SQL nor
 ERMrest protocol level.
 
-## Considerations
+## Performance Considerations
+
+Because row-level security policies are effectively injecting SQL
+expressions into the WHERE clauses of the other service-generated SQL
+queries, they can dramatically change service performance if used
+indiscriminately.
+
+1. Avoid using scalar subqueries which access other tables on a
+   row-by-row basis.
+2. When calling procedures, the effective performance after query
+   planning and optimization depends on the volatility class of the
+   procedure, with performance descending in order: IMMUTABLE, STABLE,
+   VOLATILE.
+3. When calling procedures defined in pure SQL, they may be better
+   optimized in recent PostgreSQL versions than procedures defined in
+   PL/pgsql.
+4. When calling procedures in PostgreSQL 9.6, the declaration of
+   PARALLEL SAFE is required to allow parallel query plans. Other
+   factors may still suppress parallelism.
+5. For web applications which run many AJAX calls concurrently, there
+   may be enough parallelism such that parallel plans are not
+   beneficial. They help most for running a single, long-running
+   query.
+6. Recent versions of ERMrest define a session parameter
+   `webauthn2.attributes_array` as a native text representation of a
+   PostgreSQL `text[]` value. This supports faster authorization
+   checks than the legacy `webauthn2.attributes` parameter which is a
+   JSON serialization. It requires an updated
+   `_ermrest.current_attributes()` stored procedure to have any
+   benefit.
+7. PostgreSQL 9.6 introduces a new function `current_setting(text,
+   bool)` which can check a session parameter without throwing
+   exceptions when the parameter is absent. A faster, pure SQL
+   implementation of `_ermrest.current_attributes()` can exploit this.
+   
+A good practice to evaluate impact of row-level policies is to perform
+equivalent queries through the `psql` command-line interface using
+both daemon accounts and the `EXPLAIN ANALYZE ...` command:
+
+- `ermrestddl`: bypasses row-level security and shows you a baseline
+  performance for your query.
+- `ermrest`: is subject to row-level security and shows you how much
+  slower it will be when queried by web clients.
+  
+For this comparison to be valid, you may need to set session
+parameters to a valid client context. Otherwise the SQL plan may be
+significantly different due to the NULL client attributes.
+
+Here is a more optimal stored procedure only usable with recent
+ERMrest on PostgreSQL 9.6:
+
+    CREATE OR REPLACE FUNCTION _ermrest.current_attributes() 
+	RETURNS text[] STABLE PARALLEL SAFE	AS $$
+	  SELECT current_setting(
+	    'webauthn2.attributes_array',
+	    True
+	  )::text[];
+	$$ LANGUAGE SQL;
+
+This can be applied manually to an existing catalog to upgrade its
+performance if you are using PostgreSQL 9.6 already. The ERMrest
+code-base does not yet include such a definition as we have not yet
+made a hard requirement on 9.6 features.
+
+This variant can achieve similar performance on 9.5:
+
+    CREATE OR REPLACE FUNCTION _ermrest.current_attributes() 
+	RETURNS text[] STABLE AS $$
+	  SELECT current_setting(
+	    'webauthn2.attributes_array'
+	  )::text[];
+	$$ LANGUAGE SQL;
+
+this procedure will raise exceptions if used in SQL session that is
+not managed by ERMrest, unlike the ERMrest-supplied implementation
+that uses PL/pgsql and exception handlers to catch that condition and
+map it to a NULL result.
+
+To manually simulate an ERMrest-managed client session for testing,
+you can connect using the `ermrest` daemon role and manually set the
+attributes. Assuming the above implementations are in place, you
+would do:
+
+    SELECT set_config(
+	  'webauthn2.attributes_array',
+	  (ARRAY['attr1', 'attr2']::text[])::text,
+	  False
+	);
+
+or with the legacy implementation you would instead do:
+
+    SELECT set_config(
+	  'webauthn2.attributes',
+	  '["attr1", "attr2"]',
+	  False
+	);
+
+Where `attr1` and `attr2` are actually attribute URIs obtained from a
+valid webauthn session.  If you retrieve a session object manually and
+store it to `session.json`, you might obtain the list of attribute
+URIs with the following Python snippet:
+
+    import json
+	
+	f = open('session.json')
+	s = json.load(f)
+	[ a['id'] for a in s['attributes'] ]
+	
+
+## Other Considerations
 
 Row-level security affects all access to tables for which it is
 enabled. Backup database dumps could be incomplete unless taken by a
@@ -69,7 +178,7 @@ several different kinds of rights:
 
 ## Instructions and Examples
 
-1. Upgrade your postgres to 9.5
+1. Upgrade your postgres to 9.5 or later
 2. Have latest ERMrest master code deployed with the split `ermrest` and `ermrestddl` daemon accounts.
 4. Enable row-level security on specific table (as `ermrestddl` user)
 5. Create row-level policies to access table data (as `ermrestddl` user)
