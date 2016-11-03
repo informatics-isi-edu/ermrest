@@ -178,7 +178,7 @@ END;
 \$\$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE AS \$\$
-  SELECT current_setting('webauthn2.attributes_array)::text[];
+  SELECT current_setting('webauthn2.attributes_array')::text[];
 \$\$ LANGUAGE SQL;
 
 COMMIT;
