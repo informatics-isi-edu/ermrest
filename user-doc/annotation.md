@@ -299,8 +299,13 @@ Supported JSON payload patterns:
 
 - `{` ... `"from_name":` _fname_ ... `}`: The _fname_ string is a preferred name for the set of entities containing foreign key references described by this constraint.
 - `{` ... `"to_name":` _tname_ ... `}`: The _tname_ string is a preferred name for the set of entities containing keys described by this constraint.
+- `{` ... `"display": {` _context_`:` _option_ ...`}` ... `}`: Apply each _option_ to the presentation of referenced content for any number of _context_ names.
 
-Heuristics (use first applicable rule):
+Supported display _option_ syntax:
+
+- `"column_order"`: `[` _sortkey_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values. Uses the _sortkey_ notation described subsequently for [2016 Table Display row_order](#2016-table-display).
+
+Set-naming heuristics (use first applicable rule):
 
 1. A set of "related entities" make foreign key reference to a presentation context:
   - The _fname_ is a preferred name for the related entity set.
@@ -309,6 +314,20 @@ Heuristics (use first applicable rule):
 2. To name a set of "related entities" linked to a presentation context by an association table:
   - The _tname_ of the foreign key from association table to related entities is a preferred name for the related entity set.
   - The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.
+
+Foreign key sorting heuristics (use first applicable rule):
+
+1. When presenting a "pseudo-column" based on the foreign key:
+  - Use the foreign key's display `column_order` option, if present.
+  - Use the referenced table display `row_order` option, if present.
+  - Use the referenced table data column(s) if pseudo-column presentation is a known data projection.
+  - Disable sort if psuedo-column presentation has an unknown mapping to source data column(s).
+2. When displaying a constituent column of a foreign key:
+  - Use the column's display `column_order` option, if present.
+  - Disable sort if using the column's display `markdown_pattern` option.
+  - Use the referenced column's display `column_order` option, if present.
+  - Disable sort if using the referenced column's display `markdown_pattern` option.
+  - Sort by presented column value.
 
 ### 2016 Column Display
 
@@ -327,8 +346,11 @@ Supported _option_ syntax:
 
 - `"pre_format"`: _format_: The column value SHOULD be pre-formatted by evaluating the _format_ string with the raw column value as its sole argument. The exact format string dialect is TDB but means to align with POSIX format strings e.g. `%d` to format a decimal number.
 - `"markdown_pattern":` _pattern_: The visual presentation of the column SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
+- `"column_order"`: `[` _sortkey_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column. Uses the _sortkey_ notation described subsequently for [2016 Table Display row_order](#2016-table-display).
 
 All `pre_format` options for all columns in the table SHOULD be evaluated **prior** to any `markdown_pattern`, thus allowing raw data values to be adjusted by each column's _format_ option before they are substituted into any column's _pattern_.
+
+The `column_order` annotation SHOULD always provide a meaningful semantic sort for the presented column content. If `markdown_pattern` is present and interpreted without `column_order`, it is RECOMMENDED that a client disallow sorting by the column, because the _pattern_ may expand to substantially different content than the underlying storage column. When `markdown_pattern` is absent, `column_order` MAY be present because the preferred semantic sort may still differ from a lexicographic sort of the storage column, e.g. a secondary "rank" column might provide a better order for coded values in the annotated storage column.
 
 ### 2016 Table Display
 
