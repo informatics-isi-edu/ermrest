@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import re
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
-from .type import Type
+from .type import tsvector_type, Type
 from .misc import annotatable, commentable
 
 @commentable()
@@ -232,7 +232,7 @@ class FreetextColumn (Column):
     """
     
     def __init__(self, table):
-        Column.__init__(self, '*', None, Type('tsvector'), None)
+        Column.__init__(self, '*', None, tsvector_type, None)
 
         self.table = table
         

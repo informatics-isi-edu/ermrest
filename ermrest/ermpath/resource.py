@@ -30,7 +30,7 @@ from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
-from ..model import Type
+from ..model import text_type
 
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
@@ -507,7 +507,7 @@ FROM (
 """ % dict( 
     input_table = sql_identifier(input_table),
     cols = u','.join(json_cols),
-    input = Type('text').sql_literal(buf),
+    input = text_type.sql_literal(buf),
     json_projection=','.join(json_projection)
 )
                 )

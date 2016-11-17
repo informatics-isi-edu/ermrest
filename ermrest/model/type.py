@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ _default_config = {
     
     "column_types_readonly": {
         "json": None,
+        "tsvector": None,
         "text": {
             "aliases": [ "char", "bpchar", "varchar" ],
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
@@ -49,6 +50,22 @@ _default_config = {
 
 _pg_serial_default_pattern = r"nextval[(]'[^']+'::regclass[)]$"
 
+def build_type(doc, defaultval=None, config=None, readonly=False):
+    if defaultval is None:
+        defaultval = doc.get('default')
+
+    if doc.get('is_array', False):
+        doc['base_type'] = build_type(doc['base_type'], config=config, readonly=readonly)
+        return ArrayType(**doc)
+
+    doc['typename'] = canonicalize_column_type(doc['typename'], defaultval, config, readonly)
+    
+    if doc.get('is_domain', False):
+        doc['base_type'] = build_type(doc['base_type'], config=config, readonly=readonly)
+        return DomainType(**doc)
+    else:
+        return Type(**doc)
+        
 def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
     """Return preferred notation for typestr or raise ValueError.
 
@@ -108,11 +125,13 @@ def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
     raise exception.ConflictData('Unsupported type "%s"' % typestr)
 
 class Type (object):
-    """Represents a column type."""
+    """Represents a type."""
     is_array = False
+    is_domain = False
     
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, **args):
+        self.name = args['typename']
+        self.length = args.get('length')
     
     def __str__(self):
         return str(self.name)
@@ -142,9 +161,10 @@ class Type (object):
             raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 
     def prejson(self):
-        return dict(
-            typename=str(self.name)
-            )
+        doc = dict(
+            typename=str(self.name),
+        )
+        return doc
 
     def default_value(self, raw):
         """Converts raw default value with base_type hints.
@@ -175,18 +195,17 @@ class Type (object):
 
     @staticmethod
     def fromjson(typedoc, ermrest_config):
-        if typedoc.get('is_array', False):
-            return ArrayType.fromjson(typedoc, ermrest_config)
-        return Type(canonicalize_column_type(typedoc['typename'], None, ermrest_config))
+        return build_type(typedoc, config=ermrest_config)
 
 class ArrayType(Type):
-    """Represents a column array type."""
+    """Represents an array type."""
     is_array = True
     
-    def __init__(self, base_type):
-        Type.__init__(self, base_type.name + "[]")
-        self.base_type = base_type
-    
+    def __init__(self, **args):
+        args['typename'] = args['base_type'].name + "[]"
+        Type.__init__(self, **args)
+        self.base_type = args['base_type']
+
     def prejson(self):
         return dict(
             typename=str(self.name),
@@ -206,14 +225,27 @@ class ArrayType(Type):
         else:
             return self.base_type.default_value(raw)
 
-    @staticmethod
-    def fromjson(typedoc, ermrest_config):
-        assert typedoc['is_array']
-        if 'base_type' in typedoc:
-            base_type = Type.fromjson(typedoc['base_type'], ermrest_config)
-        else:
-            raise exception.ConflictData('array types require a base type')
-        if base_type.is_array:
-            raise exception.ConflictData('base type of array cannot be another array type')
-        return ArrayType( base_type )
+class DomainType(Type):
+    """Represents a domain type."""
+    is_domain = True
+    
+    def __init__(self, **args):
+        Type.__init__(self, **args)
+        self.base_type = args['base_type']
 
+    def prejson(self):
+        return dict(
+            is_domain=True,
+            typename=str(self.name),
+            base_type=self.base_type.prejson()
+            )
+
+    def default_value(self, raw):
+        if raw is None:
+            return None
+        else:
+            return self.base_type.default_value(raw)
+
+
+text_type = build_type({'typename': 'text', 'length': -1}, readonly=True)
+tsvector_type = build_type({'typename': 'tsvector', 'length': -1}, readonly=True)

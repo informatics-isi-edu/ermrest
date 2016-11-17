@@ -128,7 +128,7 @@ class BinaryTextPredicate (BinaryPredicate):
         return "%s::%s" % (name, self._sql_left_type)
 
     def _sql_right_value(self):
-        return self.right_expr.sql_literal(model.Type('text'))
+        return self.right_expr.sql_literal(model.text_type)
 
     def sql_where(self, epath, elem):
         return '%s %s %s' % (

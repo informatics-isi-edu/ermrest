@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
-from .type import Type
+from .type import Type, text_type, tsvector_type
 from .column import Column
 from .table import Table
 from .misc import Model, Schema

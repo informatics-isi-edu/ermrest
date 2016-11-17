@@ -29,7 +29,7 @@ import web
 from .. import exception
 from ..util import table_exists, view_exists, column_exists
 from .misc import frozendict, Model, Schema, annotatable_classes
-from .type import Type, ArrayType, canonicalize_column_type
+from .type import build_type, text_type
 from .column import Column
 from .table import Table
 from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyReference
@@ -98,31 +98,29 @@ SELECT
   array_agg(a.attname::text ORDER BY a.attnum) AS column_names,
   array_agg(pg_get_expr(ad.adbin, ad.adrelid)::text ORDER BY a.attnum) AS default_values,
   array_agg(
-    CASE
-      WHEN t.typtype = 'd'::char AND bt.typelem <> 0::oid AND bt.typlen = (-1) 
-        OR t.typtype != 'd'::char AND t.typelem <> 0::oid AND t.typlen = (-1)
-        THEN 'ARRAY'
-      ELSE t.typname
-    END::text
-    ORDER BY a.attnum) AS data_types,
-  array_agg(
-    CASE
+    CASE 
       WHEN t.typtype = 'd'::char THEN
-        CASE
-          WHEN bt.typelem <> 0::oid AND bt.typlen = (-1) THEN
-            CASE 
-              WHEN t.typname ~ '.*[[][]]$' THEN substring(t.typname from '(.*)[[][]]')
-              ELSE bet.typname
-            END
-          ELSE NULL
-        END
+        json_build_object(
+           'is_domain', True::boolean, 'typename', t.typname, 'default', t.typdefault, 'base_type',
+           CASE
+             WHEN bt.typelem <> 0::oid AND bt.typlen = (-1) THEN 
+               json_build_object(
+                  'is_array', True::boolean, 'base_type', 
+                  json_build_object('typename', bet.typname, 'length', bet.typlen)
+               )
+             ELSE
+               json_build_object('typename', bt.typname, 'length', bt.typlen)
+           END
+        )
+      WHEN t.typelem <> 0::oid AND t.typlen = (-1) THEN
+        json_build_object(
+           'is_array', True::boolean, 'base_type', 
+           json_build_object('typename', et.typname, 'length', et.typlen)
+        )
       ELSE
-        CASE
-          WHEN t.typelem <> 0::oid AND t.typlen = (-1) THEN et.typname
-          ELSE NULL
-        END
-    END::text
-    ORDER BY a.attnum) AS element_types,
+        json_build_object('typename', t.typname, 'length', t.typlen)
+  END
+  ORDER BY a.attnum) AS column_types,
   array_agg(
     a.attnotnull
     ORDER BY a.attnum) AS notnull,
@@ -272,17 +270,13 @@ FROM _ermrest.model_pseudo_keyref ;
 
     # get columns
     cur.execute(SELECT_COLUMNS)
-    for dname, sname, tname, tkind, tcomment, cnames, default_values, data_types, element_types, notnull, comments in cur:
+    for dname, sname, tname, tkind, tcomment, cnames, default_values, column_types, notnull, comments in cur:
 
         cols = []
         for i in range(0, len(cnames)):
             # Determine base type
-            is_array = (data_types[i] == ARRAY_TYPE)
-            if is_array:
-                base_type = ArrayType(Type(canonicalize_column_type(element_types[i], default_values[i], config, True)))
-            else:
-                base_type = Type(canonicalize_column_type(data_types[i], default_values[i], config, True))
-        
+            base_type = build_type(column_types[i], defaultval=default_values[i], config=config, readonly=True)
+                
             # Translate default_value
             try:
                 default_value = base_type.default_value(default_values[i])
@@ -420,7 +414,12 @@ FROM _ermrest.model_pseudo_keyref ;
         model.recreate_value_map(cur.connection, cur, empty=True)
         valuemap_columns = ['schema', 'table', 'column', 'value']
         for i in range(len(valuemap_columns)):
-            valuemap_columns[i] = Column(valuemap_columns[i], i, Type(canonicalize_column_type('text', 'NULL', config, True)), None)
+            valuemap_columns[i] = Column(
+                valuemap_columns[i],
+                i,
+                text_type,
+                None
+            )
         model.ermrest_schema.tables['valuemap'] = Table(model.ermrest_schema, 'valuemap', valuemap_columns, 't')
 
     return model
