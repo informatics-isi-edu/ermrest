@@ -82,7 +82,10 @@ class Column (object):
         return False
 
     def istext(self):
-        return re.match( r'(text|character)( *varying)?([(]0-9*[)])?', str(self.type))
+        base_type = self.type
+        while base_type.is_domain or base_type.is_array:
+            base_type = base_type.base_type
+        return re.match( r'(text|character)( *varying)?([(]0-9*[)])?', str(base_type))
 
     def is_indexable(self):
         return str(self.type) != 'json'
