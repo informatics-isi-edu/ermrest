@@ -129,18 +129,15 @@ def _string_wrap(s, escape=u'\\', protect=[]):
 
 def sql_identifier(s):
     # double " to protect from SQL
-    # double % to protect from web.db
-    return u'"%s"' % _string_wrap(_string_wrap(s, u'%'), u'"') 
-
+    return u'"%s"' % _string_wrap(s, u'"')
 
 def sql_literal(v):
     if type(v) is list:
         return 'ARRAY[%s]' % (','.join(map(sql_literal, v)))
     elif v is not None:
         # double ' to protect from SQL
-        # double % to protect from web.db
         s = '%s' % v
-        return "'%s'" % _string_wrap(_string_wrap(s, u'%'), u"'")
+        return "'%s'" % _string_wrap(s, u"'")
     else:
         return 'NULL'
 
