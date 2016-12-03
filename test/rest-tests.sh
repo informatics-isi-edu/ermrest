@@ -1043,54 +1043,58 @@ dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -X DELETE -H
 dotest "204::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -X DELETE -H 'If-Match: '"${etag4}"
 
 # create table for unicode tests... use unusual unicode characters to test proper pass-through
-dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s" -X POST
+dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25" -X POST
 cat > ${TEST_DATA} <<EOF
 {
    "kind": "table",
-   "schema_name": "ɐɯǝɥɔs",
-   "table_name": "ǝlqɐʇ",
+   "schema_name": "ɐɯǝɥɔs%",
+   "table_name": "ǝlqɐʇ%",
    "column_definitions": [ 
       { "type": { "typename": "int8" }, "name": "id" },
-      { "type": { "typename": "text" }, "name": "ǝɯɐu" }
+      { "type": { "typename": "text" }, "name": "ǝɯɐu%" }
    ],
    "keys": [ { "unique_columns": [ "id" ] } ]
 }
 EOF
-dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s/table" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
-dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+dotest "201::*::*" "/catalog/${cid}/schema/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25/table" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25"
 
 # make sure weird column name is OK in CSV
 cat > ${TEST_DATA} <<EOF
-id,ǝɯɐu
+id,ǝɯɐu%
 1,foo 1
 2,foo 2
 3,bar 1
 4,baz 1
 EOF
-dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 # make sure weird column name is OK in JSON
 cat > ${TEST_DATA} <<EOF
-[{"id":5,"ǝɯɐu": "baz 2"}]
+[{"id":5,"ǝɯɐu%": "baz 2"}]
 EOF
-dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 
 # make sure weird data is OK in CSV
 cat > ${TEST_DATA} <<EOF
-id,ǝɯɐu
-6,foo ǝɯɐu
+id,ǝɯɐu%
+6,foo ǝɯɐu%
 EOF
-dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
+# make sure weird column name and value is OK in URLs
+dotest "200::*::*" "/catalog/${cid}/attribute/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25/id,%C7%9D%C9%AF%C9%90u%25"
+dotest "200::*::*" "/catalog/${cid}/attribute/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25/%C7%9D%C9%AF%C9%90u%25=foo%20%C7%9D%C9%AF%C9%90u%25/id,%C7%9D%C9%AF%C9%90u%25"
 
 # make sure weird data is OK in JSON
 cat > ${TEST_DATA} <<EOF
-[{"id":7,"ǝɯɐu": "foo ǝɯɐu 2"}]
+[{"id":7,"ǝɯɐu%": "foo ǝɯɐu% 2"}]
 EOF
-dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 
 # test access to data in CSV and JSON
-dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: text/csv"
-dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Accept: application/json"
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Accept: text/csv"
+dotest "200::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Accept: application/json"
 
 # test download filename
 dodownloadtest()
@@ -1099,7 +1103,7 @@ dodownloadtest()
     ct="$2"
     url="$3"
     
-    dotest "200::${ct}::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87?download=${quoted_name}" -H "Accept: $ct"
+    dotest "200::${ct}::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25?download=${quoted_name}" -H "Accept: $ct"
 
     got_disposition=$(grep -i "^Content-Disposition: attachment; filename[*]=UTF-8''${quoted_name}[.].*" < ${RESPONSE_HEADERS})
     status=$?
@@ -1129,36 +1133,36 @@ EOF
     NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
 }
 
-dodownloadtest table application/json "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
-dodownloadtest table text/csv "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
-dodownloadtest "%C7%9Dlq%C9%90%CA%87" application/json "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
-dodownloadtest "%C7%9Dlq%C9%90%CA%87" text/csv "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87"
+dodownloadtest table application/json "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25"
+dodownloadtest table text/csv "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25"
+dodownloadtest "%C7%9Dlq%C9%90%CA%87%25" application/json "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25"
+dodownloadtest "%C7%9Dlq%C9%90%CA%87%25" text/csv "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25"
 
 # test CSV error cases including that unicode data passes through OK
 cat > ${TEST_DATA} <<EOF
-id,ǝɯɐu
+id,ǝɯɐu%
 10
 EOF
-dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 # test CSV error cases including that unicode data passes through OK
 cat > ${TEST_DATA} <<EOF
-ǝɯɐu,id
-ǝlqɐʇ
+ǝɯɐu%,id
+ǝlqɐʇ%
 EOF
-dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+dotest "400::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 cat > ${TEST_DATA} <<EOF
 id
 10
 EOF
-dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 cat > ${TEST_DATA} <<EOF
-id,ǝlqɐʇ
+id,ǝlqɐʇ%
 10,foo 10
 EOF
-dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s:%C7%9Dlq%C9%90%CA%87" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+dotest "409::*::*" "/catalog/${cid}/entity/%C9%90%C9%AF%C7%9D%C9%A5%C9%94s%25:%C7%9Dlq%C9%90%CA%87%25" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 for pattern in foo bar "foo.%2A"
 do
