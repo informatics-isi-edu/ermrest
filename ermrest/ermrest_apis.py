@@ -120,7 +120,7 @@ class Dispatcher (object):
             raise te
         except:
             et, ev, tb = sys.exc_info()
-            web.debug('got exception "%s" during URI parse' % str(ev),
+            web.debug(u'got exception "%s" during URI parse' % ev,
                       traceback.format_exception(et, ev, tb))
             raise
 
