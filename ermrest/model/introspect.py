@@ -169,6 +169,7 @@ GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     PSEUDO_PKEY_COLUMNS = '''
 SELECT 
   id AS pk_id,
+  name AS pk_constraint_name,
   schema_name AS pk_table_schema,
   table_name AS pk_table_name,
   column_names AS pk_column_names,
@@ -256,6 +257,12 @@ FROM _ermrest.model_pseudo_keyref ;
         web.debug('NOTICE: adding _ermrest.model_psuedo_keyref.name column during model introspection')
         cur.execute('ALTER TABLE _ermrest.model_pseudo_keyref ADD COLUMN "name" text UNIQUE;')
 
+    # upgrade catalogs in the field to support named pseudo keys
+    if table_exists(cur, "_ermrest", "model_pseudo_key") \
+       and not column_exists(cur, "_ermrest", "model_pseudo_key", "name"):
+        web.debug('NOTICE: adding _ermrest.model_psuedo_key.name column during model introspection')
+        cur.execute('ALTER TABLE _ermrest.model_pseudo_key ADD COLUMN "name" text UNIQUE;')
+
     cur.execute(HEAL_DATA_VERSIONS);
     
     #
@@ -332,10 +339,10 @@ FROM _ermrest.model_pseudo_keyref ;
         )
 
     cur.execute(PSEUDO_PKEY_COLUMNS)
-    for pk_id, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
+    for pk_id, pk_name, pk_table_schema, pk_table_name, pk_column_names, pk_comment in cur:
         _introspect_pkey(
             pk_table_schema, pk_table_name, pk_column_names, pk_comment,
-            lambda pk_colset: PseudoUnique(pk_colset, pk_id, pk_comment)
+            lambda pk_colset: PseudoUnique(pk_colset, pk_id, ("", (pk_name if pk_name is not None else pk_id)), pk_comment)
         )
             
     #

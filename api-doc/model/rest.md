@@ -408,6 +408,9 @@ In this operation, the _table name_ MAY be an existing table or view in the name
 	Content-Type: application/json
 
     {
+	  "names": [
+	    [ schema name, constraint name ], ...
+       ],
        "unique_columns": [ column name, ... ],
        "comment": comment,
        "annotations": {
@@ -417,9 +420,18 @@ In this operation, the _table name_ MAY be an existing table or view in the name
 
 The input _key representation_ is a JSON document with one object with the following fields:
 
+- `names`: an array of `[` _schema name_ `,` _constraint name_ `]` pairs representing names of underlying constraints that enforce this unique key reference pattern.
 - `unique_columns` has an array value listing the individual columns that comprise the composite key. The constituent columns are listed by their basic _column name_ strings.
 - `comment`: whose value is the human-readable comment string for the key
 - `annotations`: whose value is a sub-object use as a dictionary where each field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
+
+During key creation, the `names` field SHOULD have at most one name pair. Other `names` inputs MAY be ignored by the server. When the `names` field is omitted, the server MUST assign constraint names of its own choosing. In introspection, the `names` field represents the actual state of the database and MAY include generalities not controlled by the key creation API:
+
+- Redundant constraints MAY exist in the RDBMS for the same unique key constraint, and hence `names` MAY list more than one existing constraint.
+- The chosen _schema name_ for a newly created constraint MAY differ from the one requested by the client.
+  - The server MAY create the constraint in the same schema as the constrained table
+  - Pseudo keys are qualified by a special _schema name_ of `""` which is not a valid SQL schema name.
+  - Pseudo keys MAY have an integer _constraint name_ assigned by the server.
 
 On success, the response is:
 

@@ -1169,6 +1169,39 @@ do
     dotest "200::*::*" "/catalog/${cid}/textfacet/${pattern}"
 done
 
+# test key names
+dokeynamestest()
+{
+    testpattern="$1"
+    keynames="$2"
+
+    cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_level2c",
+   "column_definitions": [
+      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "level1_id1"},
+      { "type": { "typename": "text" }, "name": "name" }
+   ],
+   "keys": [ { "unique_columns": [ "id" ], "names": ${keynames} } ]
+}
+EOF
+    dotest "$testpattern" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+    if [[ "$testpattern" == 201* ]]
+    then
+	dotest "204::*::*" "/catalog/${cid}/schema/test1/table/test_level2c" -X DELETE
+    fi
+}
+
+dokeynamestest "201::*::*" "[]"
+dokeynamestest "201::*::*" "null"
+dokeynamestest "201::*::*" "[[\"test1\", \"mytestconstraint\"]]"
+dokeynamestest "400::*::*" "[[\"test1\", 5]]"
+dokeynamestest "400::*::*" "[5]"
+dokeynamestest "400::*::*" "[[\"test1\", \"mytestconstraint\", \"too many names\"]"
+
 # test foreign key reference names
 dofkrnamestest()
 {

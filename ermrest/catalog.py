@@ -309,6 +309,7 @@ CREATE TABLE %(schema)s.%(table)s (
             cur.execute("""
 CREATE TABLE _ermrest.model_pseudo_key (
   id serial PRIMARY KEY,
+  name text UNIQUE,
   schema_name text NOT NULL,
   table_name text NOT NULL,
   column_names text[] NOT NULL,

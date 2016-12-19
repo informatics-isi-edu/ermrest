@@ -94,6 +94,18 @@ SELECT _ermrest.model_change_event();
     @staticmethod
     def fromjson_single(table, keydoc):
         """Yield Unique instance if and only if keydoc describes a key not already in table."""
+        def check_names(names):
+            if not names:
+                return []
+            for n in names:
+                if type(n) is not list \
+                   or len(n) != 2:
+                    raise exception.BadData('Key name %s must be an 2-element array [ schema_name, constraint_name ].' % n)
+                if type(n[1]) not in [str, unicode]:
+                    raise exception.BadData('Key constraint_name %s must be textual' % n[1])
+            return names
+
+        pk_names = check_names(keydoc.get('names', []))
         keycolumns = []
         kcnames = keydoc.get('unique_columns', [])
         comment = keydoc.get('comment')
@@ -103,11 +115,14 @@ SELECT _ermrest.model_change_event();
                 raise exception.BadData('Key column %s not defined in table.' % kcname)
             keycolumns.append(table.columns[kcname])
         keycolumns = frozenset(keycolumns)
+
+        pk_name = pk_names[0] if pk_names else None
+        
         if keycolumns not in table.uniques:
             if table.kind == 'r':
-                yield Unique(keycolumns, comment=comment, annotations=annotations)
+                yield Unique(keycolumns, constraint_name=pk_name, comment=comment, annotations=annotations)
             else:
-                yield PseudoUnique(keycolumns, comment=comment, annotations=annotations)
+                yield PseudoUnique(keycolumns, constraint_name=pk_name, comment=comment, annotations=annotations)
 
     @staticmethod
     def fromjson(table, keysdoc):
@@ -147,7 +162,8 @@ SELECT _ermrest.model_change_event();
         return dict(
             comment=self.comment,
             annotations=self.annotations,
-            unique_columns=[ c.name for c in self.columns ]
+            unique_columns=[ c.name for c in self.columns ],
+            names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
             )
 
 @annotatable('key', dict(
@@ -159,13 +175,14 @@ SELECT _ermrest.model_change_event();
 class PseudoUnique (object):
     """A pseudo-uniqueness constraint."""
 
-    def __init__(self, cols, id=None, comment=None, annotations={}):
+    def __init__(self, cols, id=None, constraint_name=None, comment=None, annotations={}):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
         self.id = id
+        self.constraint_name = constraint_name
         self.constraints = set([self])
         self.comment = comment
         self.annotations = dict()
@@ -208,7 +225,8 @@ SELECT _ermrest.model_change_event();
         return dict(
             comment=self.comment,
             annotations=self.annotations,
-            unique_columns=[ c.name for c in self.columns ]
+            unique_columns=[ c.name for c in self.columns ],
+            names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
             )
 
     def pre_delete(self, conn, cur):
@@ -220,17 +238,25 @@ SELECT _ermrest.model_change_event();
 
     def add(self, conn, cur):
         cur.execute("""
+SELECT _ermrest.model_change_event();
 INSERT INTO _ermrest.model_pseudo_key 
-  (schema_name, table_name, column_names, comment)
-  VALUES (%s, %s, ARRAY[%s], %s) ;
+  (schema_name, table_name, column_names, comment, name)
+  VALUES (%s, %s, ARRAY[%s], %s, %s) 
+  RETURNING id;
 """ % (
     sql_literal(unicode(self.table.schema.name)),
     sql_literal(unicode(self.table.name)),
     ','.join([ sql_literal(unicode(c.name)) for c in self.columns ]),
-    sql_literal(self.comment)
+    sql_literal(self.comment),
+    sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL'
 )
         )
-                
+        self.id = cur.fetchone()[0]
+        self.constraint_name = [
+            "",
+            self.constraint_name[1] if self.constraint_name else self.id
+        ]
+
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
         if self.id:
