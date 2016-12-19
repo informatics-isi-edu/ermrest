@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2016 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -201,8 +201,9 @@ def request_init():
 
     try:
         # get client authentication context
-        web.ctx.webauthn2_context = context_from_environment()
-        if web.ctx.webauthn2_context.client is None:
+        web.ctx.webauthn2_context = context_from_environment(fallback=False)
+        if web.ctx.webauthn2_context is None:
+            web.debug("falling back to webauthn2_manager.get_request_context() after failed context_from_environment(False)")
             web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
     except (ValueError, IndexError):
         content_type = negotiated_content_type(
