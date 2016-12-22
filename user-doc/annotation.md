@@ -311,7 +311,7 @@ Supported JSON payload patterns:
 
 Supported display _option_ syntax:
 
-- `"column_order"`: `[` _sortkey_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values. Uses the _sortkey_ notation described subsequently for [2016 Table Display row_order](#2016-table-display).
+- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values.
 - `"column_order": false`: Sorting by this foreign key psuedo-column should not be offered.
 
 Set-naming heuristics (use first applicable rule):
@@ -350,22 +350,17 @@ Supported _option_ syntax:
 
 - `"pre_format"`: _format_: The column value SHOULD be pre-formatted by evaluating the _format_ string with the raw column value as its sole argument. The exact format string dialect is TDB but means to align with POSIX format strings e.g. `%d` to format a decimal number.
 - `"markdown_pattern":` _pattern_: The visual presentation of the column SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
-- `"column_order"`: `[` _sortkey_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column. Uses the _sortkey_ notation described subsequently for [2016 Table Display row_order](#2016-table-display).
+- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column.
 - `"column_order": false`: Sorting by this column should not be offered.
 
 All `pre_format` options for all columns in the table SHOULD be evaluated **prior** to any `markdown_pattern`, thus allowing raw data values to be adjusted by each column's _format_ option before they are substituted into any column's _pattern_.
 
-The `column_order` annotation SHOULD always provide a meaningful semantic sort for the presented column content. If `markdown_pattern` is present and interpreted without `column_order`, it is RECOMMENDED that a client disallow sorting by the column, because the _pattern_ may expand to substantially different content than the underlying storage column. When `markdown_pattern` is absent, `column_order` MAY be present because the preferred semantic sort may still differ from a lexicographic sort of the storage column, e.g. a secondary "rank" column might provide a better order for coded values in the annotated storage column.
+The `column_order` annotation SHOULD always provide a meaningful semantic sort for the presented column content. `column_order` MAY be present because the preferred semantic sort may differ from a lexicographic sort of the storage column, e.g. a secondary "rank" column might provide a better order for coded values in the annotated storage column.
 
 Column sorting heuristics (use first applicable rule):
 
 1. Use the column's display `column_order` option, if present.
-2. Disable sort if using the column's display `markdown_pattern` option.
-3. Determine sort based on referenced column in foreign table
-    - If foreign key context is known, i.e. this column is being searched due to rules in [2016 Foreign Key](#2016-foreign-key)
-	- If column is constituent of only one foreign key
-4. Sort by presented column value if column type is sortable.
-5. Otherwise, disable sort for column.
+2. Sort by presented column value.
 
 The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.
 
