@@ -655,6 +655,8 @@ RETURNING %(tcols)s""") % parts
                 assert allow_missing
 
             if allow_missing:
+                if not parts['cols']:
+                    raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
                 parts.update(
                     icols = ','.join(
                         ['i.%s' % c.sql_name(mkcol_aliases.get(c)) for c in mkcols if use_defaults is None or c.name not in use_defaults]

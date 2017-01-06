@@ -1288,6 +1288,9 @@ id,name,value
 EOF
 dotest "200::*::*" "/catalog/${cid}/entity/pagedata?defaults=id" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
+# like SQL, we don't allow ALL columns to be set to default w/ a tabular input
+dotest "409::*::*" "/catalog/${cid}/entity/pagedata?defaults=id,name,value" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
+
 dopagetest_typed()
 {
     mime_type="$1"
