@@ -641,8 +641,7 @@ FROM (
                         preserialize(("""
 UPDATE %(table)s t SET %(assigns)s FROM (
   SELECT %(icols)s FROM %(input_table)s i
-""" + (" EXCEPT SELECT %(ecols)s FROM %(table)s e" if use_defaults is None else ""
-) + """) i
+) i
 WHERE %(keymatches)s
 RETURNING %(tcols)s""") % parts
                         )
