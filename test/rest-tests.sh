@@ -513,11 +513,16 @@ dotest "204::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" 
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name" -X DELETE
 dotest "404::*::*" "/catalog/${cid}/schema/test1/table/test_level1/key/id,name"
 
+get_etag()
+{
+    grep "^ETag" ${RESPONSE_HEADERS} | sed -e 's|^[Ee][Tt][Aa][Gg]: *\("[^"]*"\).*|\1|'
+}
+
 # test preconditions
 for resource in "/schema/test1/table/test_level1" "/entity/test1:test_level1"
 do
     dotest "200::*::*" "/catalog/${cid}${resource}"
-    etag=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+    etag=$(get_etag)
     dotest "200::*::*" "/catalog/${cid}${resource}" -H 'If-Match: *'
     dotest "304::*::*" "/catalog/${cid}${resource}" -H 'If-None-Match: *'
     dotest "200::*::*" "/catalog/${cid}${resource}" -H 'If-Match: '"${etag}"
@@ -529,10 +534,10 @@ do
 done
 
 dotest "200::*::*" "/catalog/${cid}/schema"
-etag=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+etag=$(get_etag)
 dotest "412::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X POST -H "If-None-Match: ${etag}"
 dotest "20?::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X POST -H "If-Match: ${etag}"
-etag=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+etag=$(get_etag)
 dotest "412::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X DELETE -H "If-None-Match: ${etag}"
 dotest "20?::*::*" "/catalog/${cid}/schema/DOES_NOT_EXIST" -X DELETE -H "If-Match: ${etag}"
 
@@ -984,7 +989,7 @@ done
 
 # do more destructive precondition tests
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
-etag1=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+etag1=$(get_etag)
 
 cat > ${TEST_DATA} <<EOF
 id,name
@@ -994,7 +999,7 @@ EOF
 dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST -H 'If-Match: "broken"'
 dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST -H 'If-None-Match: '"${etag1}"
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST -H 'If-Match: '"${etag1}"
-etag2=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+etag2=$(get_etag)
 
 if [[ "${etag2}" == "${etag1}" ]]
 then
@@ -1018,7 +1023,7 @@ NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
 dotest "304::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -H 'If-None-Match: '"${etag2}"
 
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
-etag2=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+etag2=$(get_etag)
 
 cat > ${TEST_DATA} <<EOF
 id,name
@@ -1029,14 +1034,14 @@ dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: 
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-Match: '"${etag2}"
 
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
-etag3=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+etag3=$(get_etag)
 
 dotest "412::*::*" "/catalog/${cid}/attributegroup/test1:test_level1/id;name" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-Match: "broken"'
 dotest "412::*::*" "/catalog/${cid}/attributegroup/test1:test_level1/id;name" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-None-Match: '"${etag3}"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/test1:test_level1/id;name" -H "Content-Type: text/csv" -T ${TEST_DATA} -H 'If-Match: '"${etag3}"
 
 dotest "200::*::*" "/catalog/${cid}/entity/test1:test_level1"
-etag4=$(grep "^ETag" ${RESPONSE_HEADERS} | sed -e "s|^ETag: ||")
+etag4=$(get_etag)
 
 dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -X DELETE -H 'If-Match: "broken"'
 dotest "412::*::*" "/catalog/${cid}/entity/test1:test_level1/id=47" -X DELETE -H 'If-None-Match: '"${etag4}"
