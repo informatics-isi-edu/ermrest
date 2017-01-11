@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ needed by other modules of the ermrest project.
 from .type import Type, text_type, tsvector_type
 from .column import Column
 from .table import Table
-from .misc import Model, Schema
+from .schema import Model, Schema
 from .introspect import introspect
 
 __all__ = ["introspect", "Model", "Schema", "Table", "Column", "Type"]

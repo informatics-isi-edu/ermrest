@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,6 +94,98 @@ class Schemas (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
+    def POST_body(self, conn, cur, doc):
+        """Create schemas and/or tables."""
+        # don't collide with model module...
+        modelobj = self.catalog.manager._model
+
+        deferred_fkeys = []
+        
+        def extract_fkeys(sname, tname, tabledoc):
+            """Remove fkey sub-documents and defer to our own storage."""
+            deferred_fkeys.append(
+                (sname, tname, tabledoc.pop('foreign_keys', []))
+            )
+
+        def run_schema_pass1(sname, sdoc):
+            """Create one schema and its tables while deferring fkeys."""
+            if sname is None:
+                # support use case w/o schema key from parent document
+                sname = sdoc.get('schema_name')
+
+            sname2 = sdoc.get('schema_name', sname)
+            if sname != sname2:
+                raise exception.BadData('Schema key %s and schema_name %s do not match.' % (sname, sname2))
+            
+            # support elision of schema_name when parent schema key is already specified
+            sdoc['schema_name'] = sname
+                
+            for tname, tdoc in sdoc.get('tables', {}).items():
+                extract_fkeys(sname, tname, tdoc)
+            return model.Schema.create_fromjson(conn, cur, modelobj, sdoc, web.ctx.ermrest_config)
+
+        def run_table_pass1(tdoc):
+            """Create one table while deferring fkeys."""
+            try:
+                sname = tdoc['schema_name']
+                tname = tdoc['table_name']
+            except KeyError, e:
+                raise exception.BadData('Each table document must have a %s field.' % e)
+            extract_fkeys(sname, tname, tdoc)
+            schema = modelobj.schemas[sname]
+            return model.Table.create_fromjson(conn, cur, schema, tdoc, web.ctx.ermrest_config)
+        
+        def run_deferred_fkeys():
+            """Create all deferred fkeys assuming tables now exist."""
+            for sname, tname, fkeydocs in deferred_fkeys:
+                for fkeydoc in fkeydocs:
+                    for fkr in modelobj.schemas[sname].tables[tname].add_fkeyref(conn, cur, fkeydoc):
+                        # need to drain this generating function
+                        pass
+        
+        if isinstance(doc, dict):
+            # top-level model document has schemas w/ nested tables
+            schemasdoc = doc.get('schemas')
+            if not isinstance(schemasdoc, dict):
+                raise exception.BadData('Model document requires a "schemas" hash map.')
+
+            schemas = []
+            for sname, sdoc in schemasdoc.items():
+                schemas.append(run_schema_pass1(sname, sdoc))
+
+            run_deferred_fkeys()
+            return dict(schemas={ s.name: s.prejson() for s in schemas })
+        elif isinstance(doc, list):
+            # polymorphic batch may have schemas and/or tables mixed together
+            resources = []
+            for rdoc in doc:
+                if isinstance(rdoc, dict):
+                    if 'table_name' in rdoc:
+                        resources.append(run_table_pass1(rdoc))
+                    else:
+                        resources.append(run_schema_pass1(None, rdoc))
+                else:
+                    raise exception.BadData('Each batch item must be a schema or table document.')
+
+            run_deferred_fkeys()
+            return resources
+        else:
+            raise exception.BadData('JSON input is neither a schema set or a batch list of schemas and tables.')
+    
+    def POST(self, uri):
+        """Create schemas and/or tables from JSON
+
+           Input forms:
+           1. A model like { "schemas": { sname: schemadoc }, ... }
+           2. A batch list like [ item... ]  where item can be schemadoc or tabledoc
+
+           The schemadoc inputs can have nested tabledocs which are also created.
+        """
+        def post_commit(self, resource):
+            web.ctx.status = '201 Created'
+            return _post_commit_json(self, resource)
+        return _MODIFY_with_json_input(self, self.POST_body, post_commit)
+    
 class Schema (Api):
     """A specific schema by name."""
     def __init__(self, catalog, name):

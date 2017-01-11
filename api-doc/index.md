@@ -114,6 +114,7 @@ The ERMrest interface supports typical HTTP operations to manage these different
 	 1. [ACL Entry Deletion](rest-catalog.md#access-control-entry-deletion)
 1. [Model-level operations](model/rest.md)
   1. [Schemata Retrieval](model/rest.md#schemata-retrieval)
+  1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)
   1. [Schema Creation](model/rest.md#schema-creation)
   1. [Schema Retrieval](model/rest.md#schema-retrieval)
   1. [Schema Deletion](model/rest.md#schema-deletion)

@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,8 @@ import web
 
 from .. import exception
 from ..util import table_exists, view_exists, column_exists
-from .misc import frozendict, Model, Schema, annotatable_classes
+from .misc import frozendict, annotatable_classes
+from .schema import Model, Schema
 from .type import build_type, text_type
 from .column import Column
 from .table import Table

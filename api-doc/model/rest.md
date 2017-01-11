@@ -34,6 +34,53 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Bulk Schemata and Table Creation
+
+The POST operation can be used to create multiple named schemata and/or tables in a single request by posting a complex JSON document to the same resource used for retrieving all schemata:
+
+- _service_ `/catalog/` _cid_ `/schema`
+
+In this operation, `application/json` content MUST be provided. The same format returned in schemata retrieval is supported:
+
+    POST /ermrest/catalog/42/schema HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+	  "schemas": {
+	    schema name: schema representation, ...
+	  }
+	}
+
+with this form, each _schema name_ MUST be distinct and available for use as a new schema in the catalog. Each _schema representation_ MAY include multiple fields as described in the [Schema Retrieval](#schema-retrieval) documentation. If present, the `"schema_name"` field MUST match the _schema name_ key of the enclosing document. If present, the `"tables"` field MAY describe new tables which will also be created as part of the same request.
+
+Optionally, a batch request list document is also supported:
+
+    POST /ermrest/catalog/42/schema HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+    
+    [
+	   schema or table representation, ...
+	]
+	
+In this form, each _schema representation_ is handled as in the preceding form, creating both schema and any nested tables. Each _table representation_ is handled similar to the [Table Creation](#table-creation) API, allowing multiple tables to be added to existing schemata. The list of schema and table representations are processed in document order.  With both forms, a set of tables with interdependent foreign key constraints MAY be specified and the service will first create all requested schemata, then all tables, then all foreign key constraints.
+
+On success, the response is:
+
+    HTTP/1.1 201 Created
+	Content-Type: application/json
+	
+	...new resource representation...
+	
+Typical error response codes include:
+- 400 Bad Request
+- 403 Forbidden
+- 409 Conflict
+- 401 Unauthorized
+
+The request effects are atomic, either applying all elements of the batch change to the catalog model or making no changes at all in the case of failures.
+
 ## Schema Creation
 
 The POST operation is used to create new, empty schemata, using a model-level resource name of the form:

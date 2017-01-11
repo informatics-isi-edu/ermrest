@@ -183,6 +183,102 @@ dotest "409::*::*" /catalog/${cid}/schema/public -X POST
 dotest "201::*::*" /catalog/${cid}/schema/test1 -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema
 
+# test batch schema interfaces w/ circular dependencies in foreign keys
+cat > ${TEST_DATA} <<EOF
+{
+  "schemas": {
+    "s1": {
+       "schema_name": "s1",
+       "tables": {
+         "A": {
+           "kind": "table",
+           "column_definitions": [
+             { "type": { "typename": "serial8"}, "name": "id", "nullok": false },
+             { "type": { "typename": "int8"}, "name": "rid" }
+           ],
+           "keys": [ { "unique_columns": [ "id" ] } ],
+           "foreign_keys": [
+             { 
+               "foreign_key_columns": [ {"schema_name": "s1", "table_name": "A", "column_name": "rid"} ],
+               "referenced_columns": [ {"schema_name": "s2", "table_name": "A", "column_name": "id"} ]
+             }
+           ]
+         }
+       }
+    },
+    "s2": {
+       "comment": "schema s2 of model document",
+       "tables": {
+         "A": {
+           "kind": "table",
+           "column_definitions": [
+             { "type": { "typename": "serial8"}, "name": "id", "nullok": false },
+             { "type": { "typename": "int8"}, "name": "rid" }
+           ],
+           "keys": [ { "unique_columns": [ "id" ] } ],
+           "foreign_keys": [
+             { 
+               "foreign_key_columns": [ {"schema_name": "s2", "table_name": "A", "column_name": "rid"} ],
+               "referenced_columns": [ {"schema_name": "s1", "table_name": "A", "column_name": "id"} ]
+             }
+           ]
+         }
+       }
+    }
+  }
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema -T ${TEST_DATA} -X POST -H "Content-Type: application/json"
+dotest "409::*::*" /catalog/${cid}/schema -T ${TEST_DATA} -X POST -H "Content-Type: application/json"
+
+cat > ${TEST_DATA} <<EOF
+[
+  {
+    "schema_name": "s3"
+  },
+  {
+    "schema_name": "s1",
+    "table_name": "B",
+    "kind": "table",
+    "column_definitions": [
+      { "type": { "typename": "serial8"}, "name": "id", "nullok": false },
+      { "type": { "typename": "int8"}, "name": "rid" }
+    ],
+    "keys": [ { "unique_columns": [ "id" ] } ],
+    "foreign_keys": [
+      { 
+        "foreign_key_columns": [ {"schema_name": "s1", "table_name": "B", "column_name": "rid"} ],
+        "referenced_columns": [ {"schema_name": "s4", "table_name": "B", "column_name": "id"} ]
+      }
+    ]
+  },
+  {
+    "schema_name": "s4",
+    "comment": "schema s4 of model document"
+  },
+  {
+    "kind": "table",
+    "schema_name": "s4",
+    "table_name": "B",
+    "column_definitions": [
+      { "type": { "typename": "serial8"}, "name": "id", "nullok": false },
+      { "type": { "typename": "int8"}, "name": "rid" }
+    ],
+    "keys": [ { "unique_columns": [ "id" ] } ],
+    "foreign_keys": [
+      { 
+        "foreign_key_columns": [ {"schema_name": "s4", "table_name": "B", "column_name": "rid"} ],
+        "referenced_columns": [ {"schema_name": "s1", "table_name": "B", "column_name": "id"} ]
+      }
+    ]
+  }
+]
+EOF
+dotest "201::*::*" /catalog/${cid}/schema -T ${TEST_DATA} -X POST -H "Content-Type: application/json"
+dotest "409::*::*" /catalog/${cid}/schema -T ${TEST_DATA} -X POST -H "Content-Type: application/json"
+
+
+
 # sanity-check table with only key material
 cat > ${TEST_DATA} <<EOF
 {
