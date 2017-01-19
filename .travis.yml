@@ -32,7 +32,7 @@ before_install:
   - sudo make testvars
   - sudo make install
   - sudo make deploy
-  - sudo a2enmode webauthn
+  - sudo a2enmod webauthn
   - sudo bash ./test/ubuntu-travis-setup.sh
   - cd ../ermrest
 
