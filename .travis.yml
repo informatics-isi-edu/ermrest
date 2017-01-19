@@ -33,8 +33,7 @@ before_install:
   - sudo make install
   - sudo make deploy
   - sudo a2enmode webauthn
-  - sudo mv /etc/apache2/conf.d/webauthn.conf /etc/apache2/conf.d/webauthn.conf.orig
-  - sudo sed -e 's/\(WebauthnVerifySslHost\).*/\1 off/' < /etc/apache2/conf.d/webauthn.conf.orig > /etc/apache2/conf.d/webauthn.conf
+  - sudo bash ./test/ubuntu-travis-setup.sh
   - cd ../ermrest
 
 install:
