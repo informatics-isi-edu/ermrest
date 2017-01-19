@@ -82,7 +82,8 @@ element and its nested model elements.
 Supported JSON payload patterns:
 
 - `{`... `"name":` _name_ ...`}`: The _name_ to use in place of the model element's original name.
-- `{`... `"name_style":` `{` `"underline_space"`: _uspace_ `,` `"title_case":` _tcase_ `}` ...`}`: Element name conversion instructions.
+- `{`... `"markdown_name"`: _markdown_ `}`: The _markdown_ to use in place of the model element's original name.
+- `{`... `"name_style":` `{` `"underline_space"`: _uspace_ `,` `"title_case":` _tcase_ `,` `"markdown"`: _render_ `}` ...`}`: Element name conversion instructions.
 - `{`... `"show_nulls":` `{` _ncontext_ `:` _nshow_ `,` ... `}`: How to display NULL data values.
 
 Supported JSON _uspace_ patterns:
@@ -95,6 +96,11 @@ Supported JSON _tcase_ patterns:
 - `true`: Convert element names to "title case" meaning the first character of each word is capitalized and the rest are lower cased regardless of model element name casing. Word separators include white-space, hyphen, and underline characters.
 - `false`: Leave character casing unmodified (this is also the default if the setting is completely absent).
 
+Supported JSON _render_ patterns:
+
+- `true`: Interpret the model element's actual name as a Markdown string. This MAY include rendering visually in applications with such capability.
+- `false`: Present the model element's actual name verbatim (this is also the default if the setting is completely absent).
+
 Supported JSON _nshow_ patterns:
 
 - `true` (or `""`): Show NULL values as an empty field.
@@ -105,7 +111,8 @@ See [Context Names](#context-names) section for the list of supported JSON _ncon
 
 #### 2015 Display Settings Hierarchy
 
-- The `"name"` setting applies *only* to the model element which is annotated.
+- The `"name"` and `"markdown_name"` setting applies *only* to the model element which is annotated. They bypass the `name_style` controls which only apply to actual model names.
+  - The `"markdown_name"` setting takes precedence if both are specified.
 - The `"name_style"` setting applies to the annotated model element and is also the default for any nested element.
 - The `"show_nulls"` settings applies to the annotated model element and is also the default for any nested element.
   - The annotation is allowed on schemas in order to set the default for all tables in the schema.
