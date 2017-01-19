@@ -1,6 +1,7 @@
 
 ERMREST_SHARE_FILES= \
 	ermrest_config.json \
+	wsgi_ermrest.conf \
 	ermrest_schema.sql
 
 ERMREST_PYTHON_FILES= \
@@ -16,9 +17,7 @@ ERMREST_PYTHON_FILES= \
 ERMREST_PYTHON_FILES_INSTALL=$(ERMREST_PYTHON_FILES:%=$(PYLIBDIR)/ermrest/%)
 
 INSTALL_FILES += $(ERMREST_PYTHON_FILES_INSTALL) \
-	$(ERMREST_SHARE_FILES:%=$(SHAREDIR)/%) \
-	$(SHAREDIR)/ermrest_config.json \
-	$(SHAREDIR)/wsgi_ermrest.conf
+	$(ERMREST_SHARE_FILES:%=$(SHAREDIR)/%)
 
 INSTALL_DIRS += $(PYLIBDIR)/ermrest
 

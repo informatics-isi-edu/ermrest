@@ -23,6 +23,6 @@ LOGROTATECONFDIR=/etc/logrotate.d
 
 SEMANAGE_HTTPD_SYS_CONTENT_T=httpd_sys_content_t
 
-AUTHDIRECTIVES=Satisfy Any \n   Allow from all
+AUTHDIRECTIVES=AuthType webauthn\n   Require webauthn-optional
 
 

@@ -2,11 +2,11 @@
 $(WSGISOCKETDIR):
 	mkdir -p $(WSGISOCKETDIR)
 
-$(SHAREDIR)/ermrest_config.json: ermrest/ermrest_config.json.in
+$(SHAREDIR)/ermrest_config.json: ermrest/ermrest_config.json.in config/make-vars-$(PLATFORM)
 	./install-script -M ref -R HOSTNAME=$(shell hostname) \
 		-o root -g root -m a+r -Z "$(SEMANAGE_HTTPD_SYS_CONTENT_T)" -p -D $< $@
 
-$(SHAREDIR)/wsgi_ermrest.conf: ermrest/wsgi_ermrest.conf.in
+$(SHAREDIR)/wsgi_ermrest.conf: ermrest/wsgi_ermrest.conf.in config/make-vars-$(PLATFORM)
 	./install-script -M sed -R @PYLIBDIR@=$(PYLIBDIR) @WSGISOCKETPREFIX@=$(WSGISOCKETPREFIX) \
 		@DAEMONUSER1@=$(DAEMONUSER1) @DAEMONUSER2@=$(DAEMONUSER2) \
 		@HTMLDIR@=$(HTMLDIR) @AUTHDIRECTIVES@="$(AUTHDIRECTIVES)" \

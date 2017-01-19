@@ -20,4 +20,4 @@ LOGDIR=/var/log
 SYSLOGCONF=/etc/rsyslog.conf
 LOGROTATECONFDIR=/etc/logrotate.d
 
-AUTHDIRECTIVES=Satisfy Any \n   Allow from all
+AUTHDIRECTIVES=AuthType webauthn \n    Require webauthn-optional
