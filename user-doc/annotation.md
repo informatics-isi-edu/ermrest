@@ -49,10 +49,11 @@ here is a quick matrix to locate them.
 
 | Annotation | Schema | Table | Column | Key | FKR | Summary |
 |------------|--------|-------|--------|-----|-----|---------|
-| [2015 Display](#2015-display) | X | X | X | - | - | Display options |
+| [2015 Display](#2015-display) | X | X | X | X | - | Display options |
 | [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
 | [2016 Table Alternatives](#2016-table-alternatives) | - | X | - | _ | _ | Table abstracts another table |
 | [2016 Column Display](#2016-column-display) | - | - | X | - | - | Column-specific display options |
+| [2017 Key Display](#2017-key-display) | - | - | - | X | - | Key augmentation |
 | [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
 | [2016 Generated](#2016-generated) | X | X | X | - | - | Generated model element |
 | [2016 Ignore](#2016-ignore) | X | X | X | - | - | Ignore model element |
@@ -75,8 +76,8 @@ lower-cased with hyphens replacing whitespace. For example, the
 
 `tag:misd.isi.edu,2015:display`
 
-This key is allowed on any number of schemas, tables, and
-columns. This annotation indicates display options for the indicated
+This key is allowed on any number of schemas, tables, 
+columns, and keys. This annotation indicates display options for the indicated
 element and its nested model elements.
 
 Supported JSON payload patterns:
@@ -302,6 +303,41 @@ Supported _columnentry_ patterns:
 
 - _columnname_: A string literal _columnname_ identifies a constituent column of the table. The value of the column SHOULD be presented, possibly with representation guided by other annotations or heuristics.
 - `[` _schemaname_ `,` _constraintname_ `]`: A two-element list of string literal _schemaname_ and _constraintname_ identifies a constituent foreign key of the table. The value of the external entity referenced by the foreign key SHOULD be presented, possibly with representation guided by other annotations or heuristics.
+
+### 2017 Key Display
+
+`tag:isrd.isi.edu,2017:key-display`
+
+This key allows augmentation of a unique key constraint
+with additional presentation information.
+
+Supported JSON payload patterns:
+
+- `{` _context_`:` _option_ ...`}`: Apply each _option_ to the presentation of referenced content for any number of _context_ names.
+
+Supported display _option_ syntax:
+
+- `"markdown_pattern":` _pattern_: The visual presentation of the key SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
+- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by key values.
+- `"column_order": false`: Sorting by this key psuedo-column should not be offered.
+
+Key pseudo-column-naming heuristics (use first applicable rule):
+
+1. Use key name specified by [2015 Display](#2015-display) if `name` attribute is specified.
+2. For simple keys, use effective name of sole constituent column considering [2015 Display](#2015-display) and column name from model.
+3. Other application-specific defaults might be considered (non-normative examples):
+  - Anonymous pseudo-column may be applicable in some presentations
+  - A fixed name such as `Key`
+  - The effective table name
+  - A composite name formed by joining the effective names of each constituent column of a composite key
+
+Key sorting heuristics (use first applicable rule):
+
+1. Use the key's display `column_order` option, if present.
+2. Determine sort based on constituent column, only if key is non-composite.
+3. Otherwise, disable sort for psuedo-column.
+
+The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.
 
 ### 2016 Foreign Key
 
