@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,8 +41,7 @@ SU=su
 DEPLOYLOCK="${DEPLOYLOCK}"          # deploy mutual-exclusion marker, if non-empty
 
 PGADMIN="${PGADMIN:-postgres}"
-DAEMONUSER1="${DAEMONUSER:-ermrestddl}" # Unix and DB user name for service daemon doing DDL
-DAEMONUSER2="${DAEMONUSER:-ermrest}"    # Unix and DB user name for service daemon doing SQL
+DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name for service daemon doing DDL
 
 # make these available to child processes
 export PGADMIN
@@ -57,14 +56,11 @@ cleanup()
 
 trap cleanup 0
 
-id ${DAEMONUSER1} || useradd -m -r ${DAEMONUSER1}
-id ${DAEMONUSER2} || useradd -m -r ${DAEMONUSER2}
+id ${DAEMONUSER} || useradd -m -r ${DAEMONUSER}
 
-usermod -a -G apache ${DAEMONUSER1}
-usermod -a -G apache ${DAEMONUSER2}
+usermod -a -G apache ${DAEMONUSER}
 
-chmod og+rx /home/${DAEMONUSER1}
-chmod og+rx /home/${DAEMONUSER2}
+chmod og+rx /home/${DAEMONUSER}
 
 pgid()
 {
@@ -81,26 +77,25 @@ pgcreateuser()
     $SU -c "createuser $*" - ${PGADMIN}
 }
 
-pgid ${DAEMONUSER1} || pgcreateuser -d -R -S ${DAEMONUSER1}
-pgid ${DAEMONUSER2} || pgcreateuser -D -R -S ${DAEMONUSER2}
-$SU -c "psql -c 'grant ermrest to ermrestddl'" - ${PGADMIN}
+pgid ${DAEMONUSER} || pgcreateuser -d -R -S ${DAEMONUSER}
 $SU -c "psql -c 'grant webauthn to ermrest'" - ${PGADMIN}
-$SU -c "psql -c 'grant webauthn to ermrestddl'" - ${PGADMIN}
 
 if [[ -r /etc/redhat-release ]]
 then
     SEMANAGE_HTTPD_SYS_CONTENT_T=httpd_sys_content_t
     
-    for daemon in ${DAEMONUSER1} ${DAEMONUSER2}
-    do
-	semanage fcontext --add --ftype d --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${daemon}"
-	semanage fcontext --add --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${daemon}/ermrest_config.json"
-	restorecon -v /home/${daemon}
-	setsebool -P httpd_enable_homedirs on
-    done
+    semanage fcontext --add --ftype d --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${DAEMONUSER}"
+    semanage fcontext --add --type "${SEMANAGE_HTTPD_SYS_CONTENT_T}" "/home/${DAEMONUSER}/ermrest_config.json"
+    restorecon -v /home/${DAEMONUSER}
+    setsebool -P httpd_enable_homedirs on
 fi
 
-[[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]] && cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPCONFDIR}/.
+if [[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]] || grep -q ermrestddl ${HTTPCONFDIR}/wsgi_ermrest.conf
+then
+    # install default config
+    # or override conflicting legacy ermrestddl split config
+    cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPCONFDIR}/.
+fi
 
 pgdbid()
 {
@@ -116,24 +111,21 @@ pg_upgrade_catalog_sql()
 {
     cat <<EOF
 BEGIN;
-ALTER DATABASE "$1" OWNER TO ${DAEMONUSER1};
-GRANT CREATE ON DATABASE "$1" TO ${DAEMONUSER2};
+ALTER DATABASE "$1" OWNER TO ${DAEMONUSER};
 EOF
 
     $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('pg_toast', 'pg_catalog', 'information_schema') AND NOT pg_is_other_temp_schema(oid)\" '$1'" - ${PGADMIN} | {
 	while read schema
 	do
 	    cat <<EOF
-ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER1};
-GRANT USAGE ON SCHEMA "$schema" TO ${DAEMONUSER2};
+ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER};
 EOF
 	    
 	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema' AND table_type = 'BASE TABLE'\" '$1'" - ${PGADMIN} | {
 		while read table
 		do
 		    cat <<EOF
-ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER1};
-GRANT ALL ON TABLE "$schema"."$table" TO ${DAEMONUSER2};
+ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER}, FORCE ROW LEVEL SECURITY;
 EOF
 		done
 	    }
@@ -142,7 +134,7 @@ EOF
 		while read table
 		do
 		    cat <<EOF
-ALTER VIEW "$schema"."$table" OWNER TO ${DAEMONUSER2};
+ALTER VIEW "$schema"."$table" OWNER TO ${DAEMONUSER};
 EOF
 		done
 	    }
@@ -151,8 +143,7 @@ EOF
 		while read sequence
 		do
 	            cat <<EOF
-ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER1};
-GRANT ALL ON SEQUENCE "$schema"."$sequence" TO ${DAEMONUSER2};
+ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER};
 EOF
 		done
 	    }
@@ -163,11 +154,7 @@ EOF
 COMMIT;
 
 BEGIN;
-ALTER SCHEMA _ermrest OWNER TO ${DAEMONUSER1};
-GRANT USAGE ON SCHEMA _ermrest TO ${DAEMONUSER2};
-GRANT SELECT ON ALL TABLES IN SCHEMA _ermrest TO ${DAEMONUSER2};
-GRANT ALL ON ALL SEQUENCES IN SCHEMA _ermrest TO ${DAEMONUSER2};
-GRANT INSERT, UPDATE, DELETE ON _ermrest.model_version, _ermrest.data_version TO ${DAEMONUSER2};
+ALTER SCHEMA _ermrest OWNER TO ${DAEMONUSER};
 
 CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS \$\$
 BEGIN
@@ -194,26 +181,24 @@ pg_upgrade_registry_sql()
 {
     cat <<EOF
 BEGIN;
-ALTER DATABASE ermrest OWNER TO ${DAEMONUSER1};
+ALTER ROLE ${DAEMONUSER} CREATEDB;
+ALTER DATABASE ermrest OWNER TO ${DAEMONUSER};
 CREATE SCHEMA IF NOT EXISTS ermrest;
-ALTER SCHEMA ermrest OWNER TO ${DAEMONUSER1};
-GRANT USAGE ON SCHEMA ermrest TO ${DAEMONUSER2};
-GRANT SELECT ON ermrest.simple_registry TO ${DAEMONUSER2};
-GRANT CREATE ON DATABASE ermrest TO ${DAEMONUSER2};
+ALTER SCHEMA ermrest OWNER TO ${DAEMONUSER};
 EOF
 
     $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname ~ '^webauthn' AND NOT pg_is_other_temp_schema(oid)\" ermrest" - ${PGADMIN} | {
 	while read schema
 	do
 	    cat <<EOF
-ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER2};
+ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER};
 EOF
 	    
 	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema'\" ermrest" - ${PGADMIN} | {
 		while read table
 		do
 		    cat <<EOF
-ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER2};
+ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER};
 EOF
 		done
 	    }
@@ -222,7 +207,7 @@ EOF
 		while read sequence
 		do
 	            cat <<EOF
-ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER2};
+ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER};
 EOF
 		done
 	    }
@@ -236,16 +221,15 @@ EOF
 }
 
 # prevent overwrites
-[[ -r /home/${DAEMONUSER2}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER2}"
-[[ -r /home/${DAEMONUSER1}/ermrest_config.json ]] || $SU -c "ln -s /home/${DAEMONUSER2}/ermrest_config.json ." - "${DAEMONUSER1}"
+[[ -r /home/${DAEMONUSER}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
 
 if pgdbid 'ermrest'
 then
-    # idempotently fill in missing parts and update role assignments for 2-role deployment
+    # idempotently fill in missing parts and update role assignments
     pg_upgrade_registry_sql > ${TMP_SQL}
     $SU -c "psql -e ermrest" - ${PGADMIN} < ${TMP_SQL}
 
-    $SU -c "psql -q -t -A -c \"select descriptor::json->>'dbname' from ermrest.simple_registry\" ermrest" - ${DAEMONUSER1} | {
+    $SU -c "psql -q -t -A -c \"select descriptor::json->>'dbname' from ermrest.simple_registry\" ermrest" - ${PGADMIN} | {
 	catalogs=()
 	while read line
 	do
@@ -260,13 +244,12 @@ then
 	done
     }
 else
-    $SU -c "createdb -O \"$DAEMONUSER1\" ermrest" - ${PGADMIN}
-    $SU -c "psql -e -c 'GRANT CREATE ON DATABASE ermrest TO ${DAEMONUSER2}'" - ${PGADMIN}
+    $SU -c "createdb -O \"$DAEMONUSER\" ermrest" - ${PGADMIN}
 fi
 
 
 # these are supposed to be idempotent too...
 $SU -c "createlang -d ermrest plpgsql" - "${PGADMIN}"
 $SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - ${PGADMIN}
-$SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER1}"
+$SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
 

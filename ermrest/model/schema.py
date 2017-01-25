@@ -67,7 +67,6 @@ class Model (object):
             raise exception.ConflictModel('Requested schema %s already exists.' % sname)
         cur.execute("""
 CREATE SCHEMA %(schema)s ;
-GRANT USAGE ON SCHEMA %(schema)s TO ermrest;
 SELECT _ermrest.model_change_event();
 """ % dict(schema=sql_identifier(sname)))
         return Schema(self, sname)
@@ -103,7 +102,6 @@ SELECT _ermrest.model_change_event();
 DROP TABLE IF EXISTS _ermrest.valuemap ;
 CREATE TABLE _ermrest.valuemap ("schema", "table", "column", "value")
 AS %s ;
-GRANT SELECT ON _ermrest.valuemap TO ermrest;
 CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "table", "column");
 CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
 """ % ' UNION '.join(vmap_parts)

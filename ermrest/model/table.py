@@ -126,8 +126,6 @@ CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
 );
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
-GRANT ALL ON TABLE %(sname)s.%(tname)s TO ermrest;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA %(sname)s TO ermrest;
 SELECT _ermrest.model_change_event();
 SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 """ % dict(sname=sql_identifier(sname),
