@@ -148,6 +148,8 @@ SELECT _ermrest.model_change_event();
             self.constraint_name = (self.table.schema.name, name)
         self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
         self.set_comment(conn, cur, self.comment)
+        for k, v in self.annotations.items():
+            self.set_annotation(conn, cur, k, v)
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -256,6 +258,8 @@ INSERT INTO _ermrest.model_pseudo_key
             "",
             self.constraint_name[1] if self.constraint_name else self.id
         ]
+        for k, v in self.annotations.items():
+            self.set_annotation(conn, cur, k, v)
 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -475,6 +479,8 @@ SELECT _ermrest.model_change_event();
             self.constraint_name = (self.foreign_key.table.schema.name, name)
         self.foreign_key.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
         self.set_comment(conn, cur, self.comment)
+        for k, v in self.annotations.items():
+            self.set_annotation(conn, cur, k, v)
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -685,6 +691,8 @@ INSERT INTO _ermrest.model_pseudo_keyref
             "",
             self.constraint_name[1] if self.constraint_name else self.id
         ]
+        for k, v in self.annotations.items():
+            self.set_annotation(conn, cur, k, v)
         
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)

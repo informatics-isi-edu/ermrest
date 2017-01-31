@@ -182,6 +182,20 @@ dotest "400::*::*" /catalog/${cid}/invalid_api_name
 dotest "409::*::*" /catalog/${cid}/schema/public -X POST
 dotest "201::*::*" /catalog/${cid}/schema/test1 -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema
+dotest "204::*::*" /catalog/${cid}/schema/test1 -X DELETE
+
+cat > ${TEST_DATA} <<EOF
+{
+  "schemas": {
+    "test1": {
+      "annotations": {
+        "tag:misd.isi.edu,2015:test0": "value 0"
+      }
+    }
+  }
+}
+EOF
+dotest "201::*::*" /catalog/${cid}/schema -T ${TEST_DATA} -X POST -H "Content-Type: application/json"
 
 # test batch schema interfaces w/ circular dependencies in foreign keys
 cat > ${TEST_DATA} <<EOF
@@ -193,18 +207,26 @@ cat > ${TEST_DATA} <<EOF
          "A": {
            "kind": "table",
            "column_definitions": [
-             { "type": { "typename": "serial8"}, "name": "id", "nullok": false },
+             { 
+               "type": { "typename": "serial8"}, 
+               "name": "id", 
+               "nullok": false, 
+               "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" } 
+             },
              { "type": { "typename": "int8"}, "name": "rid" }
            ],
-           "keys": [ { "unique_columns": [ "id" ] } ],
+           "keys": [ { "unique_columns": [ "id" ], "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" } } ],
            "foreign_keys": [
              { 
                "foreign_key_columns": [ {"schema_name": "s1", "table_name": "A", "column_name": "rid"} ],
-               "referenced_columns": [ {"schema_name": "s2", "table_name": "A", "column_name": "id"} ]
+               "referenced_columns": [ {"schema_name": "s2", "table_name": "A", "column_name": "id"} ], 
+               "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" }
              }
-           ]
+           ],
+           "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" }
          }
-       }
+       },
+       "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" }
     },
     "s2": {
        "comment": "schema s2 of model document",
@@ -694,7 +716,8 @@ cat > ${TEST_DATA} <<EOF
         "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2", "column_name": "level1_id"}],
         "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
       }
-   ]
+   ], 
+   "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}
 }
 EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
@@ -739,7 +762,7 @@ dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2
 dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/column/name -X DELETE
 
 cat > ${TEST_DATA} <<EOF
-{ "type": { "typename": "text" }, "name": "name" }
+{ "type": { "typename": "text" }, "name": "name", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }
 EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/column -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column/name
@@ -751,7 +774,7 @@ dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id -X DELE
 dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
 
 cat > ${TEST_DATA} <<EOF
-{ "unique_columns": [ "id" ] }
+{ "unique_columns": [ "id" ], "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }
 EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/key -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
@@ -768,7 +791,8 @@ dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey/lev
 cat > ${TEST_DATA} <<EOF
 { 
   "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2", "column_name": "level1_id"}],
-  "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}]
+  "referenced_columns": [{"schema_name": "test1", "table_name": "test_level1", "column_name": "id"}],
+  "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}
 }
 EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
@@ -1015,11 +1039,15 @@ do_comment_test /schema/test1/table/test_comments/foreignkey/level1_id/reference
 do_comment_test /schema/test1/table/test_comments/foreignkey/level1_id2/reference/test1:test_level1/id FKEY2
 
 # do annotation tests
+do_annotation_phase0_tests()
+{
+    local resource="$1"
+    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation"
+}
 do_annotation_phase1_tests()
 {
     local resource="$1" tag_key="$2" test_value="$3"
 
-    dotest "200::application/json::*" "/catalog/${cid}${resource}/annotation"
     dotest "404::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}"
     cat > ${TEST_DATA} <<EOF
 "${test_value}"
@@ -1059,6 +1087,7 @@ do_annotation_phase3_tests()
     dotest "20?::*::*" "/catalog/${cid}${resource}/annotation/${tag_key}" -X DELETE
 }
 
+tag_key0='tag%3Amisd.isi.edu%2C2015%3Atest0' # tag:misd.isi.edu,2015:test0
 tag_key='tag%3Amisd.isi.edu%2C2015%3Atest1' # tag:misd.isi.edu,2015:test1
 tag_key2='tag%3Amisd.isi.edu%2C2015%3Atest2' # tag:misd.isi.edu,2015:test2
 resources=(
@@ -1070,6 +1099,10 @@ resources=(
 )
 for resource in ${resources[@]}
 do
+    do_annotation_phase0_tests "${resource}"
+
+    do_annotation_phase2_tests "${resource}" "${tag_key0}" "value 0"
+    
     do_annotation_phase1_tests "${resource}" "${tag_key}" "${resource} value 1"
     do_annotation_phase2_tests "${resource}" "${tag_key}" "${resource} value 1"
     
@@ -1078,9 +1111,22 @@ do
 
     # re-check first value (regression test for issue #37, PUT modified values for other keys too)
     do_annotation_phase2_tests "${resource}" "${tag_key}" "${resource} value 1"
+    do_annotation_phase2_tests "${resource}" "${tag_key0}" "value 0"
     
     do_annotation_phase3_tests "${resource}" "${tag_key}"
     do_annotation_phase3_tests "${resource}" "${tag_key2}"
+done
+
+resources2=(
+    /schema/s1
+    /schema/s1/table/A
+    /schema/s1/table/A/column/id
+    /schema/s1/table/A/key/id
+    /schema/s1/table/A/foreignkey/rid/reference/s2:A/id
+)
+for resource in ${resources2[@]}
+do
+    do_annotation_phase2_tests "${resource}" "${tag_key0}" "value 0"
 done
 
 # do more destructive precondition tests
