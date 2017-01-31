@@ -4,12 +4,10 @@
 With ERMrest, all web requests execute under daemon accounts with
 eponymous PostgresQL roles:
 
-  - Catalog and schema management as `ermrestddl` daemon.
-  - Data access as `ermrest`.
-  - The `ermrestddl` role owns all catalogs, schemas, tables,
+  - All service logic as `ermrest` daemon.
+  - The `ermrest` role owns all catalogs, schemas, tables,
     sequences, etc.
-  - The `ermrest` role is granted the minimum required privileges to
-    execute ERMrest data access operations.
+  - The `FORCE ROW LEVEL SECURITY` flag is set on every table.
   - The ERMrest service code tests web client context against stored
     ACLs to enforce coarse-grained access rights on catalogs.
 
@@ -82,7 +80,7 @@ A good practice to evaluate impact of row-level policies is to perform
 equivalent queries through the `psql` command-line interface using
 both daemon accounts and the `EXPLAIN ANALYZE ...` command:
 
-- `ermrestddl`: bypasses row-level security and shows you a baseline
+- `postgres` or other super-user: bypasses row-level security and shows you a baseline
   performance for your query.
 - `ermrest`: is subject to row-level security and shows you how much
   slower it will be when queried by web clients.
@@ -168,21 +166,18 @@ security SHOULD maintain an authoritative policy SQL file and be
 prepared to eliminate policies from a dump, restore the modified dump,
 then reapply the authoritative policies.
 
-In a database with mixed ownership, care must be taken to account for
-several different kinds of rights:
+Other detailed issues:
 
-1. The owner of a table has all rights and bypasses row-level security policy (this is the `ermrestddl` user in a standard ERMrest deployment).
-2. When the `ermrest` role does not own a table but is granted rights to insert, it also needs to be granted rights to the sequence relations used for any auto-generating serial columns in that table (this is done automatically when ERMrest is used to create tables).
-3. When `ermrest` makes changes to a table it does not own, postgres may perform some bookkeeping operations on behalf of the owning role `ermrestddl`. This will work in a standard ERMrest deployment since `ermrestddl` will own all those resources.
-4. If a DBA wants to expose a SQL view through ERMrest, consuming tables with row-level security policies, the view should be created with the `ermrest` user owning it. Access to a view is executed with the owner's privileges, so if the view were owned by `ermrestddl`, the view would bypass row-level security policies on regular tables also owned by `ermrestddl`.
+1. The owner of a table bypasses row-level security unless `FORCE ROW LEVEL SECURITY` is kept on for the table.
+2. DBAs SHOULD NOT attempt to introduce tables in ermrest backing databases which are not owned by the `ermrest` role.
 
 ## Instructions and Examples
 
 1. Upgrade your postgres to 9.5 or later
-2. Have latest ERMrest master code deployed with the split `ermrest` and `ermrestddl` daemon accounts.
-4. Enable row-level security on specific table (as `ermrestddl` user)
-5. Create row-level policies to access table data (as `ermrestddl` user)
-6. Drop or alter row-level policies by name (as `ermrestddl` user)
+2. Have latest ERMrest master code deployed with `FORCE ROW LEVEL SECURITY` on all tables.
+3. Enable row-level security on specific table
+4. Create row-level policies to access table data
+5. Drop or alter row-level policies by name
 
 NOTE: the following examples use old-style group IDs as with the `goauth` webauthn provider. In the future, such group IDs will replace the `g:` prefix with a URL designating the group membership provider who asserted the group membership attribute.
 

@@ -50,9 +50,7 @@ See [ERMrest Installation (CentOS 6)](user-doc/install-centos7.md).
 ### Operational Model
 
 1. The HTTPS connection is terminated by Apache HTTPD.
-1. The ERMrest service code executes as a daemon user
-  - Catalog and schema management operations execute as the `ermrestddl` daemon user.
-  - Data access operations execute as the `ermrest` daemon user.
+1. The ERMrest service code executes as the `ermrest` daemon user
 1. The service configuration is loaded from `~ermrest/ermrest_config.json`:
   - Security provider configuration via embedded webauthn configuration data (will change in future)
   - Core access control policy for catalog creation.

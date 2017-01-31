@@ -144,7 +144,6 @@ DELETE FROM _ermrest.model_%s_annotation WHERE %s;
         keys = keying.keys() + ['annotation_uri']
         cur.execute("""
 CREATE TABLE _ermrest.model_%(restype)s_annotation (%(cols)s);
-GRANT SELECT ON _ermrest.model_%(restype)s_annotation TO ermrest;
 """ % dict(
     restype=restype,
     cols=', '.join([ '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0]) for k in keys ]

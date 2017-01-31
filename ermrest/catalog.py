@@ -280,12 +280,11 @@ SELECT txid_current();
         """
         if type(owner) is dict:
             owner = owner['id']
-        
+
         # create schema, if it doesn't exist
         if not schema_exists(cur, self._SCHEMA_NAME):
             cur.execute("""
 CREATE SCHEMA %(schema)s;
-GRANT USAGE ON SCHEMA %(schema)s TO ermrest;
 """ % dict(schema=self._SCHEMA_NAME)
                         )
             
@@ -469,16 +468,6 @@ $$ LANGUAGE plpgsql;
            table=self._DATA_VERSION_TABLE_NAME)
                         )
 
-        cur.execute("""
-GRANT SELECT -- INSERT, UPDATE, DELETE
-  ON _ermrest.meta, _ermrest.model_pseudo_key, _ermrest.model_pseudo_keyref
-  TO ermrest;
-GRANT SELECT, INSERT, UPDATE, DELETE
-  ON _ermrest.model_version, _ermrest.data_version 
-  TO ermrest;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA _ermrest TO ermrest;
-""")
-            
         ## initial meta values
         owner = owner if owner else self.ANONYMOUS
         self.add_meta(cur, self.META_OWNER, owner)

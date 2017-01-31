@@ -8,7 +8,7 @@ $(SHAREDIR)/ermrest_config.json: ermrest/ermrest_config.json.in config/make-vars
 
 $(SHAREDIR)/wsgi_ermrest.conf: ermrest/wsgi_ermrest.conf.in config/make-vars-$(PLATFORM)
 	./install-script -M sed -R @PYLIBDIR@=$(PYLIBDIR) @WSGISOCKETPREFIX@=$(WSGISOCKETPREFIX) \
-		@DAEMONUSER1@=$(DAEMONUSER1) @DAEMONUSER2@=$(DAEMONUSER2) \
+		@DAEMONUSER@=$(DAEMONUSER) \
 		@HTMLDIR@=$(HTMLDIR) @AUTHDIRECTIVES@="$(AUTHDIRECTIVES)" \
 		-o root -g root -m a+r -p -D $< $@
 

@@ -2,8 +2,7 @@
 PLATFORM=centos7
 
 PGADMIN=postgres
-DAEMONUSER1=ermrestddl
-DAEMONUSER2=ermrest
+DAEMONUSER=ermrest
 USERADD=true
 USERDEL=false
 CREATEUSER=true
