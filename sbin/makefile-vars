@@ -6,6 +6,7 @@ SBIN_FILES= \
 	ermrest-freetext-indices \
 	ermrest-valuemap-recreate \
 	ermrest-valuemap-work \
+	ermrest-update-extensions \
 	ermrest-db-work
 
 SBIN_EDIT_FILES= \
