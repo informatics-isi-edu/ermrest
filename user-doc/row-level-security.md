@@ -85,11 +85,12 @@ the daemon account and the `EXPLAIN ANALYZE ...` command:
   how much slower it will be when queried by web clients. To emulate a
   particular web client privilege level, manually set the session
   parameters in your connection as described below.
-- In a transaction (which you will *roll back*), do `ALTER TABLE
-  ... NO FORCE ROW LEVEL SECURITY` to turn off row-level security
-  temporarily while measuring a baseline query. We recommend that you
-  do this on a test server with restricted access, in case you make a
-  mistake and disable enforcement for real ERMrest clients.
+- You can use a postgres "super-user" role to bypass row-level
+  security on tables. *Caveat*: note that SQL views are executed with
+  the privileges of the role owning the view, and not the role of the
+  querying user. So, these views when properly owned by `ermrest` will
+  not bypass row-level security on any tables they consume, even when
+  queried by the super-user.
   
 For this comparison to be valid, you may need to set session
 parameters to a valid client context. Otherwise the SQL plan may be
@@ -176,6 +177,7 @@ Other detailed issues:
 
 1. The owner of a table bypasses row-level security unless `FORCE ROW LEVEL SECURITY` is kept on for the table.
 2. DBAs SHOULD NOT attempt to introduce tables in ermrest backing databases which are not owned by the `ermrest` role.
+3. DBAs SHOULD NOT attempt to introduce SQL views which are not owned by the `ermrest` role.
 
 ## Instructions and Examples
 
