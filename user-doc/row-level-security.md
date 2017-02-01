@@ -41,6 +41,7 @@ of row data to make access control decisions. There is no distinction
 between access control or non-access control data at the SQL nor
 ERMrest protocol level.
 
+
 ## Performance Considerations
 
 Because row-level security policies are effectively injecting SQL
@@ -78,12 +79,17 @@ indiscriminately.
    
 A good practice to evaluate impact of row-level policies is to perform
 equivalent queries through the `psql` command-line interface using
-both daemon accounts and the `EXPLAIN ANALYZE ...` command:
+the daemon account and the `EXPLAIN ANALYZE ...` command:
 
-- `postgres` or other super-user: bypasses row-level security and shows you a baseline
-  performance for your query.
-- `ermrest`: is subject to row-level security and shows you how much
-  slower it will be when queried by web clients.
+- By default, `ermrest` is subject to row-level security and shows you
+  how much slower it will be when queried by web clients. To emulate a
+  particular web client privilege level, manually set the session
+  parameters in your connection as described below.
+- In a transaction (which you will *roll back*), do `ALTER TABLE
+  ... NO FORCE ROW LEVEL SECURITY` to turn off row-level security
+  temporarily while measuring a baseline query. We recommend that you
+  do this on a test server with restricted access, in case you make a
+  mistake and disable enforcement for real ERMrest clients.
   
 For this comparison to be valid, you may need to set session
 parameters to a valid client context. Otherwise the SQL plan may be
