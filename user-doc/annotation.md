@@ -63,7 +63,7 @@ here is a quick matrix to locate them.
 | [2016 Table Display](#2016-table-display) | X | X | - | - | - | Table-specific display options |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
-| [2016 Asset](#2016-asset) | - | X | - | - | - | Describes assets |
+| [2016 Asset](#2016-asset) | - | X | X | - | - | Describes assets |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
@@ -490,31 +490,74 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 
 `tag:isrd.isi.edu,2016:asset`
 
-This key indicates that the annotated table may be interpreted as asset metadata.
+This key indicates that the annotated table or column stores asset metadata.
+
+Core concepts:
+
+- Asset: a generic, fixed-length octet-stream of data, i.e. a "file" or "object" which can be stored, retrieved, and interpreted by consumers.
+- Name: a label for the asset. The name MAY be presented to a user or used as a local file name but is not required to be suitable for either purpose, whether do to potential collisions or character encoding ranges.
+- Identifier: a _globally unique_ and _resolvable_ string, used to reference and retrieve the identified asset either directly or indirectly through a resolution service. For example, an HTTP URL is both globally unique and resolvable. In the case of a relative URL, the client should resolve the URL within the context from which it was retrieved. Persistent identifier schemes MAY be used such as MINID, DOI, ARK, or PURL. It is up to client tooling to recognize and resolve identifiers in such schemes.
+- Identifier pattern: a pattern to infer an existing asset identifier based on known metadata values, i.e. to reassemble an identifier that has been decomposed into multiple strings.
+- New identifier pattern: a pattern to induce a prospective asset identifier based on known metadata values, i.e. to normalize where to upload and store a new asset in a data-submission process. Only meaningful where clients can request creation of new assets with a desired name.
+- Accession number: an application or community-standardized tracking number for an asset, i.e., defined by a science data repository, data hub, or community data resource service. The accession number MUST be unique _within_ the application or community. They MAY be globally unique but generally are not, in practice. As an example, accession numbers often take the following form `PREFIX + SERIAL NUMBER [ '.' + REVISION NUMBER ]`, such as `GDS6248`. The example given here is non-normative.
+- Creator: a notion of provenance or responsibility for storing or registering an asset in a data management system.
+- Contributor: a generic notion of provenance or attribution of work or creative input for the data contained in the asset. The concept of contributor is not strictly defined here and left up to the application to define the exact criteria for what constitutes a contributor.
+
+Usage scenarios:
+
+1. An annotated column of a table represents asset identifiers directly or via pattern-expansion. Other metadata may be explicitly mapped.
+2. An annotated table represents asset metadata. All metadata including identifiers are explicitly and/or implicitly mapped.
+3. A table represents a *primary* asset configured by a table-level annotation as well as *secondary* assets configured by column-level annotations. The primary and secondary assets in each row are related, but the exact semantics of the relationships are not specified here.
 
 Supported JSON payload patterns:
 
 - `null` or `{}`: Default heuristics apply.
-- `{`... `"internal":` [_column_, ...] ...`}`: The one or more named _columns_ store internal identifiers for the asset, used for efficient normalized storage in the database but not meaningful to typical users. The referenced columns MUST each comprise a single-column key for the table.
-- `{`... `"identifier": ` _column_ ...`}`: The _column_ stores an identifier for the asset. The identifier SHOULD be _globally unique_ and _resolvable_ meaning that a client may retrieve the identified asset either directly or indirectly through a resolution service. For example, an HTTP URL is both globally unique and resolvable. In the case of a relative URL, the client should resolve the URL within the context from which it was retrieved. Persistent identifier schemes MAY be used such as MINID, DOI, ARK, or PURL. It is up to client tooling to recognize and resolve identifiers in such schemes. The presence of a value in the named column does not guarantee that the identifier is globally unique or resolvable.
-- `{`... `"accession_number": ` _column_ ...`}`: The _column_ stores the "accession number" for the asset. The scheme for an accession number is defined by an application (i.e., a science data repository, data hub, community data resource service, etc.). The accession number MUST be guaranteed to be unique _within_ the application. They MAY be globally unique but generally are not, in practice. As an example, accession numbers often take the following form `PREFIX + SERIAL NUMBER [ '.' + REVISION NUMBER ]`, such as `GDS6248`. The example given here is non-normative.
-- `{`... `"name": ` _pattern_ ...`}`: A name for the asset to be derived by a [Pattern Expansion](#pattern-expansion) on _pattern_. The name MAY be used to represent a file name but is not required to do so.
+- `{`... `"identifier": ` _column_ ...`}`: The _column_ stores an identifier for the primary asset. Not applicable to column-level asset annotations where the annotated column is always the identifier column.
+- `{`... `"identifier_pattern": ` _pattern_ ...`}`: The asset identifier can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+- `{`... `"new_identifier_pattern": ` _pattern_ ...`}`: A desired upload location can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+- `{`... `"accession_number": ` _column_ ...`}`: The _column_ stores the "accession number" for the asset.
+- `{`... `"name": ` _pattern_ ...`}`: A name for the asset to be derived by a [Pattern Expansion](#pattern-expansion) on _pattern_.
 - `{`... `"bytes": ` _column_ ...`}`: The _column_ stores the file size in bytes of the asset. It SHOULD be an integer typed column.
 - `{`... `"sha256": ` _column_ ...`}`: The _column_ stores the checksum generated by the 'sha256' cryptographic hash function. It MUST be ASCII/UTF-8 hexadecimal encoded.
-- `{`... `"creator": ` _column_ ...`}`: The _column_ stores the _creator_ of the asset. The _column_ MAY be defined as a foreign key that references a person or user table in the model. The usual model introspection applies.
+- `{`... `"creator": ` _column_ ...`}`: The _column_ stores the creator of the asset.
 - `{`... `"description": ` _pattern_ ...`}`: A description for the asset to be derived by a [Pattern Expansion](#pattern-expansion) on _pattern_.
-- `{`... `"date": ` _column_ ...`}`: The _column_ stores the date that the asset metadata was recorded in the system. The column type SHOULD be a date or timestamp type.
+- `{`... `"date": ` _column_ ...`}`: The _column_ stores the point in time when the asset metadata was recorded in the system. The column type SHOULD be a date or timestamp type.
 - `{`... `"mediatype": ` _column_ ...`}`: The _column_ stores the Media Type of the asset, for example `application/dicom`. The format of its contents MUST conform to the [Media Type RFC](https://tools.ietf.org/html/rfc6838) standard. The values SHOULD come from the [list of Media Types](http://www.iana.org/assignments/media-types/media-types.xhtml) registered with IANA.
 - `{`... `"format": ` _column_ ...`}`: The _column_ stores the identifier for the file format that the asset _conforms to_, for example `http://edamontology.org/format_3548`. The format identifier SHOULD be globally unique and MAY follow the URI or URN scheme. For example, see the [EDAM Ontology](http://edamontology.org) for a listing of file formats used in bioinformatics.
-- `{`... `"contributor": ` {_column_ | `[`_schema_`,`_constraint_`]`} ...`}`: The _column_ indicates the "contributors" of the asset. The concept of contributor is not strictly defined here and left up to the application to define the exact criteria for what constitutes a contributor. When this key indicates a _column_ name, the _column_ SHOULD be a JSON list of contributors. When this key indicates a _schema_-qualified _constraint_ name, the _constraint_ SHOULD indicate the foreign key that links to contributors. If this key is not present, applications SHOULD look for an inbound foreign key reference with a `from_name` annotation set to `'contributor'` or a relationship via a binary association table with a `to_name` annotation set to `'contributor'`. The entities of that related table SHOULD be interpreted as the set of contributors to the asset.
+- `{`... `"contributor": ` _column_ ...`}`: The _column_ indicates the contributors of the asset. The _column_ SHOULD contain a JSON list of contributors.
+- `{`... `"contributor": ` `[`_schema_`,`_constraint_`]` ...`}`: The _schema_-qualified _constraint_ name for a foreign key that links rows in this table to contributors in a referring table or on the opposite side of a binary association.
+- `{`... `"internal":` [_column_, ...] ...`}`: The one or more named _columns_ store internal metadata for the asset. These columns SHOULD be excluded from any implicit metadata mappings.
+
+Several annotations MAY map the same column as metadata for more than
+one asset represented by the same table row, e.g. for shared date,
+mediatype, format, or creator information.
 
 #### Heuristics
 
-1. The annotation MUST be present in order to indicate that a table describes assets.
-2. If a property is not indicated in the body of the annotation, it SHOULD be inferred based on a case-insensitive match with a column name of the table.
-  - For example, if the `format` property is not specified in the body of the annotation, but a column is named `format`, `FORMAT`, `Format` and so on, it SHOULD be inferred that it represents the `format` property, per the specification above.
-3. An asset table MUST possess the `identifier` property, either explicitly or inferred by the above heuristic.
-4. In the absence of an `internal` property, assume all columns are potentially meaningful to users.
+1. Annotations enable and configure asset interpretation of a table:
+  - An annotated table represents one *primary* asset per row.
+  - Each annotated column represents one *secondary* asset.
+  - Tables with neither form of annotation are not assumed to represent assets.
+2. Explicitly map columns by interpreting annotation fields:
+  - All fields of one annotation contribute to metadata of the corresponding asset.
+  - An identifier pattern, if determined, takes precedent over an identifier column if both are mapped.
+  - If identifier pattern expansion fails, the client SHOULD fall back to an identifier column if both are mapped.
+  - Explicitly configured `"contributor"` fields can link foreign-keys to the asset annotation.
+3. Implicitly map columns to *primary* asset metadata:
+  - Only consider mapping to the primary, table-level asset. Never implicitly map sibling columns to a column-level asset annotation.
+  - Ignore columns listed as `"internal"` in any table or column-level annotation on this table.
+  - Only consider columns not already mapped explicitly to any asset annotation.
+  - Never implicitly map a column to a concept which has already been explicitly mapped in the same annotation.
+  - Consider a mapping based on case-insensitive matching of column name and annotation field name.
+4. Implicitly discover contributors to the *primary* asset found in the ERMrest model:
+  - Implicitly discovered contributes MAY augment explicitly mapped contributors.
+  - An inbound foreign key with a `from_name` of `"contributor"` assigns contributors to assets.
+  - A binary association with a far side `to_name` of `"contributor"` associates contributors with assets.
+  
+Protocol-specific metadata retrieval MAY be applied once an asset identifier is known. How to present or reconcile contradictions in metadata found in multiple sources is beyond the scope of this specification.
+- Some applications may treat ERMrest tables as prefetched or cached metadata.
+- Some applications may treat ERMrest tables as authoritative metadata registries.
+- Some identifier schemes may define authoritative metadata resolution procedures.
 
 ### Context Names
 
