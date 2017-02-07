@@ -2,7 +2,7 @@
 AllowEncodedSlashes On
 
 WSGIPythonOptimize 1
-WSGIDaemonProcess @DAEMONUSER@ processes=1 threads=1 user=@DAEMONUSER@ maximum-requests=2000
+WSGIDaemonProcess @DAEMONUSER@ processes=1 threads=4 user=@DAEMONUSER@ maximum-requests=2000
 WSGIScriptAlias /ermrest @PYLIBDIR@/ermrest/ermrest.wsgi
 WSGIPassAuthorization On
 
