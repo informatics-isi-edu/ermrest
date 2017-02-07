@@ -424,11 +424,20 @@ class EntityElem (object):
             if c.type.is_array:
                 # extract field as JSON and transform to array
                 # since PostgreSQL json_to_recordset fails for native array extraction...
-                json_projection.append("(SELECT array_agg(x::%s) FROM json_array_elements_text(j->'%s') s (x)) AS %s" % (
-                    c.type.base_type.sql(basic_storage=True),
-                    col_name,
-                    c.sql_name(col_name)
-                ))
+                # if ELSE clause hits a non-array, we'll have a 400 Bad Request error as before
+                json_projection.append("""
+(CASE
+ WHEN json_typeof(j->'%(field)s') = 'null'
+   THEN NULL::%(type)s[]
+ ELSE
+   (SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->'%(field)s') s (x))
+ END) AS %(alias)s
+""" % dict(
+    type=c.type.base_type.sql(basic_storage=True),
+    field=col_name,
+    alias=c.sql_name(col_name)
+)
+                )
             elif c.type.name in ['json', 'jsonb']:
                 json_projection.append("(j->'%s')::%s AS %s" % (
                     col_name,

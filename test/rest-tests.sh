@@ -500,7 +500,7 @@ EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 	cat > ${TEST_DATA} <<EOF
-[{"column1": ${cval_json}, "column2": "value1", "column3": [null]}, {"column2": "value2", "column3": [${cval_json}, ${cval_json}]}]
+[{"column1": ${cval_json}, "column2": "value1", "column3": null}, {"column2": "value2", "column3": [${cval_json}, ${cval_json}]}]
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: application/json" -T ${TEST_DATA}
 
