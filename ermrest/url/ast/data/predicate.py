@@ -118,8 +118,8 @@ class BinaryTextPredicate (BinaryPredicate):
 
     def _sql_left_value(self):
         """Generate SQL column value expression to allow overriding by subclasses."""
-        if hasattr(self.left_col, 'sql_name_with_talias'):
-            name = self.left_col.sql_name_with_talias('t%d' % self.left_elem.pos)
+        if hasattr(self.left_col, 'sql_name_astext_with_talias'):
+            name = self.left_col.sql_name_astext_with_talias('t%d' % self.left_elem.pos)
         else:
             name = "t%d.%s" % (
                 self.left_elem.pos,

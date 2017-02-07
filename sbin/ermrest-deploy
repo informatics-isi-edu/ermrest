@@ -168,6 +168,14 @@ CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE A
   SELECT current_setting('webauthn2.attributes_array')::text[];
 \$\$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.ts_iso8601(anynonarray) RETURNS text IMMUTABLE AS \$\$
+  SELECT to_char(\$1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
+\$\$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.ts_iso8601(anyarray) RETURNS text IMMUTABLE AS \$\$
+  SELECT array_agg(_ermrest.ts_iso8601(v))::text FROM unnest(\$1) s(v);
+\$\$ LANGUAGE SQL;
+
 COMMIT;
 
 BEGIN;

@@ -343,6 +343,14 @@ CREATE DOMAIN longtext text;
 CREATE DOMAIN markdown text;
 CREATE DOMAIN gene_sequence text;
 
+CREATE OR REPLACE FUNCTION %(schema)s.ts_iso8601(anynonarray) RETURNS text IMMUTABLE AS $$
+  SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION %(schema)s.ts_iso8601(anyarray) RETURNS text IMMUTABLE AS $$
+  SELECT array_agg(%(schema)s.ts_iso8601(v))::text FROM unnest($1) s(v);
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION %(schema)s.current_client() RETURNS text STABLE AS $$
 BEGIN
   RETURN current_setting('webauthn2.client');
