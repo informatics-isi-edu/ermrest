@@ -351,6 +351,7 @@ Supported JSON payload patterns:
 - `{` ... `"from_name":` _fname_ ... `}`: The _fname_ string is a preferred name for the set of entities containing foreign key references described by this constraint.
 - `{` ... `"to_name":` _tname_ ... `}`: The _tname_ string is a preferred name for the set of entities containing keys described by this constraint.
 - `{` ... `"display": {` _context_`:` _option_ ...`}` ... `}`: Apply each _option_ to the presentation of referenced content for any number of _context_ names.
+- `{` ... `"domain_filter_pattern":` _pattern_ ...`}`: The _pattern_ yields a _filter_ via [Pattern Expansion](#pattern-expansion). The _filter_ is a URL substring using the ERMrest filter language, which can be applied to the referenced table. The _filter_ MUST NOT use any 
 
 Supported display _option_ syntax:
 
@@ -375,6 +376,34 @@ Foreign key sorting heuristics (use first applicable rule):
 4. Otherwise, disable sort for psuedo-column.
 
 The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.
+
+Domain value presentation heuristics:
+
+1. If _pattern_ expands to _filter_ and forms a valid filter string, present filtered results as domain values.
+    - With _filter_ `F`, the effective domain query would be `GET /ermrest/catalog/N/entity/S:T/F` or equivalent.
+	- The _filter_ SHOULD be validated according to the syntax summary below.
+	- If a server response suggests the filter is invalid, an application SHOULD retry as if the _pattern_ is not present.
+2. If _filter_ is not a valid filter string, proceed as if _pattern_ is not present.
+3. If _pattern_ is not present, present unfiltered results.
+
+Supported _filter_ language is the subset of ERMrest query path syntax
+allowed in a single path element:
+
+- Grouping: `(` _filter_ `)`
+- Disjunction: _filter_ `;` _filter_
+- Conjunction: _filter_ `&` _filter_
+- Negation: `!` _filter_
+- Unary predicates: _column_ `::null::`
+- Binary predicates: _column_ _op_ _value_
+  - Equality: `=`
+  - Inequality: `::gt::`, `::lt::`, `::geq::`, `::leq::`
+  - Regular expressions: `::regexp::`, `::ciregexp::`
+
+Notably, _filters_ MUST NOT contain the path divider `/` nor any other
+reserved syntax not summarized above. All _column_ names and _value_
+literals MUST be URL-escaped to protect any special characters. All
+_column_ names MUST match columns in the referenced table and MUST NOT
+be qualified with table instance aliases.
 
 ### 2016 Column Display
 
