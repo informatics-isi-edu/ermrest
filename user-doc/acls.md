@@ -1,33 +1,7 @@
 
 # ERMrest Access Control
 
-## Goals
-
-Overall goals:
-
-1. Cover a broad set of differentiated access control use cases identified through pilot projects:
-    - Fine-grained authorization decisions within a single catalog based on web client authentication context.
-	- Static policies scoped to levels of data model hierarchy.
-	- Data-dependent policies:
-	  - Row or datum visibility.
-	  - Row or datum insertion, update, or deletion.
-	  - Datum expression.
-2. Provide remotely-managed access control policy resources as part of the REST API.
-    - Integrated with model management APIs for bulk and per-policy management.
-	- In-place upgrade of existing catalogs to add this feature set.
-	- Minimal disruption and incompatibility for legacy users and client scripts.
-	- Incremental effort required for incremental complexity in policies.
-    - Help clients anticipate authorization decisions to customize GUI presentations etc.
-3. Allow for efficient and correct implementation of the authorization decisions within ERMrest.
-    - Pre-evaluate static policies before accessing data.
-	- Compile data-dependent decisions into SQL queries.
-	- Produce SQL amenable to fast query plans.
-4. Limit policy model to access-control list metaphors:
-    - Effective ACL can be determined for given resource access decision.
-    - Decision based on intersection of client attributes with effective ACL.
-	- No attempt to address arbitrary computable decisions as allowed in PostgreSQL RLS policy expressions.
-
-### Scope of Use Cases to Address
+## Scope of Use Cases to Address
 
 The ERMrest resource hierarchy supports a rich set of possible
 resource operations. We intend to provide fine-grained control of
@@ -51,8 +25,7 @@ shared system:
 	- Field modification (can change parts of row but not all parts)
 	- Value expression (can apply some values but not others in a given field)
 3. Delegate some rights within a community
-	- Delegation doesn't take away original owner rights, i.e. nothing in a resource tree is hidden from root owner
-    - Authorize additional owners for sub-resources
+    - Authorize additional owners for sub-resources (can't suppress/mask parent owners from sub-resources)
 	- Delegate management of specific table's structure and constraints
     - Delegate creation of new schema (while protecting other schemas)
 	- Delegate creation of new table (while protecting other tables)
@@ -76,58 +49,70 @@ extent desired by some use cases we've observed.
 	- Referring rows might still be visible due to a referring table's more open policy
 	- Presence of hidden domain data is revealed
 3. Integrity constraints can expose "hidden" columns
-    - A hidden column will receive default values on insert
+	- A hidden column will receive default values on insert
 	- A default expression is not guaranteed to satisfy integrity constraints
 	- The conflict error will reveal information about the hidden column
-	  - That a column with this name exists
-	  - What the default value looks like
-	  - What kind of constraint is violated by the default value
+	    - That a column with this name exists
+	    - What the default value looks like
+	    - What kind of constraint is violated by the default value
 
-We will initially require policy administrators to reconcile these
-problems by forming well coordinated schemas and policies. In some
-cases, we may be able to improve usability by having the system
+We will initially require policy administrators to reconcile most of
+these problems by forming well coordinated schemas and policies. In
+some cases, we may be able to improve usability by having the system
 automatically detect conflicts and/or reconcile them?
 
 ## Core Concepts
 
+### Catalog Resource Hierarchy
+
 Policy will be expressed over the hierarchical catalog model, with
 policies attached to specific resources in the following model
-hierarchy:
+hierarchy (already present in ERMrest catalog introspection):
 
 - Catalog
-  - Schema
-    - Table
-      - Column
-      - Constraint
-
-Constraints are potentially composed of multiple columns, and a column
-is potentially governed by multiple constraints. In ERMrest, this
-resource graph is presented as a flattened tree where each constraint
-or column is instantiated only once as a manageable resource under the
-containing table resource.
+	- Schema
+		- Table
+			- Column
+			- Constraint
 
 ### Access Modes
 
-For the purpose of access control decisions, a number of distinct
-access modes are defined such that permission can be granted or denied
-for each mode separately. Some modes are sub-modes of a more abstract
-mode, allowing easier control of settings when fine control is not
-needed:
+A number of distinct access modes are defined such that permission can
+be granted or denied for each mode separately. Some modes are short-hand
+for a combination of distinct modes, where a general level of access
+can be further sub-divided into very specific scenarios you might control
+separately:
 
-- Own
-  - Write model
-    - Insert new model element
-    - Modify existing model element
-    - Delete existing model element
-  - View existing model element
-  - Write data
-    - Insert new data
-    - Modify existing data
-    - Delete existing data
-  - View existing data
+- Own model (can do everything)
+	- Define model (can make any model change)
+		- Create new model element
+		- Drop model element
+	- Enumerate existing model element
+	- Write data (can make any data change)
+		- Reference to key
+		- Insert new data
+		- Modify existing data
+		- Delete existing data
+	- Select existing data
 
 Ownership is not quite an access mode but convenient to think about as
 the superior mode to all other modes.
+
+The precise meaning of some data access modes varies by resource type:
+
+| Mode   | Table              | Column                        | Reference     |
+|--------|--------------------|-------------------------------|---------------|
+| Reference | N/A             | N/A                           | Make reference to key |
+| Insert | Create new row     | Set value during row insert   | N/A           |
+| Update | Modify row         | Replace value                 | N/A           |
+| Delete | Remove row         | Reset to default value        | N/A           |
+| Select | Observe/detect row | Observe/detect value          | N/A           |
+
+Foreign key reference resources offer control of value expression:
+rather than limiting what row or field can change, they can limit what
+values are allowed to be placed into a field. They complement the row
+and column-level access controls which can only consider the current
+values of data rather than the proposed new value.
 
 ### Policy Scoping and Resource Dependencies
 
@@ -137,59 +122,75 @@ complete request will be granted or denied based on the conjunction of
 policies governing each resource involved in the request.
 
 For example:
-- Data can only be accessed if the enclosing table is visible.
+- Joined sets can only be viewed if all involved data can be viewed.
+- Data can only be viewed if the enclosing table is visible.
 - A table can only be accessed if its enclosing schema is visible.
 - A schema can only be access if its enclosing catalog is visible.
-- A column can only be modified if its governing reference constraints also allow it.
+- A column can only be modified if its governing reference constraints allow the new value.
 
-### Data-Dependence
+### Data-Dependent Policies
 
-Some, but not all, fine-grained access decisions involve data values:
+Some, but not all, fine-grained access decisions involve data values.
+Model-level Access Control Lists (ACLs) support *data-independent*
+decisions, i.e. granting access to all rows of a table uniformly.
+Dynamic ACL bindings support *data-dependent* decisions, i.e. granting
+access to specific rows of a table.
 
-- Model-level Access Control Lists (ACLs) support *data-independent* decisions, i.e. granting access to all rows of a table uniformly.
-- Dynamic ACL bindings support *data-dependent* decisions, i.e. granting access to specific rows of a table.
+Data-dependent policies can grant more selective rights to a client
+that would not be possible with a static policy. The decision process
+depends on the configured policy:
 
-For a particular access mode, the final decision involves a
-disjunction of any data-independent and data-dependent policy in
-effect on that resource. In other words, either policy is sufficient
-to grant access.
+1. A data-access request is not well-formed if it depends model elements that are invisible to the client.
+2. Data-visibility policies determine whether a request is allowed:
+    - If data-independent policies permit an access, it is allowed
+	- If data-dependent policies permit an access, it is allowed
+	- If neither, it is denied
+	
+In practice, this means that ERMrest can statically solve some policy
+decisions and make a decision without investigating actual data
+values. But, in the worst case, it needs to include dynamic policy
+checks to decide if a particular access is allowed or denied.
 
-| ACL grants access? | Dynamic ACL is bound? | Decision process |
-|--------------------|-----------------------|------------------|
-| No                 | No                    | Static (deny)    |
-| No                 | Yes                   | Dynamic          |
-| Yes                | No                    | Static (grant)   |
-| Yes                | Yes                   | Static (grant)   |
+When data-dependent data viewing policies are active, the effective
+result set is *filtered* by the visibility policy. When only static
+viewing policies are in effect, the request will be denied rather than
+returning an empty result set.
 
-When a dynamic decision process is needed, ERMrest can compile an
-appropriate SQL query with the current client identity encoded as
-static conditions in the `WHERE` clause, such that PostgreSQL can
-effectively plan the use of indexed ACL storage columns to determine
-data visibility and compute final access decisions. When a static
-decision is possible, this query complexity can be avoided.
+### Policy Inheritance and Implication
 
-### Policy Inheritance
+A resource owner **always owns all sub-resources**. Any sub-resource
+ownership policy can only extend the privilege to more clients but can
+never block the owners *inherited* from the enclosing resource.
 
-The policy system will be able to distinguish empty `[]` policies
-(i.e. grant nothing) from unconfigured `null` policies (i.e. no local
-policy is expressed). An unconfigured policy means that all access to
-the resource is governed by the policy of its enclosing resource.
+Similarly, a more general access right **always implies all
+sub-rights**. Any sub-mode policy can extend the privilege to more
+clients but can never block the parent mode. For example, a client
+with "data write" privileges also has "data insert" privileges, even
+if the an explicit "data insert" policy is empty on the same resource.
 
-In effect, the enclosing policy is *inherited* by the sub-resource
-unless the sub-resource has its own more specific policy. This allows
-simplified management of many resources subject to an identical
-policy, while allowing targeted overriding of other sibling or
+For non-ownership policies, a locally unconfigured (`null`) policy on
+a sub-resource means the policy will be inherited from the enclosing
+resource. However, any other value including an empty policy (`[]`)
+will *override* the inherited policy for that access mode. Thus,
+lesser privileges may be selectively blocked on specific
 sub-resources.
 
 - A local policy can *restrict* access compared to the enclosing resource
-  - One table is read-only in an otherwise read-write schema
-  - One column is hidden in an otherwise read-write table
+    - One table is read-only in an otherwise read-write schema
+    - One column is hidden in an otherwise read-write table
+    - But ownership can never be restricted in sub-resources
 - A local policy can *broaden* access compared to the enclosing resource
-  - One table is writable in an otherwise read-only schema
-  - One column is mutable in an otherwise read-only table
+    - One table is writable in an otherwise read-only schema
+    - One column is mutable in an otherwise read-only table
+    - Ownership can be extended to more parties on sub-resources
+- A more specific access mode can be *extended* to more clients
+    - One table is writable by a curator group, and another group can only insert new rows
+	- One column is writable by a curator group, and another group can only set values during row insertion
+	- But a curator group with general write access can not be denied row insert access
 - But, access decisions still involve resource dependencies
-  - A table cannot be visible in an invisible schema
-  - A column cannot be accessed in an invisible table
+	- An invisible catalog hides all schemas inside it
+	- An invisible schema hides all tables inside it
+	- An invisible table hides all columns inside it
 
 ### Model-level ACLs
 
@@ -197,17 +198,30 @@ ACLs are distributed throughout the hierarchical model of the catalog.
 
 1. The predefined *name* of each ACL identifies the type of access governed.
 2. The *resource* to which the ACL is attached identifies the scope of the access governed.
-3. The *content* of each ACL is a list of disjunctive matching choices which may include the wildcard `*`.
+3. The *content* of each ACL is a list of disjunctive matching choices which may include the wildcard `*` matching any client.
 
 #### Catalog ACLs
 
 A catalog-level ACL describes what access to permit on the whole
 catalog. Catalogs do not inherit ACLs from elsewhere, so an
-unconfigured ACL is not defined.
+unconfigured catalog ACL is not possible.
 
-During catalog creation the *owner* is set to the requesting client
-and other ACLs are set to empty `[]` if not otherwise specified in the
-request.
+During catalog creation the *owner* defaults to the requesting
+client. Other ACLs are set to empty `[]` if not otherwise specified in
+the request.
+
+For catalogs and all other ERMrest resources described below, it is
+impossible for a client to create or manage a resource while
+disclaiming ownership in the request. They may set the ownership more
+broadly, e.g. to a group for which they are a member, rather than
+listing their client ID as the sole owner. But, they can never
+configure a owner ACL which would prevent them from being an owner at
+the end of the request. The only way to transfer resource ownership is
+to add an additional owner, and then have that other owner strip the
+original owner identity from the owner ACL. Alternatively, ownership
+can be assigned to a particular owners group and then the group
+membership can fluctuate due to external management without changing
+the ERMrest ACL content.
 
 #### Schema ACLs
 
@@ -215,10 +229,10 @@ A schema-level ACL describes what access to permit on the whole
 schema. When not configured locally, the effective schema-level ACL is
 inherited from the catalog.
 
-During schema creation, the *owner* is set to the requesting client or
-to `null` if the client is also an owner of the catalog; all other
-schema ACLs are set to `null` if not otherwise specified in the
-request.
+During schema creation, the *owner* defaults to the requesting client
+or to `null` if the client is also an owner of the catalog at the time
+of creation; all other schema ACLs are set to `null` if not otherwise
+specified in the request.
 
 #### Table ACLs
 
@@ -226,16 +240,22 @@ A table-level ACL describes what access to permit on the whole
 table. When not configured locally, the effective table-level ACL is
 inherited from the schema.
 
-During table creation, the *owner* is set to the requesting client or
-to `null` if the client is also an owner of the table; all other
-table ACLs are set to `null` if not otherwise specified in the
-request.
+During table creation, the *owner* defaults to the requesting client
+or to `null` if the client is also an owner of the table at the time
+of creation; all other table ACLs are set to `null` if not otherwise
+specified in the request.
 
 [Dynamic table-level ACL bindings](#dynamic-table-acls) can augment
-table-level ACLs to enable access to only a subset of data rows.
+table-level ACLs to enable access to only a subset of data rows.  The
+presence of dynamic ACL bindings for data retrieval access modes
+suppresses a `403 Forbidden` response which would otherwise be
+generated in the absence of a static ACL granting read access;
+instead, a `200 OK` response is generated where any denied row is
+absent from the result set.
 
 All static and dynamic table ACLs are disjunctively considered when
-deciding access.
+deciding row access. Any access denied decision for data modifying
+requests will continue to raise a `403 Forbidden` response.
 
 #### Column ACLs
 
@@ -243,21 +263,34 @@ A column-level ACL describes what access to permit on the whole
 column. When not configured locally, the effective column-level ACL is
 inherited from the table.
 
-During column creation, the *owner* is set to the requesting client or
-to `null` if the client is also an owner of the column; all other
-column ACLs are set to `null` if not otherwise specified in the
-request.
+Columns are considered part of the enclosing table resource and do not
+have separable ownership. Column ACLs are set to `null` if not
+otherwise specified in the request.
 
-[Dynamic column-level ACL bindings](#dynamic-column-acls) can augment
+[Dynamic column ACL bindings](#dynamic-column-acls) can augment
 column-level ACLs to enable access to only a subset of data fields in
-this column.
+this column.  The presence of dynamic ACL bindings for data retrieval
+access modes suppresses a `403 Forbidden` response which would
+otherwise be generated in the absence of a static ACL granting read
+access; instead, a `200 OK` response is generated where any denied
+field is replaced with a NULL value.
 
-[Dynamic constraint-level ACL bindings](#dynamic-reference-acls) can
-augment column-level ACLs to enable expression of only a subset of
-data in a column governed by that constraint.
+#### Reference ACLs
 
-All static and dynamic column ACLs are disjunctively considered when
-deciding access.
+A reference-level ACL describes whether to permit foreign key
+references to be expressed. When not configured locally, the effective
+reference-level ACL is inherited from the table.
+
+Reference constraints are considered part of the enclosing table
+resource and do not have separable ownership. Reference ACLs are set
+to `null` if not otherwise specified in the request.
+
+[Dynamic reference ACL bindings](#dynamic-reference-acls) can augment
+column-level ACLs to enable expression of only a subset of data in a
+column governed by that constraint. These bindings only affect data
+modification requests. These ACLs are actually managed on foreign key
+reference constraints, but their effect is to limit what new values
+can be expressed in the foreign key's constituent columns.
 
 ### Dynamic ACL Bindings
 
@@ -265,21 +298,29 @@ Dynamic ACL bindings configure sources of ACL content associated with
 each individual tuple or datum, i.e. a query which projects
 user attributes out of the data catalog itself:
 
-1. An arbitrary *name* of each ACL binding facilitates subsequent management tasks on the policy.
-2. The predefined *type* of each ACL binding identifies the type of access governed.
+1. The predefined *type* of each ACL binding identifies the mode of access governed.
+2. An arbitrary *name* of each ACL binding facilitates subsequent management tasks on the policy.
 3. The *resource* to which the ACL binding is attached identifies the scope of the access governed.
 4. The *projection* of each ACL binding describes how to retrieve ACL content.
 
 ACL binding projections are a form of ERMrest attribute query in which
 the query path and projection syntax is specified without the base
-table instance. The base table instance is implicitly defined by the
-resource scope in which the binding is declared.
+table instance. The base table instance is inferred from the resource
+scope of the binding.
+
+It is the responsibility of the data modeler to create self-consistent
+policies. For example, a dynamic ACL binding is only effective for
+access control if the ACL storage itself is protected from unwanted
+changes. Because the ACL storage is within the database and subject to
+data modification APIs, appropriately restrictive policies must be
+defined to protect the stored ACL content.
 
 ### Dynamic Defaults
 
 TBD. Provide some remotely manageable mechanism to do basic
 provenance-tracking idioms where we currently need to use SQL
-triggers?
+triggers?  I.e. store a client identity, client object, or some data
+determined indirectly via a query constrained by client attributes?
 
 #### Dynamic Table ACLs
 
@@ -287,13 +328,13 @@ A table-level ACL binding describes how to retrieve ACLs which govern
 access to rows of a table.
 
 - The base table for the projection is the bound table itself.
-  - ACLs can be stored in columns of the table itself
-  - ACLs can be stored in related entities
+    - ACLs can be stored in columns of the table itself
+    - ACLs can be stored in related entities
 - Governed access modes cover whole-entity access:
-  - Row visibility
-  - Insert
-  - Update
-  - Delete
+    - Row visibility (invisible rows are filtered from results)
+    - Row writing
+        - Row update
+        - Row delete
 
 #### Dynamic Column ACLs
 
@@ -301,56 +342,61 @@ A column-level ACL binding describes how to retrieve ACLs which govern
 access to fields within rows of a table.
 
 - The base table for the projection is the enclosing table resource for the bound column.
-  - ACLs can be stored in sibling columns of the same table
-  - ACLs can be stored in related entities
+    - ACLs can be stored in sibling columns of the same table
+    - ACLs can be stored in related entities
 - Governed access modes cover individual field (table cell) access:
-  - Datum visibility
-  - Datum expression during row inserts
-  - Datum mutation during row updates
+    - Field visibility (invisible fields are replaced with NULLs)
+	- Field writing
+        - Field targeted during row updates
+		- Field cleared by attribute deletes
   
 Column-level dynamic ACLs are not involved in row deletion decisions.
 
 #### Dynamic Reference ACLs
 
 A reference-level ACL binding describes how to retrieve ACLs which
-govern access to fields within rows of a table which are subject to a
-foreign key reference constraint.
+govern expression of data within fields which are subject to a foreign
+key reference constraint.
 
-- The base table for the projection is the referenced table resource for the bound reference constraint.
-  - ACLs can be stored in sibling columns of the referenced key
-  - ACLs can be stored in related entities of the referenced domain
+- The base table for the projection is the referenced table resource, i.e. the domain table for the constraint.
+    - ACLs can be stored in sibling columns of the referenced key
+    - ACLs can be stored in related entities of the referenced entities
 - Governed access modes cover individual domain datum access:
-  - Reference visibility
-  - Reference expression during row inserts
-  - Reference mutation during row updates
+    - Value writing during row insertion or update
+	
+No access control distinction is allowed between reference value
+insertion during row creation and reference value insertion during row
+update.
   
-Reference-level dynamic ACLs are not involved in row deletion decisions.
+Reference-level dynamic ACLs are not involved in row deletion
+decisions nor in default value expression during row creation.
 
 ## Technical Reference
 
 ### Available ACL Names
 
-All of the previously described [access modes](#access-modes) have a
-corresponding ACL name associated with them.
+Most of the previously described [access modes](#access-modes) have a
+corresponding ACL name associated with them. Some model access rights
+are not separately controlled and instead require full ownership
+rights. This might change in future revisions.
 
-| ACL Name      | Mode         | Implies                |
-|---------------|--------------|------------------------|
-| owner         | Own          | \*                     |
-| model\_write  | Write model  | model\_\*, data\_\*    |
-| model\_insert | Insert model |                        |
-| model\_update | Update model | model\_read            |
-| model\_delete | Delete model | model\_read            |
-| model\_read   | View model   |                        |
-| data\_write   | Write data   | model\_read, data\_\*  |
-| data\_insert  | Insert data  | model\_read            |
-| data\_update  | Modify data  | model\_read, data\_read |
-| data\_delete  | Delete data  | model\_read, data\_read |
-| data\_read    | View data    | model\_read            |
+| ACL Name  | Mode                 | Implies           |
+|-----------|----------------------|-------------------|
+| owner     | Own                  | *all privileges*  |
+| create    | Create model element | enumerate         |
+| enumerate | Enumerate model      |                   |
+| write     | Write data           | enumerate, insert, update, select |
+| insert    | Insert data          | enumerate         |
+| update    | Modify data          | enumerate, select |
+| delete    | Delete data          | enumerate, select |
+| select    | Select data          | enumerate         |
 
-- Ownership rights imply all access rights to the same resource.
-- Model mutation rights imply model viewing rights to the same resource.
-- Data access rights imply model viewing rights to the same resource.
-- Data mutation rights imply data viewing rights to the same data.
+Because more general access mode rights imply lesser access mode
+rights and sub-resources inherit ACLs, brevity in policy
+configurations can be achieved:
+- A small set of owners need not be repeated in other ACLs
+- Less privileged roles are mentioned only in their corresponding lesser ACLs
+- Sub-resource ACLs can be set to `null` unless local overrides are needed
 
 ### ACL Representation
 
@@ -366,15 +412,16 @@ example:
 	  "tables": ...,
 	  "acls": {
 	    "owner": ["some/user/URI"],
-		"model_read": ["*"]
+		"select": ["*"]
 	  }
 	}
 
-This example has locally configured ACLs for the schema owner and the
-schema readers, but inherits other ACLs from the enclosing
-catalog. For brevity, ACL names with `null` configuration are omitted
-from the canonical representation. Specifying each such ACL name with 
-a literal `null` has the same meaning.
+This example has locally configured ACLs for the schema owner and
+permits public access to enumerate the schema and select data, but
+inherits other ACLs from the enclosing catalog. For brevity, ACL names
+with `null` configuration are omitted from the canonical
+representation. Specifying each such ACL name with a literal `null`
+has the same meaning.
 
 ### ACL Management
 
@@ -385,42 +432,48 @@ sub-API is supported on each resource to address one ACL by name.
 
 - `.../acl`: collection of all named ACLs
   - GET: retrieve ACL collection
-  - PUT: replace ACL collection
-  - DELETE: unconfigure ACL collection
+  - PUT: replace all ACLs in collection
+  - DELETE: unconfigure all ACLs in collection
 - `.../acl/name`: individually named ACL
   - GET: retrieve one ACL
   - PUT: replace one ACL
   - DELETE: unconfigure one ACL
 
-An ACL collection returns a JSON representation identical to that
-described previously, providing an object keyed by ACL name where
-unconfigured ACLs are omitted. Each individual ACL is a JSON array of
-strings.
+An ACL collection is the sub-resource described previously: an object
+keyed by ACL name where unconfigured ACLs are omitted. Each individual
+ACL is a JSON array of strings.
 
-| Governed Resource | Example ACL URL                                                   |
-|-------------------|-------------------------------------------------------------------|
-| Catalog           | /catalog/N/acl/owner |
-| Schema            | /catalog/N/schema/S/acl/owner |
-| Table             | /catalog/N/schema/S/table/T/acl/owner |
-| Column            | /catalog/N/schema/S/table/T/column/C/acl/owner |
+| Governed Resource | Example for ACL name `A`  |
+|-------------------|---------------------------|
+| Catalog           | /catalog/N/acl/A          |
+| Schema            | /catalog/N/schema/S/acl/A |
+| Table             | /catalog/N/schema/S/table/T/acl/A |
+| Column            | /catalog/N/schema/S/table/T/column/C/acl/A |
 
 ### Available Dynamic ACL Types
 
 Some of the previously described [access modes](#access-modes) have a
-corresponding dynamic ACL type associated with them.
+corresponding dynamic ACL type associated with them. Because dynamic ACLs
+are for data-dependent access, they have more restrictive applicability:
 
-| ACL Type     | Mode         | Implies                |
-|--------------|--------------|------------------------|
-| data\_owner  | Own data     | data\_\*               |
-| data\_insert | Insert data  |                        |
-| data\_update | Modify data  | data\_read             |
-| data\_delete | Delete data  | data\_read             |
-| data\_read   | View data    |                        |
+| Type   | Mode        | Implies                | Supported Resources |
+|--------|-------------|------------------------|---------------------|
+| refer  | Reference   |                        | reference           |
+| owner  | Write data  | update, delete, select | table, column       |
+| update | Modify data |                        | table, column       |
+| delete | Delete data |                        | table, column       |
+| select | View data   |                        | table, column       |
 
-- Dynamic data rights do not imply model access. Model access must be determined in a data-independent manner.
-- Dynamic ownership rights imply all dynamic data access rights to the same data.
-- Dynamic data mutation rights imply dynamic data viewing rights to the same data.
-- Dynamic insertion rights are only applicable to foreign key reference constraints where they govern the use of a domain datum during insertion to the referring table.
+Table and column-level dynamic ACLs are only applicable to access
+requests against existing database content. Insertion of new rows can
+only be granted by a static policy. However, reference-level dynamic
+ACLs can grant or deny the ability to refer to specific foreign keys 
+even during row insertion.
+
+Dynamic data rights do not imply model access. Model access must be
+determined in a data-independent manner in order to even pose an
+access request which might be granted by dynamic access rights.
+
 
 ### Dynamic ACL Binding Representation
 
@@ -439,11 +492,11 @@ representation as in the following example:
 	  "keys": ...,
 	  "foreign_keys": ...,
 	  "acls": {
-		"data_write": ["some/curator/URI"]
+		"write": ["some/curator/URI"]
 	  },
 	  "acl_bindings": {
-	    "My Row Owners": {
-		  "type": "data_owner",
+	    "My Binding": {
+		  "type": "owner",
 		  "projection": "Managed%20By"
 		}
 	  }
@@ -453,7 +506,7 @@ This example has an explicitly set, data-independent curator group who
 can modify all rows in the table, while other data-independent ACLs
 are inherited from the enclosing schema. A dynamic ACL binding called
 `My Row Owners` specifies that an ACL stored in the `Managed By`
-column of the table grants `data_owner` access type for individual
+column of the table grants `owner` dynamic access type for individual
 rows.
 
 #### Projection Strings
@@ -461,7 +514,7 @@ rows.
 The `"projection"` field of the ACL binding is a string using the
 ERMrest URL syntax defined for the `/attribute/` API. It assumes that
 a *base row query* similar to
-`/ermrest/catalog/N/attribute/Base/key=X` will be formulated by the
+`/ermrest/catalog/N/attribute/Base/key=X/` will be formulated by the
 system, and the projection string is the suffix necessary to turn this
 into an ACL projection query. E.g. in the
 [dynamic ACL example](#dynamic-acl-binding-representation) above, the
@@ -471,12 +524,10 @@ to form a complete ACL projection query:
     /ermrest/catalog/N/attribute/My%20Schema:My20Table/key=X/Managed%20By
 
 The projection MUST be a single column of type `text` or
-`text[]`. Zero or more rows MAY be returned for a given base URL,
-representing the dynamic ACL content for that one base row. For type
-`text`, the effective ACL is the aggregated list of all returned text
-values, each representing one user attribute. For type `text[]`, the
-effective ACL is the union of all returned arrays, each containing
-zero or more user attributes.
+`text[]`. Zero or one rows MAY be returned for a given base URL,
+representing the dynamic ACL content for that one base row. A result
+of type `text` is considered to be equivalent to an array with that
+single text value as its only member.
 
 ### Dynamic ACL Binding Management
 
@@ -500,11 +551,161 @@ that described previously, providing an object keyed by ACL binding
 name. Each individual ACL binding is a JSON object with `"type"` and
 `"projection"` fields.
 
-| Governed Resource | Example ACL Binding URL                                           |
-|-------------------|-------------------------------------------------------------------|
+| Governed Resource | Example ACL Binding URL                                       |
+|-------------------|---------------------------------------------------------------|
 | Table             | /ermrest/catalog/N/schema/S/table/T/acl\_binding/My%20Binding |
 | Column            | /ermrest/catalog/N/schema/S/table/T/column/C/acl\_binding/My%20Binding |
 | Foreign Key       | /ermrest/catalog/N/schema/S/table/T/foreignkey/C1/reference/S2:T2/C2/acl\_binding/My%20Binding |
+
+## Access Decision Introspection
+
+Because many user-interfaces benefit from anticipating policy
+decisions and customizing the options presented to the user, ERMrest
+exposes decision information summarizing the effects of currently
+active policy. These rights summaries take into account the requesting
+client's privileges.
+
+The decision information is presented in different ways depending
+on the resource and access mode:
+
+1. An invisible catalog will raise an access error for all access requests.
+2. An invisible model element will be omitted from the catalog introspection response and raise an error for all direct access or dependent access requests (i.e. a client guessing at model elements not shown in the introspection).
+    - Schemas can be entirely hidden.
+	- Tables can be entirely hidden.
+	- Columns can be entirely hidden.
+3. Some access rights will be advertised on model elements in the introspection document.
+4. An invisible row or datum will be filtered during queries (both for data retrieval and queries in support of data-modifying requests).
+5. Datum-specific access rights will be advertised on retrieved data rows.
+6. Datum-specific expression rights will be advertised on foreign key reference constraints as a filtered domain query.
+
+### Static Rights Summary
+
+The `"rights"` sub-resources appear throughout the schema
+introspection document to describe the requesting client's rights. The
+following illustrates where these rights are distributed on sub-resources:
+
+	{
+	  "rights": {
+	    "create": bool,
+	    "revise": bool,
+	    "drop": bool
+	  },
+	  "schemas": {
+	    "S": {
+	      "rights": {
+	        "create": bool,
+	        "revise": bool,
+	        "drop": bool
+	      },
+	      "tables": {
+	        "T": {
+	          "rights": {
+	            "create": bool,
+	            "revise": bool,
+	            "drop": bool,
+	            "insert": bool,
+	            "update": bool,
+	            "delete": bool,
+	            "select": bool
+	          },
+	          "column_definitions": [
+	            {
+	              "name": "C",
+	              "rights": {
+	                "insert": bool,
+	                "update": bool,
+	                "delete": bool,
+	                "select": bool
+	              }
+	            },
+	            ...
+	          ],
+	   	      "foreign_keys": [
+	            {
+	              "rights": {
+	                "domain_query": url
+	              },
+	              ...
+	            },
+	            ...
+	          ]
+	        },
+	        ...
+	      }
+	    },
+	    ...
+	  }
+	}
+
+
+Model enumeration access is not indicated through the `"rights"`
+sub-resource. Rather, a model element which does not grant enumeration
+will be omitted from the catalog introspection results.
+
+### Row-Level Rights Summary
+
+The ??? virtual column is available on data rows and has the following
+structure:
+
+	{
+	  "update": bool,
+	  "delete": bool,
+	  "column": {
+	    "Column Name": {
+	      "update": bool,
+	      "delete": bool
+	    },
+	    ...
+	  }
+	}
+	
+The row-level rights document advertises the ability to perform
+certain REST operations affecting the row:
+
+- `table.rights.update` with `true` value is required for:
+	- PUT /entity/
+	- PUT /attributegroup/
+	- DELETE /attribute/
+- `table.rights.delete` with `true` value is required for:
+	- DELETE /entity/
+
+However, the row-level rights are necessary but not sufficient for all
+such operations. Any affected column must also have sufficient
+column-level rights.
+
+- `column.rights.update` with `true` is required for:
+	- PUT /entity/ for each non-key column
+	- PUT /attributegroup/ for each targeted column
+- `column.rights.delete` with `true` is required for:
+	- DELETE /attribute/ for each targeted column
+
+However, row and column-level rights are necessary but not sufficient
+for all such operations. Any affected column must also have sufficient
+reference-level rights if it is governed by foreign keys.
+
+- `reference.rights.domain_query` allows discovery of permitted reference values
+
+### Predicting Access Decisions
+
+To predict whether a given request will be permitted, all of the
+static and row-level rights summaries must be consulted together:
+
+1. All involved model resources must be visible in the enumerated model document.
+2. The operation must be allowed by all involved model resources
+	- Model rights must allow model access operations
+	- Static data-access rights must allow data access operations
+		- Affected table or tables must allow access in rights advertised on table
+		- Affected column or columns must allow access in rights advertised on columns
+3. Row-dependent access rights must allow access on existing data
+	- Affected rows and their affected fields must be visible
+    - Affected row rights must allow data modification operations
+	- Affected row-column rights must allow data modification operations
+4. Allowed reference values can be found via _domain query_ URL listed under foreign key rights
+
+Keep in mind, even when all rights seem to allow an operation, the
+subsequent operation may still fail due to either asynchronous changes
+to server state or due to other integrity constraints and operational
+considerations not included in the policy system introspection.
 
 ## Usage Scenarios
 
