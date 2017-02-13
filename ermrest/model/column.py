@@ -121,7 +121,7 @@ DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trgm_ops ) ;
 """ % dict(schema=sql_identifier(self.table.schema.name),
            table=sql_identifier(self.table.name),
-           index_val='(%s::text)' % self.sql_name_astext_with_talias(None),
+           index_val=self.sql_name_astext_with_talias(None),
            index=sql_identifier("%s_%s_pgtrgm_idx" % (self.table.name, self.name))
        )
         else:
@@ -226,15 +226,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
 
     def sql_name_astext_with_talias(self, talias):
         name = '%s%s' % (talias + '.' if talias else '', self.sql_name())
-
-        bt = self.type
-        while bt.is_domain or bt.is_array:
-            bt = bt.base_type
-
-        if str(bt) in ['timestamptz', 'timestamp', 'date', 'time', 'timetz']:
-            return '_ermrest.ts_iso8601(%s)' % name
-        else:
-            return name
+        return '_ermrest.astext(%s)' % name
 
 class FreetextColumn (Column):
     """Represents virtual table column for free text search.
@@ -261,37 +253,28 @@ class FreetextColumn (Column):
         else:
             # internal column reference for predicate evaluation
             colnames = [ c.sql_name_astext_with_talias(talias) for c in self.srccols ]
-            if colnames:
-                return " || ' ' || ".join([ "COALESCE(%s::text,''::text)" % name for name in colnames ])
-            else:
-                return "''::text"
+            if not colnames:
+                colnames = [ "NULL::text" ]
+            return set(colnames)
 
     def is_star_column(self):
         return True
 
     def textsearch_index_sql(self):
+        # drop legacy index
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin (
-  (to_tsvector('english'::regconfig, %(fulltext)s))
-);
 """ % dict(
             schema=sql_identifier(self.table.schema.name),
-            table=sql_identifier(self.table.name),
             index=sql_identifier("%s__tsvector_idx" % self.table.name),
-            fulltext=self.sql_name_with_talias(None)
            )
 
     def pg_trgm_index_sql(self):
+        # drop legacy index
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin (
-  (%(fulltext)s) gin_trgm_ops
-);
 """ % dict(
             schema=sql_identifier(self.table.schema.name),
-            table=sql_identifier(self.table.name),
             index=sql_identifier("%s__pgtrgm_idx" % self.table.name),
-            fulltext=self.sql_name_with_talias(None)
            )
 

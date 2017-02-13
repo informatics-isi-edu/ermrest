@@ -378,6 +378,9 @@ ctypes=(
     longtext
     markdown
     timestamptz
+    timestamp
+    timetz
+    time
     date
     uuid
     interval
@@ -398,7 +401,10 @@ cvals=(
     one
     oneoneoneone
     '**one**'
-    '2015-03-11T11:32:56-0700'
+    '2015-03-11T11:32:56-0000'
+    '2015-03-11T11:32:56'
+    '11:32:56-0000'
+    '11:32:56'
     '2015-03-11'
     '2648a44e-c81d-11e4-b6d7-00221930f5cc'
     'P1Y2M3DT4H5M6S'
@@ -514,6 +520,9 @@ EOF
 		;;
 	    jsonb)
 		pat='foo.%2Abar'
+		;;
+	    time*)
+		pat='56'
 		;;
 	    *)
 		pat='1'
