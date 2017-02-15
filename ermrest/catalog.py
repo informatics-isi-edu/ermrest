@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -343,12 +343,36 @@ CREATE DOMAIN longtext text;
 CREATE DOMAIN markdown text;
 CREATE DOMAIN gene_sequence text;
 
-CREATE OR REPLACE FUNCTION %(schema)s.ts_iso8601(anynonarray) RETURNS text IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION %(schema)s.astext(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.ts_iso8601(anyarray) RETURNS text IMMUTABLE AS $$
-  SELECT array_agg(%(schema)s.ts_iso8601(v))::text FROM unnest($1) s(v);
+CREATE OR REPLACE FUNCTION %(schema)s.astext(timestamp) RETURNS text IMMUTABLE AS $$
+  SELECT to_char($1, 'YYYY-MM-DD"T"HH24:MI:SS');
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION %(schema)s.astext(timetz) RETURNS text IMMUTABLE AS $$
+  SELECT to_char(date_part('hour', $1 AT TIME ZONE 'UTC'), '09') 
+     || ':' || to_char(date_part('minute', $1 AT TIME ZONE 'UTC'), '09') 
+     || ':' || to_char(date_part('second', $1 AT TIME ZONE 'UTC'), '09');
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION %(schema)s.astext(time) RETURNS text IMMUTABLE AS $$
+  SELECT to_char(date_part('hour', $1), '09') 
+     || ':' || to_char(date_part('minute', $1), '09') 
+     || ':' || to_char(date_part('second', $1), '09');
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION %(schema)s.astext(date) RETURNS text IMMUTABLE AS $$
+  SELECT to_char($1, 'YYYY-MM-DD');
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION %(schema)s.astext(anyarray) RETURNS text IMMUTABLE AS $$
+  SELECT array_agg(%(schema)s.astext(v))::text FROM unnest($1) s(v);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION %(schema)s.astext(anynonarray) RETURNS text IMMUTABLE AS $$
+  SELECT $1::text;
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION %(schema)s.current_client() RETURNS text STABLE AS $$

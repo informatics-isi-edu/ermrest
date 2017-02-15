@@ -168,12 +168,44 @@ CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE A
   SELECT current_setting('webauthn2.attributes_array')::text[];
 \$\$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION _ermrest.ts_iso8601(anynonarray) RETURNS text IMMUTABLE AS \$\$
+DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anynonarray) CASCADE;
+DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anyarray) CASCADE;
+DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(date) CASCADE;
+DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timestamptz) CASCADE;
+DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timestamp) CASCADE;
+DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timetz) CASCADE;
+DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(time) CASCADE;
+
+CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS \$\$
   SELECT to_char(\$1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
 \$\$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION _ermrest.ts_iso8601(anyarray) RETURNS text IMMUTABLE AS \$\$
-  SELECT array_agg(_ermrest.ts_iso8601(v))::text FROM unnest(\$1) s(v);
+CREATE OR REPLACE FUNCTION _ermrest.astext(timestamp) RETURNS text IMMUTABLE AS \$\$
+  SELECT to_char(\$1, 'YYYY-MM-DD"T"HH24:MI:SS');
+\$\$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.astext(timetz) RETURNS text IMMUTABLE AS \$\$
+  SELECT to_char(date_part('hour', \$1 AT TIME ZONE 'UTC'), '09') 
+     || ':' || to_char(date_part('minute', \$1 AT TIME ZONE 'UTC'), '09') 
+     || ':' || to_char(date_part('second', \$1 AT TIME ZONE 'UTC'), '09');
+\$\$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.astext(time) RETURNS text IMMUTABLE AS \$\$
+  SELECT to_char(date_part('hour', \$1), '09') 
+     || ':' || to_char(date_part('minute', \$1), '09') 
+     || ':' || to_char(date_part('second', \$1), '09');
+\$\$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.astext(date) RETURNS text IMMUTABLE AS \$\$
+  SELECT to_char(\$1, 'YYYY-MM-DD');
+\$\$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.astext(anyarray) RETURNS text IMMUTABLE AS \$\$
+  SELECT array_agg(_ermrest.astext(v))::text FROM unnest(\$1) s(v);
+\$\$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE AS \$\$
+  SELECT \$1::text;
 \$\$ LANGUAGE SQL;
 
 COMMIT;
