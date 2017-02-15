@@ -1665,6 +1665,7 @@ class TextFacet (AnyPath):
     def columns(self):
         """Generate (schema, table, column) set."""
         def get_policy(policy, name):
+            policy = policy if policy else {}
             if policy is True:
                 return policy
             elif name in policy:
