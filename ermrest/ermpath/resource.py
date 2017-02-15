@@ -1705,6 +1705,8 @@ class TextFacet (AnyPath):
                 cid=sql_identifier(column.name)
             )
             for sname, tname, column in self.columns()
+        ] + [
+            """(SELECT 's' AS "schema", 't' AS "table", 'c' AS "column" WHERE false)"""
         ]
         return ' UNION ALL '.join(queries)
                     
