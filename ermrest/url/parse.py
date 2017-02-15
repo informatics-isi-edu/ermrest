@@ -143,18 +143,7 @@ def p_meta_key_value(p):
 
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """
-    p[0] = p[1].textfacet(
-        ast.data.predicatecls('ciregexp')(
-            ast.Name().with_suffix('value'),
-            ast.Value(p[4])
-        ),
-        ast.NameList([
-            ast.Name().with_suffix('schema'),
-            ast.Name().with_suffix('table'),
-            ast.Name().with_suffix('column')
-        ]),
-        ast.NameList()
-    )
+    p[0] = p[1].textfacet(ast.Value(p[4]))
     
 def p_entity(p):
     """entity : catalogslash ENTITY '/' entityelem1 """

@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -838,7 +838,7 @@ class AnyPath (object):
             cur.execute(sql)
             
             return make_row_thunk(None, cur, content_type)()
-        
+
 class EntityPath (AnyPath):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
 
@@ -1647,3 +1647,63 @@ def row_to_csv(row, desc=None):
         web.debug('row_to_csv', row, e)
 
        
+class TextFacet (AnyPath):
+
+    def __init__(self, catalog, model, pattern):
+        self.catalog = catalog
+        self._model = model
+        self.pattern = pattern
+
+    def add_sort(self, sort):
+        """Dummy interface."""
+        pass
+
+    def add_paging(self, after, before):
+        """Dummy interface."""
+        pass
+            
+    def columns(self):
+        """Generate (schema, table, column) set."""
+        def get_policy(policy, name):
+            if policy is True:
+                return policy
+            elif name in policy:
+                return policy[name]
+            else:
+                return {}
+
+        policy = web.ctx.ermrest_config.get('textfacet_policy', False)
+            
+        for sname, schema in self._model.schemas.items():
+            s_policy = get_policy(policy, sname)
+            if s_policy:
+                for tname, table in schema.tables.items():
+                    t_policy = get_policy(s_policy, tname)
+                    if t_policy:
+                        for cname, column in table.columns.items():
+                            c_policy = get_policy(t_policy, cname)
+                            if c_policy:
+                                yield (sname, tname, column)
+
+    def get_data_version(self, cur):
+        """Get data version txid considering all tables in catalog."""
+        cur.execute("""SELECT COALESCE(max(snap_txid), 0) AS snap_txid FROM _ermrest.data_version""")
+        version = next(cur)
+        return version
+
+    def sql_get(self, row_content_type='application/json', limit=None):
+        queries = [
+            # column ~* pattern is ciregexp...
+            """(SELECT %(stext)s::text AS "schema", %(ttext)s::text AS "table", %(ctext)s::text AS "column" FROM %(sid)s.%(tid)s WHERE _ermrest.astext(%(cid)s) ~* %(pattern)s LIMIT 1)""" % dict(
+                stext=sql_literal(sname),
+                ttext=sql_literal(tname),
+                ctext=sql_literal(column.name),
+                pattern=sql_literal(unicode(self.pattern)),
+                sid=sql_identifier(sname),
+                tid=sql_identifier(tname),
+                cid=sql_identifier(column.name)
+            )
+            for sname, tname, column in self.columns()
+        ]
+        return ' UNION ALL '.join(queries)
+                    

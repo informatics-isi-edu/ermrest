@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -180,36 +180,26 @@ def _DELETE(handler, uri, resource, vresource):
 class TextFacet (Api):
     """A specific text facet by textfragment.
 
-       HACK: Parameters for the corresponding AttributeGroupPath query
-       are built by the URL parser to avoid circular dependencies in
-       the AST sub-modules.
-
     """
 
     default_content_type = 'application/json'
 
-    def __init__(self, catalog, filterelem, facetkeys, facetvals):
+    def __init__(self, catalog, pattern):
         Api.__init__(self, catalog)
-        self.filterelem = filterelem
-        self.facetkeys = facetkeys
-        self.facetvals = facetvals
         self.http_vary.add('accept')
         cur = web.ctx.ermrest_catalog_pc.cur
         self.enforce_content_read(cur)
         self.model = self.catalog.manager.get_model(cur)
-        epath = ermpath.EntityPath(self.model)
-        epath.set_base_entity(self.model.ermrest_schema.tables['valuemap'])
-        epath.add_filter(self.filterelem)
-        self.agpath = ermpath.AttributeGroupPath(
-            epath,
-            _preprocess_attributes(epath, self.facetkeys),
-            _preprocess_attributes(epath, self.facetvals)
+        self.textfacet = ermpath.TextFacet(
+            catalog,
+            self.model,
+            pattern
         )
 
     def GET(self, uri):
         """Perform HTTP GET of text facet.
         """
-        return _GET(self, uri, self.agpath, self.agpath.epath)
+        return _GET(self, uri, self.textfacet, self.textfacet)
 
 class Entity (Api):
     """A specific entity set by entitypath."""
