@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ from .key import Unique, ForeignKey, KeyReference
 
 import urllib
 import json
+import web
 
 @commentable()
 @annotatable('table', dict(
@@ -150,12 +151,22 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         for k, v in annotations.items():
             table.set_annotation(conn, cur, k, v)
 
+        def execute_if(sql):
+            if sql:
+                cur.execute(sql)
+            
         for column in columns:
             if column.comment is not None:
                 column.set_comment(conn, cur, column.comment)
             for k, v in column.annotations.items():
                 column.set_annotation(conn, cur, k, v)
-
+            try:
+                execute_if(column.btree_index_sql())
+                execute_if(column.pg_trgm_index_sql())
+            except Exception, e:
+                web.debug(table, column, e)
+                raise
+                
         return table
 
     def delete(self, conn, cur):

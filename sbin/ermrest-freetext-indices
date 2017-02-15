@@ -21,11 +21,25 @@ def catalog_auto_index(catalog, conn, cur, schema_names):
             if table.kind not in ['r']:
                 continue
             column = table.freetext_column()
-            cur.execute(column.textsearch_index_sql())
-            cur.execute(column.pg_trgm_index_sql())
+            try:
+                cur.execute(column.textsearch_index_sql())
+            except:
+                sys.stderr.write(column.textsearch_index_sql() + '\n')
+                raise
+                
+            try:
+                cur.execute(column.pg_trgm_index_sql())
+            except:
+                sys.stderr.write(column.pg_trgm_index_sql() + '\n')
+                raise
+            
             def execute_if(s):
                 if s:
-                    cur.execute(s)
+                    try:
+                        cur.execute(s)
+                    except:
+                        sys.stderr.write(s + '\n')
+                        raise
             for column in table.columns.values():
                 cur.execute('SAVEPOINT svpoint1')
                 try:
@@ -66,7 +80,7 @@ def main(argv):
             sys.stderr.write("Invalid catalog ID '%s'.\n" % argv[0])
             return 1
 
-        schema_names = argv[1:]
+        schema_names = map(lambda s: s.decode('utf8'), argv[1:])
     else:
         sys.stderr.write("Catalog ID and at least one schema name are required arguments.\n")
         return 1
@@ -91,7 +105,7 @@ def main(argv):
         sys.stderr.write(str(e) + "\n")
         return 4
     except Exception, e:
-        sys.stderr.write(str(e)+ "\n")
+        sys.stderr.write(str("%s: %s\n" % (type(e), e)))
         return 5
 
     return 0

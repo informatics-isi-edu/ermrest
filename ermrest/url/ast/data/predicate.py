@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,25 +118,31 @@ class BinaryTextPredicate (BinaryPredicate):
 
     def _sql_left_value(self):
         """Generate SQL column value expression to allow overriding by subclasses."""
-        if hasattr(self.left_col, 'sql_name_with_talias'):
-            name = self.left_col.sql_name_with_talias('t%d' % self.left_elem.pos)
+        if hasattr(self.left_col, 'sql_name_astext_with_talias'):
+            return self.left_col.sql_name_astext_with_talias('t%d' % self.left_elem.pos)
         else:
-            name = "t%d.%s" % (
+            return "t%d.%s::%s" % (
                 self.left_elem.pos,
-                self.left_col.sql_name()
-                )
-        return "%s::%s" % (name, self._sql_left_type)
+                self.left_col.sql_name(),
+                self._sql_left_type
+            )
 
     def _sql_right_value(self):
         return self.right_expr.sql_literal(model.text_type)
 
     def sql_where(self, epath, elem):
-        return '%s %s %s' % (
-            self._sql_left_value(),
-            self.sqlop,
-            self._sql_right_value()
+        def where_one(left):
+            return '(%s %s %s)' % (
+                left,
+                self.sqlop,
+                self._sql_right_value()
             )
-
+            
+        left = self._sql_left_value()
+        if type(left) is set:
+            return '(%s)' % ' OR '.join(map(where_one, left))
+        else:
+            return where_one(left)
 
 _ops = dict()
 
@@ -190,7 +196,13 @@ class TextsearchPredicate (BinaryTextPredicate):
     sqlop = '@@'
 
     def _sql_left_value(self):
-        return 'to_tsvector(%s)' % BinaryTextPredicate._sql_left_value(self)
+        def wrap(left):
+            'to_tsvector(%s)' % left
+        left = BinaryTextPredicate._sql_left_value(self)
+        if type(left) is set:
+            return set(map(wrap, left))
+        else:
+            return wrap(left)
 
     def _sql_right_value(self):
         return 'to_tsquery(%s)' % BinaryTextPredicate._sql_right_value(self)

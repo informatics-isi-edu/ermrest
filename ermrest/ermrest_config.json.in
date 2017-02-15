@@ -33,7 +33,10 @@
         "serial4": { "aliases": [ "serial" ] },
         "serial8": { "aliases": [ "bigserial" ] },
         "text": { "aliases": [ "character varying" ] },
-        "timestamptz": { "aliases": [ "timestamptz", "timestamp with time zone" ] },
+        "timestamptz": { "aliases": [ "timestamp with time zone" ] },
+        "timestamp": { "aliases": [ "timestamp without time zone" ] },
+        "timetz": { "aliases": [ "time with time zone" ] },
+        "time": { "aliases": [ "time without time zone" ] },
         "uuid": null,
 	"json": null,
 	"jsonb": null
@@ -45,9 +48,7 @@
         "text": {
             "aliases": [ "char", "bpchar", "varchar" ],
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
-            },
-        "time": { "aliases": [ "time with time zone", "time without time zone" ] },
-        "timestamp": { "aliases": [ "timestamp without time zone" ] }
+            }
     },
 
     "change_notification": {

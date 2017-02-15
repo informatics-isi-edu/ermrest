@@ -159,6 +159,36 @@ EOF
     NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
 }
 
+dojointest()
+{
+    expected_cnt=$1
+    shift 1
+    dotest "200::*::*" "$@" -H "Accept: text/csv"
+    got_cnt=$(( $(tail -1 < ${RESPONSE_CONTENT} ) ))
+
+    if [[ ${expected_cnt} -ne ${got_cnt} ]]
+    then
+	cat <<EOF
+FAILED: result count ${got_cnt} does not match expected ${expected_cnt} for $@
+EOF
+	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
+	if [[ "$summary" = $errorpattern ]] || [[ "${ABORT_ON_FAILURE:-false}" = "true" ]]
+	then
+	    if [[ -n "$cid" ]] && [[ "${DESTROY_CATALOG}" = "true" ]]
+	    then
+		mycurl -X DELETE "${BASE_URL}/catalog/${cid}"
+	    fi
+	    error terminating on "$summary"
+	fi
+    elif [[ "$VERBOSE" = "true" ]] || [[ "$VERBOSE" = "brief" ]]
+    then
+	cat <<EOF
+TEST $(( ${NUM_TESTS} + 1 )) OK: row count ${got_cnt} matches expected ${expected_cnt}
+EOF
+    fi
+    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
+}
+
 if [[ -z "${TEST_CID}" ]]
 then
     ###### setup test catalog
@@ -348,12 +378,16 @@ ctypes=(
     longtext
     markdown
     timestamptz
+    timestamp
+    timetz
+    time
     date
     uuid
     interval
     serial2
     serial4
     serial8
+    jsonb
 )
 
 # use corresponding test values
@@ -367,13 +401,17 @@ cvals=(
     one
     oneoneoneone
     '**one**'
-    '2015-03-11T11:32:56-0700'
+    '2015-03-11T11:32:56-0000'
+    '2015-03-11T11:32:56'
+    '11:32:56-0000'
+    '11:32:56'
     '2015-03-11'
     '2648a44e-c81d-11e4-b6d7-00221930f5cc'
     'P1Y2M3DT4H5M6S'
     1
     1
     1
+    '{"foo":"bar"}'
 )
 
 for typeno in "${!ctypes[@]}"
@@ -381,9 +419,21 @@ do
     ctype="${ctypes[$typeno]}"
     cval="${cvals[$typeno]}"
 
-    # apply url-escaping in limited form to cover cvals array above
-    cval_uri=$(sed -e 's/:/%3A/g' <<<"${cval}")
-
+    # apply escaping in limited form to cover cvals array above
+    cval_uri=$(sed -e 's/:/%3A/g' -e 's/"/%22/g' -e 's/{/%7B/g' -e 's/}/%7D/g' <<<"${cval}")
+    cval_array=$(sed -e 's/"/\\"/g' <<<"${cval}")
+    cval_array="{\"${cval_array}\",\"${cval_array}\"}"
+    cval_csv="\"$(sed -e 's/"/""/g' <<<"${cval}")\""
+    cval_array_csv="\"$(sed -e 's/"/""/g' <<<"${cval_array}")\""
+    case "$ctype" in
+	jsonb|float*|int?|serial*)
+	    cval_json="${cval}"
+	    ;;
+	*)
+	    cval_json="\"${cval}\""
+	    ;;
+    esac
+    
     if [[ "$ctype" == serial* ]] || [[ "$ctype" == longtext ]] || [[ "$ctype" == markdown ]]
     then
 	# do not try to test array types based on serial nor domain
@@ -432,9 +482,9 @@ EOF
 	# test insertion of rows with server-generated serial ID types
 	cat > ${TEST_DATA} <<EOF
 column1,column2,column3
-,value1,${cval}
-,value1,${cval}
-,value2,${cval}
+,value1,${cval_csv}
+,value1,${cval_csv}
+,value2,${cval_csv}
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}?defaults=column1" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
@@ -442,18 +492,45 @@ EOF
 [{"column2": "value2", "column3": "${cval}"}]
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}?defaults=column1" -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+	
+	# test text pattern matches (casts to text)
+	dojointest 1 "/catalog/${cid}/aggregate/test1:test_ctype_${ctype}/column1::regexp::$pat/c:=cnt(*)"
+	dojointest 4 "/catalog/${cid}/aggregate/test1:test_ctype_${ctype}/*::regexp::$pat/c:=cnt(*)"
     else
 	# test insertion of rows with array data
 	cat > ${TEST_DATA} <<EOF
 column1,column2,column3
-${cval},value1,"{${cval},${cval}}"
+${cval_csv},value1,
+,value2,${cval_array_csv}
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 	cat > ${TEST_DATA} <<EOF
-[{"column1": "${cval}", "column2": "value1", "column3": ["${cval}", "${cval}"]}]
+[{"column1": ${cval_json}, "column2": "value1", "column3": null}, {"column2": "value2", "column3": [${cval_json}, ${cval_json}]}]
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: application/json" -T ${TEST_DATA}
+
+	# test text pattern matches (casts to text)
+	case "${ctype}" in
+	    boolean)
+		pat=t
+		;;
+	    text|longtext|markdown)
+		pat=one
+		;;
+	    jsonb)
+		pat='foo.%2Abar'
+		;;
+	    time*)
+		pat='56'
+		;;
+	    *)
+		pat='1'
+		;;
+	esac
+	dojointest 1 "/catalog/${cid}/aggregate/test1:test_ctype_${ctype}/column1::regexp::$pat/c:=cnt(*)"
+	dojointest 1 "/catalog/${cid}/aggregate/test1:test_ctype_${ctype}/column3::regexp::$pat/c:=cnt(*)"
+	dojointest 2 "/catalog/${cid}/aggregate/test1:test_ctype_${ctype}/*::regexp::$pat/c:=cnt(*)"
     fi
     
     dotest "200::text/csv::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Accept: text/csv"
@@ -820,38 +897,6 @@ dotest "200::*::*" "/catalog/${cid}/aggregate/A:=test1:test_level1/B:=test1:test
 dotest "200::*::*" "/catalog/${cid}/aggregate/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/count:=cnt(*)"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/id,B:name"
 dotest "200::*::*" "/catalog/${cid}/attributegroup/A:=test1:test_level1/B:=test1:test_level2/C:=test_level1/B:id;name"
-
-dojointest()
-{
-    expected_cnt=$1
-    shift 1
-    dotest "200::*::*" "$@" -H "Accept: text/csv"
-    got_cnt=$(( $(tail -1 < ${RESPONSE_CONTENT} ) ))
-
-    if [[ ${expected_cnt} -ne ${got_cnt} ]]
-    then
-	cat <<EOF
-FAILED: result count ${got_cnt} does not match expected ${expected_cnt} for $@
-
-$(cat ${RESPONSE_CONTENT})
-EOF
-	NUM_FAILURES=$(( ${NUM_FAILURES} + 1 ))
-	if [[ "$summary" = $errorpattern ]] || [[ "${ABORT_ON_FAILURE:-false}" = "true" ]]
-	then
-	    if [[ -n "$cid" ]] && [[ "${DESTROY_CATALOG}" = "true" ]]
-	    then
-		mycurl -X DELETE "${BASE_URL}/catalog/${cid}"
-	    fi
-	    error terminating on "$summary"
-	fi
-    elif [[ "$VERBOSE" = "true" ]] || [[ "$VERBOSE" = "brief" ]]
-    then
-	cat <<EOF
-TEST $(( ${NUM_TESTS} + 1 )) OK: row count ${got_cnt} matches expected ${expected_cnt}
-EOF
-    fi
-    NUM_TESTS=$(( ${NUM_TESTS} + 1 ))
-}
 
 # test outer join modes
 dojointest 3 "/catalog/${cid}/aggregate/A:=test_level1/(id)=(test_level2:level1_id)/c:=cnt_d(A:id)"
