@@ -497,7 +497,8 @@ representation as in the following example:
 	  "acl_bindings": {
 	    "My Binding": {
 		  "type": "owner",
-		  "projection": "Managed%20By"
+		  "projection": "Managed%20By",
+		  "projection_type": "acl"
 		}
 	  }
 	}
@@ -523,11 +524,19 @@ to form a complete ACL projection query:
 
     /ermrest/catalog/N/attribute/My%20Schema:My20Table/key=X/Managed%20By
 
-The projection MUST be a single column of type `text` or
-`text[]`. Zero or one rows MAY be returned for a given base URL,
-representing the dynamic ACL content for that one base row. A result
-of type `text` is considered to be equivalent to an array with that
-single text value as its only member.
+Zero or one rows MAY be returned as the query result. Several
+projected column types are supported, and more than one projection
+type is supported. See the following matrix:
+
+Projected Column Type | Supported `"projection_type"` | Description
+----------|---------------------|-------------------------
+`text[]`  | `acl` (default)     | The projected array is interpreted as ACL content.
+`text`    | `acl` (default)     | The projected text is interpreted as if it were an array containing the single value.
+*any*     | `nonnull` | A non-null projected value is interpreted as a `true` authorization decision.
+
+The `nonnull` projection type is supported by all column types. The
+`acl` projection type is only supported for the projected column types
+shown above.
 
 ### Dynamic ACL Binding Management
 
