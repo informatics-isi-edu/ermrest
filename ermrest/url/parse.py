@@ -45,6 +45,9 @@ def p_apis(p):
     """api   : catalog
              | catalogslash
              | comment
+             | acls
+             | aclsslash
+             | acl
              | annotations
              | annotationsslash
              | annotation
@@ -475,6 +478,23 @@ def p_commentable(p):
 def p_comment(p):
     """comment : commentable COMMENT"""
     p[0] = p[1].comment()
+
+def p_aclable(p):
+    """aclable : catalogslash
+               | schemaslash"""
+    p[0] = p[1]
+
+def p_acls(p):
+    """acls : aclable ACL"""
+    p[0] = p[1].acls()
+
+def p_aclsslash(p):
+    """aclsslash : acls '/' """
+    p[0] = p[1]
+
+def p_acl(p):
+    """acl : aclsslash string"""
+    p[0] = p[1].acl(p[2])
 
 def p_annotatable(p):
     """annotatable : schemaslash

@@ -28,7 +28,7 @@ import web
 
 from .. import exception
 from ..util import table_exists, view_exists, column_exists
-from .misc import frozendict, annotatable_classes
+from .misc import frozendict, annotatable_classes, hasacls_classes
 from .schema import Model, Schema
 from .type import build_type, text_type
 from .column import Column
@@ -411,6 +411,10 @@ FROM _ermrest.model_pseudo_keyref ;
     for klass in annotatable_classes:
         if hasattr(klass, 'introspect_helper'):
             klass.introspect_helper(cur, model)
+
+    # introspect ERMrest model ACLs
+    for klass in hasacls_classes:
+        klass.introspect_acl_helper(cur, model)
 
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']

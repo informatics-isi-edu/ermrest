@@ -28,7 +28,7 @@ import sanepg2
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model import introspect
-from .model.misc import annotatable_classes
+from .model.misc import annotatable_classes, hasacls_classes
 
 __all__ = ['get_catalog_factory']
 
@@ -303,6 +303,10 @@ CREATE TABLE %(schema)s.%(table)s (
         # create annotation storage tables
         for klass in annotatable_classes:
             klass.create_storage_table(cur)
+
+        # create ACL storage tables
+        for klass in hasacls_classes:
+            klass.create_acl_storage_table(cur)
 
         if not table_exists(cur, self._SCHEMA_NAME, 'model_pseudo_key'):
             cur.execute("""

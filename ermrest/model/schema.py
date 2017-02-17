@@ -16,12 +16,18 @@
 
 from .. import exception
 from ..util import sql_identifier, view_exists
-from .misc import AltDict, commentable, annotatable
+from .misc import AltDict, AclDict, commentable, annotatable, hasacls
 from .table import Table
 
 import json
 import web
 
+@hasacls(
+    'model',
+    { },
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select"},
+    None
+)
 class Model (object):
     """Represents a database model.
     
@@ -33,12 +39,18 @@ class Model (object):
         if schemas is None:
             schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
         self.schemas = schemas
+        self.acls = AclDict(self)
     
+    @staticmethod
+    def introspect_acl(model=None, acl=None, members=None):
+        model.acls[acl] = members
+
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
         return dict(
+            acls=self.acls,
             schemas=dict([ 
                     (s, self.schemas[s].prejson()) for s in self.schemas 
                     ])
@@ -112,6 +124,12 @@ CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value
     schema_name=('text', lambda self: unicode(self.name))
     )
 )
+@hasacls(
+    'schema',
+    { "schema_name": ('text', lambda self: unicode(self.name)) },
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select"},
+    lambda self: self.model
+)
 class Schema (object):
     """Represents a database schema.
     
@@ -119,13 +137,15 @@ class Schema (object):
     also has a reference to its 'model'.
     """
     
-    def __init__(self, model, name, comment=None, annotations={}):
+    def __init__(self, model, name, comment=None, annotations={}, acls={}):
         self.model = model
         self.name = name
         self.comment = comment
-        self.tables = AltDict(lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, self)))
-        self.annotations = dict()
+        self.tables = AltDict(lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))))
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on schema "%s"' % (k, unicode(self.name))))
         self.annotations.update(annotations)
+
+        self.acls = AclDict(self)
         
         if name not in self.model.schemas:
             self.model.schemas[name] = self
@@ -133,6 +153,10 @@ class Schema (object):
     @staticmethod
     def introspect_annotation(model=None, schema_name=None, annotation_uri=None, annotation_value=None):
         model.schemas[schema_name].annotations[annotation_uri] = annotation_value
+
+    @staticmethod
+    def introspect_acl(model=None, schema_name=None, acl=None, members=None):
+        model.schemas[schema_name].acls[acl] = members
 
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):
@@ -170,6 +194,7 @@ class Schema (object):
         return dict(
             schema_name=self.name,
             comment=self.comment,
+            acls=self.acls,
             annotations=self.annotations,
             tables=dict([
                     (t, self.tables[t].prejson()) for t in self.tables

@@ -104,7 +104,10 @@ class Catalog (Api):
 
     def final(self):
         web.ctx.ermrest_catalog_pc.final()
-            
+
+    def acls(self):
+        return model.CatalogAcl(self)
+
     def schemas(self):
         """The schema set for this catalog."""
         return model.Schemas(self)

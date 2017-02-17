@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ class Unique (object):
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.comment = comment
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
 
         if cols not in self.table.uniques:
@@ -187,7 +187,7 @@ class PseudoUnique (object):
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.comment = comment
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
 
         if cols not in self.table.uniques:
@@ -408,7 +408,7 @@ class KeyReference (object):
         _guarded_add(unique.table_references[foreign_key.table], self)
         self.constraint_name = constraint_name
         self.constraints = set([self])
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
         self.comment = comment
 
@@ -620,7 +620,7 @@ class PseudoKeyReference (object):
         self.id = id
         self.constraint_name = constraint_name
         self.constraints = set([self])
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
         self.comment = comment
 

@@ -29,7 +29,7 @@ from ...util import negotiated_content_type
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
     handler.emit_headers()
-    if resource is None:
+    if resource is None and content_type == 'text/plain':
         return ''
     if resource is '' and web.ctx.status == '200 OK':
         web.ctx.status = '204 No Content'
@@ -193,6 +193,10 @@ class Schema (Api):
         self.schemas = Schemas(catalog)
         self.name = name
 
+    def acls(self):
+        """The ACL set for this schema."""
+        return SchemaAcl(self)
+
     def comment(self):
         """The comment for this schema."""
         return SchemaComment(self)
@@ -260,6 +264,67 @@ class Tables (Api):
             return _post_commit_json(self, table)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
+class Acl (Api):
+    """A specific object's ACLs."""
+    def __init__(self, catalog, subject):
+        Api.__init__(self, catalog)
+        self.subject = subject
+        self.aclname = None
+
+    def acl(self, aclname):
+        self.aclname = aclname
+        return self
+
+    def GET_subject(self, conn, cur):
+        return self.subject.GET_body(conn, cur)
+
+    def GET_body(self, conn, cur):
+        subject = self.GET_subject(conn, cur)
+        if self.aclname is not None:
+            return subject.acls[self.aclname]
+        else:
+            return subject.acls
+
+    def GET(self, uri):
+        return _GET(self, self.GET_body, _post_commit_json)
+
+    def SET_body(self, conn, cur, data):
+        subject = self.GET_subject(conn, cur)
+        if self.aclname is None:
+            if data is None:
+                subject.delete_acl(conn, cur, None)
+            elif type(data) is dict:
+                for aclname, members in data.items():
+                    subject.set_acl(conn, cur, aclname, members)
+            else:
+                raise exception.BadData('ACL set representation must be an object with ACLs keyed by ACL name.')
+        else:
+            old_value = subject.acls[self.aclname] # serves to validate aclname
+            if data is None:
+                if old_value is not None:
+                    subject.delete_acl(conn, cur, self.aclname)
+            elif type(data) is list:
+                if old_value != data:
+                    subject.set_acl(conn, cur, self.aclname, data)
+            else:
+                raise exception.BadData('ACL representation must be an array of member strings.')
+
+    def PUT(self, uri):
+        return _MODIFY_with_json_input(self, self.SET_body, _post_commit)
+
+    def DELETE(self, uri):
+        return _MODIFY(self, lambda conn, cur: self.SET_body(conn, cur, None), _post_commit)
+
+class CatalogAcl (Acl):
+    """A specific catalog's ACLs."""
+    def __init__(self, catalog):
+        Acl.__init__(self, catalog, catalog.manager._model)
+
+class SchemaAcl (Acl):
+    """A specific schema's ACLs."""
+    def __init__(self, schema):
+        Acl.__init__(self, schema.catalog, schema)
+
 class Comment (Api):
     """A specific object's comment.
 
@@ -294,7 +359,7 @@ class Comment (Api):
     def DELETE(self, uri):
         def body(conn, cur):
             self.SET_body(conn, cur, self.GET_subject(conn, cur), None)
-            return ''
+            return None
         return _MODIFY(self, body, _post_commit)       
 
 class SchemaComment (Comment):
@@ -346,8 +411,6 @@ class Annotations (Api):
         if self.key is None:
             return subject.annotations
         else:
-            if self.key not in subject.annotations:
-                raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
             return subject.annotations[self.key]
 
     def GET(self, uri):

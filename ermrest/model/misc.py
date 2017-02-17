@@ -47,6 +47,20 @@ class AltDict (dict):
         except KeyError:
             raise self._keyerror(k)
 
+class AclDict (dict):
+    """Alternative dict that validates keys and returns default."""
+    def __init__(self, subject):
+        dict.__init__(self)
+        self._subject = subject
+
+    def __getitem__(self, k):
+        if k not in self._subject._acls_supported:
+            raise exception.ConflictData('ACL name %s not recognized.' % k)
+        try:
+            return dict.__getitem__(self, k)
+        except KeyError, e:
+            return None
+
 def commentable():
     """Decorator to add comment storage access interface to model classes.
     """
@@ -98,16 +112,21 @@ def annotatable(restype, keying):
         assert key is not None
         interp = self._interp_annotation(key)
         where = ' AND '.join([
-            "%s = %s" % (sql_identifier(k), v)
+            "new.%(col)s = old.%(col)s AND new.%(col)s = %(val)s" % dict(col=sql_identifier(k), val=v)
             for k, v in interp.items()
         ])
         cur.execute("""
 SELECT _ermrest.model_change_event();
-UPDATE _ermrest.model_%s_annotation 
-SET annotation_value = %s
-WHERE %s 
-RETURNING annotation_value;
-""" % (restype, sql_literal(json.dumps(value)), where)
+UPDATE _ermrest.model_%(restype)s_annotation new
+SET annotation_value = %(newval)s
+FROM _ermrest.model_%(restype)s_annotation old
+WHERE %(where)s
+RETURNING old.annotation_value;
+""" % dict(
+    restype=restype,
+    newval=sql_literal(json.dumps(value)),
+    where=where
+)
         )
         for oldvalue in cur:
             # happens zero or one time
@@ -127,9 +146,10 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
         interp = self._interp_annotation(key)
         if key is None:
             del interp['annotation_uri']
+        keys = interp.keys()
         where = ' AND '.join([
-            "%s = %s" % (sql_identifier(k), v)
-            for k, v in interp.items()
+            "%s = %s" % (sql_identifier(k), interp[k])
+            for k in keys
         ])
         cur.execute("""
 SELECT _ermrest.model_change_event();
@@ -185,5 +205,137 @@ SELECT %s FROM _ermrest.model_%s_annotation;
         setattr(orig_class, 'create_storage_table', create_storage_table)
         annotatable_classes.append(orig_class)
         return orig_class
+    return helper
+
+hasacls_classes = []
+
+def hasacls(restype, keying, acls, parent):
+    """Decorator to add ACL storage access interface to model classes.
+
+       restype: string to distinguish resource types for storage table naming
+
+       keying: { colname: (psql_type, getkey_func), ... }
+
+       acls: { aclname, ... }
+
+       parent: getparent_func
+    """
+    def _interp_acl(self, aclname):
+        interp = {
+            k: sql_literal(v[1](self))
+            for k, v in keying.items()
+        }
+        interp['acl'] = sql_literal(aclname)
+        return interp
+
+    @classmethod
+    def create_acl_storage_table(orig_class, cur):
+        if table_exists(cur, '_ermrest', 'model_%s_acl' % restype):
+            return
+        keys = keying.keys() + ['acl']
+        cur.execute("""
+CREATE TABLE _ermrest.model_%(restype)s_acl (%(cols)s);
+""" % dict(
+    restype=restype,
+    cols=', '.join([
+        '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0])
+        for k in keys
+    ] + [
+        'members text[]',
+        'UNIQUE(%s)' % ', '.join([ sql_identifier(k) for k in keys ])
+    ])
+)
+        )
+
+    @classmethod
+    def introspect_acl_helper(orig_class, cur, model):
+        keys = keying.keys() + ['acl', 'members']
+        cur.execute("""
+SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
+""" % dict(
+    restype=restype,
+    keys=', '.join([ sql_identifier(k) for k in keys ])
+)
+        )
+        for row in cur:
+            kwargs = dict([ (keys[i], row[i]) for i in range(len(keys)) ])
+            kwargs['model'] = model
+            try:
+                orig_class.introspect_acl(**kwargs)
+            except exception.ConflictModel:
+                # TODO: prune orphaned ACL?
+                pass
+
+    def set_acl(self, conn, cur, aclname, members):
+        """Set annotation on %s, returning previous value for updates or None.""" % restype
+        assert aclname is not None
+
+        if members is None:
+            return self.delete_acl(conn, cur, aclname)
+
+        interp = self._interp_acl(aclname)
+        keys = interp.keys()
+        where = ' AND '.join([
+            'new.%(col)s = old.%(col)s AND new.%(col)s = %(val)s' % dict(col=sql_identifier(k), val=interp[k])
+            for k in keys
+        ])
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+UPDATE _ermrest.model_%(restype)s_acl new
+SET members = %(members)s
+FROM _ermrest.model_%(restype)s_acl old
+WHERE %(where)s
+RETURNING old.members;
+""" % dict(
+    restype=restype,
+    members=sql_literal(list(members)),
+    where=where
+)
+        )
+        for oldvalue in cur:
+            return oldvalue
+
+        web.debug(interp)
+        cur.execute("""
+INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(values)s, %(members)s);
+""" % dict(
+    restype=restype,
+    columns=', '.join([sql_identifier(k) for k in keys]),
+    values=', '.join([interp[k] for k in keys]),
+    members=sql_literal(members)
+)
+        )
+        return None
+
+    def delete_acl(self, conn, cur, aclname):
+        interp = self._interp_acl(aclname)
+        if aclname is None:
+            del interp['acl']
+        keys = interp.keys()
+        where = ' AND '.join([
+            '%s = %s' % (sql_identifier(k), interp[k])
+            for k in keys
+        ])
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
+""" % dict(
+    restype=restype,
+    where=where
+    )
+        )
+
+    def helper(orig_class):
+        setattr(orig_class, '_acl_keying', keying)
+        setattr(orig_class, '_acls_supported', set(acls))
+        setattr(orig_class, '_interp_acl', _interp_acl)
+        setattr(orig_class, 'set_acl', set_acl)
+        setattr(orig_class, 'delete_acl', delete_acl)
+        if hasattr(orig_class, 'introspect_acl'):
+            setattr(orig_class, 'introspect_acl_helper', introspect_acl_helper)
+        setattr(orig_class, 'create_acl_storage_table', create_acl_storage_table)
+        hasacls_classes.append(orig_class)
+        return orig_class
+
     return helper
 

@@ -55,7 +55,7 @@ class Table (object):
         self.columns = AltDict(lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)))
         self.uniques = AltDict(lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (k, self)))
         self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (k, self)))
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self)))
         self.annotations.update(annotations)
 
         for c in columns:

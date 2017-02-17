@@ -21,7 +21,7 @@ import re
 from .. import exception
 from ..util import sql_identifier, sql_literal
 from .type import tsvector_type, Type
-from .misc import annotatable, commentable
+from .misc import AltDict, annotatable, commentable
 
 @commentable()
 @annotatable('column', dict(
@@ -51,7 +51,7 @@ class Column (object):
         self.default_value = default_value
         self.nullok = nullok if nullok is not None else True
         self.comment = comment
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on column %s' % (k, self)))
         self.annotations.update(annotations)
     
     @staticmethod
