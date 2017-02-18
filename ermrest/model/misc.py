@@ -315,6 +315,8 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
         return None
 
     def delete_acl(self, cur, aclname, purging=False):
+        interp = self._interp_acl(aclname)
+
         self.enforce_right('owner') # pre-flight authz
 
         if aclname is None:
@@ -326,7 +328,6 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
         if not purging:
             self.enforce_right('owner') # integrity check... can't disown except when purging
 
-        interp = self._interp_acl(aclname)
         keys = interp.keys()
         where = ' AND '.join([
             '%s = %s' % (sql_identifier(k), interp[k])
