@@ -190,6 +190,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
     def pre_delete(self, conn, cur):
         """Do any maintenance before column is deleted from table."""
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
         
     @staticmethod
     def fromjson_single(columndoc, position, ermrest_config):

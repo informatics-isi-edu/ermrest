@@ -50,6 +50,10 @@ class Unique (object):
         columns = [ table.columns[cname] for cname in column_names ]
         table.uniques[frozenset(columns)].annotations[annotation_uri] = annotation_value
 
+    def enforce_right(self, aclname):
+        """Proxy enforce_right to self.table for interface consistency."""
+        self.table.enforce_right(aclname)
+
     def set_comment(self, conn, cur, comment):
         # comment this particular constraint
         if self.constraint_name:
@@ -199,6 +203,10 @@ class PseudoUnique (object):
     def __repr__(self):
         return '<ermrest.model.PseudoUnique %s>' % str(self)
 
+    def enforce_right(self, aclname):
+        """Proxy enforce_right to self.table for interface consistency."""
+        self.table.enforce_right(aclname)
+
     def set_comment(self, conn, cur, comment):
         # comment this particular constraint
         if self.id:
@@ -239,6 +247,7 @@ SELECT _ermrest.model_change_event();
                 fkeyref.pre_delete(conn, cur)
 
     def add(self, conn, cur):
+        self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         cur.execute("""
 SELECT _ermrest.model_change_event();
 INSERT INTO _ermrest.model_pseudo_key 
@@ -262,6 +271,7 @@ INSERT INTO _ermrest.model_pseudo_key
             self.set_annotation(conn, cur, k, v)
 
     def delete(self, conn, cur):
+        self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         self.pre_delete(conn, cur)
         if self.id:
             cur.execute("""
@@ -371,13 +381,16 @@ def _keyref_prejson(self):
     for fc in self.reference_map.keys():
         fcs.append( fc.prejson_ref() )
         pcs.append( self.reference_map[fc].prejson_ref() )
-    return dict(
+    doc = dict(
         foreign_key_columns=fcs,
         referenced_columns=pcs,
         comment=self.comment,
         annotations=self.annotations,
         names=[ constraint_name_prejson(c) for c in self.constraints ]
     )
+    if self.has_right('owner'):
+        doc['acls'] = self.acls
+    return doc
 
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
@@ -492,6 +505,7 @@ SELECT _ermrest.model_change_event();
 
     def pre_delete(self, conn, cur):
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
     
     def add(self, conn, cur):
         if not self.constraint_name:
@@ -706,8 +720,10 @@ SELECT _ermrest.model_change_event();
 
     def pre_delete(self, conn, cur):
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
 
     def add(self, conn, cur):
+        self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
         fk_cols = list(self.foreign_key.columns)
         cur.execute("""
 SELECT _ermrest.model_change_event();
@@ -735,6 +751,7 @@ INSERT INTO _ermrest.model_pseudo_keyref
             self.set_annotation(conn, cur, k, v)
         
     def delete(self, conn, cur):
+        self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
         self.pre_delete(conn, cur)
         if self.id:
             cur.execute("""

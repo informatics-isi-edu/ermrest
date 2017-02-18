@@ -128,10 +128,16 @@ class Table (object):
         if kind != 'table':
             raise exception.ConflictData('Kind "%s" not supported in table creation' % kind)
 
+        schema.enforce_right('create')
+
+        acls = tabledoc.get('acls', {})
         annotations = tabledoc.get('annotations', {})
         columns = Column.fromjson(tabledoc.get('column_definitions',[]), ermrest_config)
         comment = tabledoc.get('comment')
         table = Table(schema, tname, columns, 'r', comment, annotations)
+        if not schema.has_right('owner'):
+            table.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
+            table.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
 
         clauses = []
         for column in columns:
@@ -166,6 +172,9 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         for k, v in annotations.items():
             table.set_annotation(conn, cur, k, v)
 
+        for k, v in acls.items():
+            table.set_acl(cur, k, v)
+
         def execute_if(sql):
             if sql:
                 cur.execute(sql)
@@ -175,6 +184,8 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                 column.set_comment(conn, cur, column.comment)
             for k, v in column.annotations.items():
                 column.set_annotation(conn, cur, k, v)
+            for k, v in column.acls.items():
+                column.set_acl(cur, k, v)
             try:
                 execute_if(column.btree_index_sql())
                 execute_if(column.pg_trgm_index_sql())
@@ -185,6 +196,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         return table
 
     def delete(self, conn, cur):
+        self.enforce_right('owner')
         self.pre_delete(conn, cur)
         cur.execute("""
 DROP %(kind)s %(sname)s.%(tname)s ;
@@ -198,8 +210,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
     tnamestr=sql_literal(self.name)
 )
         )
-            
-    
+
     def pre_delete(self, conn, cur):
         """Do any maintenance before table is deleted."""
         for fkey in self.fkeys.values():
@@ -209,9 +220,11 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         for column in self.columns.values():
             column.pre_delete(conn, cur)
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
 
     def alter_table(self, conn, cur, alterclause):
         """Generic ALTER TABLE ... wrapper"""
+        self.enforce_right('owner')
         cur.execute("""
 ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
 SELECT _ermrest.model_change_event();
@@ -248,8 +261,6 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
     def delete_column(self, conn, cur, cname):
         """Delete column from table."""
-        if cname not in self.columns:
-            raise exception.NotFound('column %s in table %s:%s' % (cname, self.schema.name, self.name))
         column = self.columns[cname]
         for unique in self.uniques.values():
             if column in unique.columns:

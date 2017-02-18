@@ -477,7 +477,10 @@ def p_comment(p):
 
 def p_aclable(p):
     """aclable : catalogslash
-               | schemaslash"""
+               | schemaslash
+               | tableslash
+               | columnslash
+               | foreignkeyrefslash"""
     p[0] = p[1]
 
 def p_acls(p):

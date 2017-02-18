@@ -89,6 +89,7 @@ SELECT _ermrest.model_change_event();
 """ % dict(schema=sql_identifier(sname)))
         newschema = Schema(self, sname)
         if not self.has_right('owner'):
+            newschema.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
             newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
         return newschema
 
@@ -97,6 +98,7 @@ SELECT _ermrest.model_change_event();
         schema = self.schemas[sname]
         schema.enforce_right('owner')
         self.schemas[sname].delete_annotation(conn, cur, None)
+        self.schemas[sname].delete_acl(cur, None, purging=True)
         cur.execute("""
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
@@ -173,6 +175,7 @@ class Schema (object):
         sname = schemadoc.get('schema_name')
         comment = schemadoc.get('comment')
         annotations = schemadoc.get('annotations', {})
+        acls = schemadoc.get('acls', {})
         tables = schemadoc.get('tables', {})
         
         schema = model.create_schema(conn, cur, sname)
@@ -181,6 +184,9 @@ class Schema (object):
         
         for k, v in annotations.items():
             schema.set_annotation(conn, cur, k, v)
+
+        for k, v in acls.items():
+            schema.set_acl(cur, k, v)
             
         for k, tabledoc in tables.items():
             tname = tabledoc.get('table_name', k)

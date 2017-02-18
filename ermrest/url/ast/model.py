@@ -290,7 +290,7 @@ class Acl (Api):
         subject = self.GET_subject(conn, cur)
         if self.aclname is None:
             if data is None:
-                subject.delete_acl(conn, cur, None)
+                subject.delete_acl(cur, None)
             elif type(data) is dict:
                 for aclname, members in data.items():
                     subject.set_acl(cur, aclname, members)
@@ -300,7 +300,7 @@ class Acl (Api):
             old_value = subject.acls[self.aclname] # serves to validate aclname
             if data is None:
                 if old_value is not None:
-                    subject.delete_acl(conn, cur, self.aclname)
+                    subject.delete_acl(cur, self.aclname)
             elif type(data) is list:
                 if old_value != data:
                     subject.set_acl(cur, self.aclname, data)
@@ -322,6 +322,27 @@ class SchemaAcl (Acl):
     """A specific schema's ACLs."""
     def __init__(self, schema):
         Acl.__init__(self, schema.catalog, schema)
+
+class TableAcl (Acl):
+    """A specific 's ACLs."""
+    def __init__(self, table):
+        Acl.__init__(self, table.schema.catalog, table)
+
+class ColumnAcl (Acl):
+    """A specific 's ACLs."""
+    def __init__(self, column):
+        Acl.__init__(self, column.table.schema.catalog, column)
+
+class ForeignkeyReferenceAcl (Acl):
+    """A specific 's ACLs."""
+    def __init__(self, fkey):
+        Acl.__init__(self, fkey.catalog, fkey)
+
+    def GET_subject(self, conn, cur):
+        fkrs = self.subject.GET_body(conn, cur)
+        if len(fkrs) != 1:
+            raise NotImplementedError('ForeignkeyReferenceAcls on %d fkrs' % len(fkrs))
+        return fkrs[0]
 
 class Comment (Api):
     """A specific object's comment.
@@ -477,6 +498,10 @@ class Table (Api):
         self.schema = schema
         self.name = name
 
+    def acls(self):
+        """The ACL set for this table."""
+        return TableAcl(self)
+
     def comment(self):
         """The comment for this table."""
         return TableComment(self)
@@ -563,6 +588,10 @@ class Column (Api):
         Api.__init__(self, table.schema.catalog)
         self.table = table
         self.name = name
+
+    def acls(self):
+        """The ACL set for this column."""
+        return ColumnAcl(self)
 
     def comment(self):
         return ColumnComment(self)
@@ -748,6 +777,9 @@ class ForeignkeyReferences (Api):
         """Refine reference set with referenced column information."""
         assert self._to_table
         return self.with_to_key( self._to_table.key(to_columns) )
+
+    def acls(self):
+        return ForeignkeyReferenceAcl(self)
 
     def annotations(self):
         return ForeignkeyReferenceAnnotations(self)

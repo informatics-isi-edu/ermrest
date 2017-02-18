@@ -67,6 +67,7 @@ def commentable():
     """
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
+        self.enforce_right('owner')
         resources = self.sql_comment_resource()
         if not isinstance(resources, set):
             # backwards compatibility
@@ -111,6 +112,7 @@ def annotatable(restype, keying):
     def set_annotation(self, conn, cur, key, value):
         """Set annotation on %s, returning previous value for updates or None.""" % restype
         assert key is not None
+        self.enforce_right('owner')
         interp = self._interp_annotation(key)
         where = ' AND '.join([
             "new.%(col)s = old.%(col)s AND new.%(col)s = %(val)s" % dict(col=sql_identifier(k), val=v)
@@ -144,6 +146,7 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
 
     def delete_annotation(self, conn, cur, key):
         """Delete annotation on %s.""" % restype
+        self.enforce_right('owner')
         interp = self._interp_annotation(key)
         if key is None:
             del interp['annotation_uri']
@@ -272,11 +275,11 @@ SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
         assert aclname is not None
 
         if members is None:
-            return self.delete_acl(conn, cur, aclname)
+            return self.delete_acl(cur, aclname)
 
-        self.enforce_right('owner')
-
+        self.enforce_right('owner') # pre-flight authz
         self.acls[aclname] = members
+        self.enforce_right('owner') # integrity check... can't disown
 
         interp = self._interp_acl(aclname)
         keys = interp.keys()
@@ -311,15 +314,19 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
         )
         return None
 
-    def delete_acl(self, conn, cur, aclname):
-        self.enforce_right('owner')
+    def delete_acl(self, cur, aclname, purging=False):
+        self.enforce_right('owner') # pre-flight authz
 
-        interp = self._interp_acl(aclname)
         if aclname is None:
             del interp['acl']
             self.acls.clear()
         else:
             del self.acls[aclname]
+
+        if not purging:
+            self.enforce_right('owner') # integrity check... can't disown except when purging
+
+        interp = self._interp_acl(aclname)
         keys = interp.keys()
         where = ' AND '.join([
             '%s = %s' % (sql_identifier(k), interp[k])
