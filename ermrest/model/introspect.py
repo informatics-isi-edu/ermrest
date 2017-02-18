@@ -414,7 +414,8 @@ FROM _ermrest.model_pseudo_keyref ;
 
     # introspect ERMrest model ACLs
     for klass in hasacls_classes:
-        klass.introspect_acl_helper(cur, model)
+        if hasattr(klass, 'introspect_acl_helper'):
+            klass.introspect_acl_helper(cur, model)
 
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']

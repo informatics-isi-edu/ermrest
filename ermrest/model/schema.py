@@ -25,7 +25,7 @@ import web
 @hasacls(
     'model',
     { },
-    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select"},
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select", "reference"},
     None
 )
 class Model (object):
@@ -49,23 +49,28 @@ class Model (object):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
-        return dict(
-            acls=self.acls,
+        doc = dict(
             schemas=dict([ 
-                    (s, self.schemas[s].prejson()) for s in self.schemas 
-                    ])
-            )
+                (s, self.schemas[s].prejson()) for s in self.schemas
+            ])
+        )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+        return doc
         
     def lookup_table(self, tname):
         """Lookup an unqualified table name if and only if it is unambiguous across schemas."""
         tables = set()
 
         for schema in self.schemas.values():
-            if tname in schema.tables:
-                tables.add( schema.tables[tname] )
+            if schema.has_right('enumerate'):
+                if tname in schema.tables:
+                    table = schema.tables[tname]
+                    if table.has_right('enumerate'):
+                        tables.add( table )
 
         if len(tables) == 0:
-            raise exception.ConflictModel('Table %s does not exist.' % tname)
+            raise exception.ConflictModel('Table %s not found in model.' % tname)
         elif len(tables) > 1:
             raise exception.ConflictModel('Table name %s is ambiguous.' % tname)
         else:
@@ -77,21 +82,25 @@ class Model (object):
             raise exception.ConflictModel('Requested schema %s is a reserved schema name.' % sname)
         if sname in self.schemas:
             raise exception.ConflictModel('Requested schema %s already exists.' % sname)
+        self.enforce_right('create')
         cur.execute("""
 CREATE SCHEMA %(schema)s ;
 SELECT _ermrest.model_change_event();
 """ % dict(schema=sql_identifier(sname)))
-        return Schema(self, sname)
+        newschema = Schema(self, sname)
+        if not self.has_right('owner'):
+            newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
+        return newschema
 
     def delete_schema(self, conn, cur, sname):
         """Remove a schema from the model."""
-        if sname not in self.schemas:
-            raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
+        schema = self.schemas[sname]
+        schema.enforce_right('owner')
+        self.schemas[sname].delete_annotation(conn, cur, None)
         cur.execute("""
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
-        self.schemas[sname].delete_annotation(conn, cur, None)
         del self.schemas[sname]
 
     def recreate_value_map(self, conn, cur, empty=False):
@@ -127,7 +136,7 @@ CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value
 @hasacls(
     'schema',
     { "schema_name": ('text', lambda self: unicode(self.name)) },
-    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select"},
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select", "reference"},
     lambda self: self.model
 )
 class Schema (object):
@@ -146,6 +155,7 @@ class Schema (object):
         self.annotations.update(annotations)
 
         self.acls = AclDict(self)
+        self.acls.update(acls)
         
         if name not in self.model.schemas:
             self.model.schemas[name] = self
@@ -191,15 +201,17 @@ class Schema (object):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
-        return dict(
+        doc = dict(
             schema_name=self.name,
             comment=self.comment,
-            acls=self.acls,
             annotations=self.annotations,
             tables=dict([
                     (t, self.tables[t].prejson()) for t in self.tables
                     ])
             )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+        return doc
 
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""

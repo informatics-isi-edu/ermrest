@@ -55,7 +55,7 @@ def _post_commit_json(handler, resource):
 
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
-        handler.enforce_content_read(cur)
+        handler.enforce_right('enumerate')
         handler.catalog.manager.get_model(cur)
         handler.set_http_etag( handler.catalog.manager._model_version )
         handler.http_check_preconditions()
@@ -64,8 +64,6 @@ def _GET(handler, thunk, _post_commit):
 
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
-        handler.enforce_content_read(cur)
-        handler.enforce_schema_write(cur)
         # we need a private (uncached) copy of model because we mutate it optimistically
         # and this could corrupt a cached copy if our operation is not committed to DB
         handler.catalog.manager.get_model(cur, private=True)
@@ -295,7 +293,7 @@ class Acl (Api):
                 subject.delete_acl(conn, cur, None)
             elif type(data) is dict:
                 for aclname, members in data.items():
-                    subject.set_acl(conn, cur, aclname, members)
+                    subject.set_acl(cur, aclname, members)
             else:
                 raise exception.BadData('ACL set representation must be an object with ACLs keyed by ACL name.')
         else:
@@ -305,7 +303,7 @@ class Acl (Api):
                     subject.delete_acl(conn, cur, self.aclname)
             elif type(data) is list:
                 if old_value != data:
-                    subject.set_acl(conn, cur, self.aclname, data)
+                    subject.set_acl(cur, self.aclname, data)
             else:
                 raise exception.BadData('ACL representation must be an array of member strings.')
 
@@ -318,7 +316,7 @@ class Acl (Api):
 class CatalogAcl (Acl):
     """A specific catalog's ACLs."""
     def __init__(self, catalog):
-        Acl.__init__(self, catalog, catalog.manager._model)
+        Acl.__init__(self, catalog, catalog)
 
 class SchemaAcl (Acl):
     """A specific schema's ACLs."""

@@ -150,10 +150,78 @@ EOF
 	done
     }
 
-    cat <<EOF
-COMMIT;
+    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'meta'\" '$1'" - ${PGADMIN} < /dev/null)
+    if [[ -n "$tablename" ]]
+    then
+	cat <<EOF
+CREATE TABLE IF NOT EXISTS _ermrest.model_model_acl (
+  acl text PRIMARY KEY,
+  members text[]
+);
+ALTER TABLE _ermrest.model_model_acl OWNER TO ${DAEMONUSER};
 
-BEGIN;
+CREATE TABLE IF NOT EXISTS _ermrest.model_schema_acl (
+  schema_name text,
+  acl text,
+  members text[],
+  PRIMARY KEY (schema_name, acl)
+);
+ALTER TABLE _ermrest.model_schema_acl OWNER TO ${DAEMONUSER};
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_table_acl (
+  schema_name text,
+  table_name text,
+  acl text,
+  members text[],
+  PRIMARY KEY (schema_name, table_name, acl)
+);
+ALTER TABLE _ermrest.model_table_acl OWNER TO ${DAEMONUSER};
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_column_acl (
+  schema_name text,
+  table_name text,
+  column_name text,
+  acl text,
+  members text[],
+  PRIMARY KEY (schema_name, table_name, column_name, acl)
+);
+ALTER TABLE _ermrest.model_column_acl OWNER TO ${DAEMONUSER};
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_acl (
+  from_schema_name text,
+  from_table_name text,
+  from_column_names text[],
+  to_schema_name text,
+  to_table_name text,
+  to_column_names text[],
+  acl text,
+  members text[],
+  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, acl)
+);
+ALTER TABLE _ermrest.model_keyref_acl OWNER TO ${DAEMONUSER};
+
+INSERT INTO _ermrest.model_model_acl (acl, members)
+SELECT
+  CASE
+    WHEN key = 'owner' THEN 'owner'
+    WHEN key = 'read_user' THEN 'enumerate'
+    WHEN key = 'content_read_user' THEN 'select'
+    WHEN key = 'content_write_user' THEN 'write'
+    WHEN key = 'schema_write_user' THEN 'create'
+  END AS key,
+  array_agg(value) AS members
+FROM _ermrest.meta
+WHERE key IN ('owner', 'read_user', 'content_read_user', 'content_write_user', 'schema_write_user')
+GROUP BY key
+;
+
+DROP TABLE _ermrest.meta;
+
+EOF
+    fi
+
+    cat <<EOF
+
 ALTER SCHEMA _ermrest OWNER TO ${DAEMONUSER};
 
 CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS \$\$
@@ -208,9 +276,6 @@ CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE A
   SELECT \$1::text;
 \$\$ LANGUAGE SQL;
 
-COMMIT;
-
-BEGIN;
 SELECT _ermrest.model_change_event();
 COMMIT;
 

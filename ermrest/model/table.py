@@ -26,7 +26,7 @@ needed by other modules of the ermrest project.
 
 from .. import exception
 from ..util import sql_identifier, sql_literal
-from .misc import AltDict, annotatable, commentable
+from .misc import AltDict, AclDict, annotatable, commentable, hasacls
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -40,6 +40,15 @@ import web
     table_name=('text', lambda self: unicode(self.name))
     )
 )
+@hasacls(
+    'table',
+    {
+        "schema_name": ('text', lambda self: unicode(self.name)),
+        "table_name": ('text', lambda self: unicode(self.name))
+    },
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select", "reference"},
+    lambda self: self.schema
+)
 class Table (object):
     """Represents a database table.
     
@@ -47,7 +56,7 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns, kind, comment=None, annotations={}):
+    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}):
         self.schema = schema
         self.name = name
         self.kind = kind
@@ -57,6 +66,8 @@ class Table (object):
         self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (k, self)))
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self)))
         self.annotations.update(annotations)
+        self.acls = AclDict(self)
+        self.acls.update(acls)
 
         for c in columns:
             self.columns[c.name] = c
@@ -68,6 +79,10 @@ class Table (object):
     @staticmethod
     def introspect_annotation(model=None, schema_name=None, table_name=None, annotation_uri=None, annotation_value=None):
         model.schemas[schema_name].tables[table_name].annotations[annotation_uri] = annotation_value
+
+    @staticmethod
+    def introspect_acl(model=None, schema_name=None, table_name=None, acl=None, members=None):
+        model.schemas[schema_name].tables[table_name].acls[acl] = members
 
     def __str__(self):
         return ':%s:%s' % (
@@ -262,7 +277,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             yield fkr
 
     def prejson(self):
-        return dict(
+        doc = dict(
             schema_name=self.schema.name,
             table_name=self.name,
             column_definitions=[
@@ -283,6 +298,9 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             comment=self.comment,
             annotations=self.annotations
             )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+        return doc
 
     def sql_name(self):
         return '.'.join([

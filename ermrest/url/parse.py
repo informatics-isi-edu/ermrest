@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2016 University of Southern California
+# Copyright 2010-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -137,12 +137,8 @@ def p_pagelist_grow(p):
     p[0].append( p[3] )
     
 def p_meta_key(p):
-    """meta : catalogslash META '/' string slashopt """
+    """meta : catalogslash META '/' string """
     p[0] = p[1].meta(p[4])
-
-def p_meta_key_value(p):
-    """meta : catalogslash META '/' string '/' string slashopt """
-    p[0] = p[1].meta(p[4], p[6])
 
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """

@@ -54,8 +54,9 @@ class AclDict (dict):
         self._subject = subject
 
     def __getitem__(self, k):
-        if k not in self._subject._acls_supported:
-            raise exception.ConflictData('ACL name %s not recognized.' % k)
+        if k not in self._subject._acls_supported and k not in {'owner'}:
+            raise NotImplementedError(k)
+            #raise exception.ConflictData('ACL name %s not recognized.' % k)
         try:
             return dict.__getitem__(self, k)
         except KeyError, e:
@@ -209,7 +210,7 @@ SELECT %s FROM _ermrest.model_%s_annotation;
 
 hasacls_classes = []
 
-def hasacls(restype, keying, acls, parent):
+def hasacls(restype, keying, acls, getparent):
     """Decorator to add ACL storage access interface to model classes.
 
        restype: string to distinguish resource types for storage table naming
@@ -218,7 +219,7 @@ def hasacls(restype, keying, acls, parent):
 
        acls: { aclname, ... }
 
-       parent: getparent_func
+       getparent: getparent_func
     """
     def _interp_acl(self, aclname):
         interp = {
@@ -266,12 +267,16 @@ SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
                 # TODO: prune orphaned ACL?
                 pass
 
-    def set_acl(self, conn, cur, aclname, members):
+    def set_acl(self, cur, aclname, members):
         """Set annotation on %s, returning previous value for updates or None.""" % restype
         assert aclname is not None
 
         if members is None:
             return self.delete_acl(conn, cur, aclname)
+
+        self.enforce_right('owner')
+
+        self.acls[aclname] = members
 
         interp = self._interp_acl(aclname)
         keys = interp.keys()
@@ -295,7 +300,6 @@ RETURNING old.members;
         for oldvalue in cur:
             return oldvalue
 
-        web.debug(interp)
         cur.execute("""
 INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(values)s, %(members)s);
 """ % dict(
@@ -308,9 +312,14 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
         return None
 
     def delete_acl(self, conn, cur, aclname):
+        self.enforce_right('owner')
+
         interp = self._interp_acl(aclname)
         if aclname is None:
             del interp['acl']
+            self.acls.clear()
+        else:
+            del self.acls[aclname]
         keys = interp.keys()
         where = ' AND '.join([
             '%s = %s' % (sql_identifier(k), interp[k])
@@ -325,10 +334,77 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
     )
         )
 
+    def has_right(self, aclname, roles=None):
+        """Return access decision True, False, None.
+
+           aclname: the symbolic name for the access mode
+
+           roles: the client roles for whom to make a decision
+
+        """
+        sufficient_rights = {
+            "owner": set(),
+            "reference": set(),
+            "create": {"owner"},
+            "write": {"owner"},
+            "insert": {"owner", "write"},
+            "update": {"owner", "write"},
+            "delete": {"owner", "write"},
+            "select": {"owner", "write", "update", "delete"},
+            "enumerate": {"owner", "create", "write", "insert", "update", "delete", "select"},
+        }
+
+        if roles is None:
+            roles = set([
+                r['id'] if type(r) is dict else r
+                for r in web.ctx.webauthn2_context.attributes
+            ])
+            roles.add('*')
+
+        if self._acl_getparent is not None:
+            parentres = self._acl_getparent()
+        else:
+            parentres = None
+
+        acl = self.acls[aclname]
+
+        if parentres is not None:
+            if parentres.has_right('owner', roles):
+                # have right implicitly due to parent resource ownership rule
+                return True
+            elif acl is None and parentres.has_right(aclname, roles):
+                # have right due to inherited parent ACL
+                return True
+
+        for aclname2 in sufficient_rights[aclname]:
+            if self.has_right(aclname2, roles):
+                # have right implicitly due to another sufficient right
+                return True
+
+        if acl is not None:
+            if not set(acl).isdisjoint(roles):
+                # have right explicitly due to ACL intersection
+                return True
+
+        # TODO: add case for when dynamic rights are possible on this resource...
+            
+        # finally, static deny decision
+        return False
+
+    def enforce_right(self, aclname):
+        """Policy enforcement for named right."""
+        decision = self.has_right(aclname)
+        if decision is False:
+            # we can't stop now if decision is True or None...
+            raise rest.Forbidden(web.ctx.env['REQUEST_URI'])
+
     def helper(orig_class):
+        setattr(orig_class, '_acl_getparent', getparent)
         setattr(orig_class, '_acl_keying', keying)
         setattr(orig_class, '_acls_supported', set(acls))
         setattr(orig_class, '_interp_acl', _interp_acl)
+        setattr(orig_class, 'has_right', has_right)
+        setattr(orig_class, 'enforce_right', enforce_right)
         setattr(orig_class, 'set_acl', set_acl)
         setattr(orig_class, 'delete_acl', delete_acl)
         if hasattr(orig_class, 'introspect_acl'):

@@ -136,7 +136,7 @@ def _PUT(handler, uri, put_thunk, vresource):
 
     def body(conn, cur):
         input_data.seek(0) # rewinds buffer, in case of retry
-        handler.enforce_content_write(cur, uri)
+        handler.enforce_right('write')
         handler.set_http_etag( vresource.get_data_version(cur) )
         handler.http_check_preconditions(method='PUT')
         result = put_thunk([
@@ -163,7 +163,7 @@ def _DELETE(handler, uri, resource, vresource):
     """Perform HTTP DELETE of generic data resources.
     """
     def body(conn, cur):
-        handler.enforce_content_write(cur, uri)
+        handler.enforce_right('delete')
         handler.set_http_etag( vresource.get_data_version(cur) )
         handler.http_check_preconditions(method='DELETE')
         resource.delete(conn, cur)
@@ -188,7 +188,7 @@ class TextFacet (Api):
         Api.__init__(self, catalog)
         self.http_vary.add('accept')
         cur = web.ctx.ermrest_catalog_pc.cur
-        self.enforce_content_read(cur)
+        self.enforce_right('select')
         self.model = self.catalog.manager.get_model(cur)
         self.textfacet = ermpath.TextFacet(
             catalog,
@@ -209,7 +209,7 @@ class Entity (Api):
     def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
         cur = web.ctx.ermrest_catalog_pc.cur
-        self.enforce_content_read(cur)
+        self.enforce_right('select')
         self.model = self.catalog.manager.get_model(cur)
         self.epath = ermpath.EntityPath(self.model)
         if len(elem.name.nameparts) == 2:

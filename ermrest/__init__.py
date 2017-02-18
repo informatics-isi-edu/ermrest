@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -165,26 +165,3 @@ def catalog_init_meta(catalog_id, role):
     catalog = Catalog(catalog_factory, descriptor)
     catalog.init_meta(owner=role)
 
-def catalog_get_meta(catalog_id, key=None):
-    """
-    Initialize catalog metadata.
-    """
-    descriptor = registry.lookup(catalog_id)[0]['descriptor']
-    catalog = Catalog(catalog_factory, descriptor)
-    return catalog.get_meta(key)
-
-def catalog_add_meta(catalog_id, key, value):
-    """
-    Initialize catalog metadata.
-    """
-    descriptor = registry.lookup(catalog_id)[0]['descriptor']
-    catalog = Catalog(catalog_factory, descriptor)
-    catalog.add_meta(key, value)
-
-def catalog_remove_meta(catalog_id, key, value=None):
-    """
-    Initialize catalog metadata.
-    """
-    descriptor = registry.lookup(catalog_id)[0]['descriptor']
-    catalog = Catalog(catalog_factory, descriptor)
-    catalog.remove_meta(key, value)

@@ -23,6 +23,7 @@ This module provides catalog management features including:
     - modify catalog metadata
 """
 
+import web
 import psycopg2
 import sanepg2
 
@@ -169,17 +170,8 @@ class Catalog (object):
     
     _POSTGRES_REGISTRY = "postgres"
     _SUPPORTED_REGISTRY_TYPES = (_POSTGRES_REGISTRY)
-    _SCHEMA_NAME = '_ermrest'
-    _TABLE_NAME = 'meta'
     _MODEL_VERSION_TABLE_NAME = 'model_version'
     _DATA_VERSION_TABLE_NAME = 'data_version'
-    META_OWNER = 'owner'
-    META_READ_USER = 'read_user'
-    META_WRITE_USER = 'write_user'
-    META_SCHEMA_WRITE_USER = 'schema_write_user'
-    META_CONTENT_READ_USER = 'content_read_user'
-    META_CONTENT_WRITE_USER = 'content_write_user'
-    ANONYMOUS = '*'
 
     # key cache by (str(descriptor), version)
     MODEL_CACHE = dict()
@@ -219,19 +211,21 @@ class Catalog (object):
 
     def get_model_version(self, cur):
         cur.execute("""
-SELECT max(snap_txid) AS txid FROM %(schema)s.%(table)s WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
-""" % dict(schema=self._SCHEMA_NAME, table=self._MODEL_VERSION_TABLE_NAME))
+SELECT max(snap_txid) AS txid FROM _ermrest.%(table)s WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
+""" % dict(table=self._MODEL_VERSION_TABLE_NAME))
         self._model_version = cur.next()[0]  # TODO: do we need self._model_version to be an instance var?
         return self._model_version
 
     def get_model_update_version(self, cur):
         cur.execute("""
 SELECT txid_current(); 
-""" % dict(schema=self._SCHEMA_NAME, table=self._MODEL_VERSION_TABLE_NAME))
+""" % dict(table=self._MODEL_VERSION_TABLE_NAME))
         return cur.next()[0] 
 
-    def get_model(self, cur, config=None, private=False):
+    def get_model(self, cur=None, config=None, private=False):
         # TODO: turn this into a @property
+        if cur is None:
+            cur = web.ctx.ermrest_catalog_pc.cur
         if config is None:
             config = self._config
         cache_key = (str(self.descriptor), self.get_model_version(cur))
@@ -282,24 +276,12 @@ SELECT txid_current();
             owner = owner['id']
 
         # create schema, if it doesn't exist
-        if not schema_exists(cur, self._SCHEMA_NAME):
+        if not schema_exists(cur, '_ermrest'):
             cur.execute("""
-CREATE SCHEMA %(schema)s;
-""" % dict(schema=self._SCHEMA_NAME)
-                        )
+CREATE SCHEMA _ermrest;
+"""
+            )
             
-        # create meta table, if it doesn't exist
-        if not table_exists(cur, self._SCHEMA_NAME, self._TABLE_NAME):
-            cur.execute("""
-CREATE TABLE %(schema)s.%(table)s (
-    key text NOT NULL,
-    value text NOT NULL,
-    UNIQUE (key, value)
-);
-""" % dict(schema=self._SCHEMA_NAME,
-           table=self._TABLE_NAME)
-                        )
-
         # create annotation storage tables
         for klass in annotatable_classes:
             klass.create_storage_table(cur)
@@ -308,7 +290,7 @@ CREATE TABLE %(schema)s.%(table)s (
         for klass in hasacls_classes:
             klass.create_acl_storage_table(cur)
 
-        if not table_exists(cur, self._SCHEMA_NAME, 'model_pseudo_key'):
+        if not table_exists(cur, '_ermrest', 'model_pseudo_key'):
             cur.execute("""
 CREATE TABLE _ermrest.model_pseudo_key (
   id serial PRIMARY KEY,
@@ -321,7 +303,7 @@ CREATE TABLE _ermrest.model_pseudo_key (
 );
 """)
             
-        if not table_exists(cur, self._SCHEMA_NAME, 'model_pseudo_keyref'):
+        if not table_exists(cur, '_ermrest', 'model_pseudo_keyref'):
             cur.execute("""
 CREATE TABLE _ermrest.model_pseudo_keyref (
   id serial PRIMARY KEY,
@@ -337,9 +319,9 @@ CREATE TABLE _ermrest.model_pseudo_keyref (
 );
 """)
             
-        if not table_exists(cur, self._SCHEMA_NAME, self._MODEL_VERSION_TABLE_NAME):
+        if not table_exists(cur, '_ermrest', self._MODEL_VERSION_TABLE_NAME):
             cur.execute("""
-CREATE TABLE %(schema)s.%(table)s (
+CREATE TABLE _ermrest.%(table)s (
     snap_txid bigint PRIMARY KEY
 );
 
@@ -347,39 +329,39 @@ CREATE DOMAIN longtext text;
 CREATE DOMAIN markdown text;
 CREATE DOMAIN gene_sequence text;
 
-CREATE OR REPLACE FUNCTION %(schema)s.astext(timestamptz) RETURNS text IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.astext(timestamp) RETURNS text IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.astext(timestamp) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1, 'YYYY-MM-DD"T"HH24:MI:SS');
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.astext(timetz) RETURNS text IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.astext(timetz) RETURNS text IMMUTABLE AS $$
   SELECT to_char(date_part('hour', $1 AT TIME ZONE 'UTC'), '09') 
      || ':' || to_char(date_part('minute', $1 AT TIME ZONE 'UTC'), '09') 
      || ':' || to_char(date_part('second', $1 AT TIME ZONE 'UTC'), '09');
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.astext(time) RETURNS text IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.astext(time) RETURNS text IMMUTABLE AS $$
   SELECT to_char(date_part('hour', $1), '09') 
      || ':' || to_char(date_part('minute', $1), '09') 
      || ':' || to_char(date_part('second', $1), '09');
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.astext(date) RETURNS text IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.astext(date) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1, 'YYYY-MM-DD');
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.astext(anyarray) RETURNS text IMMUTABLE AS $$
-  SELECT array_agg(%(schema)s.astext(v))::text FROM unnest($1) s(v);
+CREATE OR REPLACE FUNCTION _ermrest.astext(anyarray) RETURNS text IMMUTABLE AS $$
+  SELECT array_agg(_ermrest.astext(v))::text FROM unnest($1) s(v);
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.astext(anynonarray) RETURNS text IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE AS $$
   SELECT $1::text;
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION %(schema)s.current_client() RETURNS text STABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS $$
 BEGIN
   RETURN current_setting('webauthn2.client');
 EXCEPTION WHEN OTHERS THEN
@@ -387,7 +369,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION %(schema)s.current_client_obj() RETURNS json STABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.current_client_obj() RETURNS json STABLE AS $$
 BEGIN
   RETURN current_setting('webauthn2.client_json')::json;
 EXCEPTION WHEN OTHERS THEN
@@ -395,7 +377,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION %(schema)s.current_attributes() RETURNS text[] STABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE AS $$
 BEGIN
   RETURN current_setting('webauthn2.attributes_array')::text[];
 EXCEPTION WHEN OTHERS THEN
@@ -403,7 +385,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION %(schema)s.model_change_event() RETURNS void AS $$
+CREATE OR REPLACE FUNCTION _ermrest.model_change_event() RETURNS void AS $$
 DECLARE
 
   resultbool boolean;
@@ -413,14 +395,14 @@ BEGIN
 
   SELECT txid_current() INTO trigger_txid;
 
-  SELECT EXISTS (SELECT snap_txid 
-                 FROM %(schema)s.%(table)s 
-                 WHERE snap_txid = trigger_txid) 
+  SELECT EXISTS (SELECT snap_txid
+                 FROM _ermrest.%(table)s
+                 WHERE snap_txid = trigger_txid)
   INTO resultbool ;
 
   IF NOT resultbool THEN
 
-    INSERT INTO %(schema)s.%(table)s (snap_txid)
+    INSERT INTO _ermrest.%(table)s (snap_txid)
       SELECT trigger_txid ;
 
   END IF;
@@ -428,13 +410,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION %(schema)s.model_change_trigger() RETURNS event_trigger AS $$
+CREATE OR REPLACE FUNCTION _ermrest.model_change_trigger() RETURNS event_trigger AS $$
 BEGIN
-  PERFORM %(schema)s.model_change_event();
+  PERFORM _ermrest.model_change_event();
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT %(schema)s.model_change_event() ;
+SELECT _ermrest.model_change_event() ;
 
 -- NEED TO BE POSTGRES SUPERUSER TO REGISTER AN EVENT TRIGGER!
 -- This will also fire on every REST data PUT because we use temporary tables
@@ -447,20 +429,19 @@ SELECT %(schema)s.model_change_event() ;
 -- )
 -- EXECUTE PROCEDURE model_change_trigger() ;
 
-""" % dict(schema=self._SCHEMA_NAME,
-           table=self._MODEL_VERSION_TABLE_NAME)
-                        )
+""" % dict(table=self._MODEL_VERSION_TABLE_NAME)
+            )
             
-        if not table_exists(cur, self._SCHEMA_NAME, self._DATA_VERSION_TABLE_NAME):
+        if not table_exists(cur, '_ermrest', self._DATA_VERSION_TABLE_NAME):
             cur.execute("""
-CREATE TABLE %(schema)s.%(table)s (
+CREATE TABLE _ermrest.%(table)s (
     "schema" text,
     "table" text,
     snap_txid bigint,
     PRIMARY KEY ("schema", "table", "snap_txid")
 );
 
-CREATE OR REPLACE FUNCTION %(schema)s.data_change_event(sname text, tname text) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION _ermrest.data_change_event(sname text, tname text) RETURNS void AS $$
 DECLARE
 
   resultbool boolean;
@@ -470,8 +451,8 @@ BEGIN
 
   SELECT txid_current() INTO trigger_txid;
 
-  SELECT EXISTS (SELECT snap_txid 
-                 FROM %(schema)s.%(table)s 
+  SELECT EXISTS (SELECT snap_txid
+                 FROM _ermrest.%(table)s
                  WHERE "schema" = sname
                    AND "table" = tname
                    AND snap_txid = trigger_txid) 
@@ -479,7 +460,7 @@ BEGIN
 
   IF NOT resultbool THEN
 
-    INSERT INTO %(schema)s.%(table)s ("schema", "table", snap_txid)
+    INSERT INTO _ermrest.%(table)s ("schema", "table", snap_txid)
       SELECT sname, tname, trigger_txid ;
 
   END IF;
@@ -487,9 +468,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION %(schema)s.data_change_trigger() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION _ermrest.data_change_trigger() RETURNS trigger AS $$
 BEGIN
-  PERFORM %(schema)s.data_change_event( TG_TABLE_SCHEMA::text, TG_TABLE_NAME::text );
+  PERFORM _ermrest.data_change_event( TG_TABLE_SCHEMA::text, TG_TABLE_NAME::text );
 END;
 $$ LANGUAGE plpgsql;
 
@@ -498,122 +479,22 @@ $$ LANGUAGE plpgsql;
 -- CREATE TRIGGER data_changes_on_sname_tname 
 --   AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE 
 --   ON sname.tname FOR EACH STATEMENT
---   EXECUTE PROCEDURE %(schema)s.data_change_trigger() ;
+--   EXECUTE PROCEDURE _ermrest.data_change_trigger() ;
 
-""" % dict(schema=self._SCHEMA_NAME,
-           table=self._DATA_VERSION_TABLE_NAME)
-                        )
+""" % dict(table=self._DATA_VERSION_TABLE_NAME)
+            )
 
-        ## initial meta values
-        owner = owner if owner else self.ANONYMOUS
-        self.add_meta(cur, self.META_OWNER, owner)
-        self.add_meta(cur, self.META_WRITE_USER, owner)
-        self.add_meta(cur, self.META_READ_USER, owner)
-        self.add_meta(cur, self.META_SCHEMA_WRITE_USER, owner)
-        self.add_meta(cur, self.META_CONTENT_READ_USER, owner)
-        self.add_meta(cur, self.META_CONTENT_WRITE_USER, owner)
-        
-    
-    # TODO: change API to pass conn/cur through for request handler hot-path
-    def get_meta(self, cur, key=None, value=None):
-        """Gets metadata fields, optionally filtered by attribute key or by 
-           key and value pair, to test existence of specific pair.
-        """
-        where = ''
-        if key is not None:
-            where = "WHERE key = %s" % sql_literal(key)
-            if value is not None:
-                if hasattr(value, '__iter__'):
-                    where += " AND value = ANY (ARRAY[%s]::text[])" % (
-                        ','.join([sql_literal(v) for v in value]))
-                else:
-                    where += " AND value = %s" % sql_literal(value)
+        ## initial policy
+        self.get_model(cur, self._config)
+        owner = owner if owner else '*'
+        self._model.acls['owner'] = [owner] # set so enforcement won't deny subsequent set_acl()
+        self.set_acl(cur, 'owner', [owner])
 
-        cur.execute("""
-SELECT key, array_agg(value) AS values FROM %(schema)s.%(table)s
-%(where)s
-GROUP BY key
-;""" % dict(schema=self._SCHEMA_NAME,
-            table=self._TABLE_NAME,
-            where=where) 
-                    )
-        result = {}
-        for k, v in cur:
-            result[k] = v
-        return result
-    
-    def add_meta(self, cur, key, value):
-        """Adds a metadata (key, value) pair.
-        """
-        cur.execute("""
-INSERT INTO %(schema)s.%(table)s
-  (key, value)
-VALUES
-  (%(key)s, %(value)s)
-EXCEPT
-SELECT key, value FROM %(schema)s.%(table)s
-;
-""" % dict(schema=self._SCHEMA_NAME,
-           table=self._TABLE_NAME,
-           key=sql_literal(key),
-           value=sql_literal(value)
-           )
-                    )
-            
-    def remove_meta(self, cur, key, value=None):
-        """Removes a metadata (key, value) pair or all pairs that match on the
-           key alone.
-        """
-        where = "WHERE key = %s" % sql_literal(key)
-        if value:
-            where += " AND value = %s" % sql_literal(value)
-            
-        cur.execute("""
-DELETE FROM %(schema)s.%(table)s
-%(where)s
-;
-""" % dict(schema=self._SCHEMA_NAME,
-           table=self._TABLE_NAME,
-           where=where
-           ) 
-                    )
-    
-    def _test_perm(self, cur, perm, roles):
-        """Tests whether the user roles have a permission.
-        """
-        if not (type(roles) is set or type(roles) is list):
-            roles = [roles]
-        roles = set([ r['id'] if type(r) is dict else r for r in roles ])
-        return len(self.get_meta(cur, perm, roles.union(self.ANONYMOUS))) > 0
-                                  
-    def has_read(self, cur, roles):
-        """Tests whether the user roles have read permission.
-        """
-        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_READ_USER, roles)
-    
-    def has_write(self, cur, roles):
-        """Tests whether the user roles have write permission.
-        """
-        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_WRITE_USER, roles)
-    
-    def has_schema_write(self, cur, roles):
-        """Tests whether the user roles have schema write permission.
-        """
-        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_SCHEMA_WRITE_USER, roles)
-                                  
-    def has_content_read(self, cur, roles):
-        """Tests whether the user roles have content read permission.
-        """
-        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_CONTENT_READ_USER, roles)
-    
-    def has_content_write(self, cur, roles):
-        """Tests whether the user roles have content write permission.
-        """
-        return self.is_owner(cur, roles) or self._test_perm(cur, self.META_CONTENT_WRITE_USER, roles)
-    
-    def is_owner(self, cur, roles):
-        """Tests whether the user role is owner.
-        """
-        return self._test_perm(cur, self.META_OWNER, roles)
+    def set_acl(self, cur, aclname, members=None):
+        """Convenience wrapper to access underlying self._model.acls.set_acl()"""
+        self._model.set_acl(cur, aclname, members)
 
+    def has_right(self, aclname):
+        """Convenience wrapper to access underlying self._model.has_right()"""
+        return self._model.has_right(aclname)
 

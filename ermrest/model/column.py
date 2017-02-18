@@ -21,7 +21,7 @@ import re
 from .. import exception
 from ..util import sql_identifier, sql_literal
 from .type import tsvector_type, Type
-from .misc import AltDict, annotatable, commentable
+from .misc import AltDict, AclDict, annotatable, commentable, hasacls
 
 @commentable()
 @annotatable('column', dict(
@@ -29,6 +29,16 @@ from .misc import AltDict, annotatable, commentable
     table_name=('text', lambda self: unicode(self.table.name)),
     column_name=('text', lambda self: unicode(self.name))
     )
+)
+@hasacls(
+    'column',
+    {
+        "schema_name": ('text', lambda self: unicode(self.name)),
+        "table_name": ('text', lambda self: unicode(self.name)),
+        "column_name": ('text', lambda self: unicode(self.name))
+    },
+    {"enumerate", "insert", "update", "delete", "select"},
+    lambda self: self.table
 )
 class Column (object):
     """Represents a table column.
@@ -43,7 +53,7 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}):
+    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}, acls={}):
         self.table = None
         self.name = name
         self.position = position
@@ -53,10 +63,16 @@ class Column (object):
         self.comment = comment
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on column %s' % (k, self)))
         self.annotations.update(annotations)
+        self.acls = AclDict(self)
+        self.acls.update(acls)
     
     @staticmethod
     def introspect_annotation(model=None, schema_name=None, table_name=None, column_name=None, annotation_uri=None, annotation_value=None):
         model.schemas[schema_name].tables[table_name].columns[column_name].annotations[annotation_uri] = annotation_value
+
+    @staticmethod
+    def introspect_acl(model=None, schema_name=None, table_name=None, column_name=None, acl=None, members=None):
+        model.schemas[schema_name].tables[table_name].columns[column_name].acls[acl] = members
 
     def sql_comment_resource(self):
         return "COLUMN %s.%s.%s" % (
@@ -202,7 +218,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         return columns
 
     def prejson(self):
-        return dict(
+        doc = dict(
             name=self.name, 
             type=self.type.prejson(),
             default=self.default_value,
@@ -210,6 +226,9 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             comment=self.comment,
             annotations=self.annotations
             )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+        return doc
 
     def prejson_ref(self):
         return dict(

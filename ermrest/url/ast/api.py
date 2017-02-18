@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,46 +41,13 @@ class Api (object):
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 
-    def enforce_owner(self, cur, uri=''):
-        """Policy enforcement on is_owner.
-        """
-        if not self.catalog.manager.is_owner(
-                        cur, web.ctx.webauthn2_context.attributes):
-            raise rest.Forbidden(uri)
-
-    def enforce_read(self, cur, uri=''):
-        """Policy enforcement on has_read test.
-        """
-        if not (self.catalog.manager.has_read(
-                        cur, web.ctx.webauthn2_context.attributes) ):
-            raise rest.Forbidden(uri)
-
-    def enforce_write(self, cur, uri=''):
-        """Policy enforcement on has_write test.
-        """
-        if not (self.catalog.manager.has_write(
-                        cur, web.ctx.webauthn2_context.attributes) ):
-            raise rest.Forbidden(uri)
-
-    def enforce_content_read(self, cur, uri=''):
-        """Policy enforcement on has_content_read test.
-        """
-        if not (self.catalog.manager.has_content_read(
-                        cur, web.ctx.webauthn2_context.attributes) ):
-            raise rest.Forbidden(uri)
-
-    def enforce_content_write(self, cur, uri=''):
-        """Policy enforcement on has_content_write test.
-        """
-        if not (self.catalog.manager.has_content_write(
-                        cur, web.ctx.webauthn2_context.attributes) ):
-            raise rest.Forbidden(uri)
-
-    def enforce_schema_write(self, cur, uri=''):
-        """Policy enforcement on has_schema_write test.
-        """
-        if not (self.catalog.manager.has_schema_write(
-                        cur, web.ctx.webauthn2_context.attributes) ):
+    def enforce_right(self, aclname, uri=None):
+        """Policy enforcement for named right."""
+        decision = self.catalog.manager.has_right(aclname)
+        if decision is False:
+            # we can't stop now if decision is True or None...
+            if uri is None:
+                uri = web.ctx.env['REQUEST_URI']
             raise rest.Forbidden(uri)
 
     def with_queryopts(self, qopt):

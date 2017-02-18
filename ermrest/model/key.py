@@ -16,7 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, annotatable, commentable
+from .misc import frozendict, AltDict, AclDict, annotatable, commentable, hasacls
 
 import json
 
@@ -388,10 +388,23 @@ def _keyref_prejson(self):
     to_column_names=('text[]', lambda self: self._to_column_names())
     )
 )
+@hasacls(
+    'keyref',
+    dict(
+        from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+        from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
+        from_column_names=('text[]', lambda self: self._from_column_names()),
+        to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
+        to_table_name=('text', lambda self: unicode(self.unique.table.name)),
+        to_column_names=('text[]', lambda self: self._to_column_names())
+    ),
+    {"refererence"},
+    lambda self: self.foreign_key.table
+)
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -410,6 +423,8 @@ class KeyReference (object):
         self.constraints = set([self])
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
+        self.acls = AclDict(self)
+        self.acls.update(acls)
         self.comment = comment
 
     @staticmethod
@@ -421,6 +436,16 @@ class KeyReference (object):
             for from_cname, to_cname in zip(from_column_names, to_column_names)
         ])
         from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].annotations[annotation_uri] = annotation_value
+
+    @staticmethod
+    def introspect_acl(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None, acl=None, members=None):
+        from_table = model.schemas[from_schema_name].tables[from_table_name]
+        to_table = model.schemas[to_schema_name].tables[to_table_name]
+        refmap = dict([
+            (from_table.columns[from_cname], to_table.columns[to_cname])
+            for from_cname, to_cname in zip(from_column_names, to_column_names)
+        ])
+        from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].acls[acl] = members
 
     def set_comment(self, conn, cur, comment):
         if self.constraint_name:
@@ -601,10 +626,23 @@ SELECT _ermrest.model_change_event();
     to_column_names=('text[]', lambda self: self._to_column_names())
     )
 )
+@hasacls(
+    'keyref',
+    dict(
+        from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+        from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
+        from_column_names=('text[]', lambda self: self._from_column_names()),
+        to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
+        to_table_name=('text', lambda self: unicode(self.unique.table.name)),
+        to_column_names=('text[]', lambda self: self._to_column_names())
+    ),
+    {"refererence"},
+    lambda self: self.foreign_key.table
+)
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None, acls={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -622,6 +660,8 @@ class PseudoKeyReference (object):
         self.constraints = set([self])
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
+        self.acls = AclDict(self)
+        self.acls.update(acls)
         self.comment = comment
 
     def set_comment(self, conn, cur, comment):

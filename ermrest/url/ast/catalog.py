@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2013 University of Southern California
+# Copyright 2010-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,6 +77,25 @@ class Catalogs (object):
             assert content_type == _application_json
             return json.dumps(dict(id=catalog_id))
 
+def _acls_to_meta(acls):
+    meta_keys = {
+        "owner": "owner",
+        "read_user": "enumerate",
+        "content_read_user": "select",
+        "content_write_user": "write",
+        "schema_write_user": 'create',
+        "write_user": False,
+    }
+    return dict([
+        (metakey, acls[aclname] or [])
+        for metakey, aclname in meta_keys.items()
+        if aclname
+    ] + [
+        (metakey, [])
+        for metakey, aclname in meta_keys.items()
+        if not aclname
+    ])
+
 class Catalog (Api):
 
     default_content_type = _application_json
@@ -100,7 +119,8 @@ class Catalog (Api):
         web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
 
         # now enforce read permission
-        self.enforce_read(web.ctx.ermrest_catalog_pc.cur, 'catalog/' + str(self.catalog_id))
+        self.manager.get_model()
+        self.enforce_right('enumerate', 'catalog/' + str(self.catalog_id))
 
     def final(self):
         web.ctx.ermrest_catalog_pc.final()
@@ -144,6 +164,10 @@ class Catalog (Api):
         """A query set for this catalog."""
         return data.Query(self, qpath)
 
+    def GET_body(self, conn, cur):
+        model = self.manager.get_model(cur)
+        return model
+
     def GET(self, uri):
         """Perform HTTP GET of catalog.
         """
@@ -152,26 +176,26 @@ class Catalog (Api):
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
         
-        def body(conn, cur):
-            return list(self.manager.get_meta(cur))
-
-        def post_commit(meta):
+        def post_commit(model):
             # note that the 'descriptor' includes private system information such 
             # as the dbname (and potentially connection credentials) which should
             # not ever be shared.
-            resource = dict(id=self.catalog_id,
-                            meta=list(meta))
+            resource = dict(
+                id=self.catalog_id,
+                meta=_acls_to_meta(model.acls),
+                acls=model.acls
+            )
             response = json.dumps(resource) + '\n'
             web.header('Content-Length', len(response))
             return response
         
-        return self.perform(body, post_commit)
+        return self.perform(self.GET_body, post_commit)
     
     def DELETE(self, uri):
         """Perform HTTP DELETE of catalog.
         """
         def body(conn, cur):
-            self.enforce_owner(cur, uri)
+            self.enforce_right('owner', uri)
             return True
 
         def post_commit(destroy):
@@ -183,7 +207,12 @@ class Catalog (Api):
 
 
 class Meta (Api):
-    """A metadata set of the catalog."""
+    """A metadata set of the catalog.
+
+       This is a temporary map of ACLs to old meta API for introspection by older clients.
+
+       DEPRECATED.
+    """
 
     default_content_type = _application_json
     supported_types = [default_content_type]
@@ -192,84 +221,32 @@ class Meta (Api):
         Api.__init__(self, catalog)
         self.key = key
         self.value = value
-    
-    
+
     def GET(self, uri):
         """Perform HTTP GET of catalog metadata.
         """
         content_type = negotiated_content_type(self.supported_types, self.default_content_type)
         def body(conn, cur):
-            self.enforce_read(cur, uri)
-            return self.catalog.manager.get_meta(cur, self.key, self.value)
+            self.enforce_right('enumerate', uri)
+            model = self.catalog.manager.get_model()
+            return model.acls
 
-        def post_commit(meta):
+        def post_commit(acls):
             web.header('Content-Type', content_type)
             web.ctx.ermrest_request_content_type = content_type
+
+            meta = _acls_to_meta(acls)
+
             if self.key is not None:
                 # project out single ACL from ACL set
-                meta = meta.get(self.key, [])
-                if self.value is not None:
-                    if meta:
-                        # this should always work or we have a design problem
-                        meta = meta[meta.index(self.value)]
-                    else:
-                        raise exception.rest.NotFound(uri)
+                try:
+                    meta = meta[self.key]
+                except KeyError:
+                    raise exception.rest.NotFound(uri)
+
             response = json.dumps(meta) + '\n'
             web.header('Content-Length', len(response))
             return response
-
-        return self.perform(body, post_commit)
-    
-    def PUT(self, uri):
-        """Perform HTTP PUT of catalog metadata.
-        """
-        # disallow PUT of META
-        if not self.key or not self.value:
-            raise exception.rest.NoMethod(uri)
-        
-        def body(conn, cur):
-            self.enforce_write(cur, uri)
-        
-            if self.key == self.catalog.manager.META_OWNER:
-                # must be owner to change owner
-                self.enforce_owner(cur, uri)
-
-            self.catalog.manager.add_meta(cur, self.key, self.value)
-            
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
-
-        return self.perform(body, post_commit)
-    
-    
-    def DELETE(self, uri):
-        """Perform HTTP DELETE of catalog metadata.
-        """
-        # disallow DELETE of META
-        if not self.key:
-            raise exception.rest.NoMethod(uri)
-        
-        def body(conn, cur):
-            self.enforce_write(cur, uri)
-
-            if self.key == self.catalog.manager.META_OWNER:
-                # must be owner to change owner
-                self.enforce_owner(cur, uri)
-
-            meta = self.catalog.manager.get_meta(cur, self.key, self.value)
-            if not meta:
-                raise exception.rest.NotFound(uri)
-        
-            self.catalog.manager.remove_meta(cur, self.key, self.value)
-
-            if self.key == self.catalog.manager.META_OWNER:
-                # must still be owner after change to prevent orphans
-                self.enforce_owner(cur, uri)
-
-        def post_commit(ignore):
-            web.ctx.status = '204 No Content'
-            return ''
 
         return self.perform(body, post_commit)
 
