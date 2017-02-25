@@ -21,7 +21,7 @@ _server_url = "%s://%s" % (_scheme, _server)
 if os.getenv('TEST_SSL_VERIFY', 'true').lower() == 'false':
     _verify = False
 else:
-    _verify = None
+    _verify = True
 
 # this will be the dynamically generated catalog ID and corresponding path
 cid = None
@@ -42,7 +42,7 @@ class TestSession (requests.Session):
 
     """
 
-    def _test_mount(self, cookiefilename=None):
+    def _test_mount(self, cookiefilename=None, reportname=None):
         """Mount the statically configured test server, configure a cookiestore."""
         requests.Session.mount(
             self, _server_url + '/',
@@ -68,6 +68,14 @@ class TestSession (requests.Session):
                     **kwargs
                 )
 
+        if reportname:
+            sys.stderr.write(
+                ('Created %s' + (' with cookies %s:\n' % cookiefilename if cookiefilename else '\n')) % reportname
+            )
+            for c in self.cookies:
+                sys.stderr.write('  %s\n' % (c,))
+            sys.stderr.write('\n')
+
     def _path2url(self, path):
         if path == '' or path[0] != '/':
             path = "%s/%s" % (cpath, path)
@@ -91,16 +99,14 @@ class TestSession (requests.Session):
 # setup the primary session (privileged user)
 primary_session = TestSession()
 _primary_cookies = os.getenv('TEST_COOKIES1')
-assert _primary_cookies, "TEST_COOKIES1 must a cookie file name"
-primary_session._test_mount(_primary_cookies)
-sys.stderr.write('Created primary_session with TEST_COOKIES1=%s.\n' % _primary_cookies)
+assert _primary_cookies, "TEST_COOKIES1 must be a cookie file name"
+primary_session._test_mount(_primary_cookies, 'primary session')
 
 # setup the secondary session (less privileged user) if possible
 secondary_session = TestSession()
 _secondary_cookies = os.getenv('TEST_COOKIES2')
 if _secondary_cookies:
-    secondary_session._test_mount(_secondary_cookies)
-    sys.stderr.write('Created secondary_session with TEST_COOKIES2=%s.\n' % _secondary_cookies)
+    secondary_session._test_mount(_secondary_cookies, 'secondary session')
 else:
     sys.stderr.write('Disabling secondary_session due to missing TEST_COOKIES2.\n\n')
     secondary_session = None
@@ -122,10 +128,10 @@ except Exception, e:
     raise e
 
 # setup the anonymous session (no authentication) if possible
+anonymous_session = TestSession()
+anonymous_session._test_mount(reportname='anonymous session')
 try:
-    anonymous_session = TestSession()
-    _r = anonymous_session.get('')
-    _r.raise_for_status()
+    anonymous_session.get('').raise_for_status()
 except Exception, e:
     sys.stderr.write('Disabling anonymous_session due to error: %s\n\n' % e)
     anonymous_session = None
