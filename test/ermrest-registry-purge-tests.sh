@@ -19,7 +19,7 @@
 PROG=$(basename $0)                 # Program name
 LOG=${PROG}.log                     # Log file
 DAEMONUSER="${DAEMONUSER:-ermrest}" # Unix and DB user name
-MASTERDB="${MASTERDB:-$(DAEMONUSER}}" # Master DB name
+MASTERDB="${MASTERDB:-${DAEMONUSER}}" # Master DB name
 DBNPREFIX="_${MASTERDB}_test"       # DB name prefix
 
 # Define the tests that will be run:
