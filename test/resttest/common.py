@@ -14,6 +14,10 @@ import csv
 import json
 import urllib
 
+import logging
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+cookielib.debug = True
+
 _scheme = os.getenv('TEST_SCHEME', 'https')
 _server = os.getenv('TEST_HOSTNAME', platform.uname()[1])
 _server_url = "%s://%s" % (_scheme, _server)
@@ -128,17 +132,15 @@ try:
         }).raise_for_status()
     sys.stderr.write('OK.\n\n')
 except Exception, e:
-    sys.stderr.write('ERROR: %s.\n' % e)
-    sys.stderr.write('REQUEST: %r %r\n%r\n%r\n\nRESPONSE: %r\n%r\n%r\n' % (
+    sys.stderr.write('ERROR: %s.\n\n' % e)
+    sys.stderr.write('REQUEST: %r %r\n%r\n\n\nRESPONSE: %r\n%r\n%r\n' % (
         _r.request.method,
         _r.request.url,
         _r.request.headers,
-        _r.request.body,
-        _r,
+        _r.status_code,
         _r.headers,
         _r.content
     ))
-    dump_cookies(_r.request._cookies, 'PreparedRequest cookies:\n')
     raise e
 
 # setup the anonymous session (no authentication) if possible
