@@ -15,9 +15,9 @@ import csv
 import json
 import urllib
 
-import logging
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-cookielib.debug = True
+#import logging
+#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+#cookielib.debug = True
 
 _scheme = os.getenv('TEST_SCHEME', 'https')
 _server = os.getenv('TEST_HOSTNAME', platform.uname()[1])
