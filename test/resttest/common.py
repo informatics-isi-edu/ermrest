@@ -8,6 +8,7 @@ import atexit
 
 import requests
 import cookielib
+from cookielib import IPV4_RE
 
 import io
 import csv
@@ -69,6 +70,9 @@ class TestSession (requests.Session):
                     "domain": cookie.domain,
                     "path": cookie.path,
                 }
+                if cookie.domain.find('.') == -1 and not IPV4_RE.search(cookie.domain):
+                    # mangle this the same way cookielib does or domain matching will fail!
+                    kwargs['domain'] = cookie.domain + '.local'
                 if cookie.expires:
                     kwargs['expires'] = cookie.expires
                 
