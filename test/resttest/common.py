@@ -76,7 +76,7 @@ class TestSession (requests.Session):
     def dump_cookies(self, preamble):
         sys.stderr.write(preamble)
         for c in self.cookies:
-            sys.stderr.write('  %s=%s for %s%s expires=%s secure=%s\n' % (
+            sys.stderr.write('  %r=%r for %r %r expires=%r secure=%r\n' % (
                 c.name,
                 c.value,
                 c.domain,
@@ -135,7 +135,7 @@ try:
     sys.stderr.write('OK.\n\n')
 except Exception, e:
     sys.stderr.write('ERROR: %s.\n' % e)
-    sys.stderr.write('REQUEST: %s %s\n%s\n%s\n\nRESPONSE: %s\n%s\n%s\n' % (
+    sys.stderr.write('REQUEST: %r %r\n%r\n%r\n\nRESPONSE: %r\n%r\n%r\n' % (
         _r.request.method,
         _r.request.url,
         _r.request.headers,
