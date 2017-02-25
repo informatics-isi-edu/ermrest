@@ -27,6 +27,12 @@ else:
 cid = None
 cpath = None
 
+def dump_cookies(cookies, preamble):
+    sys.stderr.write(preamble)
+    for c in cookies:
+        sys.stderr.write('  %r\n' % c)
+    sys.stderr.write('end\n')
+            
 class TestSession (requests.Session):
     """Our extended version of requests.Session for test client stubs.
 
@@ -69,23 +75,11 @@ class TestSession (requests.Session):
                 )
 
         if reportname:
-            self.dump_cookies(
+            dump_cookies(
+                self.cookies,
                 ('Created %s' + (' with cookies %s:\n' % cookiefilename if cookiefilename else '\n')) % reportname
             )
 
-    def dump_cookies(self, preamble):
-        sys.stderr.write(preamble)
-        for c in self.cookies:
-            sys.stderr.write('  %r=%r for %r %r expires=%r secure=%r\n' % (
-                c.name,
-                c.value,
-                c.domain,
-                c.path,
-                c.expires,
-                c.secure
-            ))
-        sys.stderr.write('end.\n')
-            
     def _path2url(self, path):
         if path == '' or path[0] != '/':
             path = "%s/%s" % (cpath, path)
@@ -144,7 +138,7 @@ except Exception, e:
         _r.headers,
         _r.content
     ))
-    primary_session.dump_cookies('Primary session now has cookies:\n')
+    dump_cookies(_r.request._cookies, 'PreparedRequest cookies:\n')
     raise e
 
 # setup the anonymous session (no authentication) if possible
