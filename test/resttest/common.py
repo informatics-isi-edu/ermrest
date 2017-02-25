@@ -18,6 +18,11 @@ _scheme = os.getenv('TEST_SCHEME', 'https')
 _server = os.getenv('TEST_HOSTNAME', platform.uname()[1])
 _server_url = "%s://%s" % (_scheme, _server)
 
+if os.getenv('TEST_SSL_VERIFY', 'true').lower() == 'false':
+    _verify = False
+else:
+    _verify = None
+
 # this will be the dynamically generated catalog ID and corresponding path
 cid = None
 cpath = None
@@ -43,6 +48,8 @@ class TestSession (requests.Session):
             self, _server_url + '/',
             requests.adapters.HTTPAdapter(max_retries=5)
         )
+
+        self.verify = _verify
     
         if cookiefilename:
             cj = cookielib.MozillaCookieJar(cookiefilename)

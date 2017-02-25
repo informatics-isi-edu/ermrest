@@ -10,7 +10,7 @@ addons:
 env:
   global:
     - TEST_COOKIES1=~/cookies
-    - VERBOSE=brief
+    - TEST_SSL_VERIFY=false
     - HTTPD_ERROR_LOG=/var/log/apache2/error.log
 
 before_install:
