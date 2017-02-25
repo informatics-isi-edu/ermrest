@@ -9,7 +9,7 @@ addons:
 
 env:
   global:
-    - COOKIES=~/cookies
+    - TEST_COOKIES1=~/cookies
     - VERBOSE=brief
     - HTTPD_ERROR_LOG=/var/log/apache2/error.log
 
@@ -49,8 +49,8 @@ before_script:
 
 script:
   - sudo ./test/ermrest-registry-purge-tests.sh
-  - curl --fail -k -b $COOKIES -c $COOKIES -d username=test1 -d password=dummypassword https://${HOSTNAME}/authn/session
-  - bash ./test/rest-tests.sh
+  - curl --fail -k -b ${TEST_COOKIES1} -c ${TEST_COOKIES1} -d username=test1 -d password=dummypassword https://${HOSTNAME}/authn/session
+  - python ./test/resttest
 
 after_failure:
   - sudo ls -lR /etc/apache2
