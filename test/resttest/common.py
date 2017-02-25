@@ -125,6 +125,13 @@ try:
     sys.stderr.write('OK.\n\n')
 except Exception, e:
     sys.stderr.write('ERROR: %s.\n' % e)
+    sys.stderr.write('REQUEST:\n%s\n%s\n%s\n\nRESPONSE:\n%s\n%s\n' % (
+        _r.request,
+        _r.request.headers,
+        _r.request.body,
+        _r.headers,
+        _r.content
+    ))
     raise e
 
 # setup the anonymous session (no authentication) if possible
