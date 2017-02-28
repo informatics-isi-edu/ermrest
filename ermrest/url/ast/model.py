@@ -277,6 +277,7 @@ class Acl (Api):
 
     def GET_body(self, conn, cur):
         subject = self.GET_subject(conn, cur)
+        subject.enforce_right('owner')
         if self.aclname is not None:
             return subject.acls[self.aclname]
         else:
@@ -287,6 +288,7 @@ class Acl (Api):
 
     def SET_body(self, conn, cur, data):
         subject = self.GET_subject(conn, cur)
+        subject.enforce_right('owner')
         if self.aclname is None:
             if data is None:
                 subject.delete_acl(cur, None)

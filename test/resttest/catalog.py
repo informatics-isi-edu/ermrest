@@ -11,8 +11,15 @@ class CatalogBasic (common.ErmrestTest):
 
     def test_catalog_acl(self):
         r = self.session.get('acl')
-        self.assertHttp(r, 200, 'application/json')
-        self.assertIn('owner', r.json())
+        if self.session == common.primary_session:
+            self.assertHttp(r, 200, 'application/json')
+            self.assertIn('owner', r.json())
+        elif self.session == secondary_session:
+            # secondary user forbidden
+            self.assertHttp(r, 403)
+        else:
+            # anonymous user asked to authenticate
+            self.assertHttp(r, 401)
 
     def test_invalid_apiname(self):
         self.assertHttp(self.session.get('invalid_api'), 400)
