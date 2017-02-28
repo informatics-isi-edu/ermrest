@@ -106,31 +106,6 @@ SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
         del self.schemas[sname]
 
-    def recreate_value_map(self, conn, cur, empty=False):
-        vmap_parts = []
-        for schema in self.schemas.values():
-            for table in schema.tables.values():
-                for column in table.columns.values():
-                    part = column.ermrest_value_map_sql()
-                    if part:
-                        vmap_parts.append(part)
-
-        if empty or not vmap_parts:
-            # create a dummy/empty view if no data sources exist (or empty table is requested)
-            vmap_parts = ["SELECT 's'::text, 't'::text, 'c'::text, 'v'::text WHERE False"]
-
-        if view_exists(cur, '_ermrest', 'valuemap'):
-            cur.execute("DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap ;")
-                        
-        cur.execute("""
-DROP TABLE IF EXISTS _ermrest.valuemap ;
-CREATE TABLE _ermrest.valuemap ("schema", "table", "column", "value")
-AS %s ;
-CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "table", "column");
-CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
-""" % ' UNION '.join(vmap_parts)
-                )
-
 @commentable()
 @annotatable('schema', dict(
     schema_name=('text', lambda self: unicode(self.name))

@@ -4,8 +4,6 @@ SBIN_FILES= \
 	ermrest-registry-deploy \
 	ermrest-registry-purge \
 	ermrest-freetext-indices \
-	ermrest-valuemap-recreate \
-	ermrest-valuemap-work \
 	ermrest-update-extensions \
 	ermrest-db-work
 

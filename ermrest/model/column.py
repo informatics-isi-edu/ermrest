@@ -143,27 +143,6 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         else:
             return None
 
-    def ermrest_value_map_sql(self):
-        """Return SQL to construct reversed value map rows or None if not necessary.
-
-           A reverse map is not necessary if the column type doesn't have text values.
-        """
-        if self.istext():
-            colref = sql_identifier(self.name)
-            if self.type.is_array:
-                colref = 'unnest(%s)' % colref
-
-            return 'SELECT %s::text, %s::text, %s::text, %s::text FROM %s.%s' % (
-                sql_literal(self.table.schema.name),
-                sql_literal(self.table.name),
-                sql_literal(self.name),
-                colref,
-                sql_identifier(self.table.schema.name),
-                sql_identifier(self.table.name)
-                )
-        else:
-            return None
-        
     def sql_def(self):
         """Render SQL column clause for managed table DDL."""
         parts = [

@@ -433,19 +433,5 @@ SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
     
-    if not table_exists(cur, '_ermrest', 'valuemap'):
-        # rebuild missing table and add it to model manually since we already introspected
-        web.debug('NOTICE: adding empty valuemap during model introspection')
-        model.recreate_value_map(cur.connection, cur, empty=True)
-        valuemap_columns = ['schema', 'table', 'column', 'value']
-        for i in range(len(valuemap_columns)):
-            valuemap_columns[i] = Column(
-                valuemap_columns[i],
-                i,
-                text_type,
-                None
-            )
-        model.ermrest_schema.tables['valuemap'] = Table(model.ermrest_schema, 'valuemap', valuemap_columns, 't')
-
     return model
 
