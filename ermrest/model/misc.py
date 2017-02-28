@@ -54,8 +54,8 @@ class AclDict (dict):
         self._subject = subject
 
     def __getitem__(self, k):
-        if k not in self._subject._acls_supported and k not in {'owner'}:
-            raise exception.ConflictData('ACL name %s not recognized.' % k)
+        if k not in self._subject._acls_supported:
+            raise exception.NotFound('ACL %s on %s' % (k, self._subject))
         try:
             return dict.__getitem__(self, k)
         except KeyError, e:
@@ -275,8 +275,11 @@ SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
 
         if members is None:
             return self.delete_acl(cur, aclname)
-        
+
         self.enforce_right('owner') # pre-flight authz
+        if aclname not in self._acls_supported:
+            raise exception.ConflictData('ACL name %s not supported on %s.' % (aclname, self))
+
         self.acls[aclname] = members
         self.enforce_right('owner') # integrity check using Python data...
 
@@ -317,6 +320,9 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
         interp = self._interp_acl(aclname)
 
         self.enforce_right('owner') # pre-flight authz
+
+        if aclname is not None and aclname not in self._acls_supported:
+            raise exception.NotFound('ACL %s on %s' % (aclname, self))
 
         if aclname is None:
             del interp['acl']
@@ -373,7 +379,10 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         else:
             parentres = None
 
-        acl = self.acls[aclname]
+        if aclname in self.acls:
+            acl = self.acls[aclname]
+        else:
+            acl = None
 
         if parentres is not None:
             if parentres.has_right('owner', roles):

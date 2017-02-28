@@ -297,7 +297,6 @@ class Acl (Api):
             else:
                 raise exception.BadData('ACL set representation must be an object with ACLs keyed by ACL name.')
         else:
-            old_value = subject.acls[self.aclname] # serves to validate aclname
             if data is None:
                 subject.delete_acl(cur, self.aclname)
             elif type(data) is list:
