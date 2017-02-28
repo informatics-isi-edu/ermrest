@@ -189,10 +189,9 @@ class TextFacet (Api):
         self.http_vary.add('accept')
         cur = web.ctx.ermrest_catalog_pc.cur
         self.enforce_right('select')
-        self.model = self.catalog.manager.get_model(cur)
         self.textfacet = ermpath.TextFacet(
             catalog,
-            self.model,
+            web.ctx.ermrest_catalog_model,
             pattern
         )
 
@@ -210,12 +209,11 @@ class Entity (Api):
         Api.__init__(self, catalog)
         cur = web.ctx.ermrest_catalog_pc.cur
         self.enforce_right('select')
-        self.model = self.catalog.manager.get_model(cur)
-        self.epath = ermpath.EntityPath(self.model)
+        self.epath = ermpath.EntityPath(web.ctx.ermrest_catalog_model)
         if len(elem.name.nameparts) == 2:
-            table = self.model.schemas[elem.name.nameparts[0]].tables[elem.name.nameparts[1]]
+            table = web.ctx.ermrest_catalog_model.schemas[elem.name.nameparts[0]].tables[elem.name.nameparts[1]]
         elif len(elem.name.nameparts) == 1:
-            table = self.model.lookup_table(elem.name.nameparts[0])
+            table = web.ctx.ermrest_catalog_model.lookup_table(elem.name.nameparts[0])
         else:
             raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % elem.name)
         self.epath.set_base_entity(table, elem.alias)
@@ -234,7 +232,7 @@ class Entity (Api):
                 
             self.epath.set_context(alias)
         else:
-            keyref, refop, lalias = elem.resolve_link(self.model, self.epath)
+            keyref, refop, lalias = elem.resolve_link(web.ctx.ermrest_catalog_model, self.epath)
             outer_type = elem.outer_type if hasattr(elem, 'outer_type') else None
             self.epath.add_link(keyref, refop, elem.alias, lalias, outer_type=outer_type)
             

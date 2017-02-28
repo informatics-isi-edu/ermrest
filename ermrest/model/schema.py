@@ -35,7 +35,8 @@ class Model (object):
     database sense of the term.
     """
     
-    def __init__(self, schemas=None):
+    def __init__(self, version, schemas=None):
+        self.version = version
         if schemas is None:
             schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
         self.schemas = schemas

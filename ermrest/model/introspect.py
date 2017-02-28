@@ -35,6 +35,12 @@ from .column import Column
 from .table import Table
 from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyReference
 
+def current_model_version(cur):
+    cur.execute("""
+SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
+""")
+    return cur.next()[0]
+
 def introspect(cur, config=None):
     """Introspects a Catalog (i.e., a database).
     
@@ -250,7 +256,13 @@ FROM _ermrest.model_pseudo_keyref ;
     fkeys    = dict()
     fkeyrefs = dict()
 
-    model = Model()
+    cur.execute("""
+SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
+"""
+    )
+    version = cur.next()[0]
+    
+    model = Model(version)
 
     # upgrade catalogs in the field to support named pseudo keyrefs
     if table_exists(cur, "_ermrest", "model_pseudo_keyref") \

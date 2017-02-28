@@ -56,8 +56,7 @@ def _post_commit_json(handler, resource):
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
         handler.enforce_right('enumerate')
-        handler.catalog.manager.get_model(cur)
-        handler.set_http_etag( handler.catalog.manager._model_version )
+        handler.set_http_etag( web.ctx.ermrest_catalog_model.version )
         handler.http_check_preconditions()
         return thunk(conn, cur)
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
@@ -66,8 +65,8 @@ def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
         # we need a private (uncached) copy of model because we mutate it optimistically
         # and this could corrupt a cached copy if our operation is not committed to DB
-        handler.catalog.manager.get_model(cur, private=True)
-        handler.set_http_etag( handler.catalog.manager._model_version )
+        web.ctx.ermrest_catalog_model = handler.catalog.manager.get_model(cur, private=True)
+        handler.set_http_etag( web.ctx.ermrest_catalog_model.version )
         handler.http_check_preconditions(method='PUT')
         result = thunk(conn, cur)
         handler.set_http_etag( handler.catalog.manager.get_model_update_version(cur) )
@@ -87,7 +86,7 @@ class Schemas (Api):
         Api.__init__(self, catalog)
 
     def GET_body(self, conn, cur):
-        return self.catalog.manager._model
+        return web.ctx.ermrest_catalog_model
         
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
@@ -95,7 +94,7 @@ class Schemas (Api):
     def POST_body(self, conn, cur, doc):
         """Create schemas and/or tables."""
         # don't collide with model module...
-        modelobj = self.catalog.manager._model
+        modelobj = web.ctx.ermrest_catalog_model
 
         deferred_fkeys = []
         
@@ -212,7 +211,7 @@ class Schema (Api):
 
     def GET_body(self, conn, cur):
         try:
-            return self.catalog.manager._model.schemas[unicode(self.name)]
+            return web.ctx.ermrest_catalog_model.schemas[unicode(self.name)]
         except exception.ConflictModel:
             raise exception.NotFound(u'Schema %s not found.' % unicode(self.name))
     
@@ -220,7 +219,7 @@ class Schema (Api):
         return _GET(self, self.GET_body, _post_commit_json)
 
     def POST_body(self, conn, cur):
-        self.catalog.manager._model.create_schema(conn, cur, unicode(self.name))
+        return web.ctx.ermrest_catalog_model.create_schema(conn, cur, unicode(self.name))
 
     def POST(self, uri):
         def post_commit(self, ignored):
@@ -229,7 +228,7 @@ class Schema (Api):
         return _MODIFY(self, self.POST_body, post_commit)
 
     def DELETE_body(self, conn, cur):
-        self.catalog.manager._model.delete_schema(conn, cur, unicode(self.name))
+        web.ctx.ermrest_catalog_model.delete_schema(conn, cur, unicode(self.name))
         return ''
             
     def DELETE(self, uri):
@@ -530,14 +529,13 @@ class Table (Api):
         return _GET(self, self.GET_body, _post_commit_json)
     
     def GET_body(self, conn, cur):
-        model = self.catalog.manager._model
         if self.schema is not None:
             schema = self.schema.GET_body(conn, cur)
         try:
             if self.schema is not None:
                 return schema.tables[unicode(self.name)]
             else:
-                return model.lookup_table(unicode(self.name))
+                return web.ctx.ermrest_catalog_model.lookup_table(unicode(self.name))
         except exception.ConflictModel, e:
             raise exception.NotFound(str(e))
 

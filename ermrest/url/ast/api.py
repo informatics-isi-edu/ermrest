@@ -38,12 +38,13 @@ class Api (object):
         self.sort = None
         self.before = None
         self.after = None
+        web.ctx.ermrest_catalog_model = catalog.manager.get_model()
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 
     def enforce_right(self, aclname, uri=None):
         """Policy enforcement for named right."""
-        decision = self.catalog.manager.has_right(aclname)
+        decision = web.ctx.ermrest_catalog_model.has_right(aclname)
         if decision is False:
             # we can't stop now if decision is True or None...
             if uri is None:

@@ -28,7 +28,7 @@ import psycopg2
 import sanepg2
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
-from .model import introspect
+from .model import introspect, current_model_version
 from .model.misc import annotatable_classes, hasacls_classes
 
 __all__ = ['get_catalog_factory']
@@ -195,7 +195,6 @@ class Catalog (object):
         self.descriptor = descriptor
         self.dsn = self._serialize_descriptor(descriptor)
         self._factory = factory
-        self._model = None
         self._config = config  # Not sure we need to tuck away the config
 
     def _serialize_descriptor(self, descriptor):
@@ -209,13 +208,6 @@ class Catalog (object):
         else:
             raise KeyError("Catalog descriptor type not supported: %(type)s" % descriptor)
 
-    def get_model_version(self, cur):
-        cur.execute("""
-SELECT max(snap_txid) AS txid FROM _ermrest.%(table)s WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
-""" % dict(table=self._MODEL_VERSION_TABLE_NAME))
-        self._model_version = cur.next()[0]  # TODO: do we need self._model_version to be an instance var?
-        return self._model_version
-
     def get_model_update_version(self, cur):
         cur.execute("""
 SELECT txid_current(); 
@@ -223,21 +215,24 @@ SELECT txid_current();
         return cur.next()[0] 
 
     def get_model(self, cur=None, config=None, private=False):
-        # TODO: turn this into a @property
         if cur is None:
             cur = web.ctx.ermrest_catalog_pc.cur
         if config is None:
             config = self._config
-        cache_key = (str(self.descriptor), self.get_model_version(cur))
-        self._model = self.MODEL_CACHE.get(cache_key)
-        if self._model is None or private:
+        cache_key = (str(self.descriptor), current_model_version(cur))
+        model = self.MODEL_CACHE.get(cache_key)
+        if (model is None) or private:
             try:
-                self._model = introspect(cur, config)
+                model = introspect(cur, config)
             except ValueError, te:
                 raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
+
+            if private:
+                assert self.MODEL_CACHE.get(cache_key) != model
+            
             if not private:
-                self.MODEL_CACHE[cache_key] = self._model
-        return self._model
+                self.MODEL_CACHE[cache_key] = model
+        return model
     
     def destroy(self):
         """Destroys the catalog (i.e., drops the database).
@@ -485,16 +480,7 @@ $$ LANGUAGE plpgsql;
             )
 
         ## initial policy
-        self.get_model(cur, self._config)
+        model = self.get_model(cur, self._config)
         owner = owner if owner else '*'
-        self._model.acls['owner'] = [owner] # set so enforcement won't deny subsequent set_acl()
-        self.set_acl(cur, 'owner', [owner])
-
-    def set_acl(self, cur, aclname, members=None):
-        """Convenience wrapper to access underlying self._model.acls.set_acl()"""
-        self._model.set_acl(cur, aclname, members)
-
-    def has_right(self, aclname):
-        """Convenience wrapper to access underlying self._model.has_right()"""
-        return self._model.has_right(aclname)
-
+        model.acls['owner'] = [owner] # set so enforcement won't deny subsequent set_acl()
+        model.set_acl(cur, 'owner', [owner])

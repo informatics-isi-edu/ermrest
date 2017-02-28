@@ -103,7 +103,6 @@ class Catalog (Api):
 
     """A specific catalog by ID."""
     def __init__(self, catalog_id):
-        Api.__init__(self, self)
         self.catalog_id = catalog_id
         self.manager = None
         entries = web.ctx.ermrest_registry.lookup(catalog_id)
@@ -118,8 +117,8 @@ class Catalog (Api):
         assert web.ctx.ermrest_catalog_pc is None
         web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
 
+        Api.__init__(self, self)
         # now enforce read permission
-        self.manager.get_model()
         self.enforce_right('enumerate', 'catalog/' + str(self.catalog_id))
 
     def final(self):
@@ -165,8 +164,7 @@ class Catalog (Api):
         return data.Query(self, qpath)
 
     def GET_body(self, conn, cur):
-        model = self.manager.get_model(cur)
-        return model
+        return web.ctx.ermrest_catalog_model
 
     def GET(self, uri):
         """Perform HTTP GET of catalog.
@@ -228,8 +226,7 @@ class Meta (Api):
         content_type = negotiated_content_type(self.supported_types, self.default_content_type)
         def body(conn, cur):
             self.enforce_right('enumerate', uri)
-            model = self.catalog.manager.get_model()
-            return model.acls
+            return web.ctx.ermrest_catalog.model.acls
 
         def post_commit(acls):
             web.header('Content-Type', content_type)
