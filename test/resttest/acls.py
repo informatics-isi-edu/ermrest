@@ -30,6 +30,36 @@ def add_acl_tests(klass):
                 'test_%s_%s' % (name, acl),
                 pickle(method, acl)
             )
+
+    if not hasattr(klass, 'test_disown') and 'owner' in klass.expected_acls:
+        # an empty owner is allowed because primary_client_id inherits ownership from catalog...
+        setattr(
+            klass,
+            'test_disown',
+            lambda self: self.assertHttp(self.session.put(self._url('owner'), json=[]), 200)
+        )
+
+    if 'owner' not in klass.expected_acls:
+        # owner ACL is not supported on parts of tables
+        setattr(
+            klass,
+            'test_owner_noset',
+            lambda self: self._unsupported('owner')
+        )
+
+    setattr(
+        klass,
+        'test_invalid_acl',
+        lambda self: self._unsupported('INVALID')
+    )
+
+    if common.secondary_session:
+        setattr(
+            klass,
+            'test_nonowner_forbidden',
+            lambda self: self._nonowner(common.secondary_session)
+        )
+
     return klass
 
 class Acls (common.ErmrestTest):
@@ -98,13 +128,28 @@ class Acls (common.ErmrestTest):
     def _delete(self, acl):
         self.assertHttp(self.session.delete(self._url(acl)), 200)
         self._checkval(acl, None)
-        
+
+    def _unsupported(self, acl):
+        self.assertHttp(self.session.get(self._url(acl)), 404)
+        self.assertHttp(self.session.put(self._url(acl), json=['foobar']), 409)
+        self.assertHttp(self.session.delete(self._url(acl)), 404)
+
+    def _nonowner(self, session):
+        for acl in set([None, 'owner', 'INVALID'] + list(self.expected_acls)):
+            self.assertHttp(session.get(self._url(acl)), 403)
+            self.assertHttp(session.put(self._url(acl), json=[common.primary_client_id, common.secondary_client_id]), 403)
+            self.assertHttp(session.delete(self._url(acl)), 403)
+
 @add_acl_tests
 class AclsCatalog (Acls):
     expected_acls = catalog_acls
 
     def _base(self):
         return 'acl'
+
+    def test_disown(self):
+        # primary_client_id cannot disown the whole catalog
+        self.assertHttp(self.session.put(self._url('owner'), json=[]), 403)
 
 @add_acl_tests
 class AclsDefaultSchema (Acls):
