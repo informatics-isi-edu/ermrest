@@ -55,8 +55,7 @@ class AclDict (dict):
 
     def __getitem__(self, k):
         if k not in self._subject._acls_supported and k not in {'owner'}:
-            raise NotImplementedError(k)
-            #raise exception.ConflictData('ACL name %s not recognized.' % k)
+            raise exception.ConflictData('ACL name %s not recognized.' % k)
         try:
             return dict.__getitem__(self, k)
         except KeyError, e:
@@ -276,10 +275,10 @@ SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
 
         if members is None:
             return self.delete_acl(cur, aclname)
-
+        
         self.enforce_right('owner') # pre-flight authz
         self.acls[aclname] = members
-        self.enforce_right('owner') # integrity check... can't disown
+        self.enforce_right('owner') # integrity check using Python data...
 
         interp = self._interp_acl(aclname)
         keys = interp.keys()
@@ -290,7 +289,7 @@ SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
         cur.execute("""
 SELECT _ermrest.model_change_event();
 UPDATE _ermrest.model_%(restype)s_acl new
-SET members = %(members)s
+SET members = %(members)s::text[]
 FROM _ermrest.model_%(restype)s_acl old
 WHERE %(where)s
 RETURNING old.members;
@@ -304,7 +303,7 @@ RETURNING old.members;
             return oldvalue
 
         cur.execute("""
-INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(values)s, %(members)s);
+INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(values)s, %(members)s::text[]);
 """ % dict(
     restype=restype,
     columns=', '.join([sql_identifier(k) for k in keys]),
@@ -322,7 +321,7 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
         if aclname is None:
             del interp['acl']
             self.acls.clear()
-        else:
+        elif aclname in self.acls:
             del self.acls[aclname]
 
         if not purging:
@@ -369,8 +368,8 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
             ])
             roles.add('*')
 
-        if self._acl_getparent is not None:
-            parentres = self._acl_getparent()
+        if getparent is not None:
+            parentres = getparent(self)
         else:
             parentres = None
 
@@ -404,10 +403,10 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         decision = self.has_right(aclname)
         if decision is False:
             # we can't stop now if decision is True or None...
-            raise rest.Forbidden(web.ctx.env['REQUEST_URI'])
+            raise exception.Forbidden(web.ctx.env['REQUEST_URI'])
 
     def helper(orig_class):
-        setattr(orig_class, '_acl_getparent', getparent)
+        setattr(orig_class, '_acl_getparent', lambda self: getparent(self))
         setattr(orig_class, '_acl_keying', keying)
         setattr(orig_class, '_acls_supported', set(acls))
         setattr(orig_class, '_interp_acl', _interp_acl)

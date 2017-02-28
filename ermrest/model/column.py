@@ -33,11 +33,11 @@ from .misc import AltDict, AclDict, annotatable, commentable, hasacls
 @hasacls(
     'column',
     {
-        "schema_name": ('text', lambda self: unicode(self.name)),
-        "table_name": ('text', lambda self: unicode(self.name)),
+        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
+        "table_name": ('text', lambda self: unicode(self.table.name)),
         "column_name": ('text', lambda self: unicode(self.name))
     },
-    {"enumerate", "insert", "update", "delete", "select"},
+    {"enumerate", "write", "insert", "update", "delete", "select"},
     lambda self: self.table
 )
 class Column (object):
@@ -198,6 +198,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         comment = columndoc.get('comment', None)
         annotations = columndoc.get('annotations', {})
         nullok = columndoc.get('nullok', True)
+        acls = columndoc.get('acls', {})
         try:
             return Column(
                 columndoc['name'],
@@ -206,7 +207,8 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
                 columndoc.get('default'),
                 nullok,
                 comment,
-                annotations
+                annotations,
+                acls
             )
         except KeyError, te:
             raise exception.BadData('Table document missing required field "%s"' % te)

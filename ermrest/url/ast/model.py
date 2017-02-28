@@ -299,11 +299,9 @@ class Acl (Api):
         else:
             old_value = subject.acls[self.aclname] # serves to validate aclname
             if data is None:
-                if old_value is not None:
-                    subject.delete_acl(cur, self.aclname)
+                subject.delete_acl(cur, self.aclname)
             elif type(data) is list:
-                if old_value != data:
-                    subject.set_acl(cur, self.aclname, data)
+                subject.set_acl(cur, self.aclname, data)
             else:
                 raise exception.BadData('ACL representation must be an array of member strings.')
 

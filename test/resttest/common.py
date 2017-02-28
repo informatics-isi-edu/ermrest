@@ -92,17 +92,32 @@ class TestSession (requests.Session):
         if path == '' or path[0] != '/':
             path = "%s/%s" % (cpath, path)
         return _server_url + path
-                
+
+    def get_client_id(self):
+        r = self.get('/authn/session')
+        if r.status_code == 200:
+            return r.json()["client"]["id"]
+        else:
+            return None
+    
     def head(self, path, **kwargs):
         return requests.Session.head(self, self._path2url(path), **kwargs)
 
     def get(self, path, **kwargs):
         return requests.Session.get(self, self._path2url(path), **kwargs)
 
+    def _fixup_kwargs(self, kwargs):
+        if 'json' in kwargs and kwargs['json'] is None and 'data' not in kwargs:
+            kwargs['data'] = 'null'
+            kwargs['headers'] = dict(kwargs.get('headers', {}))
+            kwargs['headers'].update({'content-type': 'application/json'})
+    
     def put(self, path, **kwargs):
+        self._fixup_kwargs(kwargs)
         return requests.Session.put(self, self._path2url(path), **kwargs)
 
     def post(self, path, **kwargs):
+        self._fixup_kwargs(kwargs)
         return requests.Session.post(self, self._path2url(path), **kwargs)
 
     def delete(self, path, **kwargs):
@@ -113,27 +128,40 @@ primary_session = TestSession()
 _primary_cookies = os.getenv('TEST_COOKIES1')
 assert _primary_cookies, "TEST_COOKIES1 must be a cookie file name"
 primary_session._test_mount(_primary_cookies, 'primary session')
+primary_client_id = primary_session.get_client_id()
+sys.stderr.write('Using primary_session with client ID %r.\n' % primary_client_id)
 
 # setup the secondary session (less privileged user) if possible
 secondary_session = TestSession()
 _secondary_cookies = os.getenv('TEST_COOKIES2')
 if _secondary_cookies:
     secondary_session._test_mount(_secondary_cookies, 'secondary session')
+    secondary_client_id = secondary_session.get_client_id()
+    assert primary_client_id != secondary_client_id, "TEST_COOKIES1 and TEST_COOKIES2 must provide distinct client IDs"
+    sys.stderr.write('Using secondary_session with client ID %r.\n' % secondary_client_id)
 else:
     sys.stderr.write('Disabling secondary_session due to missing TEST_COOKIES2.\n\n')
     secondary_session = None
+    secondary_client_id = None
 
+catalog_acls = {
+    # owner is defaulted
+    "write": [],
+    "insert": [],
+    "update": [],
+    "delete": [],
+    "select": [],
+    "create": [],
+    "enumerate": ["*"]
+}
+    
 sys.stderr.write('Creating test catalog... ')
 try:
     _r = primary_session.post('/ermrest/catalog')
     _r.raise_for_status()
     cid = _r.json()['id']
     cpath = "/ermrest/catalog/%s" % cid
-    primary_session.put(
-        'acl',
-        json={
-            "enumerate": ["*"]
-        }).raise_for_status()
+    primary_session.put('acl', json=catalog_acls).raise_for_status()
     sys.stderr.write('OK.\n\n')
 except Exception, e:
     sys.stderr.write('ERROR: %s.\n\n' % e)

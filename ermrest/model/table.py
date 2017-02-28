@@ -43,7 +43,7 @@ import web
 @hasacls(
     'table',
     {
-        "schema_name": ('text', lambda self: unicode(self.name)),
+        "schema_name": ('text', lambda self: unicode(self.schema.name)),
         "table_name": ('text', lambda self: unicode(self.name))
     },
     { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select", "reference"},
