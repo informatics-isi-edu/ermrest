@@ -162,7 +162,7 @@ class ForeignKey (common.ErmrestTest):
 
     def test_1_delete_fkey(self):
         self.assertHttp(self.session.delete(self._fkey_url(5)), 204)
-        self.assertHttp(self.session.get(self._fkey_url(5)), 404)
+        self.assertHttp(self.session.get(self._fkey_url(5)), 409)
 
     def test_2_recreate_fkey(self):
         self.assertHttp(self.session.post(self._fkey_url(1), json=_table_defs[self.table]['foreign_keys'][0]), 201)

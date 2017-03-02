@@ -211,7 +211,7 @@ class Entity (Api):
         self.enforce_right('select')
         self.epath = ermpath.EntityPath(web.ctx.ermrest_catalog_model)
         if len(elem.name.nameparts) == 2:
-            table = web.ctx.ermrest_catalog_model.schemas[elem.name.nameparts[0]].tables[elem.name.nameparts[1]]
+            table = web.ctx.ermrest_catalog_model.schemas.get_enumerable(elem.name.nameparts[0]).tables.get_enumerable(elem.name.nameparts[1])
         elif len(elem.name.nameparts) == 1:
             table = web.ctx.ermrest_catalog_model.lookup_table(elem.name.nameparts[0])
         else:

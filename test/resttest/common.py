@@ -150,7 +150,7 @@ catalog_acls = {
     "insert": [],
     "update": [],
     "delete": [],
-    "select": [],
+    "select": ["*"],
     "create": [],
     "enumerate": ["*"]
 }
@@ -230,8 +230,10 @@ class ErmrestTest (unittest.TestCase):
                 self.assertIn(r.headers.get('content-type'), content_type)
                 self.assertDictContainsSubset(hdrs, r.headers)
         except:
-            sys.stderr.write('\n%s\n%s\n%s\n%s\n%s\n\n' % (
-                r.request,
+            sys.stderr.write('\n%s %s\n%s\n%s\n%s\n%s\n%s\n\n' % (
+                r.request.method,
+                r.request.url,
+                r.request.headers,
                 r.request.body,
                 r.status_code,
                 r.headers,

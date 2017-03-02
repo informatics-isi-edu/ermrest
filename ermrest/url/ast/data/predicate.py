@@ -38,6 +38,7 @@ class Predicate (object):
 
     def validate(self, epath, allow_star=False):
         self.left_col, self.left_elem = self.left_name.validate(epath)
+        self.left_col.enforce_right('select')
         if not allow_star and self.left_col.is_star_column():
             raise BadSyntax('Operator %s does not support text-search psuedo-column "*".' % self.op)
 

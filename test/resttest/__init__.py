@@ -2,6 +2,7 @@
 import common
 
 from annotations import *
+from authz_static import *
 from basics import *
 from bulkschema import *
 from catalog import *

@@ -93,17 +93,19 @@ def _default_link_table2table(left, right):
     for pk in left.uniques.values():
         if right in pk.table_references:
             links.extend([
-                    (ref, '@=')
-                    for ref in pk.table_references[right]
-                    ])
+                (ref, '@=')
+                for ref in pk.table_references[right]
+                if ref.has_right('enumerate')
+            ])
 
     # look for left-to-right references
     for fk in left.fkeys.values():
         if right in fk.table_references:
             links.extend([
-                    (ref, '=@')
-                    for ref in fk.table_references[right]
-                    ])
+                (ref, '=@')
+                for ref in fk.table_references[right]
+                if ref.has_right('enumerate')
+            ])
 
     if len(links) == 0:
         raise exception.ConflictModel('No link found between tables %s and %s' % (left, right))
@@ -184,45 +186,39 @@ class Name (object):
 
         if len(self.nameparts) == 3:
             n0, n1, n2 = self.nameparts
-            return (model.schemas[n0].tables[n1].columns[n2],None)
+            return (model.schemas.get_enumerable(n0).tables.get_enumerable(n1).columns.get_enumerable(n2),None)
         
-        else:
+        try:
             if len(self.nameparts) == 1:
                 if base is epath:
-                    if self.nameparts[0] in ptable.columns:
-                        return (ptable.columns[self.nameparts[0]], epath)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(ptable)))
+                    return (ptable.columns.get_enumerable(self.nameparts[0]), epath)
                 elif base in epath.aliases:
-                    if self.nameparts[0] in epath[base].table.columns:
-                        return (epath[base].table.columns[self.nameparts[0]], base)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table alias %s.' % (self.nameparts[0], base))
+                    return (epath[base].table.columns.get_enumerable(self.nameparts[0]), base)
                 elif base is not None:
-                    assert hasattr(base, 'columns')
-                    if self.nameparts[0] in base.columns:
-                        return (base.columns[self.nameparts[0]], None)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(base)))
-                elif self.nameparts[0] in ptable.columns:
-                    return (ptable.columns[self.nameparts[0]], epath)
-                elif self.nameparts[0] == '*':
-                    return (ptable.freetext_column(), epath)
+                    return (base.columns.get_enumerable(self.nameparts[0]), None)
                 else:
-                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(ptable)))
+                    try:
+                        return (ptable.columns.get_enumerable(self.nameparts[0]), epath)
+                    except exception.ConflictModel, e:
+                        if self.nameparts[0] == '*':
+                            return (ptable.freetext_column(), epath)
+                        raise
 
             elif len(self.nameparts) == 2:
                 n0, n1 = self.nameparts
                 if n0 in epath.aliases:
-                    if n1 in epath[n0].table.columns:
-                        return (epath[n0].table.columns[n1], n0)
-                    elif self.nameparts[1] == '*':
-                        return (epath[n0].table.freetext_column(), n0)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
+                    try:
+                        return (epath[n0].table.columns.get_enumerable(n1), n0)
+                    except exception.ConflictModel, e:
+                        if self.nameparts[1] == '*':
+                            return (epath[n0].table.freetext_column(), n0)
+                        raise
 
                 table = model.lookup_table(n0)
-                return (table.columns[n1], None)
+                return (table.columns.get_enumerable(n1), None)
+
+        except exception.NotFound, e:
+            raise exception.ConflictModel(unicode(e))
 
         raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
 
@@ -251,8 +247,7 @@ class Name (object):
 
         elif len(self.nameparts) == 2:
             n0, n1 = self.nameparts
-
-            table = model.schemas[n0].tables[n1]
+            table = model.schemas.get_enumerable(n0).tables.get_enumerable(n1)
             keyref, refop = _default_link_table2table(ptable, table)
             return keyref, refop, None
 
@@ -333,7 +328,7 @@ class NameList (list):
 
         c0, base = rnames[0].resolve_column(model, epath)
         if base in epath.aliases or base == epath:
-            raise exception.ConflictModel('Right names in (left)=(right) link notation must not resolve to new table instance.')
+            raise exception.ConflictModel('Right names in (left)=(right) link notation must resolve to new table instance.')
 
         rcols = [ c0 ]
 

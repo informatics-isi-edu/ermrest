@@ -43,9 +43,16 @@ class AltDict (dict):
 
     def __getitem__(self, k):
         try:
-            return dict.__getitem__(self, k)
+            result = dict.__getitem__(self, k)
+            return result
         except KeyError:
             raise self._keyerror(k)
+
+    def get_enumerable(self, k):
+        result = self[k]
+        if not result.has_right('enumerate'):
+            raise self._keyerror(k)
+        return result
 
 class AclDict (dict):
     """Alternative dict that validates keys and returns default."""
@@ -412,15 +419,21 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         decision = self.has_right(aclname)
         if decision is False:
             # we can't stop now if decision is True or None...
-            raise exception.Forbidden(web.ctx.env['REQUEST_URI'])
+            raise exception.Forbidden('%s access on %s' % (aclname, web.ctx.env['REQUEST_URI']))
 
     def helper(orig_class):
         setattr(orig_class, '_acl_getparent', lambda self: getparent(self))
         setattr(orig_class, '_acl_keying', keying)
         setattr(orig_class, '_acls_supported', set(acls))
         setattr(orig_class, '_interp_acl', _interp_acl)
-        setattr(orig_class, 'has_right', has_right)
-        setattr(orig_class, 'enforce_right', enforce_right)
+        if not hasattr(orig_class, 'has_right'):
+            setattr(orig_class, 'has_right', has_right)
+        else:
+            setattr(orig_class, '_has_right', has_right)
+        if not hasattr(orig_class, 'enforce_right'):
+            setattr(orig_class, 'enforce_right', enforce_right)
+        else:
+            setattr(orig_class, '_enforce_right', enforce_right)
         setattr(orig_class, 'set_acl', set_acl)
         setattr(orig_class, 'delete_acl', delete_acl)
         if hasattr(orig_class, 'introspect_acl'):

@@ -644,6 +644,7 @@ FROM (
             notify_data_change(cur, self.table)
 
             if allow_existing:
+                self.table.enforce_right('update')
                 if nmkcols:
                     # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
                     cur.execute(
@@ -664,6 +665,7 @@ RETURNING %(tcols)s""") % parts
                 assert allow_missing
 
             if allow_missing:
+                self.table.enforce_right('insert')
                 if not parts['cols']:
                     raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
                 parts.update(
@@ -754,6 +756,8 @@ class AnyPath (object):
         extras = []
         
         for attribute, col, base in self.attributes:
+            col.enforce_right('select')
+
             sql_attr = sql_identifier(
                 attribute.alias is not None and unicode(attribute.alias) or unicode(col.name)
                 )
@@ -867,6 +871,7 @@ class EntityPath (AnyPath):
 
            Optionally set alias for the root.
         """
+        table.enforce_right('select')
         if not self._path is None:
             raise NotImplementedError('self._path')
         self._path = [ EntityElem(self, alias, table, 0) ]
@@ -968,6 +973,8 @@ WHERE %(pred)s
             # '=@'
             rtable = keyref.unique.table
 
+        rtable.enforce_right('select')
+
         assert self._context_index >= -1
         if self._context_index >= 0:
             rcontext = self._context_index
@@ -999,18 +1006,37 @@ WHERE %(pred)s
            encoding path references and filter conditions.
 
         """
-        selects = selects or ("t%d.*" % (self.current_entity_position()))
+        context_table = self._path[self._context_index].table
+        context_pos = self.current_entity_position()
 
-        pkeys = self._path[self._context_index].table.uniques.keys()
+        if selects is None:
+            # non-enumerable columns will be omitted from entity results
+            for col in context_table.columns_in_order():
+                col.enforce_right('select')
+            selects = ", ".join([
+                "t%d.%s" % (context_pos, sql_identifier(col.name))
+                for col in context_table.columns_in_order()
+            ])
+
+        # choose a pkey that the client is allowed to use
+        pkeys = [
+            k
+            for k, unique in context_table.uniques.items()
+            if unique.has_right('select')
+        ]
         if pkeys:
             pkeys.sort(key=lambda k: len(k))
-            shortest_pkey = self._path[self._context_index].table.uniques[pkeys[0]].columns
+            shortest_pkey = context_table.uniques[pkeys[0]].columns
         else:
-            shortest_pkey = self._path[self._context_index].table.columns_in_order()
+            shortest_pkey = context_table.columns_in_order()
+            # check whether this meta-key is usable for client...
+            for col in shortest_pkey:
+                col.enforce_right('select')
+
         distinct_on_cols = [ 
-            't%d.%s' % (self.current_entity_position(), sql_identifier(c.name))
-             for c in shortest_pkey
-            ]
+            't%d.%s' % (context_pos, sql_identifier(c.name))
+            for c in shortest_pkey
+        ]
 
         tables = [ elem.sql_table_elem() for elem in self._path ]
 
@@ -1038,9 +1064,9 @@ FROM %(tables)s
             table = self.current_entity_table()
 
             def sort_lookup(key):
-                if key.keyname not in table.columns:
-                    raise ConflictModel('Sort key "%s" not found in table "%s".' % (key.keyname, table.name))
-                return (key.keyname, key.descending, table.columns[key.keyname].type)
+                column = table.columns.get_enumerable(key.keyname)
+                # select access is already enforced above for enumerable output columns
+                return (key.keyname, key.descending, column.type)
 
             sortvec, sort1, sort2 = sort_components(map(sort_lookup, self.sort), self.before is not None)
         else:
@@ -1096,6 +1122,7 @@ WHERE %(keymatches)s
            conn: sanepg2 database connection to catalog
         """
         table = self.current_entity_table()
+        table.enforce_right('delete')
         if not table.writable_kind():
             raise ConflictModel('Entity %s is not writable.' % table)
         
@@ -1161,7 +1188,7 @@ WHERE %(keymatches)s
         
         if len(self._path) != 1:
             raise BadData("unsupported path length for put")
-        
+
         return self._path[0].put(conn, cur, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults, attr_aliases)
         
 
@@ -1676,12 +1703,18 @@ class TextFacet (AnyPath):
         policy = web.ctx.ermrest_config.get('textfacet_policy', False)
             
         for sname, schema in self._model.schemas.items():
+            if not schema.has_right('enumerate'):
+                continue
             s_policy = get_policy(policy, sname)
             if s_policy:
                 for tname, table in schema.tables.items():
+                    if not table.has_right('select'):
+                        continue
                     t_policy = get_policy(s_policy, tname)
                     if t_policy:
                         for cname, column in table.columns.items():
+                            if not column.has_right('select'):
+                                continue
                             c_policy = get_policy(t_policy, cname)
                             if c_policy:
                                 yield (sname, tname, column)

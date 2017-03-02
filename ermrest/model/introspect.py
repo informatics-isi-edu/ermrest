@@ -432,6 +432,6 @@ SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
-    
+
     return model
 

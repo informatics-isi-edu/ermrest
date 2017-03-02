@@ -172,6 +172,17 @@ SELECT _ermrest.model_change_event();
             names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
             )
 
+    def has_right(self, aclname):
+        assert aclname == 'enumerate'
+        if not self.table.has_right('enumerate'):
+            return False
+        if not self.table.schema.has_right('enumerate'):
+            return False
+        for c in self.columns:
+            if not c.has_right('enumerate'):
+                return False
+        return True
+
 @annotatable('key', dict(
     schema_name=('text', lambda self: unicode(self.table.schema.name)),
     table_name=('text', lambda self: unicode(self.table.name)),
@@ -282,7 +293,17 @@ SELECT _ermrest.model_change_event();
         for pk in self.constraints:
             if pk != self:
                 pk.delete(conn, cur)
-        
+
+    def has_right(self, aclname):
+        assert aclname == 'enumerate'
+        if not self.table.has_right('enumerate'):
+            return False
+        if not self.table.schema.has_right('enumerate'):
+            return False
+        for c in self.columns:
+            if not c.has_right('enumerate'):
+                return False
+        return True
 
 class ForeignKey (object):
     """A foreign key."""
@@ -328,6 +349,26 @@ class ForeignKey (object):
             for kr in krset:
                 refs.append( kr.prejson() )
         return refs
+
+    def columns_have_right(self, aclname):
+        assert aclname == 'enumerate'
+        if not self.table.has_right('enumerate'):
+            return False
+        if not self.table.schema.has_right('enumerate'):
+            return False
+        for c in self.columns:
+            if not c.has_right('enumerate'):
+                return False
+        return True
+
+    def has_right(self, aclname):
+        if not self.columns_have_right(aclname):
+            return False
+        for krset in self.table_references.values():
+            for kr in krset:
+                if kr.has_right('enumerate'):
+                    return True
+        return False
 
 def _guarded_add(s, new_fkr):
     """Deduplicate FKRs by tracking duplicates under leader.constraints if leader exists in set s.
@@ -391,6 +432,14 @@ def _keyref_prejson(self):
     if self.has_right('owner'):
         doc['acls'] = self.acls
     return doc
+
+def _keyref_has_right(self, aclname):
+    assert aclname == 'enumerate'
+    if not self.foreign_key.columns_have_right(aclname):
+        return False
+    if not self.unique.has_right(aclname):
+        return False
+    return True
 
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
@@ -631,6 +680,9 @@ SELECT _ermrest.model_change_event();
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
+    def has_right(self, aclname):
+        return _keyref_has_right(self, aclname)
+
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
     from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
@@ -763,6 +815,9 @@ SELECT _ermrest.model_change_event();
             if fkr != self:
                 fkr.delete(conn, cur)
 
+    def has_right(self, aclname):
+        return _keyref_has_right(self, aclname)
+
 class _Endpoint(object):
 
     def __init__(self, table):
@@ -798,11 +853,14 @@ class MultiKeyReference (object):
         self.foreign_key = _Endpoint(ltable)
         self.unique = _Endpoint(rtable)
 
+    def _visible_links(self):
+        return [ l for l in self.links if l.has_right('enumerate') ]
+
     def join_str(self, refop, lname='..', rname='.'):
         """Build a simplified representation of the join condition."""
         assert refop == '=@'
         parts = []
-        for keyref, refop in self.links:
+        for keyref, refop in self._visible_links():
             parts.append(keyref.join_str(refop, lname, rname))
         return '(%s)' % (' OR '.join(parts))
                          
@@ -810,8 +868,12 @@ class MultiKeyReference (object):
         assert refop == '=@'
         return ' OR '.join([
             '(%s)' % keyref.join_sql(refop, lname, rname)
-            for keyref, refop in self.links
+            for keyref, refop in self._visible_links()
         ])
+
+    def has_right(self, aclname):
+        assert aclname == 'enumerate'
+        return self._visible_links()
 
 class ExplicitJoinReference (object):
 
@@ -840,3 +902,10 @@ class ExplicitJoinReference (object):
     def join_sql(self, refop, lname, rname):
         assert refop == '=@'
         return _keyref_join_sql(self, refop, lname, rname)
+
+    def has_right(self, aclname):
+        assert aclname == 'enumerate'
+        for c in self.lcols + self.rcols:
+            if not c.has_right(aclname):
+                return False
+        return True

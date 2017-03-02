@@ -83,9 +83,9 @@ class Column (object):
         
     def __str__(self):
         return ':%s:%s:%s' % (
-            urllib.quote(self.table.schema.name),
-            urllib.quote(self.table.name),
-            urllib.quote(self.name)
+            urllib.quote(unicode(self.table.schema.name).encode('utf8')),
+            urllib.quote(unicode(self.table.name).encode('utf8')),
+            urllib.quote(unicode(self.name).encode('utf8'))
             )
 
     def __repr__(self):

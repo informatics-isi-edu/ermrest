@@ -62,8 +62,8 @@ class Table (object):
         self.kind = kind
         self.comment = comment
         self.columns = AltDict(lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)))
-        self.uniques = AltDict(lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (k, self)))
-        self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (k, self)))
+        self.uniques = AltDict(lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (",".join([unicode(c.name) for c in k]), self)))
+        self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (",".join([unicode(c.name) for c in k]), self)))
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self)))
         self.annotations.update(annotations)
         self.acls = AclDict(self)
@@ -94,7 +94,7 @@ class Table (object):
         return '<ermrest.model.Table %s>' % str(self)
 
     def columns_in_order(self):
-        cols = self.columns.values()
+        cols = [ c for c in self.columns.values() if c.has_right('enumerate') ]
         cols.sort(key=lambda c: c.position)
         return cols
 
@@ -245,6 +245,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
     def add_column(self, conn, cur, columndoc, ermrest_config):
         """Add column to table."""
+        self.enforce_right('owner')
         # new column always goes on rightmost position
         position = len(self.columns)
         column = Column.fromjson_single(columndoc, position, ermrest_config)
@@ -261,6 +262,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
     def delete_column(self, conn, cur, cname):
         """Delete column from table."""
+        self.enforce_right('owner')
         column = self.columns[cname]
         for unique in self.uniques.values():
             if column in unique.columns:
@@ -274,12 +276,14 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                     
     def add_unique(self, conn, cur, udoc):
         """Add a unique constraint to table."""
+        self.enforce_right('owner')
         for key in Unique.fromjson_single(self, udoc):
             key.add(conn, cur)
             yield key
 
     def add_fkeyref(self, conn, cur, fkrdoc):
         """Add foreign-key reference constraint to table."""
+        self.enforce_right('owner')
         for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
             # new foreign key constraint must be added to table
             fkr.add(conn, cur)
@@ -295,11 +299,11 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                 c.prejson() for c in self.columns_in_order()
                 ],
             keys=[
-                u.prejson() for u in self.uniques.values()
+                u.prejson() for u in self.uniques.values() if u.has_right('enumerate')
                 ],
             foreign_keys=[
                 fkr.prejson()
-                for fk in self.fkeys.values() for fkr in fk.references.values()
+                for fk in self.fkeys.values() for fkr in fk.references.values() if fkr.has_right('enumerate')
                 ],
             kind={
                 'r':'table', 

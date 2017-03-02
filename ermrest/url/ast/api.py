@@ -49,7 +49,7 @@ class Api (object):
             # we can't stop now if decision is True or None...
             if uri is None:
                 uri = web.ctx.env['REQUEST_URI']
-            raise rest.Forbidden(uri)
+            raise rest.Forbidden('%s access on %s' % (aclname, uri))
 
     def with_queryopts(self, qopt):
         self.queryopts = qopt

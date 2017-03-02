@@ -35,10 +35,9 @@ class Model (object):
     database sense of the term.
     """
     
-    def __init__(self, version, schemas=None):
+    def __init__(self, version):
         self.version = version
-        if schemas is None:
-            schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
+        schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
         self.schemas = schemas
         self.acls = AclDict(self)
     
@@ -52,7 +51,7 @@ class Model (object):
     def prejson(self):
         doc = dict(
             schemas=dict([ 
-                (s, self.schemas[s].prejson()) for s in self.schemas
+                (sname, schema.prejson()) for sname, schema in self.schemas.items() if schema.has_right('enumerate')
             ])
         )
         if self.has_right('owner'):
@@ -188,7 +187,7 @@ class Schema (object):
             comment=self.comment,
             annotations=self.annotations,
             tables=dict([
-                    (t, self.tables[t].prejson()) for t in self.tables
+                    (tname, table.prejson()) for tname, table in self.tables.items() if table.has_right('enumerate')
                     ])
             )
         if self.has_right('owner'):

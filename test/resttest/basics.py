@@ -149,7 +149,7 @@ class BasicColumn (common.ErmrestTest):
 
     def test_mutate_1_delete(self):
         self.assertHttp(self.session.delete('%s/%s' % (self._cols_url(), self.column)), 204)
-        self.assertHttp(self.session.get('%s/%s' % (self._cols_url(), self.column)), 409)
+        self.assertHttp(self.session.get('%s/%s' % (self._cols_url(), self.column)), 404)
 
     def test_mutate_3_recreate(self):
         self.assertHttp(self.session.post(self._cols_url(), json=self.coldef), 201)

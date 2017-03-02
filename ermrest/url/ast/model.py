@@ -209,14 +209,16 @@ class Schema (Api):
         """A specific table for this schema."""
         return Table(self, name)
 
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, final=False):
         try:
-            return web.ctx.ermrest_catalog_model.schemas[unicode(self.name)]
-        except exception.ConflictModel:
-            raise exception.NotFound(u'Schema %s not found.' % unicode(self.name))
-    
+            return web.ctx.ermrest_catalog_model.schemas.get_enumerable(unicode(self.name))
+        except exception.ConflictModel, e:
+            if final:
+                raise exception.NotFound(u'schema %s' % self.name)
+            raise
+
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
 
     def POST_body(self, conn, cur):
         return web.ctx.ermrest_catalog_model.create_schema(conn, cur, unicode(self.name))
@@ -228,7 +230,8 @@ class Schema (Api):
         return _MODIFY(self, self.POST_body, post_commit)
 
     def DELETE_body(self, conn, cur):
-        web.ctx.ermrest_catalog_model.delete_schema(conn, cur, unicode(self.name))
+        schema = self.GET_body(conn, cur, True)
+        web.ctx.ermrest_catalog_model.delete_schema(conn, cur, unicode(schema.name))
         return ''
             
     def DELETE(self, uri):
@@ -249,7 +252,7 @@ class Tables (Api):
         return _GET(self, self.GET_body, _post_commit_json)
     
     def GET_body(self, conn, cur):
-        return self.schema.GET_body(conn, cur).tables.values()
+        return [ t for t in self.schema.GET_body(conn, cur).tables.values() if t.has_right('enumerate') ]
 
     def POST_body(self, conn, cur, tabledoc):
         schema = self.schema.GET_body(conn, cur)
@@ -293,6 +296,9 @@ class Acl (Api):
             if data is None:
                 subject.delete_acl(cur, None)
             elif type(data) is dict:
+                for aclname in list(subject.acls):
+                    if aclname not in data:
+                        subject.delete_acl(cur, aclname)
                 for aclname, members in data.items():
                     subject.set_acl(cur, aclname, members)
             else:
@@ -315,6 +321,12 @@ class CatalogAcl (Acl):
     """A specific catalog's ACLs."""
     def __init__(self, catalog):
         Acl.__init__(self, catalog, catalog)
+
+    def SET_body(self, conn, cur, data):
+        subject = self.GET_subject(conn, cur)
+        if 'owner' not in data:
+            data['owner'] = subject.acls['owner']
+        Acl.SET_body(self, conn, cur, data)
 
 class SchemaAcl (Acl):
     """A specific schema's ACLs."""
@@ -528,25 +540,27 @@ class Table (Api):
         return Foreignkey(self, column_set, catalog=self.catalog)
 
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
     
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, final=False):
         if self.schema is not None:
             schema = self.schema.GET_body(conn, cur)
         try:
             if self.schema is not None:
-                return schema.tables[unicode(self.name)]
+                return schema.tables.get_enumerable(unicode(self.name))
             else:
                 return web.ctx.ermrest_catalog_model.lookup_table(unicode(self.name))
         except exception.ConflictModel, e:
-            raise exception.NotFound(str(e))
+            if final:
+                raise exception.NotFound(u"table %s in schema %s" % (self.name, schema.name))
+            raise
 
     def POST(self, uri):
         # give more helpful error message
         raise exception.rest.NoMethod('create tables at the table collection resource instead')
 
     def DELETE_body(self, conn, cur):
-        table = self.GET_body(conn, cur)
+        table = self.GET_body(conn, cur, True)
         table.schema.delete_table(conn, cur, str(self.name))
         return ''
 
@@ -596,15 +610,19 @@ class Column (Api):
     def annotations(self):
         return ColumnAnnotations(self)
 
-    def GET_body(self, conn, cur):
-        return self.table.GET_body(conn, cur).columns[unicode(self.name)]
+    def GET_body(self, conn, cur, final=False):
+        table = self.table.GET_body(conn, cur)
+        try:
+            return table.columns.get_enumerable(unicode(self.name))
+        except exception.ConflictModel, e:
+            raise exception.NotFound(u"column %s in table %s" % (self.name, table.name))
     
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
     
     def DELETE_body(self, conn, cur):
-        table = self.table.GET_body(conn, cur)
-        table.delete_column(conn, cur, str(self.name))
+        column = self.GET_body(conn, cur, True)
+        column.table.delete_column(conn, cur, str(self.name))
         return ''
 
     def DELETE(self, uri):
@@ -619,7 +637,7 @@ class Keys (Api):
         self.table = table
 
     def GET_body(self, conn, cur):
-        return self.table.GET_body(conn, cur).uniques.values()
+        return [ u for u in self.table.GET_body(conn, cur).uniques.values() if u.has_right('enumerate') ]
 
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
@@ -649,7 +667,7 @@ class Key (Api):
         
     def GET_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns[unicode(c)] for c in self.columns ])
+        cols = frozenset([ table.columns.get_enumerable(unicode(c)) for c in self.columns ])
         if cols not in table.uniques:
             raise exception.rest.NotFound(u'key (%s)' % (u','.join([ unicode(c) for c in cols])))
         return table.uniques[cols]
@@ -672,7 +690,7 @@ class Foreignkeys (Api):
         self.table = table
 
     def GET_body(self, conn, cur):
-        return self.table.GET_body(conn, cur).fkeys.values()
+        return [ fk for fk in self.table.GET_body(conn, cur).fkeys.values() if fk.has_right('enumerate') ]
         
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
@@ -700,15 +718,18 @@ class Foreignkey (Api):
         """A set of foreign key references from this foreign key."""
         return ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
 
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, final=False):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns[str(c)] for c in self.columns ])
-        if cols not in table.fkeys:
-            raise exception.rest.NotFound(u'foreign key (%s)' % (u','.join([ unicode(c) for c in cols])))
-        return table.fkeys[cols]
+        cols = frozenset([ table.columns.get_enumerable(str(c)) for c in self.columns ])
+        try:
+            return table.fkeys.get_enumerable(cols)
+        except exception.ConflictModel, e:
+            if final:
+                raise exception.NotFound(u'foreign key %s in table %s' % (u",".join([ c.name for c in cols]), table.name))
+            raise
     
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
     
 class ForeignkeyReferences (Api):
     """A set of foreign key references."""
@@ -804,17 +825,17 @@ class ForeignkeyReferences (Api):
         # find matching foreign key references...
         if from_table:
             fkrs = []
-            for fk in from_table.fkeys.values():
-                for rt in fk.table_references.keys():
+            for fk in [ fk for fk in from_table.fkeys.values() if fk.has_right('enumerate') ]:
+                for rt in [ rt for rt in fk.table_references.keys() if rt.has_right('enumerate') ]:
                     fkrs.extend( fk.table_references[rt] )
 
             if from_key:
                 # filter by foreign key
-                fkrs = [ fkr for fkr in fkrs if fkr.foreign_key == from_key ]
+                fkrs = [ fkr for fkr in fkrs if fkr.foreign_key == from_key and fkr.has_right('enumerate') ]
 
             if to_table:
                 # filter by to_table
-                fkrs = [ fkr for fkr in fkrs if fkr.unique.table == to_table ]
+                fkrs = [ fkr for fkr in fkrs if fkr.unique.table == to_table and fkr.has_right('enumerate') ]
                 if to_key:
                     # filter by to_key
                     fkrs = [ fkr for fkr in fkrs if fkr.unique == to_key ]
@@ -823,13 +844,13 @@ class ForeignkeyReferences (Api):
             # since from_table is absent, we must have to_table info...
             assert to_table
             fkrs = []
-            for u in to_table.uniques.values():
+            for u in [ r for u in to_table.uniques.values() if u.has_right('enumerate') ]:
                 for rt in u.table_references.keys():
                     fkrs.extend( u.table_references[rt] )
 
             if to_key:
                 # filter by to_key
-                fkrs = [ fkr for fkr in fkrs if fkr.unique == to_key ]
+                fkrs = [ fkr for fkr in fkrs if fkr.unique == to_key if u.has_right('enumerate') ]
 
         return fkrs
 
