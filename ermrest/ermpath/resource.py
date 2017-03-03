@@ -384,6 +384,11 @@ class EntityElem (object):
         skip_key_tests = False
 
         if use_defaults is not None:
+            use_defaults = set([
+                self.table.columns.get_enumerable(cname).name
+                for cname in use_defaults
+            ])
+
             if use_defaults.intersection( set([ c.name for c in mkcols ]) ):
                 # default values for one or more key columns have been requested
                 # input rows cannot be tested for key uniqueness except by trying to insert!
@@ -644,8 +649,8 @@ FROM (
             notify_data_change(cur, self.table)
 
             if allow_existing:
-                self.table.enforce_right('update')
                 if nmkcols:
+                    self.table.enforce_right('update')
                     # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
                     cur.execute(
                         preserialize(("""
@@ -657,7 +662,7 @@ RETURNING %(tcols)s""") % parts
                         )
                     )
 
-                results.extend(make_row_thunk(None, cur, content_type)())
+                    results.extend(make_row_thunk(None, cur, content_type)())
 
                 if allow_missing is None:
                     raise NotImplementedError("EntityElem.put allow_existing=%s allow_missing=%s" % (allow_existing, allow_missing))
@@ -1362,6 +1367,7 @@ WHERE %(keymatches)s
         for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
+                col.enforce_right('delete')
                 nmkcols.add(col)
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias

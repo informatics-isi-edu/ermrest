@@ -69,86 +69,194 @@ class Authz (common.ErmrestTest):
         common.primary_session.put('schema/%s/table/T3/column/t1id/acl' % _S2, json=cls.T3_t1id)
         common.primary_session.put('schema/%s/table/T3/foreignkey/t1id/reference/%s/id/acl' % (_S2, _S), json=cls.T3_fkey)
 
+    def tearDown(self):
+        for table in ['%s:T1' % _S, '%s:T2' % _S, '%s:T3' % _S2]:
+            r = common.primary_session.delete('entity/%s/id::null::' % table)
+            #assert r.status_code in (200, 404)
+        
     def _hidden_in_model(self, get_collection, key):
         r = self.session.get('schema')
         self.assertHttp(r, 200, 'application/json')
         collection = get_collection(r.json())
         self.assertNotIn(key, collection)
 
-    def test_get_data_T1_ent(self):
-        r = self.session.get('entity/%s:T1' % _S)
-        self.assertHttp(r, 200, 'application/json')
-        self.assertIn('id', r.json()[0])
+    def _json_check(self, response, status):
+        self.assertHttp(response, status, 'application/json' if status in {200, 201} else None)
+        return response
         
-    def test_put_data_T1_ent(self):
-        self.assertHttp(self.session.put('entity/%s:T1' % _S, json=_data[0][1]), 403)
-        
-    def test_delete_data_T1_ent(self):
-        self.assertHttp(self.session.delete('entity/%s:T1' % _S), 403)
-        
-    def test_get_data_T1(self):
-        self.assertHttp(self.session.get('attribute/%s:T1/name,value' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('attributegroup/%s:T1/name;value' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('aggregate/%s:T1/c:=cnt(*)' % _S), 200, 'application/json')
+    get_S_status = 200
+    delete_S_status = 403
+    def test_S(self):
+        self._json_check(self.session.get('schema/%s' % _S), self.get_S_status)
+        self._json_check(self.session.delete('schema/%s' % _S), self.delete_S_status)
 
-        self.assertHttp(self.session.get('attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2)), 200, 'application/json')
-        self.assertHttp(self.session.get('attributegroup/A:=%s:T1/(name)=(%s:T3:name)/$A/name;value' % (_S, _S2)), 200, 'application/json')
-        self.assertHttp(self.session.get('aggregate/A:=%s:T1/(name)=(%s:T3:name)/$A/c:=cnt(*)' % (_S, _S2)), 200, 'application/json')
+    get_T1_status = 200
+    delete_T1_status = 403
+    def test_T1(self):
+        self._json_check(self.session.get('schema/%s/table/T1' % _S), self.get_T1_status)
+        self._json_check(self.session.delete('schema/%s/table/T1' % _S), self.delete_T1_status)
+
+    get_T1id_status = 200
+    delete_T1id_status = 403
+    get_T1name_status = 200
+    delete_T1name_status = 403
+    def test_T1id(self):
+        self._json_check(self.session.get('schema/%s/table/T1/column/id' % _S), self.get_T1id_status)
+        self._json_check(self.session.delete('schema/%s/table/T1/column/id' % _S), self.delete_T1id_status)
+
+    def test_T1name(self):
+        self._json_check(self.session.get('schema/%s/table/T1/column/name' % _S), self.get_T1name_status)
+        self._json_check(self.session.delete('schema/%s/table/T1/column/name' % _S), self.delete_T1name_status)
+
+    get_T2_status = 200
+    delete_T2_status = 403
+    def test_T2(self):
+        self._json_check(self.session.get('schema/%s/table/T2' % _S), self.get_T2_status)
+        self._json_check(self.session.delete('schema/%s/table/T2' % _S), self.delete_T2_status)
+
+    def test_T3(self):
+        self._json_check(self.session.get('schema/%s/table/T3' % _S2), 200)
+        self._json_check(self.session.delete('schema/%s/table/T3' % _S2), 403)
+
+    get_T2_fkeys_count = 1
+    get_T2_fkeys_status = 200
+    get_T2_fkey_status = 200
+    get_T2_fkeyref_status = 200
+    delete_T2_fkeyref_status = 403
+    def test_T2_fkeys(self):
+        r = self._json_check(self.session.get('schema/%s/table/T2/foreignkey' % _S), self.get_T2_fkeys_status)
+        if r.status_code == 200:
+            self.assertEqual(len(r.json()), self.get_T2_fkeys_count)
+
+    def test_T2_fkey(self):
+        self._json_check(self.session.get('schema/%s/table/T2/foreignkey/t1id' % _S), self.get_T2_fkey_status)
+
+    def test_T2_fkeyref(self):
+        self._json_check(self.session.get('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1' % (_S, _S)), self.get_T2_fkeyref_status)
+        self._json_check(self.session.get('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_S, _S)), self.get_T2_fkeyref_status)
+        self._json_check(self.session.delete('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_S, _S)), self.delete_T2_fkeyref_status)
+
+    get_T3_fkeys_count = 1
+    get_T3_fkeys_status = 200
+    get_T3_fkey_status = 200
+    get_T3_fkeyref_status = 200
+    delete_T3_fkeyref_status = 403
+    def test_T3_fkeys(self):
+        r = self._json_check(self.session.get('schema/%s/table/T3/foreignkey' % _S2), self.get_T3_fkeys_status)
+        if r.status_code == 200:
+            self.assertEqual(len(r.json()), self.get_T3_fkeys_count)
+
+    def test_T3_fkey(self):
+        self._json_check(self.session.get('schema/%s/table/T3/foreignkey/t1id' % _S2), self.get_T3_fkey_status)
+
+    def test_T3_fkeyref(self):
+        self._json_check(self.session.get('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1' % (_S2, _S)), self.get_T3_fkeyref_status)
+        self._json_check(self.session.get('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id' % (_S2, _S)), self.get_T3_fkeyref_status)
+        self._json_check(self.session.delete('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id' % (_S2, _S)), self.delete_T3_fkeyref_status)
+
+    get_data_T1_ent_is_in = True
+    get_data_T1_ent_status = 200
+    put_data_T1_ent_status = 403
+    delete_data_T1_ent_status = 403
+    def test_get_data_T1_ent(self):
+        r = self._json_check(self.session.get('entity/%s:T1' % _S), self.get_data_T1_ent_status)
+        if r.status_code == 200:
+            self.assertEqual('id' in r.json()[0], self.get_data_T1_ent_is_in)
+
+    def test_put_data_T1_ent(self):
+        self._json_check(self.session.put('entity/%s:T1' % _S, json=_data[0][1]), self.put_data_T1_ent_status)
+
+    def test_delete_data_T1_ent(self):
+        self._json_check(self.session.delete('entity/%s:T1' % _S), self.delete_data_T1_ent_status)
+
+    get_data_T1_status = 200
+    put_data_T1_status = 403
+    post_data_T1_status = 403
+    delete_data_T1_status = 403
+    def test_get_data_T1(self):
+        for r_thunk in [
+                lambda : self.session.get('attribute/%s:T1/name,value' % _S),
+                lambda : self.session.get('attributegroup/%s:T1/name;value' % _S),
+                lambda : self.session.get('aggregate/%s:T1/c:=cnt(*)' % _S),
+                
+                lambda : self.session.get('attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2)),
+                lambda : self.session.get('attributegroup/A:=%s:T1/(name)=(%s:T3:name)/$A/name;value' % (_S, _S2)),
+                lambda : self.session.get('aggregate/A:=%s:T1/(name)=(%s:T3:name)/$A/c:=cnt(*)' % (_S, _S2)),
+        ]:
+            self.assertHttp(r_thunk(), self.get_data_T1_status, 'application/json' if self.get_data_T1_status == 200 else None)
 
     def test_put_data_T1(self):
-        self.assertHttp(self.session.put('attributegroup/%s:T1/name;value' % _S, json=_data[0][1]), 403)
+        self._json_check(self.session.put('attributegroup/%s:T1/name;value' % _S, json=_data[0][1]), self.put_data_T1_status)
+
+    def test_post_data_T1(self):
+        self._json_check(self.session.put('entity/%s:T1' % _S, json=_data[0][1]), self.post_data_T1_status)
 
     def test_delete_data_T1(self):
-        self.assertHttp(self.session.delete('attribute/%s:T1/name,value' % _S), 403)
-        self.assertHttp(self.session.delete('attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2)), 403)
+        self._json_check(self.session.delete('attribute/%s:T1/name,value' % _S), self.delete_data_T1_status)
+        self._json_check(self.session.delete('attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2)), self.delete_data_T1_status)
 
+    get_data_T1_id_status = 200
+    get_data_T1_id_ctype = 'application/json'
     def test_get_data_T1_id(self):
-        self.assertHttp(self.session.get('entity/%s:T1/id=1' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('attribute/%s:T1/name,value' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('attribute/%s:T1/id,name,value' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('attributegroup/%s:T1/id,name;value' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('aggregate/%s:T1/c:=cnt(id)' % _S), 200, 'application/json')
+        for url in [
+                'entity/%s:T1/id=1' % _S,
+                'attribute/%s:T1/id,name,value' % _S,
+                'attributegroup/%s:T1/id,name;value' % _S,
+                'aggregate/%s:T1/c:=cnt(id)' % _S,
+                'attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2),
+                'attributegroup/A:=%s:T1/%s:T3/id;name' % (_S, _S2),
+                'aggregate/A:=%s:T1/%s:T3/c:=cnt(*)' % (_S, _S2),
+        ]:
+            self._json_check(self.session.get(url), self.get_data_T1_id_status)
 
-        self.assertHttp(self.session.get('attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2)), 200, 'application/json')
-        self.assertHttp(self.session.get('attributegroup/A:=%s:T1/%s:T3/id;name' % (_S, _S2)), 200, 'application/json')
-        self.assertHttp(self.session.get('aggregate/A:=%s:T1/%s:T3/c:=cnt(*)' % (_S, _S2)), 200, 'application/json')
-
+    put_data_T1_id_status = 403
     def test_put_data_T1_id(self):
-        self.assertHttp(self.session.put('attributegroup/%s:T1/id,name;value' % _S, json=_data[0][1]), 403)
-        self.assertHttp(self.session.put('attributegroup/%s:T1/name;id' % _S, json=_data[0][1]), 403)
+        self._json_check(self.session.put('attributegroup/%s:T1/id,name;value' % _S, json=_data[0][1]), self.put_data_T1_id_status)
+        self._json_check(self.session.put('attributegroup/%s:T1/name;id' % _S, json=_data[0][1]), self.put_data_T1_id_status)
 
+    post_data_T1_default_id_status = 403
+    def test_post_data_T1_default_id(self):
+        self._json_check(self.session.put('entity/%s:T1?defaults=id' % _S, json=_data[0][1]), self.post_data_T1_default_id_status)
+
+    delete_data_T1_id_status = 403
     def test_delete_data_T1_id(self):
-        self.assertHttp(self.session.delete('entity/%s:T1/id=1' % _S), 403)
-        self.assertHttp(self.session.delete('attribute/%s:T1/id,name,value' % _S), 403)
-        self.assertHttp(self.session.delete('attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2)), 403)
+        self._json_check(self.session.delete('entity/%s:T1/id=1' % _S), self.delete_data_T1_id_status)
+        self._json_check(self.session.delete('attribute/%s:T1/id,name,value' % _S), self.delete_data_T1_id_status)
+        self._json_check(self.session.delete('attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2)), self.delete_data_T1_id_status)
 
+    get_data_T2_status = 200
+    put_data_T2_status = 403
+    delete_data_T2_status = 403
     def test_get_data_T2(self):
-        self.assertHttp(self.session.get('entity/%s:T2' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('attribute/%s:T2/id,name,value' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('attributegroup/%s:T2/id,name;value' % _S), 200, 'application/json')
-        self.assertHttp(self.session.get('aggregate/%s:T2/c:=cnt(*)' % _S), 200, 'application/json')
+        for url in [
+                'entity/%s:T2' % _S,
+                'attribute/%s:T2/id,name,value' % _S,
+                'attributegroup/%s:T2/id,name;value' % _S,
+                'aggregate/%s:T2/c:=cnt(*)' % _S,
+        ]:
+            self._json_check(self.session.get(url), self.get_data_T2_status)
 
     def test_put_data_T2(self):
-        self.assertHttp(self.session.put('entity/%s:T2' % _S, json=_data[1][1]), 403)
-        self.assertHttp(self.session.put('attributegroup/%s:T2/id,name;value' % _S, json=_data[1][1]), 403)
+        self._json_check(self.session.put('entity/%s:T2' % _S, json=_data[1][1]), self.put_data_T2_status)
+        self._json_check(self.session.put('attributegroup/%s:T2/id,name;value' % _S, json=_data[1][1]), self.put_data_T2_status)
 
     def test_delete_data_T2(self):
-        self.assertHttp(self.session.delete('entity/%s:T2' % _S), 403)
-        self.assertHttp(self.session.delete('attribute/%s:T2/id,name,value' % _S), 403)
+        self._json_check(self.session.delete('entity/%s:T2' % _S), self.delete_data_T2_status)
+        self._json_check(self.session.delete('attribute/%s:T2/id,name,value' % _S), self.delete_data_T2_status)
 
     def test_get_data_T3(self):
-        self.assertHttp(self.session.get('entity/%s:T3' % _S2), 200, 'application/json')
-        self.assertHttp(self.session.get('attribute/%s:T3/id,name' % _S2), 200, 'application/json')
-        self.assertHttp(self.session.get('attributegroup/%s:T3/id;name' % _S2), 200, 'application/json')
-        self.assertHttp(self.session.get('aggregate/%s:T3/c:=cnt(*)' % _S2), 200, 'application/json')
+        self._json_check(self.session.get('entity/%s:T3' % _S2), 200)
+        self._json_check(self.session.get('attribute/%s:T3/id,name' % _S2), 200)
+        self._json_check(self.session.get('attributegroup/%s:T3/id;name' % _S2), 200)
+        self._json_check(self.session.get('aggregate/%s:T3/c:=cnt(*)' % _S2), 200)
 
     def test_put_data_T3(self):
-        self.assertHttp(self.session.put('entity/%s:T3' % _S2, json=_data[2][1]), 403)
-        self.assertHttp(self.session.put('attributegroup/%s:T3/id;name' % _S2, json=_data[2][1]), 403)
+        self._json_check(self.session.put('entity/%s:T3' % _S2, json=_data[2][1]), 403)
+        self._json_check(self.session.put('attributegroup/%s:T3/id;name' % _S2, json=_data[2][1]), 403)
 
     def test_delete_data_T3(self):
-        self.assertHttp(self.session.delete('entity/%s:T3' % _S2), 403)
-        self.assertHttp(self.session.delete('attribute/%s:T3/id,name' % _S2), 403)
+        self._json_check(self.session.delete('entity/%s:T3' % _S2), 403)
+        self._json_check(self.session.delete('attribute/%s:T3/id,name' % _S2), 403)
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzHideT1id (Authz):
@@ -167,81 +275,24 @@ class AuthzHideT1id (Authz):
         self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables']['T2'].get('foreign_keys', []), 0)
         self._hidden_in_model(lambda schema: schema['schemas'][_S2]['tables']['T3'].get('foreign_keys', []), 0)
 
-    def test_S(self):
-        self.assertHttp(self.session.get('schema/%s' % _S), 200, 'application/json')
-        self.assertHttp(self.session.delete('schema/%s' % _S), 403)
+    get_T1id_status = 404
+    delete_T1id_status = 404
 
-    def test_T1(self):
-        self.assertHttp(self.session.get('schema/%s/table/T1' % _S), 200, 'application/json')
-        self.assertHttp(self.session.delete('schema/%s/table/T1' % _S), 403)
+    get_T2_fkeys_count = 0
+    get_T2_fkey_status = 404
+    get_T2_fkeyref_status = 409
+    delete_T2_fkeyref_status = 409
 
-    def test_T1id(self):
-        self.assertHttp(self.session.get('schema/%s/table/T1/column/id' % _S), 404)
-        self.assertHttp(self.session.delete('schema/%s/table/T1/column/id' % _S), 404)
+    get_T3_fkeys_count = 0
+    get_T3_fkey_status = 404
+    get_T3_fkeyref_status = 409
+    delete_T3_fkeyref_status = 409
 
-    def test_T1name(self):
-        self.assertHttp(self.session.get('schema/%s/table/T1/column/name' % _S), 200, 'application/json')
-        self.assertHttp(self.session.delete('schema/%s/table/T1/column/name' % _S), 403)
+    get_data_T1_ent_is_in = False
 
-    def test_T2(self):
-        self.assertHttp(self.session.get('schema/%s/table/T2' % _S), 200, 'application/json')
-        self.assertHttp(self.session.delete('schema/%s/table/T2' % _S), 403)
-
-    def test_T3(self):
-        self.assertHttp(self.session.get('schema/%s/table/T3' % _S2), 200, 'application/json')
-        self.assertHttp(self.session.delete('schema/%s/table/T3' % _S2), 403)
-
-    def test_T2_fkeys(self):
-        r = self.session.get('schema/%s/table/T2/foreignkey' % _S)
-        self.assertHttp(r, 200, 'application/json')
-        self.assertEqual(len(r.json()), 0, "Foreign keys %s should be empty" % (r.json(),))
-
-    def test_T2_fkey(self):
-        self.assertHttp(self.session.get('schema/%s/table/T2/foreignkey/t1id' % _S), 404)
-
-    def test_T2_fkeyref(self):
-        # referenced table hidden...
-        self.assertHttp(self.session.get('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1' % (_S, _S)), 409)
-        self.assertHttp(self.session.get('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_S, _S)), 409)
-        self.assertHttp(self.session.delete('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_S, _S)), 409)
-
-    def test_T3_fkeys(self):
-        r = self.session.get('schema/%s/table/T3/foreignkey' % _S2)
-        self.assertHttp(r, 200, 'application/json')
-        self.assertEqual(len(r.json()), 0, "Foreign keys %s should be empty" % (r.json(),))
-
-    def test_T3_fkey(self):
-        self.assertHttp(self.session.get('schema/%s/table/T3/foreignkey/t1id' % _S2), 404)
-
-    def test_T3_fkeyref(self):
-        # referenced table hidden...
-        self.assertHttp(self.session.get('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1' % (_S2, _S)), 409)
-        self.assertHttp(self.session.get('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id' % (_S2, _S)), 409)
-        self.assertHttp(self.session.delete('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id' % (_S2, _S)), 409)
-
-    def test_get_data_T1_ent(self):
-        r = self.session.get('entity/%s:T1' % _S)
-        self.assertHttp(r, 200, 'application/json')
-        self.assertNotIn('id', r.json()[0])
-        
-    def test_get_data_T1_id(self):
-        self.assertHttp(self.session.get('entity/%s:T1/id=1' % _S), 409)
-        self.assertHttp(self.session.get('attribute/%s:T1/id,name,value' % _S), 409)
-        self.assertHttp(self.session.get('attributegroup/%s:T1/id,name;value' % _S), 409)
-        self.assertHttp(self.session.get('aggregate/%s:T1/c:=cnt(id)' % _S), 409)
-
-        self.assertHttp(self.session.get('attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2)), 409)
-        self.assertHttp(self.session.get('attributegroup/A:=%s:T1/%s:T3/id;name' % (_S, _S2)), 409)
-        self.assertHttp(self.session.get('aggregate/A:=%s:T1/%s:T3/c:=cnt(*)' % (_S, _S2)), 409)
-
-    def test_put_data_T1_id(self):
-        self.assertHttp(self.session.put('attributegroup/%s:T1/id,name;value' % _S, json=_data[0][1]), 409)
-        self.assertHttp(self.session.put('attributegroup/%s:T1/name;id' % _S, json=_data[0][1]), 409)
-
-    def test_delete_data_T1_id(self):
-        self.assertHttp(self.session.delete('entity/%s:T1/id=1' % _S), 409)
-        self.assertHttp(self.session.delete('attribute/%s:T1/id,name,value' % _S), 409)
-        self.assertHttp(self.session.delete('attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2)), 409)
+    get_data_T1_id_status = 409
+    put_data_T1_id_status = 409
+    delete_data_T1_id_status = 409
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzHideT1 (AuthzHideT1id):
@@ -258,41 +309,25 @@ class AuthzHideT1 (AuthzHideT1id):
         self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables'], "T1")
         self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables']['T2'].get('foreign_keys', []), 0)
 
-    def test_get_data_T1_entity(self):
-        self.assertHttp(self.session.get('entity/%s:T1' % _S), 409)
+    get_T1_status = 404
+    delete_T1_status = 404
 
-    def test_T1(self):
-        self.assertHttp(self.session.get('schema/%s/table/T1' % _S), 404)
-        self.assertHttp(self.session.delete('schema/%s/table/T1' % _S), 404)
+    get_T1id_status = 409
+    delete_T1id_status = 409
 
-    def test_T1id(self):
-        self.assertHttp(self.session.get('schema/%s/table/T1/column/name' % _S), 409)
-        self.assertHttp(self.session.delete('schema/%s/table/T1/column/name' % _S), 409)
+    get_T1name_status = 409
+    delete_T1name_status = 409
 
-    def test_T1name(self):
-        self.assertHttp(self.session.get('schema/%s/table/T1/column/id' % _S), 409)
-        self.assertHttp(self.session.delete('schema/%s/table/T1/column/id' % _S), 409)
+    get_data_T1_ent_status = 409
+    put_data_T1_ent_status = 409
+    delete_data_T1_ent_status = 409
 
-    def test_get_data_T1_ent(self):
-        self.assertHttp(self.session.get('entity/%s:T1' % _S), 409)
-        
-    def test_put_data_T1_ent(self):
-        self.assertHttp(self.session.put('entity/%s:T1' % _S, json=_data[0][1]), 409)
-        
-    def test_delete_data_T1_ent(self):
-        self.assertHttp(self.session.delete('entity/%s:T1' % _S), 409)
-        
-    def test_get_data_T1(self):
-        self.assertHttp(self.session.get('attribute/%s:T1/id,name,value' % _S), 409)
-        self.assertHttp(self.session.get('attributegroup/%s:T1/id,name;value' % _S), 409)
-        self.assertHttp(self.session.get('aggregate/%s:T1/c:=cnt(*)' % _S), 409)
+    get_data_T1_status = 409
+    put_data_T1_status = 409
+    post_data_T1_status = 409
+    delete_data_T1_status = 409
 
-    def test_put_data_T1(self):
-        self.assertHttp(self.session.put('attributegroup/%s:T1/name;value' % _S, json=_data[0][1]), 409)
-
-    def test_delete_data_T1(self):
-        self.assertHttp(self.session.delete('attribute/%s:T1/name,value' % _S), 409)
-        self.assertHttp(self.session.get('attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2)), 409)
+    post_data_T1_default_id_status = 409
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzHideSchema (AuthzHideT1):
@@ -308,37 +343,21 @@ class AuthzHideSchema (AuthzHideT1):
     def test_hidden_in_model(self):
         self._hidden_in_model(lambda schema: schema['schemas'], _S)
 
-    def test_S(self):
-        self.assertHttp(self.session.get('schema/%s' % _S), 404)
-        self.assertHttp(self.session.delete('schema/%s' % _S), 404)
+    get_S_status = 404
+    delete_S_status = 404
 
-    def test_T1(self):
-        self.assertHttp(self.session.get('schema/%s/table/T1' % _S), 409)
-        self.assertHttp(self.session.delete('schema/%s/table/T1' % _S), 409)
+    get_T1_status = 409
+    delete_T1_status = 409
 
-    def test_T2(self):
-        self.assertHttp(self.session.get('schema/%s/table/T2' % _S), 409)
-        self.assertHttp(self.session.delete('schema/%s/table/T2' % _S), 409)
+    get_T2_status = 409
+    delete_T2_status = 409
 
-    def test_T2_fkey(self):
-        self.assertHttp(self.session.get('schema/%s/table/T2/foreignkey/t1id' % _S), 409)
+    get_T2_fkeys_status = 409
+    get_T2_fkey_status = 409
 
-    def test_T2_fkeys(self):
-        self.assertHttp(self.session.get('schema/%s/table/T2/foreignkey' % _S), 409)
-
-    def test_get_data_T2(self):
-        self.assertHttp(self.session.get('entity/%s:T2' % _S), 409)
-        self.assertHttp(self.session.get('attribute/%s:T2/id,name,value' % _S), 409)
-        self.assertHttp(self.session.get('attributegroup/%s:T2/id,name;value' % _S), 409)
-        self.assertHttp(self.session.get('aggregate/%s:T2/c:=cnt(*)' % _S), 409)
-
-    def test_put_data_T2(self):
-        self.assertHttp(self.session.put('entity/%s:T2' % _S, json=_data[1][1]), 409)
-        self.assertHttp(self.session.put('attributegroup/%s:T2/id,name;value' % _S, json=_data[1][1]), 409)
-
-    def test_delete_data_T2(self):
-        self.assertHttp(self.session.delete('entity/%s:T2' % _S), 409)
-        self.assertHttp(self.session.delete('attribute/%s:T2/id,name,value' % _S), 409)
+    get_data_T2_status = 409
+    put_data_T2_status = 409
+    delete_data_T2_status = 409
 
 _data = [
     (
@@ -366,6 +385,21 @@ _data = [
         ]
     ),
 ]
+
+_extra_data = [
+    [
+        {"id": None, "name": "t1.X1", "value": "Xfoo"},
+        {"id": None, "name": "t1.X2", "value": "Xbar"},
+    ],
+    [
+        {"id": None, "name": "t2.X5", "value": "xFOO", "t1id": 1},
+        {"id": None, "name": "t2.X6", "value": "xBAR", "t1id": 2},
+    ],
+    [
+        {"id": None, "name": "t3.X8", "t1id": 1},
+        {"id": None, "name": "t3.X9", "t1id": 2},
+    ],
+]
         
 _defs = {
     "schemas": {
@@ -375,8 +409,7 @@ _defs = {
                     "column_definitions": [
                         {
                             "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
+                            "type": {"typename": "int8"}
                         },
                         {
                             "name": "name",
@@ -397,8 +430,7 @@ _defs = {
                     "column_definitions": [
                         {
                             "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
+                            "type": {"typename": "int8"}
                         },
                         {
                             "name": "name",
@@ -433,8 +465,7 @@ _defs = {
                     "column_definitions": [
                         {
                             "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
+                            "type": {"typename": "int8"}
                         },
                         {
                             "name": "name",
