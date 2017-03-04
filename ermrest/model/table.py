@@ -93,6 +93,13 @@ class Table (object):
     def __repr__(self):
         return '<ermrest.model.Table %s>' % str(self)
 
+    def has_right(self, aclname, roles=None):
+        if aclname in {'enumerate',}:
+            # we need parent enumeration too
+            if not self.schema.has_right(aclname, roles):
+                return False
+        return self._has_right(aclname, roles)
+
     def columns_in_order(self):
         cols = [ c for c in self.columns.values() if c.has_right('enumerate') ]
         cols.sort(key=lambda c: c.position)

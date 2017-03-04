@@ -809,7 +809,13 @@ class AnyPath (object):
            Note: only text content types are supported with
            output_file writing.
         """
-        # TODO: refactor this common code between 
+
+        # we defer base entity enforcement to allow insert-only use cases
+        if hasattr(self, '_path'):
+            # EntityPath
+            self._path[0].table.enforce_right('select')
+        elif hasattr(self, 'epath'):
+            self.epath._path[0].table.enforce_right('select')
 
         sql = self.sql_get(row_content_type=content_type, limit=limit)
 
@@ -876,7 +882,6 @@ class EntityPath (AnyPath):
 
            Optionally set alias for the root.
         """
-        table.enforce_right('select')
         if not self._path is None:
             raise NotImplementedError('self._path')
         self._path = [ EntityElem(self, alias, table, 0) ]
@@ -1367,7 +1372,7 @@ WHERE %(keymatches)s
         for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
-                col.enforce_right('delete')
+                col.enforce_right('update')
                 nmkcols.add(col)
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias

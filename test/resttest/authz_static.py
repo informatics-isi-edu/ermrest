@@ -50,24 +50,29 @@ class Authz (common.ErmrestTest):
 
     @classmethod
     def setUpClass(cls):
-        common.primary_session.put('schema/%s/acl' % _S, json=cls.schema)
-        common.primary_session.put('schema/%s/acl' % _S2, json=cls.schema2)
+        common.primary_session.put('schema/%s/acl' % _S, json=cls.schema).raise_for_status()
+        common.primary_session.put('schema/%s/acl' % _S2, json=cls.schema2).raise_for_status()
 
-        common.primary_session.put('schema/%s/table/T1/acl' % _S, json=cls.T1)
-        common.primary_session.put('schema/%s/table/T1/column/id/acl' % _S, json=cls.T1_id)
-        common.primary_session.put('schema/%s/table/T1/column/name/acl' % _S, json=cls.T1_name)
-        common.primary_session.put('schema/%s/table/T1/column/value/acl' % _S, json=cls.T1_value)
+        common.primary_session.put('schema/%s/table/T1/acl' % _S, json=cls.T1).raise_for_status()
+        common.primary_session.put('schema/%s/table/T1/column/id/acl' % _S, json=cls.T1_id).raise_for_status()
+        common.primary_session.put('schema/%s/table/T1/column/name/acl' % _S, json=cls.T1_name).raise_for_status()
+        common.primary_session.put('schema/%s/table/T1/column/value/acl' % _S, json=cls.T1_value).raise_for_status()
 
-        common.primary_session.put('schema/%s/table/T2/column/id/acl' % _S, json=cls.T2_id)
-        common.primary_session.put('schema/%s/table/T2/column/name/acl' % _S, json=cls.T2_name)
-        common.primary_session.put('schema/%s/table/T2/column/value/acl' % _S, json=cls.T2_value)
-        common.primary_session.put('schema/%s/table/T2/column/t1id/acl' % _S, json=cls.T2_t1id)
-        common.primary_session.put('schema/%s/table/T2/foreignkey/t1id/reference/%s/id/acl' % (_S, _S), json=cls.T2_fkey)
+        common.primary_session.put('schema/%s/table/T2/acl' % _S, json=cls.T2).raise_for_status()
+        common.primary_session.put('schema/%s/table/T2/column/id/acl' % _S, json=cls.T2_id).raise_for_status()
+        common.primary_session.put('schema/%s/table/T2/column/name/acl' % _S, json=cls.T2_name).raise_for_status()
+        common.primary_session.put('schema/%s/table/T2/column/value/acl' % _S, json=cls.T2_value).raise_for_status()
+        common.primary_session.put('schema/%s/table/T2/column/t1id/acl' % _S, json=cls.T2_t1id).raise_for_status()
+        common.primary_session.put('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id/acl' % (_S, _S), json=cls.T2_fkey).raise_for_status()
 
-        common.primary_session.put('schema/%s/table/T3/column/id/acl' % _S2, json=cls.T3_id)
-        common.primary_session.put('schema/%s/table/T3/column/name/acl' % _S2, json=cls.T3_name)
-        common.primary_session.put('schema/%s/table/T3/column/t1id/acl' % _S2, json=cls.T3_t1id)
-        common.primary_session.put('schema/%s/table/T3/foreignkey/t1id/reference/%s/id/acl' % (_S2, _S), json=cls.T3_fkey)
+        common.primary_session.put('schema/%s/table/T3/acl' % _S2, json=cls.T3).raise_for_status()
+        common.primary_session.put('schema/%s/table/T3/column/id/acl' % _S2, json=cls.T3_id).raise_for_status()
+        common.primary_session.put('schema/%s/table/T3/column/name/acl' % _S2, json=cls.T3_name).raise_for_status()
+        common.primary_session.put('schema/%s/table/T3/column/t1id/acl' % _S2, json=cls.T3_t1id).raise_for_status()
+        common.primary_session.put('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id/acl' % (_S2, _S), json=cls.T3_fkey).raise_for_status()
+
+    def setUp(self):
+        pass
 
     def tearDown(self):
         for table in ['%s:T1' % _S, '%s:T2' % _S, '%s:T3' % _S2]:
@@ -81,7 +86,7 @@ class Authz (common.ErmrestTest):
         self.assertNotIn(key, collection)
 
     def _json_check(self, response, status):
-        self.assertHttp(response, status, 'application/json' if status in {200, 201} else None)
+        self.assertHttp(response, status, 'application/json' if response.status_code in {200, 201} else None)
         return response
         
     get_S_status = 200
@@ -170,20 +175,25 @@ class Authz (common.ErmrestTest):
         self._json_check(self.session.delete('entity/%s:T1' % _S), self.delete_data_T1_ent_status)
 
     get_data_T1_status = 200
+    get_data_T1T3_status = 200
     put_data_T1_status = 403
     post_data_T1_status = 403
     delete_data_T1_status = 403
     def test_get_data_T1(self):
-        for r_thunk in [
-                lambda : self.session.get('attribute/%s:T1/name,value' % _S),
-                lambda : self.session.get('attributegroup/%s:T1/name;value' % _S),
-                lambda : self.session.get('aggregate/%s:T1/c:=cnt(*)' % _S),
-                
-                lambda : self.session.get('attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2)),
-                lambda : self.session.get('attributegroup/A:=%s:T1/(name)=(%s:T3:name)/$A/name;value' % (_S, _S2)),
-                lambda : self.session.get('aggregate/A:=%s:T1/(name)=(%s:T3:name)/$A/c:=cnt(*)' % (_S, _S2)),
+        for url in [
+                'attribute/%s:T1/name,value' % _S,
+                'attributegroup/%s:T1/name;value' % _S,
+                'aggregate/%s:T1/c:=cnt(*)' % _S,
         ]:
-            self.assertHttp(r_thunk(), self.get_data_T1_status, 'application/json' if self.get_data_T1_status == 200 else None)
+            self._json_check(self.session.get(url), self.get_data_T1_status)
+
+    def test_get_data_T1T3(self):
+        for url in [
+                'attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2),
+                'attributegroup/A:=%s:T1/(name)=(%s:T3:name)/$A/name;value' % (_S, _S2),
+                'aggregate/A:=%s:T1/(name)=(%s:T3:name)/$A/c:=cnt(*)' % (_S, _S2),
+        ]:
+            self._json_check(self.session.get(url), self.get_data_T1T3_status)
 
     def test_put_data_T1(self):
         self._json_check(self.session.put('attributegroup/%s:T1/name;value' % _S, json=_data[0][1]), self.put_data_T1_status)
@@ -196,6 +206,7 @@ class Authz (common.ErmrestTest):
         self._json_check(self.session.delete('attribute/A:=%s:T1/(name)=(%s:T3:name)/$A/name,value' % (_S, _S2)), self.delete_data_T1_status)
 
     get_data_T1_id_status = 200
+    get_data_T1T3_id_status = 200
     get_data_T1_id_ctype = 'application/json'
     def test_get_data_T1_id(self):
         for url in [
@@ -203,11 +214,16 @@ class Authz (common.ErmrestTest):
                 'attribute/%s:T1/id,name,value' % _S,
                 'attributegroup/%s:T1/id,name;value' % _S,
                 'aggregate/%s:T1/c:=cnt(id)' % _S,
+        ]:
+            self._json_check(self.session.get(url), self.get_data_T1_id_status)
+
+    def test_get_data_T1T3_id(self):
+        for url in [
                 'attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2),
                 'attributegroup/A:=%s:T1/%s:T3/id;name' % (_S, _S2),
                 'aggregate/A:=%s:T1/%s:T3/c:=cnt(*)' % (_S, _S2),
         ]:
-            self._json_check(self.session.get(url), self.get_data_T1_id_status)
+            self._json_check(self.session.get(url), self.get_data_T1T3_id_status)
 
     put_data_T1_id_status = 403
     def test_put_data_T1_id(self):
@@ -222,7 +238,7 @@ class Authz (common.ErmrestTest):
     def test_delete_data_T1_id(self):
         self._json_check(self.session.delete('entity/%s:T1/id=1' % _S), self.delete_data_T1_id_status)
         self._json_check(self.session.delete('attribute/%s:T1/id,name,value' % _S), self.delete_data_T1_id_status)
-        self._json_check(self.session.delete('attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2)), self.delete_data_T1_id_status)
+        self._json_check(self.session.delete('attribute/A:=%s:T1/%s:T2/id,name' % (_S, _S)), self.delete_data_T1_id_status)
 
     get_data_T2_status = 200
     put_data_T2_status = 403
@@ -244,19 +260,32 @@ class Authz (common.ErmrestTest):
         self._json_check(self.session.delete('entity/%s:T2' % _S), self.delete_data_T2_status)
         self._json_check(self.session.delete('attribute/%s:T2/id,name,value' % _S), self.delete_data_T2_status)
 
+    get_data_T3_status = 200
+    update_data_T3_status = 403
+    insert_data_T3_status = 403
+    write_data_T3_status = 403
+    delete_data_T3_status = 403
     def test_get_data_T3(self):
-        self._json_check(self.session.get('entity/%s:T3' % _S2), 200)
-        self._json_check(self.session.get('attribute/%s:T3/id,name' % _S2), 200)
-        self._json_check(self.session.get('attributegroup/%s:T3/id;name' % _S2), 200)
-        self._json_check(self.session.get('aggregate/%s:T3/c:=cnt(*)' % _S2), 200)
+        self._json_check(self.session.get('entity/%s:T3' % _S2), self.get_data_T3_status)
+        self._json_check(self.session.get('attribute/%s:T3/id,name' % _S2), self.get_data_T3_status)
+        self._json_check(self.session.get('attributegroup/%s:T3/id;name' % _S2), self.get_data_T3_status)
+        self._json_check(self.session.get('aggregate/%s:T3/c:=cnt(*)' % _S2), self.get_data_T3_status)
 
-    def test_put_data_T3(self):
-        self._json_check(self.session.put('entity/%s:T3' % _S2, json=_data[2][1]), 403)
-        self._json_check(self.session.put('attributegroup/%s:T3/id;name' % _S2, json=_data[2][1]), 403)
+    def test_insert_data_T3(self):
+        self._json_check(self.session.post('entity/%s:T3' % _S2, json=_extra_data[2]), self.insert_data_T3_status)
+
+    def test_write_data_T3(self):
+        self._json_check(self.session.put('entity/%s:T3' % _S2, json=_data[2][1]), self.write_data_T3_status)
+
+    def test_update_data_T3(self):
+        self._json_check(self.session.put('attributegroup/%s:T3/id;name' % _S2, json=_data[2][1]), self.update_data_T3_status)
+        self._json_check(self.session.delete('attribute/%s:T3/value,t1id' % _S2), self.update_data_T3_status)
 
     def test_delete_data_T3(self):
-        self._json_check(self.session.delete('entity/%s:T3' % _S2), 403)
-        self._json_check(self.session.delete('attribute/%s:T3/id,name' % _S2), 403)
+        r = self._json_check(self.session.delete('entity/%s:T3' % _S2), self.delete_data_T3_status)
+        if r.status_code == 204:
+            # repair the damage we just did to class-wide state
+            common.primary_session.post('entity/%s:T3' % _S2, json=_data[2][1]).raise_for_status()
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzHideT1id (Authz):
@@ -291,6 +320,7 @@ class AuthzHideT1id (Authz):
     get_data_T1_ent_is_in = False
 
     get_data_T1_id_status = 409
+    get_data_T1T3_id_status = 409
     put_data_T1_id_status = 409
     delete_data_T1_id_status = 409
 
@@ -323,6 +353,7 @@ class AuthzHideT1 (AuthzHideT1id):
     delete_data_T1_ent_status = 409
 
     get_data_T1_status = 409
+    get_data_T1T3_status = 409
     put_data_T1_status = 409
     post_data_T1_status = 409
     delete_data_T1_status = 409
@@ -358,6 +389,45 @@ class AuthzHideSchema (AuthzHideT1):
     get_data_T2_status = 409
     put_data_T2_status = 409
     delete_data_T2_status = 409
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3InsertSelect (Authz):
+    T3 = {
+        "insert": ["*"]
+    }
+
+    insert_data_T3_status = 200
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3InsertOnly (Authz):
+    T3 = {
+        "insert": ["*"],
+        "select": []
+    }
+
+    get_data_T3_status = 403
+    get_data_T1T3_status = 403
+    get_data_T1T3_id_status = 403
+    insert_data_T3_status = 200
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3Update (Authz):
+    T3 = {
+        "update": ["*"]
+    }
+
+    update_data_T3_status = [200,204]
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3Write (Authz):
+    T3 = {
+        "write": ["*"]
+    }
+
+    update_data_T3_status = [200,204]
+    insert_data_T3_status = 200
+    write_data_T3_status = 200
+    delete_data_T3_status = 204
 
 _data = [
     (
@@ -400,7 +470,7 @@ _extra_data = [
         {"id": None, "name": "t3.X9", "t1id": 2},
     ],
 ]
-        
+
 _defs = {
     "schemas": {
         _S: {
@@ -471,6 +541,10 @@ _defs = {
                             "name": "name",
                             "type": {"typename": "text"},
                             "nullok": False
+                        },
+                        {
+                            "name": "value",
+                            "type": {"typename": "text"}
                         },
                         {
                             "name": "t1id",

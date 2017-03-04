@@ -174,10 +174,6 @@ SELECT _ermrest.model_change_event();
 
     def has_right(self, aclname):
         assert aclname == 'enumerate'
-        if not self.table.has_right('enumerate'):
-            return False
-        if not self.table.schema.has_right('enumerate'):
-            return False
         for c in self.columns:
             if not c.has_right('enumerate'):
                 return False
@@ -296,10 +292,6 @@ SELECT _ermrest.model_change_event();
 
     def has_right(self, aclname):
         assert aclname == 'enumerate'
-        if not self.table.has_right('enumerate'):
-            return False
-        if not self.table.schema.has_right('enumerate'):
-            return False
         for c in self.columns:
             if not c.has_right('enumerate'):
                 return False
@@ -352,10 +344,6 @@ class ForeignKey (object):
 
     def columns_have_right(self, aclname):
         assert aclname == 'enumerate'
-        if not self.table.has_right('enumerate'):
-            return False
-        if not self.table.schema.has_right('enumerate'):
-            return False
         for c in self.columns:
             if not c.has_right('enumerate'):
                 return False

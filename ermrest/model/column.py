@@ -37,7 +37,7 @@ from .misc import AltDict, AclDict, annotatable, commentable, hasacls
         "table_name": ('text', lambda self: unicode(self.table.name)),
         "column_name": ('text', lambda self: unicode(self.name))
     },
-    {"enumerate", "write", "insert", "update", "delete", "select"},
+    {"enumerate", "update", "select"},
     lambda self: self.table
 )
 class Column (object):
@@ -87,6 +87,13 @@ class Column (object):
             urllib.quote(unicode(self.table.name).encode('utf8')),
             urllib.quote(unicode(self.name).encode('utf8'))
             )
+
+    def has_right(self, aclname, roles=None):
+        if aclname in {'enumerate','select'}:
+            # we need parent rights too
+            if not self.table.has_right(aclname, roles):
+                return False
+        return self._has_right(aclname, roles)
 
     def __repr__(self):
         return '<ermrest.model.Column %s>' % str(self)
