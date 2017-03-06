@@ -769,7 +769,7 @@ SELECT _ermrest.model_change_event();
 SELECT _ermrest.model_change_event();
 INSERT INTO _ermrest.model_pseudo_keyref
   (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, comment, name)
-  VALUES (%s, %s, ARRAY[%s], %s, %s, ARRAY[%s], %s)
+  VALUES (%s, %s, ARRAY[%s], %s, %s, ARRAY[%s], %s, %s)
   RETURNING id
 """ % (
     sql_literal(unicode(self.foreign_key.table.schema.name)),
