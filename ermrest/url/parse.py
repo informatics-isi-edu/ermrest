@@ -496,7 +496,8 @@ def p_acl(p):
     p[0] = p[1].acl(p[2])
 
 def p_annotatable(p):
-    """annotatable : schemaslash
+    """annotatable : catalogslash
+                   | schemaslash
                    | tableslash
                    | columnslash
                    | keyslash

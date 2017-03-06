@@ -11,7 +11,8 @@ _Tc2 = 'composite2'
 
 def defs(S):
     # these table definitions get reused in multiple test modules under different per-module schema
-    return { "schemas": { S: { "tables": {
+    return {
+        "schemas": { S: { "tables": {
         _T1: {
             "kind": "table",
             "column_definitions": [ 
@@ -95,7 +96,9 @@ def defs(S):
                 }
             ]
         }
-    }, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} } } }
+    }, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }  },
+    "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}
+    }
 
 _defs = defs(_S)
 _table_defs = _defs['schemas'][_S]['tables']

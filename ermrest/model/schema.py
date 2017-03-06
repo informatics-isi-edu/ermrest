@@ -22,6 +22,7 @@ from .table import Table
 import json
 import web
 
+@annotatable('catalog', { })
 @hasacls(
     'model',
     { },
@@ -40,7 +41,12 @@ class Model (object):
         schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
         self.schemas = schemas
         self.acls = AclDict(self)
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s"' % (k,)))
     
+    @staticmethod
+    def introspect_annotation(model=None, annotation_uri=None, annotation_value=None):
+        model.annotations[annotation_uri] = annotation_value
+
     @staticmethod
     def introspect_acl(model=None, acl=None, members=None):
         model.acls[acl] = members
@@ -50,6 +56,7 @@ class Model (object):
 
     def prejson(self):
         doc = dict(
+            annotations=self.annotations,
             schemas=dict([ 
                 (sname, schema.prejson()) for sname, schema in self.schemas.items() if schema.has_right('enumerate')
             ])

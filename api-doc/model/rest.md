@@ -718,6 +718,7 @@ Typical error response codes include:
 
 Annotations are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
 
+- _service_ `/catalog/` _cid_
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 

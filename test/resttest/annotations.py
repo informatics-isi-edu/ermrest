@@ -17,7 +17,10 @@ def setUpModule():
 
 def add_annotation_tests(klass):
     # generate annotation API tests over many resources in table
-    resources = basics.expand_table_resources(_S, _table_defs, klass.table)
+    resources = basics.expand_table_resources(_S, _table_defs, klass.table) + [
+        # annotations on catalog itself...
+        ''
+    ]
 
     tags = [
         'tag:misd.isi.edu,2015:test0',
@@ -48,10 +51,12 @@ class Annotations (common.ErmrestTest):
     table = _T2b
 
     def _check(self, resource, key, value=None):
-        r = self.session.get('%s/annotation' % resource)
+        if resource != '':
+            resource += '/'
+        r = self.session.get('%sannotation' % resource)
         self.assertHttp(r, 200, 'application/json')
         self.assertEqual(r.json().get(key), value)
-        r = self.session.get('%s/annotation/%s' % (resource, common.urlquote(key)))
+        r = self.session.get('%sannotation/%s' % (resource, common.urlquote(key)))
         if value is None:
             self.assertHttp(r, 404)
         else:
@@ -59,15 +64,17 @@ class Annotations (common.ErmrestTest):
             self.assertEqual(r.json(), value)
 
     def _change(self, resource, key, value=None):
+        if resource != '':
+            resource += '/'
         if value is None:
             self.assertHttp(
-                self.session.delete('%s/annotation/%s' % (resource, common.urlquote(key))),
+                self.session.delete('%sannotation/%s' % (resource, common.urlquote(key))),
                 204
             )
             self._check(resource, key, value)
         else:
             self.assertHttp(
-                self.session.put('%s/annotation/%s' % (resource, common.urlquote(key)), json=value),
+                self.session.put('%sannotation/%s' % (resource, common.urlquote(key)), json=value),
                 201
             )
             self._check(resource, key, value)

@@ -127,6 +127,9 @@ class Catalog (Api):
     def acls(self):
         return model.CatalogAcl(self)
 
+    def annotations(self):
+        return model.CatalogAnnotations(self)
+
     def schemas(self):
         """The schema set for this catalog."""
         return model.Schemas(self)

@@ -471,6 +471,10 @@ class Annotations (Api):
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
+class CatalogAnnotations(Annotations):
+    def __init__(self, catalog):
+        Annotations.__init__(self, catalog, catalog)
+
 class TableAnnotations (Annotations):
     def __init__(self, table):
         Annotations.__init__(self, table.schema.catalog, table)
