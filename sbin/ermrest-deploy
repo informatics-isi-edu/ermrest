@@ -150,6 +150,18 @@ EOF
 	done
     }
 
+    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'model_catalog_annotation'\" '$1'" - ${PGADMIN} < /dev/null)
+    if [[ -z "$tablename" ]]
+    then
+	cat <<EOF
+CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_annotation (
+  annotation_uri text PRIMARY KEY,
+  annotation_value json
+);
+ALTER TABLE _ermrest.model_catalog_annotation OWNER TO ${DAEMONUSER};
+EOF
+    fi
+
     tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'meta'\" '$1'" - ${PGADMIN} < /dev/null)
     if [[ -n "$tablename" ]]
     then
