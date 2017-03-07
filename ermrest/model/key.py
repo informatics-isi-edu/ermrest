@@ -16,7 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, AclDict, annotatable, commentable, hasacls
+from .misc import frozendict, AltDict, AclDict, annotatable, commentable, hasacls, enforce_63byte_id, truncated_identifier
 
 import json
 
@@ -35,6 +35,8 @@ class Unique (object):
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
+        if constraint_name is not None:
+            enforce_63byte_id(constraint_name[1], 'Uniqueness constraint')
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.comment = comment
@@ -145,7 +147,9 @@ SELECT _ermrest.model_change_event();
         if not self.constraint_name:
             n = 1
             while True:
-                name = '%s_%s_key%d' % (self.table.name, list(self.columns)[0].name, n)
+                name = truncated_identifier(
+                    [self.table.name, '_', list(self.columns)[0].name, '%d' % n]
+                )
                 if not constraint_exists(cur, name):
                     break
                 n += 1
@@ -469,6 +473,8 @@ class KeyReference (object):
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         _guarded_add(unique.table_references[foreign_key.table], self)
+        if constraint_name is not None:
+            enforce_63byte_id(constraint_name[1], 'Foreign-key constraint')
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
@@ -548,7 +554,9 @@ SELECT _ermrest.model_change_event();
         if not self.constraint_name:
             n = 1
             while True:
-                name = '%s_%s_fkey%d' % (self.foreign_key.table.name, list(self.foreign_key.columns)[0].name, n)
+                name = truncated_identifier(
+                    [ self.foreign_key.table.name, '_', list(self.foreign_key.columns)[0].name, '%d' % n ]
+                )
                 if not constraint_exists(cur, name):
                     break
                 n += 1

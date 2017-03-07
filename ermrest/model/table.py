@@ -25,8 +25,8 @@ needed by other modules of the ermrest project.
 """
 
 from .. import exception
-from ..util import sql_identifier, sql_literal
-from .misc import AltDict, AclDict, annotatable, commentable, hasacls
+from ..util import sql_identifier, sql_literal, udecode
+from .misc import AltDict, AclDict, annotatable, commentable, hasacls, enforce_63byte_id
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -61,7 +61,10 @@ class Table (object):
         self.name = name
         self.kind = kind
         self.comment = comment
-        self.columns = AltDict(lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)))
+        self.columns = AltDict(
+            lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)),
+            lambda k, v: enforce_63byte_id(k, "Column")
+        )
         self.uniques = AltDict(lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (",".join([unicode(c.name) for c in k]), self)))
         self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (",".join([unicode(c.name) for c in k]), self)))
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self)))
@@ -184,8 +187,12 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
         def execute_if(sql):
             if sql:
-                cur.execute(sql)
-            
+                try:
+                    cur.execute(sql)
+                except:
+                    web.debug('Got error executing SQL: %s' % sql)
+                    raise
+
         for column in columns:
             if column.comment is not None:
                 column.set_comment(conn, cur, column.comment)

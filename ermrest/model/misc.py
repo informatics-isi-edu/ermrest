@@ -15,11 +15,13 @@
 #
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, table_exists
+from ..util import sql_identifier, sql_literal, table_exists, udecode
 from .type import _default_config
 
 import json
 import web
+import hashlib
+import base64
 
 def frozendict (d):
     """Convert a dictionary to a canonical and immutable form."""
@@ -35,11 +37,41 @@ def _get_ermrest_config():
     else:
         return _default_config
 
+def enforce_63byte_id(s, prefix="Identifier"):
+    s = udecode(s)
+    if type(s) is not unicode:
+        raise exception.BadData(u'%s "%s" "%s" is unsupported and should be unicode.' % (prefix, s, type(s)))
+    if len(s.encode('utf8')) > 63:
+        raise exception.BadData(u'%s "%s" exceeded 63-byte limit when encoded as UTF-8.' % (prefix, s))
+
+def truncated_identifier(parts, threshold=4):
+    """Build a 63 byte (or less) postgres identifier out of sequentially concatenated parts.
+    """
+    parts = [ udecode(p).encode('utf8') for p in parts ]
+    len_static = len(''.join([ p for p in parts if len(p) <= threshold ]))
+    assert len_static < 20
+    num_components = len([ p for p in parts if len(p) > threshold ])
+    max_component_len = (63 - len_static) / (num_components or 1)
+
+    def convert(p):
+        if len(p) <= max_component_len:
+            return p
+        # return a truncated hash using base64 chars
+        h = hashlib.md5()
+        h.update(p)
+        return base64.b64encode(h.digest())[0:max_component_len]
+
+    result = ''.join([ convert(p) for p in parts ])
+    assert len(result) <= 63
+    result = udecode(result)
+    return result
+
 class AltDict (dict):
     """Alternative dict that raises custom errors."""
-    def __init__(self, keyerror):
+    def __init__(self, keyerror, validator=lambda k, v: (k, v)):
         dict.__init__(self)
         self._keyerror = keyerror
+        self._validator = validator
 
     def __getitem__(self, k):
         try:
@@ -47,6 +79,10 @@ class AltDict (dict):
             return result
         except KeyError:
             raise self._keyerror(k)
+
+    def __setitem__(self, k, v):
+        self._validator(k, v)
+        return dict.__setitem__(self, k, v)
 
     def get_enumerable(self, k):
         result = self[k]

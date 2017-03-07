@@ -15,8 +15,8 @@
 #
 
 from .. import exception
-from ..util import sql_identifier, view_exists
-from .misc import AltDict, AclDict, commentable, annotatable, hasacls
+from ..util import sql_identifier, view_exists, udecode
+from .misc import AltDict, AclDict, commentable, annotatable, hasacls, enforce_63byte_id
 from .table import Table
 
 import json
@@ -38,8 +38,10 @@ class Model (object):
     
     def __init__(self, version):
         self.version = version
-        schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
-        self.schemas = schemas
+        self.schemas = AltDict(
+            lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
+            lambda k, v: enforce_63byte_id(k, "Schema")
+        )
         self.acls = AclDict(self)
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s"' % (k,)))
     
@@ -134,7 +136,10 @@ class Schema (object):
         self.model = model
         self.name = name
         self.comment = comment
-        self.tables = AltDict(lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))))
+        self.tables = AltDict(
+            lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))),
+            lambda k, v: enforce_63byte_id(k, "Table")
+        )
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on schema "%s"' % (k, unicode(self.name))))
         self.annotations.update(annotations)
 
@@ -204,7 +209,7 @@ class Schema (object):
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""
         if tname not in self.tables:
-            raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
+            raise exception.ConflictModel(u'Requested table %s does not exist in schema %s.' % (udecode(tname), udecode(self.name)))
         self.tables[tname].delete(conn, cur)
         del self.tables[tname]
 

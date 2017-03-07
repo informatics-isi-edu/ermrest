@@ -19,9 +19,9 @@ import json
 import re
 
 from .. import exception
-from ..util import sql_identifier, sql_literal
+from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, annotatable, commentable, hasacls
+from .misc import AltDict, AclDict, annotatable, commentable, hasacls, truncated_identifier
 
 @commentable()
 @annotatable('column', dict(
@@ -126,7 +126,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
 """ % dict(schema=sql_identifier(self.table.schema.name),
            table=sql_identifier(self.table.name),
            column=sql_identifier(self.name),
-           index=sql_identifier("%s_%s_idx" % (self.table.name, self.name))
+           index=sql_identifier(truncated_identifier([self.table.name, '_', self.name, '_idx']))
        )
         else:
             return None
@@ -145,7 +145,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
 """ % dict(schema=sql_identifier(self.table.schema.name),
            table=sql_identifier(self.table.name),
            index_val=self.sql_name_astext_with_talias(None),
-           index=sql_identifier("%s_%s_pgtrgm_idx" % (self.table.name, self.name))
+           index=sql_identifier(truncated_identifier([self.table.name, '_', self.name, '_pgt', 'rgm_', 'idx']))
        )
         else:
             return None
@@ -273,16 +273,16 @@ class FreetextColumn (Column):
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 """ % dict(
-            schema=sql_identifier(self.table.schema.name),
-            index=sql_identifier("%s__tsvector_idx" % self.table.name),
-           )
+    schema=sql_identifier(self.table.schema.name),
+    index=sql_identifier(truncated_identifier([self.table.name, '__ts', 'vect', 'or', 'idx']))
+)
 
     def pg_trgm_index_sql(self):
         # drop legacy index
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 """ % dict(
-            schema=sql_identifier(self.table.schema.name),
-            index=sql_identifier("%s__pgtrgm_idx" % self.table.name),
-           )
+    schema=sql_identifier(self.table.schema.name),
+    index=sql_identifier(truncated_identifier([self.table.name, '__pg', 'trgm', '_idx'])),
+)
 

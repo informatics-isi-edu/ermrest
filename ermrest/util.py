@@ -19,7 +19,7 @@ General utilities for ERMREST.
 
 # Right now these are all DB related utilities. We should keep it that way.
 
-__all__ = ['table_exists', 'schema_exists', 'sql_identifier', 'sql_literal', 'negotiated_content_type', 'urlquote', 'urlunquote']
+__all__ = ['table_exists', 'schema_exists', 'sql_identifier', 'sql_literal', 'negotiated_content_type', 'urlquote', 'urlunquote', 'udecode']
 
 import web
 import urllib
@@ -39,6 +39,11 @@ def urlunquote(url):
         raise TypeError('unexpected decode type %s in urlunquote()' % type(text))
     return text
 
+def udecode(s):
+    if type(s) is str:
+        return s.decode('utf8')
+    else:
+        return s
 
 def schema_exists(cur, schemaname):
     """Return True or False depending on whether schema exists in our 
@@ -119,6 +124,7 @@ WHERE c.relnamespace = nc.oid
 
 def _string_wrap(s, escape=u'\\', protect=[]):
     try:
+        s = udecode(s)
         s = s.replace(escape, escape + escape)
         for c in set(protect):
             s = s.replace(c, escape + c)

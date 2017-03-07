@@ -3,7 +3,85 @@
 
 import unittest
 import common
+import basics
 from common import urlquote
+
+class LongIdentifiers (common.ErmrestTest):
+    identifier = u'ǝɯɐuǝɯɐuǝɯǝɯɐuǝɯɐuǝɯɐuǝɯɐuǝɯɐuǝɯɐuɐu'
+    utf8 = None
+    urlcoded = None
+
+    def sdef(self, sname, tname, cname, kname, fkname):
+        return {
+            "schemas": {
+                sname: {
+                    "tables": {
+                        tname: {
+                            "column_definitions": [
+                                {
+                                    "name": "id",
+                                    "type": {"typename": "text"}
+                                },
+                                {
+                                    "name": cname,
+                                    "type": {"typename": "text"}
+                                }
+                            ],
+                            "keys": [
+                                {
+                                    "unique_columns": [ "id" ]
+                                },
+                                {
+                                    "unique_columns": [ cname ],
+                                    "names": [ [sname, kname] ]
+                                }
+                            ],
+                            "foreign_keys": [
+                                {
+                                    "foreign_key_columns": [{"schema_name": sname, "table_name": tname, "column_name": cname}],
+                                    "referenced_columns": [{"schema_name": sname, "table_name": tname, "column_name": "id"}],
+                                    "names": [ [sname, fkname] ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+    @classmethod
+    def setUpClass(cls):
+        cls.utf8 = cls.identifier.encode('utf8')
+        assert len(cls.utf8) == 63
+        cls.urlcoded = urlquote(cls.utf8)
+
+    def setUp(self):
+        pass
+
+    def test_1_schemaname(self):
+        self.assertHttp(self.session.post('schema/x%s' % self.urlcoded), 400)
+        self.assertHttp(self.session.post('schema/%s' % self.urlcoded), 201)
+        self.assertHttp(self.session.delete('schema/%s' % self.urlcoded), 204)
+
+    def test_2_schemaname(self):
+        self.assertHttp(self.session.post('schema', json=self.sdef('x' + self.utf8, 'LIT2', 'LIT2', 'LIT2K', 'LIT2FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef(self.utf8, 'LIT2', 'LIT2', 'LIT2K', 'LIT2FK')), 201)
+
+    def test_3_tablename(self):
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT3', 'x' + self.utf8, 'LIT3', 'LIT3K', 'LIT3FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT3', self.utf8, 'LIT3', 'LIT3K', 'LIT3FK')), 201)
+
+    def test_4_columnname(self):
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT4', 'LIT4', 'x' + self.utf8, 'LIT4K', 'LIT4FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT4', 'LIT4', self.utf8, 'LIT4K', 'LIT4FK')), 201)
+
+    def test_5_keyname(self):
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT5', 'LIT5', 'LIT5', 'x' + self.utf8, 'LIT5FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT5', 'LIT5', 'LIT5', self.utf8, 'LIT5FK')), 201)
+
+    def test_6_fkeyname(self):
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', 'x' + self.utf8)), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', self.utf8)), 201)
 
 class KeysOnly (common.ErmrestTest):
     _schema = 'keysonly_schema'
