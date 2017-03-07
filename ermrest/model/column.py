@@ -208,7 +208,8 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
 
     def prejson(self):
         doc = dict(
-            name=self.name, 
+            name=self.name,
+            rights=self.rights(),
             type=self.type.prejson(),
             default=self.default_value,
             nullok=self.nullok,

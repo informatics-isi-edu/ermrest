@@ -309,6 +309,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         doc = dict(
             schema_name=self.schema.name,
             table_name=self.name,
+            rights=self.rights(),
             column_definitions=[
                 c.prejson() for c in self.columns_in_order()
                 ],

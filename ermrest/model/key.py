@@ -417,6 +417,7 @@ def _keyref_prejson(self):
     doc = dict(
         foreign_key_columns=fcs,
         referenced_columns=pcs,
+        rights=self.rights(),
         comment=self.comment,
         annotations=self.annotations,
         names=[ constraint_name_prejson(c) for c in self.constraints ]

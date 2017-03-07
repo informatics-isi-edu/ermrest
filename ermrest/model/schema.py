@@ -59,6 +59,7 @@ class Model (object):
     def prejson(self):
         doc = dict(
             annotations=self.annotations,
+            rights=self.rights(),
             schemas=dict([ 
                 (sname, schema.prejson()) for sname, schema in self.schemas.items() if schema.has_right('enumerate')
             ])
@@ -197,6 +198,7 @@ class Schema (object):
         doc = dict(
             schema_name=self.name,
             comment=self.comment,
+            rights=self.rights(),
             annotations=self.annotations,
             tables=dict([
                     (tname, table.prejson()) for tname, table in self.tables.items() if table.has_right('enumerate')

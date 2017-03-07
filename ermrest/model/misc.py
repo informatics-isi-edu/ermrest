@@ -457,11 +457,19 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
             # we can't stop now if decision is True or None...
             raise exception.Forbidden('%s access on %s' % (aclname, web.ctx.env['REQUEST_URI']))
 
+    def rights(self):
+        return {
+            aclname: self.has_right(aclname)
+            for aclname in self._acls_supported
+            if aclname not in {"write", "enumerate"}
+        }
+
     def helper(orig_class):
         setattr(orig_class, '_acl_getparent', lambda self: getparent(self))
         setattr(orig_class, '_acl_keying', keying)
         setattr(orig_class, '_acls_supported', set(acls))
         setattr(orig_class, '_interp_acl', _interp_acl)
+        setattr(orig_class, 'rights', rights)
         if not hasattr(orig_class, 'has_right'):
             setattr(orig_class, 'has_right', has_right)
         else:

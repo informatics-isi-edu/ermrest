@@ -16,6 +16,7 @@ def setUpModule():
 # catalog has these rights:
 #  owner: [primary_client_id]
 #  enumerate: ['*']
+#  select: ['*']
 #  else: []
 
 class Authz (common.ErmrestTest):
@@ -47,6 +48,111 @@ class Authz (common.ErmrestTest):
     T3_name = {}
     T3_t1id = {}
     T3_fkey = {}
+
+    rights_C = {
+        u"owner": False,
+        u"create": False,
+        u"insert": False,
+        u"update": False,
+        u"delete": False,
+        u"select": True,
+        u"reference": False,
+    }
+    rights_S1 = {}
+    rights_S2 = {}
+    rights_T1 = {
+        u"select": True
+    }
+    rights_T1_id = {}
+    rights_T2 = {
+        u"select": True
+    }
+    rights_T3 = {
+        u"select": True
+    }
+
+    def test_rights_catalog(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        self.assertEqual(r.json()['rights'], self.rights_C)
+
+    def test_rights_S1(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        expected = self.rights_C.copy()
+        expected.update(self.rights_S1)
+        schemas = r.json()['schemas']
+        if expected.get('enumerate') is False:
+            self.assertNotIn(_S, schemas)
+            return
+        self.assertEqual(schemas[_S]['rights'], expected)
+
+    def test_rights_S2(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        expected = self.rights_C.copy()
+        expected.update(self.rights_S2)
+        self.assertEqual(r.json()['schemas'][_S2]['rights'], expected)
+
+    def test_rights_T1(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        expected = self.rights_C.copy()
+        expected.update(self.rights_S1)
+        schemas = r.json()['schemas']
+        if expected.get('enumerate') is False:
+            self.assertNotIn(_S, schemas)
+            return
+        expected.update(self.rights_T1)
+        tables = schemas[_S]['tables']
+        if expected.get('enumerate') is False:
+            self.assertNotIn('T1', tables)
+            return
+        self.assertEqual(tables['T1']['rights'], expected)
+
+    def test_rights_T3(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        expected = self.rights_C.copy()
+        expected.update(self.rights_S2)
+        schemas = r.json()['schemas']
+        if expected.get('enumerate') is False:
+            self.assertNotIn(_S2, schemas)
+            return
+        expected.update(self.rights_T3)
+        tables = schemas[_S2]['tables']
+        if expected.get('enumerate') is False:
+            self.assertNotIn('T3', tables)
+            return
+        self.assertEqual(tables['T3']['rights'], expected)
+
+    def test_rights_T1_id(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        expected = self.rights_C.copy()
+        expected.update(self.rights_S1)
+        schemas = r.json()['schemas']
+        if expected.get('enumerate') is False:
+            self.assertNotIn(_S, schemas)
+            return
+        expected.update(self.rights_T1)
+        tables = schemas[_S]['tables']
+        if expected.get('enumerate') is False:
+            self.assertNotIn('T1', tables)
+            return
+        self.assertEqual(tables['T1']['rights'], expected)
+        expected.update(self.rights_T1_id)
+        cols = tables['T1']['column_definitions']
+        if expected.get('enumerate') is False:
+            self.assertNotEqual(cols[0]['name'], 'id')
+            return
+        self.assertEqual(cols[0]['name'], 'id')
+        expected = {
+            aclname: right
+            for aclname, right in expected.items()
+            if aclname in {"select", "update"}
+        }
+        self.assertEqual(cols[0]['rights'], expected)
 
     @classmethod
     def setUpClass(cls):
@@ -294,6 +400,10 @@ class AuthzHideT1id (Authz):
         'enumerate': []
     }
 
+    rights_T1_id = {
+        u'enumerate': False
+    }
+
     def test_hidden_in_model(self):
         r = self.session.get('schema')
         self.assertHttp(r, 200, 'application/json')
@@ -335,6 +445,11 @@ class AuthzHideT1 (AuthzHideT1id):
         'select': ['*']
     }
 
+    rights_T1 = {
+        u'select': False,
+        u'enumerate': False,
+    }
+
     def test_hidden_in_model(self):
         self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables'], "T1")
         self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables']['T2'].get('foreign_keys', []), 0)
@@ -371,6 +486,11 @@ class AuthzHideSchema (AuthzHideT1):
         'select': ['*']
     }
 
+    rights_S1 = {
+        u'select': False,
+        u'enumerate': False,
+    }
+
     def test_hidden_in_model(self):
         self._hidden_in_model(lambda schema: schema['schemas'], _S)
 
@@ -396,6 +516,10 @@ class AuthzT3InsertSelect (Authz):
         "insert": ["*"]
     }
 
+    rights_T3 = {
+        u"insert": True
+    }
+
     insert_data_T3_status = 200
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
@@ -403,6 +527,11 @@ class AuthzT3InsertOnly (Authz):
     T3 = {
         "insert": ["*"],
         "select": []
+    }
+
+    rights_T3 = {
+        "insert": True,
+        "select": False
     }
 
     get_data_T3_status = 403
@@ -416,12 +545,24 @@ class AuthzT3Update (Authz):
         "update": ["*"]
     }
 
+    rights_T3 = {
+        "select": True,
+        "update": True,
+    }
+
     update_data_T3_status = [200,204]
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3Write (Authz):
     T3 = {
         "write": ["*"]
+    }
+
+    rights_T3 = {
+        "select": True,
+        "update": True,
+        "insert": True,
+        "delete": True,
     }
 
     update_data_T3_status = [200,204]
