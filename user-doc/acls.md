@@ -26,7 +26,7 @@ shared system:
 	- Value expression (can apply some values but not others in a given field)
 3. Delegate some rights within a community
     - Authorize additional owners for sub-resources (can't suppress/mask parent owners from sub-resources)
-	- Delegate management of specific table's structure and constraints
+	- ~~Delegate management of specific table's structure and constraints~~
     - Delegate creation of new schema (while protecting other schemas)
 	- Delegate creation of new table (while protecting other tables)
 4. Make sure simple policies are still simple to manage
@@ -83,10 +83,8 @@ for a combination of distinct modes, where a general level of access
 can be further sub-divided into very specific scenarios you might control
 separately:
 
-- Own model (can do everything)
-	- Define model (can make any model change)
-		- Create new model element
-		- Drop model element
+- Own model element (can do everything)
+	- Create new child model element
 	- Enumerate existing model element
 	- Write data (can make any data change)
 		- Reference to key
@@ -102,9 +100,8 @@ The precise meaning of some data access modes varies by resource type:
 
 | Mode   | Table              | Column                        | Reference     |
 |--------|--------------------|-------------------------------|---------------|
-| Reference | N/A             | N/A                           | Make reference to key |
-| Insert | Create new row     | Set value during row insert   | N/A           |
-| Update | Modify row         | Replace value                 | N/A           |
+| Insert | Create new row     | Set value during row insert   | Make reference to key (during row insert) |
+| Update | Modify row         | Replace value                 | Make reference to key (during row update) |
 | Delete | Remove row         | Reset to default value        | N/A           |
 | Select | Observe/detect row | Observe/detect value          | N/A           |
 
@@ -279,7 +276,9 @@ field is replaced with a NULL value.
 
 A reference-level ACL describes whether to permit foreign key
 references to be expressed. When not configured locally, the effective
-reference-level ACL is inherited from the table.
+reference-level ACL is inherited from the constituent foreign key
+columns (any value is allowed if the column write would be allowed,
+subject to normal foreign key reference integrity constraints).
 
 Reference constraints are considered part of the enclosing table
 resource and do not have separable ownership. Reference ACLs are set
@@ -373,10 +372,10 @@ decisions nor in default value expression during row creation.
 
 ## Technical Reference
 
-### Available ACL Names
+### Available Static ACL Names
 
 Most of the previously described [access modes](#access-modes) have a
-corresponding ACL name associated with them. Some model access rights
+corresponding static ACL name associated with them. Some model access rights
 are not separately controlled and instead require full ownership
 rights. This might change in future revisions.
 
@@ -385,7 +384,7 @@ rights. This might change in future revisions.
 | owner     | Own                  | *all privileges*  |
 | create    | Create model element | enumerate         |
 | enumerate | Enumerate model      |                   |
-| write     | Write data           | enumerate, insert, update, select |
+| write     | Write data           | enumerate, insert, update, delete, select |
 | insert    | Insert data          | enumerate         |
 | update    | Modify data          | enumerate, select |
 | delete    | Delete data          | enumerate, select |
@@ -456,18 +455,18 @@ Some of the previously described [access modes](#access-modes) have a
 corresponding dynamic ACL type associated with them. Because dynamic ACLs
 are for data-dependent access, they have more restrictive applicability:
 
-| Type   | Mode        | Implies                | Supported Resources |
-|--------|-------------|------------------------|---------------------|
-| refer  | Reference   |                        | reference           |
-| owner  | Write data  | update, delete, select | table, column       |
-| update | Modify data |                        | table, column       |
-| delete | Delete data |                        | table, column       |
-| select | View data   |                        | table, column       |
+| Type   | Mode        | Implies                        | Supported Resources |
+|--------|-------------|--------------------------------|---------------------|
+| owner  | Write data  | insert, update, delete, select | table, column, reference |
+| insert | Insert data |                                | reference           |
+| update | Modify data |                                | table, column, reference |
+| delete | Delete data |                                | table, column       |
+| select | View data   |                                | table, column       |
 
 Table and column-level dynamic ACLs are only applicable to access
 requests against existing database content. Insertion of new rows can
 only be granted by a static policy. However, reference-level dynamic
-ACLs can grant or deny the ability to refer to specific foreign keys 
+ACLs can grant or deny the ability to specify specific foreign keys 
 even during row insertion.
 
 Dynamic data rights do not imply model access. Model access must be
@@ -496,7 +495,7 @@ representation as in the following example:
 	  },
 	  "acl_bindings": {
 	    "My Binding": {
-		  "type": "owner",
+		  "types": ["owner"],
 		  "projection": "Managed%20By",
 		  "projection_type": "acl"
 		}
@@ -508,7 +507,9 @@ can modify all rows in the table, while other data-independent ACLs
 are inherited from the enclosing schema. A dynamic ACL binding called
 `My Row Owners` specifies that an ACL stored in the `Managed By`
 column of the table grants `owner` dynamic access type for individual
-rows.
+rows. The representation uses an array for the `type` so that multiple
+access modes can be more easily configured without having to repeat the
+same projection many times.
 
 #### Projection Strings
 
@@ -595,23 +596,19 @@ following illustrates where these rights are distributed on sub-resources:
 
 	{
 	  "rights": {
-	    "create": bool,
-	    "revise": bool,
-	    "drop": bool
+	    "owner": bool,
+	    "create": bool
 	  },
 	  "schemas": {
 	    "S": {
 	      "rights": {
-	        "create": bool,
-	        "revise": bool,
-	        "drop": bool
+		    "owner": bool,
+	        "create": bool
 	      },
 	      "tables": {
 	        "T": {
 	          "rights": {
-	            "create": bool,
-	            "revise": bool,
-	            "drop": bool,
+			    "owner": bool,
 	            "insert": bool,
 	            "update": bool,
 	            "delete": bool,
@@ -631,8 +628,9 @@ following illustrates where these rights are distributed on sub-resources:
 	          ],
 	   	      "foreign_keys": [
 	            {
-	              "rights": {
-	                "domain_query": url
+	              "domain_queries": {
+					"insert": url,
+					"update": url
 	              },
 	              ...
 	            },
@@ -646,20 +644,37 @@ following illustrates where these rights are distributed on sub-resources:
 	  }
 	}
 
-
 Model enumeration access is not indicated through the `"rights"`
-sub-resource. Rather, a model element which does not grant enumeration
-will be omitted from the catalog introspection results.
+sub-document. Rather, a model element which does not grant enumeration
+will be omitted from the catalog introspection results. The rights
+sub-document does not include fields for all ACLs which may be present
+on a given model element, but only for the subset of actual access
+modes which apply to the model element itself. E.g. data access modes
+can be configured globally on catalogs or schemas, but they only grant
+actual access rights for operations applied to tables or columns.
+
+The `"domain_queries"` sub-document on a foreign key will specify an
+ERMrest query URL which shows the set of allowed values for a given
+access mode. For foreign keys with dynamic ACL bindings, this query
+may encode extra filtering on the domain. Without dynamic ACL
+bindings, the query simply encodes the source of the domain values for
+the foreign-key reference constraint.
 
 ### Row-Level Rights Summary
 
-The ??? virtual column is available on data rows and has the following
-structure:
+When dynamic ACL bindings are in effect, the static rights described
+in the preceding section MAY replace the boolean `true` or `false`
+access right decision with `null` meaning the decision cannot be
+statically determined. In this case, a row-level rights summary can
+be consulted to understand access rights on existing data.
+
+The `ermrights` virtual column is available on data rows and has the following
+structure in each row:
 
 	{
 	  "update": bool,
 	  "delete": bool,
-	  "column": {
+	  "column_rights": {
 	    "Column Name": {
 	      "update": bool,
 	      "delete": bool
@@ -667,32 +682,25 @@ structure:
 	    ...
 	  }
 	}
-	
-The row-level rights document advertises the ability to perform
-certain REST operations affecting the row:
 
-- `table.rights.update` with `true` value is required for:
-	- PUT /entity/
-	- PUT /attributegroup/
-	- DELETE /attribute/
-- `table.rights.delete` with `true` value is required for:
-	- DELETE /entity/
+The `"update"` and `"delete"` fields describe row-level mutation
+rights. The `"update"` field may again be `null` if an update decision
+cannot be made for the entire row but instead must consider the scope
+of affected fields within the row.  The `"column_rights"`
+sub-document summarizes field-level rights within the row.
 
-However, the row-level rights are necessary but not sufficient for all
-such operations. Any affected column must also have sufficient
-column-level rights.
+There are several compact encoding conventions for this document:
 
-- `column.rights.update` with `true` is required for:
-	- PUT /entity/ for each non-key column
-	- PUT /attributegroup/ for each targeted column
-- `column.rights.delete` with `true` is required for:
-	- DELETE /attribute/ for each targeted column
-
-However, row and column-level rights are necessary but not sufficient
-for all such operations. Any affected column must also have sufficient
-reference-level rights if it is governed by foreign keys.
-
-- `reference.rights.domain_query` allows discovery of permitted reference values
+- The entire document may be `null` if static rights completely
+  describe the client's access privileges.
+- Individual columns may be omitted from the `"column_rights"`
+  sub-document if static column rights completely describe the
+  client's access privileges.
+- Only `update` and `delete` access modes are summarized, since any
+  query results will already be filtered to only show row or column
+  data where `select` is `true`, and row-level policy cannot control
+  insertion of new rows.
+- The `"column_rights"` sub-document may be omitted if it is empty.
 
 ### Predicting Access Decisions
 
@@ -702,14 +710,14 @@ static and row-level rights summaries must be consulted together:
 1. All involved model resources must be visible in the enumerated model document.
 2. The operation must be allowed by all involved model resources
 	- Model rights must allow model access operations
-	- Static data-access rights must allow data access operations
-		- Affected table or tables must allow access in rights advertised on table
-		- Affected column or columns must allow access in rights advertised on columns
-3. Row-dependent access rights must allow access on existing data
-	- Affected rows and their affected fields must be visible
-    - Affected row rights must allow data modification operations
-	- Affected row-column rights must allow data modification operations
-4. Allowed reference values can be found via _domain query_ URL listed under foreign key rights
+	- Static data-access rights must not disallow data access operations
+		- Affected table or tables must not disallow access in rights advertised on table
+		- Affected column or columns must not disallow access in rights advertised on columns
+		- Foreign key values must be found in domain queries advertised on foreign key reference constraints
+3. Row-dependent access rights must not disallow access on existing data
+	- Affected rows must be visible in a query
+    - Affected row rights must not disallow data modification operations
+	- Affected row-column rights must not disallow data modification operations
 
 Keep in mind, even when all rights seem to allow an operation, the
 subsequent operation may still fail due to either asynchronous changes
