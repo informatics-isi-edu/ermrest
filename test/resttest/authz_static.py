@@ -52,14 +52,19 @@ class Authz (common.ErmrestTest):
     rights_C = {
         u"owner": False,
         u"create": False,
+    }
+    rights_S1 = {
         u"insert": False,
         u"update": False,
         u"delete": False,
         u"select": True,
-        u"reference": False,
     }
-    rights_S1 = {}
-    rights_S2 = {}
+    rights_S2 = {
+        u"insert": False,
+        u"update": False,
+        u"delete": False,
+        u"select": True,
+    }
     rights_T1 = {
         u"select": True
     }
@@ -85,14 +90,24 @@ class Authz (common.ErmrestTest):
         if expected.get('enumerate') is False:
             self.assertNotIn(_S, schemas)
             return
-        self.assertEqual(schemas[_S]['rights'], expected)
+        expected_S = {
+            aclname: right
+            for aclname, right in expected.items()
+            if aclname in {"owner", "create"}
+        }
+        self.assertEqual(schemas[_S]['rights'], expected_S)
 
     def test_rights_S2(self):
         r = self.session.get('schema')
         self.assertHttp(r, 200, 'application/json')
         expected = self.rights_C.copy()
         expected.update(self.rights_S2)
-        self.assertEqual(r.json()['schemas'][_S2]['rights'], expected)
+        expected_S = {
+            aclname: right
+            for aclname, right in expected.items()
+            if aclname in {"owner", "create"}
+        }
+        self.assertEqual(r.json()['schemas'][_S2]['rights'], expected_S)
 
     def test_rights_T1(self):
         r = self.session.get('schema')
@@ -108,7 +123,12 @@ class Authz (common.ErmrestTest):
         if expected.get('enumerate') is False:
             self.assertNotIn('T1', tables)
             return
-        self.assertEqual(tables['T1']['rights'], expected)
+        expected_T = {
+            aclname: right
+            for aclname, right in expected.items()
+            if aclname in {"owner", "write", "insert", "update", "delete", "select"}
+        }
+        self.assertEqual(tables['T1']['rights'], expected_T)
 
     def test_rights_T3(self):
         r = self.session.get('schema')
@@ -124,7 +144,12 @@ class Authz (common.ErmrestTest):
         if expected.get('enumerate') is False:
             self.assertNotIn('T3', tables)
             return
-        self.assertEqual(tables['T3']['rights'], expected)
+        expected_T = {
+            aclname: right
+            for aclname, right in expected.items()
+            if aclname in {"owner", "write", "insert", "update", "delete", "select"}
+        }
+        self.assertEqual(tables['T3']['rights'], expected_T)
 
     def test_rights_T1_id(self):
         r = self.session.get('schema')
@@ -140,19 +165,18 @@ class Authz (common.ErmrestTest):
         if expected.get('enumerate') is False:
             self.assertNotIn('T1', tables)
             return
-        self.assertEqual(tables['T1']['rights'], expected)
         expected.update(self.rights_T1_id)
         cols = tables['T1']['column_definitions']
         if expected.get('enumerate') is False:
             self.assertNotEqual(cols[0]['name'], 'id')
             return
         self.assertEqual(cols[0]['name'], 'id')
-        expected = {
+        expected_c = {
             aclname: right
             for aclname, right in expected.items()
-            if aclname in {"select", "update"}
+            if aclname in {"select", "update", "insert", "delete"}
         }
-        self.assertEqual(cols[0]['rights'], expected)
+        self.assertEqual(cols[0]['rights'], expected_c)
 
     @classmethod
     def setUpClass(cls):

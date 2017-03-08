@@ -453,7 +453,8 @@ def _keyref_has_right(self, aclname):
         to_table_name=('text', lambda self: unicode(self.unique.table.name)),
         to_column_names=('text[]', lambda self: self._to_column_names())
     ),
-    {"refererence"},
+    {"write", "insert", "update", "enumerate"},
+    {"insert", "update"},
     lambda self: self.foreign_key.table
 )
 class KeyReference (object):
@@ -699,7 +700,8 @@ SELECT _ermrest.model_change_event();
         to_table_name=('text', lambda self: unicode(self.unique.table.name)),
         to_column_names=('text[]', lambda self: self._to_column_names())
     ),
-    {"refererence"},
+    {"write", "insert", "update", "enumerate"},
+    {"insert", "update"},
     lambda self: self.foreign_key.table
 )
 class PseudoKeyReference (object):

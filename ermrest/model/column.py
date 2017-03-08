@@ -37,7 +37,8 @@ from .misc import AltDict, AclDict, annotatable, commentable, hasacls, truncated
         "table_name": ('text', lambda self: unicode(self.table.name)),
         "column_name": ('text', lambda self: unicode(self.name))
     },
-    {"enumerate", "update", "select"},
+    {"enumerate", "write", "insert", "update", "select"},
+    {"insert", "update", "select", "delete"},
     lambda self: self.table
 )
 class Column (object):

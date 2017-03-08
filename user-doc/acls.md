@@ -379,23 +379,54 @@ corresponding static ACL name associated with them. Some model access rights
 are not separately controlled and instead require full ownership
 rights. This might change in future revisions.
 
-| ACL Name  | Mode                 | Implies           |
-|-----------|----------------------|-------------------|
-| owner     | Own                  | *all privileges*  |
-| create    | Create model element | enumerate         |
-| enumerate | Enumerate model      |                   |
-| write     | Write data           | enumerate, insert, update, delete, select |
-| insert    | Insert data          | enumerate         |
-| update    | Modify data          | enumerate, select |
-| delete    | Delete data          | enumerate, select |
-| select    | Select data          | enumerate         |
-
 Because more general access mode rights imply lesser access mode
 rights and sub-resources inherit ACLs, brevity in policy
 configurations can be achieved:
 - A small set of owners need not be repeated in other ACLs
 - Less privileged roles are mentioned only in their corresponding lesser ACLs
 - Sub-resource ACLs can be set to `null` unless local overrides are needed
+
+Available ACL names and applicability to specific model elements:
+
+| ACL Name  | Catalog    | Schema     | Table           | Column            | Reference         |
+|-----------|------------|------------|-----------------|-------------------|-------------------|
+| owner     | all access | all access | all access      | N/A *note1*       | N/A *note1*       |
+| create    | add schema | add table  | N/A             | N/A               | N/A               |
+| select    | *note2*    | *note2*    | observe row     | observe value     | N/A               |
+| insert    | *note2*    | *note2*    | add row         | set value *note3* | set value *note3* |
+| update    | *note2*    | *note2*    | change row      | set value *note3* | set value *note3* |
+| write     | *note2*    | *note2*    | all data access | set value *note3* | set value *note3* |
+| delete    | *note2*    | *note2*    | delete row      | N/A               | N/A               |
+| enumerate | introspect | introspect | introspect      | introspect        | introspect        |
+
+When a new schema is added to a catalog, or a new table is added to a
+schema, the requesting client becomes the owner of the newly added
+element.
+
+Notes:
+- `N/A`: The named ACL is not supported on this kind of model element.
+- *note1*: Columns and references are considered part of the table and so cannot have local ownership settings.
+- *note2*: Data access ACLs on catalogs and schemas only serve to set inherited access policies for the tables which are sub-resources within those containers respectively. These only have effect if the table does not have a locally configured policy for the same named ACL, and they grant no special access to the catalog or schema itself.
+- *note3*: The insert/update ACLs on columns and references configure whether values can be supplied during that type of operation on the containing row.
+
+As described previously, some access rights imply other rights:
+
+| ACL Name  | Implies  |
+|-----------|----------|
+| enumerate |          |
+| create    | enumerate |
+| select    | enumerate |
+| insert    | enumerate |
+| update    | select, enumerate |
+| delete    | select, enumerate |
+| write     | insert, update, delete, select, enumerate |
+| owner     | create, insert, update, delete, select, enumerate |
+
+Ownership is inherited even if a sub-resource specifies a locally
+configured owner ACL. The effective owner policy is the disjunction of
+inherited owner and local owner policies. Other locally configured ACLs
+override their respective inherited ACL and so may grant fewer rights
+than would be granted with the inherited policy.
 
 ### ACL Representation
 

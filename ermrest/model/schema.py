@@ -26,7 +26,8 @@ import web
 @hasacls(
     'model',
     { },
-    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select", "reference"},
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
+    { "owner", "create" },
     None
 )
 class Model (object):
@@ -123,7 +124,8 @@ SELECT _ermrest.model_change_event();
 @hasacls(
     'schema',
     { "schema_name": ('text', lambda self: unicode(self.name)) },
-    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select", "reference"},
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
+    { "owner", "create" },
     lambda self: self.model
 )
 class Schema (object):

@@ -46,7 +46,8 @@ import web
         "schema_name": ('text', lambda self: unicode(self.schema.name)),
         "table_name": ('text', lambda self: unicode(self.name))
     },
-    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select", "reference"},
+    { "owner", "enumerate", "write", "insert", "update", "delete", "select" },
+    { "owner", "insert", "update", "delete", "select" },
     lambda self: self.schema
 )
 class Table (object):

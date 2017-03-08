@@ -255,14 +255,16 @@ SELECT %s FROM _ermrest.model_%s_annotation;
 
 hasacls_classes = []
 
-def hasacls(restype, keying, acls, getparent):
+def hasacls(restype, keying, acls_supported, rights_supported, getparent):
     """Decorator to add ACL storage access interface to model classes.
 
        restype: string to distinguish resource types for storage table naming
 
        keying: { colname: (psql_type, getkey_func), ... }
 
-       acls: { aclname, ... }
+       acls_supported: { aclname, ... }
+
+       rights_supported: { aclname, ... }
 
        getparent: getparent_func
     """
@@ -400,7 +402,6 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         """
         sufficient_rights = {
             "owner": set(),
-            "reference": set(),
             "create": {"owner"},
             "write": {"owner"},
             "insert": {"owner", "write"},
@@ -460,14 +461,14 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
     def rights(self):
         return {
             aclname: self.has_right(aclname)
-            for aclname in self._acls_supported
-            if aclname not in {"write", "enumerate"}
+            for aclname in self._acls_rights
         }
 
     def helper(orig_class):
         setattr(orig_class, '_acl_getparent', lambda self: getparent(self))
         setattr(orig_class, '_acl_keying', keying)
-        setattr(orig_class, '_acls_supported', set(acls))
+        setattr(orig_class, '_acls_supported', set(acls_supported))
+        setattr(orig_class, '_acls_rights', set(rights_supported))
         setattr(orig_class, '_interp_acl', _interp_acl)
         setattr(orig_class, 'rights', rights)
         if not hasattr(orig_class, 'has_right'):
