@@ -10,8 +10,6 @@ def setUpModule():
     if r.status_code == 404:
         # idempotent because unittest can re-enter module several times...
         common.primary_session.post('schema', json=_defs).raise_for_status()
-        for path, data in _data:
-            common.primary_session.put(path, json=data).raise_for_status()
 
 # catalog has these rights:
 #  owner: [primary_client_id]
@@ -251,13 +249,13 @@ class Authz (common.ErmrestTest):
         common.primary_session.put('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id/acl' % (_S2, _S), json=cls.T3_fkey).raise_for_status()
 
     def setUp(self):
-        pass
+        rdata = list(_data)
+        rdata.reverse()
+        for path, data in rdata:
+            common.primary_session.delete(path)
+        for path, data in _data:
+            common.primary_session.put(path, json=data).raise_for_status()
 
-    def tearDown(self):
-        for table in ['%s:T1' % _S, '%s:T2' % _S, '%s:T3' % _S2]:
-            r = common.primary_session.delete('entity/%s/id::null::' % table)
-            #assert r.status_code in (200, 404)
-        
     def _hidden_in_model(self, get_collection, key):
         r = self.session.get('schema')
         self.assertHttp(r, 200, 'application/json')
@@ -439,26 +437,55 @@ class Authz (common.ErmrestTest):
         self._json_check(self.session.delete('entity/%s:T2' % _S), self.delete_data_T2_status)
         self._json_check(self.session.delete('attribute/%s:T2/id,name,value' % _S), self.delete_data_T2_status)
 
+    # basic table access
     get_data_T3_status = 200
     update_data_T3_status = 403
-    insert_data_T3_status = 403
-    write_data_T3_status = 403
     delete_data_T3_status = 403
+
+    # table access involving NULL t1id column writes (bypass fkey restrictions)
+    insert_data_T3_t1id_status = 403
+    update_data_T3_t1id_status = 403
+    write_data_T3_t1id_status = 403
+
+    # table access involving non-NULL fkey writes
+    insert_data_T3_fkey_status = 403
+    update_data_T3_fkey_status = 403
+    write_data_T3_fkey_status = 403
+
     def test_get_data_T3(self):
         self._json_check(self.session.get('entity/%s:T3' % _S2), self.get_data_T3_status)
         self._json_check(self.session.get('attribute/%s:T3/id,name' % _S2), self.get_data_T3_status)
         self._json_check(self.session.get('attributegroup/%s:T3/id;name' % _S2), self.get_data_T3_status)
         self._json_check(self.session.get('aggregate/%s:T3/c:=cnt(*)' % _S2), self.get_data_T3_status)
 
+    basic_data_T3 = [
+        {"id": 8, "name": "t3.8b", "t1id": None},
+        {"id": 9, "name": "t3.9b", "t1id": None},
+    ]
+
+    fkey_data_T3 = [
+        {"id": 8, "name": "t3.8f", "t1id": 1},
+        {"id": 9, "name": "t3.9f", "t1id": 2},
+    ]
+
     def test_insert_data_T3(self):
-        self._json_check(self.session.post('entity/%s:T3' % _S2, json=_extra_data[2]), self.insert_data_T3_status)
+        self.assertHttp(common.primary_session.delete('entity/%s:T3' % _S2), [204, 404])
+        self._json_check(self.session.post('entity/%s:T3' % _S2, json=self.basic_data_T3), self.insert_data_T3_t1id_status)
+        self.assertHttp(common.primary_session.delete('entity/%s:T3' % _S2), [204, 404])
+        self._json_check(self.session.post('entity/%s:T3' % _S2, json=self.fkey_data_T3), self.insert_data_T3_fkey_status)
 
     def test_write_data_T3(self):
-        self._json_check(self.session.put('entity/%s:T3' % _S2, json=_data[2][1]), self.write_data_T3_status)
+        self.assertHttp(common.primary_session.delete('entity/%s:T3' % _S2), [204, 404])
+        self._json_check(self.session.put('entity/%s:T3' % _S2, json=self.basic_data_T3), self.write_data_T3_t1id_status)
+        self.assertHttp(common.primary_session.delete('entity/%s:T3' % _S2), [204, 404])
+        self._json_check(self.session.put('entity/%s:T3' % _S2, json=self.fkey_data_T3), self.write_data_T3_fkey_status)
 
     def test_update_data_T3(self):
-        self._json_check(self.session.put('attributegroup/%s:T3/id;name' % _S2, json=_data[2][1]), self.update_data_T3_status)
-        self._json_check(self.session.delete('attribute/%s:T3/value,t1id' % _S2), self.update_data_T3_status)
+        self._json_check(self.session.put('attributegroup/%s:T3/id;name' % _S2, json=self.basic_data_T3), self.update_data_T3_status)
+        self._json_check(self.session.put('attributegroup/%s:T3/id;t1id' % _S2, json=self.basic_data_T3), self.update_data_T3_t1id_status)
+        self._json_check(self.session.put('attributegroup/%s:T3/id;t1id' % _S2, json=self.fkey_data_T3), self.update_data_T3_fkey_status)
+        self._json_check(self.session.delete('attribute/%s:T3/value' % _S2), self.update_data_T3_status)
+        self._json_check(self.session.delete('attribute/%s:T3/t1id' % _S2), self.update_data_T3_t1id_status)
 
     def test_delete_data_T3(self):
         r = self._json_check(self.session.delete('entity/%s:T3' % _S2), self.delete_data_T3_status)
@@ -584,9 +611,14 @@ class AuthzHideSchema (AuthzHideT1):
     delete_data_T2_status = 409
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
-class AuthzT3InsertSelect (Authz):
+class AuthzT3InsertSelectFkeyInsert (Authz):
     T3 = {
-        "insert": ["*"]
+        "insert": ["*"],
+        "select": ["*"],
+    }
+    T3_fkey = {
+        "insert": ["*"],
+        "update": []
     }
 
     rights_T3 = {
@@ -596,10 +628,24 @@ class AuthzT3InsertSelect (Authz):
         u"insert": True
     }
 
-    insert_data_T3_status = 200
+    insert_data_T3_t1id_status = 200
+    insert_data_T3_fkey_status = 200
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
-class AuthzT3InsertOnly (Authz):
+class AuthzT3InsertSelectFkeyUpdateOnly (AuthzT3InsertSelectFkeyInsert):
+    T3_fkey = {
+        "insert": [],
+        "update": ["*"]
+    }
+
+    rights_T3_fkey = {
+        u"insert": False
+    }
+
+    insert_data_T3_fkey_status = 403
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3InsertOnly (AuthzT3InsertSelectFkeyInsert):
     T3 = {
         "insert": ["*"],
         "select": []
@@ -609,14 +655,10 @@ class AuthzT3InsertOnly (Authz):
         "insert": True,
         "select": False
     }
-    rights_T3_fkey = {
-        u"insert": True
-    }
 
     get_data_T3_status = 403
     get_data_T1T3_status = 403
     get_data_T1T3_id_status = 403
-    insert_data_T3_status = 200
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3Update (Authz):
@@ -633,9 +675,11 @@ class AuthzT3Update (Authz):
     }
 
     update_data_T3_status = [200,204]
+    update_data_T3_t1id_status = [200,204]
+    update_data_T3_fkey_status = 200
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
-class AuthzT3Write (Authz):
+class AuthzT3Write (AuthzT3Update):
     T3 = {
         "write": ["*"]
     }
@@ -651,10 +695,119 @@ class AuthzT3Write (Authz):
         u"update": True,
     }
 
-    update_data_T3_status = [200,204]
-    insert_data_T3_status = 200
-    write_data_T3_status = 200
     delete_data_T3_status = 204
+    insert_data_T3_t1id_status = 200
+    insert_data_T3_fkey_status = 200
+    write_data_T3_t1id_status = 200
+    write_data_T3_fkey_status = 200
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3WriteFkeyInsert (AuthzT3Write):
+    T3_fkey = {
+        "insert": ["*"],
+        "update": [],
+        "write": []
+    }
+
+    rights_T3_fkey = {
+        u"insert": True,
+        u"update": False
+    }
+
+    write_data_T3_fkey_status = 403
+    update_data_T3_fkey_status = 403
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3WriteFkeyUpdate (AuthzT3Write):
+    T3_fkey = {
+        "insert": [],
+        "update": ["*"],
+        "write": []
+    }
+
+    rights_T3_fkey = {
+        u"insert": False,
+        u"update": True
+    }
+
+    write_data_T3_fkey_status = 403
+    insert_data_T3_fkey_status = 403
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3WriteCt1idInsert (AuthzT3Write):
+    T3 = {
+        "write": ["*"]
+    }
+    T3_t1id = {
+        "write": [],
+        "update": [],
+        "insert": ["*"],
+    }
+
+    rights_T3 = {
+        "select": True,
+        "update": True,
+        "insert": True,
+        "delete": True,
+    }
+    rights_T3_fkey = {
+        u"insert": True,
+        u"update": False,
+    }
+
+    update_data_T3_t1id_status = 403
+    write_data_T3_t1id_status = 403
+    update_data_T3_fkey_status = 403
+    write_data_T3_fkey_status = 403
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3WriteCt1idUpdate (AuthzT3Write):
+    T3 = {
+        "write": ["*"]
+    }
+    T3_t1id = {
+        "write": [],
+        "update": ["*"],
+        "insert": [],
+    }
+
+    rights_T3 = {
+        "select": True,
+        "update": True,
+        "insert": True,
+        "delete": True,
+    }
+    rights_T3_fkey = {
+        u"insert": False,
+        u"update": True,
+    }
+
+    insert_data_T3_t1id_status = 403
+    write_data_T3_t1id_status = 403
+    insert_data_T3_fkey_status = 403
+    write_data_T3_fkey_status = 403
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT3WriteCt1idWrite (AuthzT3Write):
+    T3 = {
+        "write": ["*"]
+    }
+    T3_t1id = {
+        "write": ["*"],
+        "update": [],
+        "insert": [],
+    }
+
+    rights_T3 = {
+        "select": True,
+        "update": True,
+        "insert": True,
+        "delete": True,
+    }
+    rights_T3_fkey = {
+        u"insert": True,
+        u"update": True,
+    }
 
 _data = [
     (
@@ -681,21 +834,6 @@ _data = [
             {"id": 10, "name": "t3.10", "t1id": None},
         ]
     ),
-]
-
-_extra_data = [
-    [
-        {"id": None, "name": "t1.X1", "value": "Xfoo"},
-        {"id": None, "name": "t1.X2", "value": "Xbar"},
-    ],
-    [
-        {"id": None, "name": "t2.X5", "value": "xFOO", "t1id": 1},
-        {"id": None, "name": "t2.X6", "value": "xBAR", "t1id": 2},
-    ],
-    [
-        {"id": None, "name": "t3.X8", "t1id": 1},
-        {"id": None, "name": "t3.X9", "t1id": 2},
-    ],
 ]
 
 _defs = {

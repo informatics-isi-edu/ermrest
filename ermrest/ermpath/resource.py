@@ -626,6 +626,46 @@ FROM (
             if total_rows > total_mkeys:
                 raise ConflictData('Multiple input rows share the same unique key information.')
 
+        # -- pre-checks for restricted fkey write scenarios
+        # 1. accumulate all fkrs into a map  { c: {fkr,...} }
+        nonnull_fkey_col_fkrs = dict()
+        for fk in self.table.fkeys.values():
+            for c in fk.columns:
+                if c not in nonnull_fkey_col_fkrs:
+                    nonnull_fkey_col_fkrs[c] = set(fk.references.values())
+                else:
+                    nonnull_fkey_col_fkrs[c].update(set(fk.references.values()))
+
+        # 2. prune columns from map if column is not affected by request or no input data IS NOT NULL
+        for c in list(nonnull_fkey_col_fkrs):
+            if c in mkcols:
+                alias = mkcol_aliases.get(c)
+            elif c in nmkcols:
+                alias = nmkcol_aliases.get(c)
+            else:
+                # prune this unaffected column
+                del nonnull_fkey_col_fkrs[c]
+                continue
+            cur.execute("SELECT True FROM %s WHERE %s IS NOT NULL LIMIT 1" % (parts['input_table'], c.sql_name(alias)))
+            row = cur.fetchone()
+            if row and row[0]:
+                pass
+            else:
+                del nonnull_fkey_col_fkrs[c]
+
+        # 3. make mkcol and nmkcol specific maps of affected columns (same fkr may appear in both for composites fkrs)
+        nonnull_mkcol_fkrs = dict()
+        nonnull_nmkcol_fkrs = dict()
+        nonnull_fkrs = dict()
+        for c, fkrs in nonnull_fkey_col_fkrs.items():
+            nonnull_fkrs[c] = fkrs
+            if c in mkcols:
+                nonnull_mkcol_fkrs[c] = fkrs
+            elif c in nmkcols:
+                nonnull_nmkcol_fkrs[c] = fkrs
+
+        del nonnull_fkey_col_fkrs
+
         def preserialize(sql):
             if content_type == 'text/csv':
                 # TODO implement and use row_to_csv() stored procedure?
@@ -650,8 +690,15 @@ FROM (
 
             if allow_existing:
                 if nmkcols:
-                    self.table.enforce_right('update')
                     # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
+                    self.table.enforce_right('update')
+                    for c in nmkcols:
+                        c.enforce_right('update')
+                    for c, fkrs in nonnull_nmkcol_fkrs.items():
+                        for fkr in fkrs:
+                            if not fkr.has_right('update'):
+                                raise rest.Forbidden(u'update access with non-NULL value in column %s' % unicode(c.name))
+
                     cur.execute(
                         preserialize(("""
 UPDATE %(table)s t SET %(assigns)s FROM (
@@ -671,6 +718,12 @@ RETURNING %(tcols)s""") % parts
 
             if allow_missing:
                 self.table.enforce_right('insert')
+                for c in set(mkcols).union(set(nmkcols)):
+                    c.enforce_right('insert')
+                for c, fkrs in nonnull_fkrs.items():
+                    for fkr in fkrs:
+                        if not fkr.has_right('insert'):
+                            raise rest.Forbidden(u'insert access with non-NULL value in column %s' % unicode(c.name))
                 if not parts['cols']:
                     raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
                 parts.update(
@@ -1144,8 +1197,8 @@ WHERE %(keymatches)s
         cur.execute(self.sql_delete())
         if cnt > cur.rowcount:
             # HACK: assume difference in rowcount is due to row-level security??
-            raise Forbidden('deletion of one or more rows')
-        
+            raise rest.Forbidden('deletion of one or more rows')
+
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
