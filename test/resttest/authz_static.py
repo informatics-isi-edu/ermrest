@@ -75,6 +75,11 @@ class Authz (common.ErmrestTest):
     rights_T3 = {
         u"select": True
     }
+    rights_T3_t1id = {}
+    rights_T3_fkey = {
+        u"insert": False,
+        u"update": False,
+    }
 
     def test_rights_catalog(self):
         r = self.session.get('schema')
@@ -177,6 +182,50 @@ class Authz (common.ErmrestTest):
             if aclname in {"select", "update", "insert", "delete"}
         }
         self.assertEqual(cols[0]['rights'], expected_c)
+
+    def test_rights_T3_fkey(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        expected = self.rights_C.copy()
+        expected.update(self.rights_S1)
+        schemas = r.json()['schemas']
+        if expected.get('enumerate') is False:
+            self.assertEqual(
+                len(schemas[_S2]['tables']['T3']['foreign_keys']),
+                0
+            )
+            return
+        expected.update(self.rights_T1)
+        tables = schemas[_S]['tables']
+        if expected.get('enumerate') is False:
+            self.assertEqual(
+                len(schemas[_S2]['tables']['T3']['foreign_keys']),
+                0
+            )
+            return
+        expected.update(self.rights_T1_id)
+        if expected.get('enumerate') is False:
+            self.assertEqual(
+                len(schemas[_S2]['tables']['T3']['foreign_keys']),
+                0
+            )
+            return
+        # T1.id is visible or we would have exited already!
+        # now start over looking at T3 fkey
+        expected = self.rights_C.copy()
+        expected.update(self.rights_S2)
+        expected.update(self.rights_T3)
+        expected.update(self.rights_T3_t1id)
+        expected.update(self.rights_T3_fkey)
+        expected = {
+            aclname: right
+            for aclname, right in expected.items()
+            if aclname in {"insert", "update"}
+        }
+        self.assertEqual(
+            schemas[_S2]['tables']['T3']['foreign_keys'][0]['rights'],
+            expected
+        )
 
     @classmethod
     def setUpClass(cls):
@@ -543,6 +592,9 @@ class AuthzT3InsertSelect (Authz):
     rights_T3 = {
         u"insert": True
     }
+    rights_T3_fkey = {
+        u"insert": True
+    }
 
     insert_data_T3_status = 200
 
@@ -556,6 +608,9 @@ class AuthzT3InsertOnly (Authz):
     rights_T3 = {
         "insert": True,
         "select": False
+    }
+    rights_T3_fkey = {
+        u"insert": True
     }
 
     get_data_T3_status = 403
@@ -573,6 +628,9 @@ class AuthzT3Update (Authz):
         "select": True,
         "update": True,
     }
+    rights_T3_fkey = {
+        u"update": True
+    }
 
     update_data_T3_status = [200,204]
 
@@ -587,6 +645,10 @@ class AuthzT3Write (Authz):
         "update": True,
         "insert": True,
         "delete": True,
+    }
+    rights_T3_fkey = {
+        u"insert": True,
+        u"update": True,
     }
 
     update_data_T3_status = [200,204]

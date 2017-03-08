@@ -349,7 +349,7 @@ class ForeignKey (object):
     def columns_have_right(self, aclname):
         assert aclname == 'enumerate'
         for c in self.columns:
-            if not c.has_right('enumerate'):
+            if not c.has_right(aclname):
                 return False
         return True
 
@@ -427,7 +427,6 @@ def _keyref_prejson(self):
     return doc
 
 def _keyref_has_right(self, aclname):
-    assert aclname == 'enumerate'
     if not self.foreign_key.columns_have_right(aclname):
         return False
     if not self.unique.has_right(aclname):
