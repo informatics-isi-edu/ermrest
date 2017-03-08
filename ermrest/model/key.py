@@ -176,10 +176,10 @@ SELECT _ermrest.model_change_event();
             names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
             )
 
-    def has_right(self, aclname):
+    def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.columns:
-            if not c.has_right('enumerate'):
+            if not c.has_right('enumerate', roles):
                 return False
         return True
 
@@ -294,10 +294,10 @@ SELECT _ermrest.model_change_event();
             if pk != self:
                 pk.delete(conn, cur)
 
-    def has_right(self, aclname):
+    def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.columns:
-            if not c.has_right('enumerate'):
+            if not c.has_right('enumerate', roles):
                 return False
         return True
 
@@ -346,19 +346,19 @@ class ForeignKey (object):
                 refs.append( kr.prejson() )
         return refs
 
-    def columns_have_right(self, aclname):
-        assert aclname == 'enumerate'
+    def columns_have_right(self, aclname, roles=None):
         for c in self.columns:
-            if not c.has_right(aclname):
+            if not c.has_right(aclname, roles):
                 return False
         return True
 
-    def has_right(self, aclname):
-        if not self.columns_have_right(aclname):
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        if not self.columns_have_right(aclname, roles):
             return False
         for krset in self.table_references.values():
             for kr in krset:
-                if kr.has_right('enumerate'):
+                if kr.has_right(aclname, roles):
                     return True
         return False
 
@@ -426,12 +426,12 @@ def _keyref_prejson(self):
         doc['acls'] = self.acls
     return doc
 
-def _keyref_has_right(self, aclname):
+def _keyref_has_right(self, aclname, roles=None):
+    if not self.unique.has_right('enumerate', roles):
+        return False
     if not self.foreign_key.columns_have_right(aclname):
         return False
-    if not self.unique.has_right(aclname):
-        return False
-    return True
+    return self._has_right(aclname, roles)
 
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
@@ -677,8 +677,8 @@ SELECT _ermrest.model_change_event();
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
-    def has_right(self, aclname):
-        return _keyref_has_right(self, aclname)
+    def has_right(self, aclname, roles=None):
+        return _keyref_has_right(self, aclname, roles)
 
 @annotatable('keyref', dict(
     from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
@@ -813,8 +813,8 @@ SELECT _ermrest.model_change_event();
             if fkr != self:
                 fkr.delete(conn, cur)
 
-    def has_right(self, aclname):
-        return _keyref_has_right(self, aclname)
+    def has_right(self, aclname, roles=None):
+        return _keyref_has_right(self, aclname, roles)
 
 class _Endpoint(object):
 
@@ -869,7 +869,7 @@ class MultiKeyReference (object):
             for keyref, refop in self._visible_links()
         ])
 
-    def has_right(self, aclname):
+    def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         return self._visible_links()
 
@@ -901,9 +901,9 @@ class ExplicitJoinReference (object):
         assert refop == '=@'
         return _keyref_join_sql(self, refop, lname, rname)
 
-    def has_right(self, aclname):
+    def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.lcols + self.rcols:
-            if not c.has_right(aclname):
+            if not c.has_right(aclname, roles):
                 return False
         return True
