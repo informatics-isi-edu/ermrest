@@ -260,25 +260,6 @@ There is no content for this key.
 This key indicates that the schema or table is non-deletable. This key is allowed 
 on any number tables and schemas. There is no content for this key.
 
-### Pattern Expansion
-
-When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
-
-For example, a _table_ may have a [`tag:misd.isi.edu,2015:url`](#2015-url) annotation containing the following payload:
-
-```
-{
-    "pattern": "https://www.example.org/collections/{collection}/media/{object}",
-    "presentation": "embed"
-}
-```
-
-A web user agent that consumes this annotation and the related table data would likely embed the following `<iframe>` tag for each entity:
-
-```
-<iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
-```
-
 ### 2016 Visible Columns
 
 `tag:isrd.isi.edu,2016:visible-columns`
@@ -619,3 +600,24 @@ The following matrix illustrates which context is meaningful in which annotation
 | [2016 Table Display](#2016-table-display)               | X       | X             | X        | -     | -          | -            | X       | X    | X |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | X        | X     | X          | X            | X       | -    | X |
 | [2016 Table Alternatives](#2016-abstracts-table)           | X       | -             | X        | -     | -          | -            | X       | -    | X |
+
+## Pattern Expansion
+
+When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
+
+For example, a _table_ may have a [`tag:misd.isi.edu,2015:url`](#2015-url) annotation containing the following payload:
+
+```
+{
+    "pattern": "https://www.example.org/collections/{collection}/media/{object}",
+    "presentation": "embed"
+}
+```
+
+A web user agent that consumes this annotation and the related table data would likely embed the following `<iframe>` tag for each entity:
+
+```
+<iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
+```
+
+For detailed explanation on template and markdown language please refer to [Template and Markdown Guide](https://github.com/informatics-isi-edu/ermrestjs/wiki/Template-and-Markdown-Guide).
