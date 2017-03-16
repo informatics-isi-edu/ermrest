@@ -294,8 +294,6 @@ def web_method():
                     raise rest.BadRequest(e.message)
                 except UnsupportedMediaType, e:
                     raise rest.UnsupportedMediaType(e.message)
-                except (psycopg2.pool.PoolError, psycopg2.OperationalError), e:
-                    raise rest.ServiceUnavailable(e.message)
                 except psycopg2.Error, e:
                     request_trace("Postgres error: %s (%s)" % (e.pgerror, e.pgcode))
                     if e.pgcode is not None:
@@ -305,12 +303,16 @@ def web_method():
                             raise rest.ServiceUnavailable('Resources unavailable.')
                         elif e.pgcode[0:2] == '40':
                             raise rest.ServiceUnavailable('Transaction aborted.')
+                        elif e.pgcode[0:2] == '54':
+                            raise rest.BadRequest('Program limit exceeded: %s.' % e.message.decode('utf8').strip())
                         elif e.pgcode[0:2] == 'XX':
                             raise rest.ServiceUnavailable('Internal error.')
                         
                     # TODO: simplify postgres error text?
                     web.debug(e, e.pgcode, e.pgerror)
                     raise rest.Conflict( str(e) )
+                except (psycopg2.pool.PoolError, psycopg2.OperationalError), e:
+                    raise rest.ServiceUnavailable(e.message)
                 except Exception, e:
                     et, ev, tb = sys.exc_info()
                     web.debug('got exception "%s"' % str(ev), traceback.format_exception(et, ev, tb))
