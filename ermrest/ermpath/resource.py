@@ -596,7 +596,8 @@ FROM (
                 + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols]
             ),
             mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-            mkcols_input = ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]),
+            # limit input table index to 32 cols to protect against PostgresQL limit... just runs a slower correlation query here instead...
+            mkcols_idx = ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ][0:32]),
             nmkcols = ','.join([ c.sql_name() for c in nmkcols ]),
             tcols = u','.join(
                 [ u'i.%s AS %s' % (jsonfix2(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
@@ -604,7 +605,7 @@ FROM (
             )
         )
 
-        cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols_input)s);" % parts)
+        cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
         cur.execute("ANALYZE %s;" % sql_identifier(input_table))
 
         #  -- check for duplicate keys
