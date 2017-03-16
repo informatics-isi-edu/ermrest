@@ -627,9 +627,9 @@ FROM (
                 # TODO implement and use row_to_csv() stored procedure?
                 pass
             elif content_type == 'application/json':
-                sql = "WITH q AS (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q)), True)::text, '[]') FROM q" % sql
+                sql = "WITH q AS (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q.*)), True)::text, '[]') FROM q" % sql
             elif content_type == 'application/x-json-stream':
-                sql = "WITH q AS (%s) SELECT row_to_json(q)::text FROM q" % sql
+                sql = "WITH q AS (%s) SELECT row_to_json(q.*)::text FROM q" % sql
             elif content_type in [ dict, tuple ]:
                 pass
             else:
@@ -812,9 +812,9 @@ class AnyPath (object):
             if content_type == 'text/csv':
                 sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
             elif content_type == 'application/json':
-                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q) TO STDOUT" % sql
+                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q.*)), True)::text FROM (%s) q) TO STDOUT" % sql
             elif content_type == 'application/x-json-stream':
-                sql = "COPY (SELECT row_to_json(q)::text FROM (%s) q) TO STDOUT" % sql
+                sql = "COPY (SELECT row_to_json(q.*)::text FROM (%s) q) TO STDOUT" % sql
             else:
                 raise NotImplementedError('content_type %s with output_file.write()' % content_type)
 
@@ -828,9 +828,9 @@ class AnyPath (object):
                 # TODO implement and use row_to_csv() stored procedure?
                 pass
             elif content_type == 'application/json':
-                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
+                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q.*)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
             elif content_type == 'application/x-json-stream':
-                sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
+                sql = "SELECT row_to_json(q.*)::text FROM (%s) q" % sql
             elif content_type in [ dict, tuple ]:
                 pass
             else:
