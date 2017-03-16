@@ -601,7 +601,8 @@ FROM (
                 + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols]
             ),
             mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-            mkcols_input = ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]),
+            # limit input table index to 32 cols to protect against PostgresQL limit... just runs a slower correlation query here instead...
+            mkcols_idx = ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ][0:32]),
             nmkcols = ','.join([ c.sql_name() for c in nmkcols ]),
             tcols = u','.join(
                 [ u'i.%s AS %s' % (jsonfix2(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
@@ -609,7 +610,7 @@ FROM (
             )
         )
 
-        cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols_input)s);" % parts)
+        cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
         cur.execute("ANALYZE %s;" % sql_identifier(input_table))
 
         #  -- check for duplicate keys
@@ -671,9 +672,9 @@ FROM (
                 # TODO implement and use row_to_csv() stored procedure?
                 pass
             elif content_type == 'application/json':
-                sql = "WITH q AS (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q)), True)::text, '[]') FROM q" % sql
+                sql = "WITH q AS (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q.*)), True)::text, '[]') FROM q" % sql
             elif content_type == 'application/x-json-stream':
-                sql = "WITH q AS (%s) SELECT row_to_json(q)::text FROM q" % sql
+                sql = "WITH q AS (%s) SELECT row_to_json(q.*)::text FROM q" % sql
             elif content_type in [ dict, tuple ]:
                 pass
             else:
@@ -879,9 +880,9 @@ class AnyPath (object):
             if content_type == 'text/csv':
                 sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
             elif content_type == 'application/json':
-                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q)), True)::text FROM (%s) q) TO STDOUT" % sql
+                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q.*)), True)::text FROM (%s) q) TO STDOUT" % sql
             elif content_type == 'application/x-json-stream':
-                sql = "COPY (SELECT row_to_json(q)::text FROM (%s) q) TO STDOUT" % sql
+                sql = "COPY (SELECT row_to_json(q.*)::text FROM (%s) q) TO STDOUT" % sql
             else:
                 raise NotImplementedError('content_type %s with output_file.write()' % content_type)
 
@@ -895,9 +896,9 @@ class AnyPath (object):
                 # TODO implement and use row_to_csv() stored procedure?
                 pass
             elif content_type == 'application/json':
-                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
+                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q.*)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
             elif content_type == 'application/x-json-stream':
-                sql = "SELECT row_to_json(q)::text FROM (%s) q" % sql
+                sql = "SELECT row_to_json(q.*)::text FROM (%s) q" % sql
             elif content_type in [ dict, tuple ]:
                 pass
             else:
