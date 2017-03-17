@@ -16,15 +16,18 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, AclDict, annotatable, commentable, hasacls, enforce_63byte_id, truncated_identifier
+from .misc import frozendict, AltDict, AclDict, keying, annotatable, commentable, hasacls, enforce_63byte_id, truncated_identifier
 
 import json
 
-@annotatable('key', dict(
-    schema_name=('text', lambda self: unicode(self.table.schema.name)),
-    table_name=('text', lambda self: unicode(self.table.name)),
-    column_names=('text[]', lambda self: self._column_names())
-    )
+@annotatable
+@keying(
+    'key',
+    {
+        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
+        "table_name": ('text', lambda self: unicode(self.table.name)),
+        "column_names": ('text[]', lambda self: self._column_names())
+    }
 )
 class Unique (object):
     """A unique constraint."""
@@ -183,11 +186,14 @@ SELECT _ermrest.model_change_event();
                 return False
         return True
 
-@annotatable('key', dict(
-    schema_name=('text', lambda self: unicode(self.table.schema.name)),
-    table_name=('text', lambda self: unicode(self.table.name)),
-    column_names=('text[]', lambda self: self._column_names())
-    )
+@annotatable
+@keying(
+    'key',
+    {
+        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
+        "table_name": ('text', lambda self: unicode(self.table.name)),
+        "column_names": ('text[]', lambda self: self._column_names())
+    }
 )
 class PseudoUnique (object):
     """A pseudo-uniqueness constraint."""
@@ -433,28 +439,22 @@ def _keyref_has_right(self, aclname, roles=None):
         return False
     return self._has_right(aclname, roles)
 
-@annotatable('keyref', dict(
-    from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-    from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
-    from_column_names=('text[]', lambda self: self._from_column_names()),
-    to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
-    to_table_name=('text', lambda self: unicode(self.unique.table.name)),
-    to_column_names=('text[]', lambda self: self._to_column_names())
-    )
-)
+@annotatable
 @hasacls(
-    'keyref',
-    dict(
-        from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-        from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
-        from_column_names=('text[]', lambda self: self._from_column_names()),
-        to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
-        to_table_name=('text', lambda self: unicode(self.unique.table.name)),
-        to_column_names=('text[]', lambda self: self._to_column_names())
-    ),
     {"write", "insert", "update", "enumerate"},
     {"insert", "update"},
     lambda self: self.foreign_key.table
+)
+@keying(
+    'keyref',
+    {
+        "from_schema_name": ('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+        "from_table_name": ('text', lambda self: unicode(self.foreign_key.table.name)),
+        "from_column_names": ('text[]', lambda self: self._from_column_names()),
+        "to_schema_name": ('text', lambda self: unicode(self.unique.table.schema.name)),
+        "to_table_name": ('text', lambda self: unicode(self.unique.table.name)),
+        "to_column_names": ('text[]', lambda self: self._to_column_names())
+    }
 )
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
@@ -680,28 +680,22 @@ SELECT _ermrest.model_change_event();
     def has_right(self, aclname, roles=None):
         return _keyref_has_right(self, aclname, roles)
 
-@annotatable('keyref', dict(
-    from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-    from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
-    from_column_names=('text[]', lambda self: self._from_column_names()),
-    to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
-    to_table_name=('text', lambda self: unicode(self.unique.table.name)),
-    to_column_names=('text[]', lambda self: self._to_column_names())
-    )
-)
+@annotatable
 @hasacls(
-    'keyref',
-    dict(
-        from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-        from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
-        from_column_names=('text[]', lambda self: self._from_column_names()),
-        to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
-        to_table_name=('text', lambda self: unicode(self.unique.table.name)),
-        to_column_names=('text[]', lambda self: self._to_column_names())
-    ),
     {"write", "insert", "update", "enumerate"},
     {"insert", "update"},
     lambda self: self.foreign_key.table
+)
+@keying(
+    'keyref',
+    {
+        "from_schema_name": ('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+        "from_table_name": ('text', lambda self: unicode(self.foreign_key.table.name)),
+        "from_column_names": ('text[]', lambda self: self._from_column_names()),
+        "to_schema_name": ('text', lambda self: unicode(self.unique.table.schema.name)),
+        "to_table_name": ('text', lambda self: unicode(self.unique.table.name)),
+        "to_column_names": ('text[]', lambda self: self._to_column_names())
+    }
 )
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""

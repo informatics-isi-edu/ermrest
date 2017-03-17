@@ -26,7 +26,7 @@ needed by other modules of the ermrest project.
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, udecode
-from .misc import AltDict, AclDict, annotatable, commentable, hasacls, enforce_63byte_id
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, enforce_63byte_id
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -34,21 +34,19 @@ import urllib
 import json
 import web
 
-@commentable()
-@annotatable('table', dict(
-    schema_name=('text', lambda self: unicode(self.schema.name)),
-    table_name=('text', lambda self: unicode(self.name))
-    )
-)
+@commentable
+@annotatable
 @hasacls(
+    { "owner", "enumerate", "write", "insert", "update", "delete", "select" },
+    { "owner", "insert", "update", "delete", "select" },
+    lambda self: self.schema
+)
+@keying(
     'table',
     {
         "schema_name": ('text', lambda self: unicode(self.schema.name)),
         "table_name": ('text', lambda self: unicode(self.name))
-    },
-    { "owner", "enumerate", "write", "insert", "update", "delete", "select" },
-    { "owner", "insert", "update", "delete", "select" },
-    lambda self: self.schema
+    }
 )
 class Table (object):
     """Represents a database table.

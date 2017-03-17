@@ -21,25 +21,22 @@ import re
 from .. import exception
 from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, annotatable, commentable, hasacls, truncated_identifier
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, truncated_identifier
 
-@commentable()
-@annotatable('column', dict(
-    schema_name=('text', lambda self: unicode(self.table.schema.name)),
-    table_name=('text', lambda self: unicode(self.table.name)),
-    column_name=('text', lambda self: unicode(self.name))
-    )
-)
+@commentable
+@annotatable
 @hasacls(
-    'column',
+    {"enumerate", "write", "insert", "update", "select"},
+    {"insert", "update", "select", "delete"},
+    lambda self: self.table
+)
+@keying(
+   'column',
     {
         "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
         "table_name": ('text', lambda self: unicode(self.table.name)),
         "column_name": ('text', lambda self: unicode(self.name))
-    },
-    {"enumerate", "write", "insert", "update", "select"},
-    {"insert", "update", "select", "delete"},
-    lambda self: self.table
+    }
 )
 class Column (object):
     """Represents a table column.

@@ -104,7 +104,7 @@ class AclDict (dict):
         except KeyError, e:
             return None
 
-def commentable():
+def commentable(orig_class):
     """Decorator to add comment storage access interface to model classes.
     """
     def set_comment(self, conn, cur, comment):
@@ -121,24 +121,32 @@ SELECT _ermrest.model_change_event();
 """ % (resource, sql_literal(comment))
             )
             self.comment = comment
-    
-    def helper(orig_class):
-        setattr(orig_class, 'set_comment', set_comment)
-        return orig_class
-    return helper
+
+    setattr(orig_class, 'set_comment', set_comment)
+    return orig_class
         
 annotatable_classes = []
-        
-def annotatable(restype, keying):
-    """Decorator to add annotation storage access interface to model classes.
 
-       restype: the string name for the resource type, used to name storage, 
-       e.g. "table" for annotations on tables.
+def keying(restype, keying):
+    """Decorator to configure resource type and keying for model classes.
+
+       restype: the string name for the resource type, used to name auxilliary storage
 
        keying: dictionary of column names mapped to (psql_type, function) pairs
          which define the Postgres storage type and compute 
          literals for those columns to key the individual annotations.
 
+    """
+    def helper(orig_class):
+        setattr(orig_class, '_model_restype', restype)
+        setattr(orig_class, '_model_keying', keying)
+        return orig_class
+    return helper
+
+def annotatable(orig_class):
+    """Decorator to add annotation storage access interface to model classes.
+
+       The keying() decorator MUST be applied before this one.
     """
     def _interp_annotation(self, key, sql_wrap=True):
         if sql_wrap:
@@ -146,13 +154,13 @@ def annotatable(restype, keying):
         else:
             sql_wrap = lambda v: v
         return dict([
-            (k, sql_wrap(v[1](self))) for k, v in keying.items()
+            (k, sql_wrap(v[1](self))) for k, v in orig_class._model_keying.items()
         ] + [
             ('annotation_uri', sql_wrap(key))
         ])
         
     def set_annotation(self, conn, cur, key, value):
-        """Set annotation on %s, returning previous value for updates or None.""" % restype
+        """Set annotation on %s, returning previous value for updates or None.""" % orig_class._model_restype
         assert key is not None
         self.enforce_right('owner')
         interp = self._interp_annotation(key)
@@ -168,7 +176,7 @@ FROM _ermrest.model_%(restype)s_annotation old
 WHERE %(where)s
 RETURNING old.annotation_value;
 """ % dict(
-    restype=restype,
+    restype=orig_class._model_restype,
     newval=sql_literal(json.dumps(value)),
     where=where
 )
@@ -182,12 +190,12 @@ RETURNING old.annotation_value;
         values = ', '.join([interp[k] for k in interp.keys()] + [sql_literal(json.dumps(value))])
         cur.execute("""
 INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
-""" % (restype, columns, values)
+""" % (orig_class._model_restype, columns, values)
         )
         return None
 
     def delete_annotation(self, conn, cur, key):
-        """Delete annotation on %s.""" % restype
+        """Delete annotation on %s.""" % orig_class._model_restype
         self.enforce_right('owner')
         interp = self._interp_annotation(key)
         if key is None:
@@ -200,19 +208,19 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
         cur.execute("""
 SELECT _ermrest.model_change_event();
 DELETE FROM _ermrest.model_%s_annotation WHERE %s;
-""" % (restype, where)
+""" % (orig_class._model_restype, where)
         )
 
     @classmethod
     def create_storage_table(orig_class, cur):
-        if table_exists(cur, '_ermrest', 'model_%s_annotation' % restype):
+        if table_exists(cur, '_ermrest', 'model_%s_annotation' % orig_class._model_restype):
             return
-        keys = keying.keys() + ['annotation_uri']
+        keys = orig_class._model_keying.keys() + ['annotation_uri']
         cur.execute("""
 CREATE TABLE _ermrest.model_%(restype)s_annotation (%(cols)s);
 """ % dict(
-    restype=restype,
-    cols=', '.join([ '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0]) for k in keys ]
+    restype=orig_class._model_restype,
+    cols=', '.join([ '%s %s NOT NULL' % (sql_identifier(k), orig_class._model_keying.get(k, ('text', None))[0]) for k in keys ]
                    + [
                        'annotation_value json',
                        'UNIQUE(%s)' % ', '.join([ sql_identifier(k) for k in keys ])
@@ -223,13 +231,13 @@ CREATE TABLE _ermrest.model_%(restype)s_annotation (%(cols)s);
         
     @classmethod
     def introspect_helper(orig_class, cur, model):
-        """Introspect annotations on %s, adding them to model.""" % restype
-        keys = keying.keys() + ['annotation_uri', 'annotation_value']
+        """Introspect annotations on %s, adding them to model.""" % orig_class._model_restype
+        keys = orig_class._model_keying.keys() + ['annotation_uri', 'annotation_value']
         cur.execute("""
 SELECT %s FROM _ermrest.model_%s_annotation;
 """ % (
     ','.join([ sql_identifier(k) for k in keys]),
-    restype
+    orig_class._model_restype
 )
         )
         for row in cur:
@@ -240,53 +248,48 @@ SELECT %s FROM _ermrest.model_%s_annotation;
             except exception.ConflictModel:
                 # TODO: prune orphaned annotation?
                 pass
-                
-    def helper(orig_class):
-        setattr(orig_class, '_interp_annotation', _interp_annotation)
-        setattr(orig_class, 'set_annotation', set_annotation)
-        setattr(orig_class, 'delete_annotation', delete_annotation)
-        setattr(orig_class, '_annotation_keying', keying)
-        if hasattr(orig_class, 'introspect_annotation'):
-            setattr(orig_class, 'introspect_helper', introspect_helper)
-        setattr(orig_class, 'create_storage_table', create_storage_table)
-        annotatable_classes.append(orig_class)
-        return orig_class
-    return helper
+
+    setattr(orig_class, '_interp_annotation', _interp_annotation)
+    setattr(orig_class, 'set_annotation', set_annotation)
+    setattr(orig_class, 'delete_annotation', delete_annotation)
+    if hasattr(orig_class, 'introspect_annotation'):
+        setattr(orig_class, 'introspect_helper', introspect_helper)
+    setattr(orig_class, 'create_storage_table', create_storage_table)
+    annotatable_classes.append(orig_class)
+    return orig_class
 
 hasacls_classes = []
 
-def hasacls(restype, keying, acls_supported, rights_supported, getparent):
+def hasacls(acls_supported, rights_supported, getparent):
     """Decorator to add ACL storage access interface to model classes.
-
-       restype: string to distinguish resource types for storage table naming
-
-       keying: { colname: (psql_type, getkey_func), ... }
 
        acls_supported: { aclname, ... }
 
        rights_supported: { aclname, ... }
 
        getparent: getparent_func
+
+       The keying() decorator MUST be applied first.
     """
     def _interp_acl(self, aclname):
         interp = {
             k: sql_literal(v[1](self))
-            for k, v in keying.items()
+            for k, v in self._model_keying.items()
         }
         interp['acl'] = sql_literal(aclname)
         return interp
 
     @classmethod
     def create_acl_storage_table(orig_class, cur):
-        if table_exists(cur, '_ermrest', 'model_%s_acl' % restype):
+        if table_exists(cur, '_ermrest', 'model_%s_acl' % orig_class._model_restype):
             return
-        keys = keying.keys() + ['acl']
+        keys = orig_class._model_keying.keys() + ['acl']
         cur.execute("""
 CREATE TABLE _ermrest.model_%(restype)s_acl (%(cols)s);
 """ % dict(
-    restype=restype,
+    restype=orig_class._model_restype,
     cols=', '.join([
-        '%s %s NOT NULL' % (sql_identifier(k), keying.get(k, ('text', None))[0])
+        '%s %s NOT NULL' % (sql_identifier(k), orig_class._model_keying.get(k, ('text', None))[0])
         for k in keys
     ] + [
         'members text[]',
@@ -297,11 +300,11 @@ CREATE TABLE _ermrest.model_%(restype)s_acl (%(cols)s);
 
     @classmethod
     def introspect_acl_helper(orig_class, cur, model):
-        keys = keying.keys() + ['acl', 'members']
+        keys = orig_class._model_keying.keys() + ['acl', 'members']
         cur.execute("""
 SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
 """ % dict(
-    restype=restype,
+    restype=orig_class._model_restype,
     keys=', '.join([ sql_identifier(k) for k in keys ])
 )
         )
@@ -315,7 +318,7 @@ SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
                 pass
 
     def set_acl(self, cur, aclname, members):
-        """Set annotation on %s, returning previous value for updates or None.""" % restype
+        """Set annotation on %s, returning previous value for updates or None.""" % self._model_restype
         assert aclname is not None
 
         if members is None:
@@ -342,7 +345,7 @@ FROM _ermrest.model_%(restype)s_acl old
 WHERE %(where)s
 RETURNING old.members;
 """ % dict(
-    restype=restype,
+    restype=self._model_restype,
     members=sql_literal(list(members)),
     where=where
 )
@@ -353,7 +356,7 @@ RETURNING old.members;
         cur.execute("""
 INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(values)s, %(members)s::text[]);
 """ % dict(
-    restype=restype,
+    restype=self._model_restype,
     columns=', '.join([sql_identifier(k) for k in keys]),
     values=', '.join([interp[k] for k in keys]),
     members=sql_literal(members)
@@ -387,7 +390,7 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
 SELECT _ermrest.model_change_event();
 DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
 """ % dict(
-    restype=restype,
+    restype=self._model_restype,
     where=where
     )
         )
@@ -466,7 +469,6 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
 
     def helper(orig_class):
         setattr(orig_class, '_acl_getparent', lambda self: getparent(self))
-        setattr(orig_class, '_acl_keying', keying)
         setattr(orig_class, '_acls_supported', set(acls_supported))
         setattr(orig_class, '_acls_rights', set(rights_supported))
         setattr(orig_class, '_interp_acl', _interp_acl)

@@ -16,20 +16,19 @@
 
 from .. import exception
 from ..util import sql_identifier, view_exists, udecode
-from .misc import AltDict, AclDict, commentable, annotatable, hasacls, enforce_63byte_id
+from .misc import AltDict, AclDict, keying, commentable, annotatable, hasacls, enforce_63byte_id
 from .table import Table
 
 import json
 import web
 
-@annotatable('catalog', { })
+@annotatable
 @hasacls(
-    'model',
-    { },
     { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
     { "owner", "create" },
     None
 )
+@keying('catalog', { })
 class Model (object):
     """Represents a database model.
     
@@ -116,17 +115,16 @@ SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
         del self.schemas[sname]
 
-@commentable()
-@annotatable('schema', dict(
-    schema_name=('text', lambda self: unicode(self.name))
-    )
-)
+@commentable
+@annotatable
 @hasacls(
-    'schema',
-    { "schema_name": ('text', lambda self: unicode(self.name)) },
     { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
     { "owner", "create" },
     lambda self: self.model
+)
+@keying(
+    'schema',
+    { "schema_name": ('text', lambda self: unicode(self.name)) },
 )
 class Schema (object):
     """Represents a database schema.
