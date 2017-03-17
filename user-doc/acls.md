@@ -560,9 +560,11 @@ structures:
 - `{ "context":` _leftalias_ `,` _direction_ `:` _fkeyname_  `, "alias":` _rightalias_ `}`
     - Links a new table instance to the existing path via inner join
 	- The left-hand path context is the table instance named by _leftalias_ or the immediately preceding path context if _leftalias_ is `null` or absent.
+	    - The alias `"base"` is implicitly bound to the base table to which this ACL is bound.
 	- The joining condition is determined by the named foreign key constraint _fkeyname_ where one end is tied to the left-hand path context and the other to the newly added table instance.
 	- The _direction_ of the joining condition is `"inbound"` or `"outbound"` and MUST be specified.
 	- The _rightalias_ string literal is bound to the new table instance unless it is `null` or absent.
+	    - The alias `"base"` is reserved and cannot be bound as a _rightalias_.
 - `{ "and": [` _filter_ `,` ... `], "negate": ` _negate_ `}`
     - A logical conjunction of multiple _filter_ clauses is applied to the query to constrain matching rows.
 	- The logical result is negated only if _negate_ is `true`.
