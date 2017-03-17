@@ -527,7 +527,7 @@ representation as in the following example:
 	  "acl_bindings": {
 	    "My Binding": {
 		  "types": ["owner"],
-		  "projection": "Managed%20By",
+		  "projection": "Managed By",
 		  "projection_type": "acl"
 		}
 	  }
@@ -542,19 +542,79 @@ rows. The representation uses an array for the `type` so that multiple
 access modes can be more easily configured without having to repeat the
 same projection many times.
 
-#### Projection Strings
+#### Projection Document
 
-The `"projection"` field of the ACL binding is a string using the
-ERMrest URL syntax defined for the `/attribute/` API. It assumes that
-a *base row query* similar to
-`/ermrest/catalog/N/attribute/Base/key=X/` will be formulated by the
-system, and the projection string is the suffix necessary to turn this
-into an ACL projection query. E.g. in the
-[dynamic ACL example](#dynamic-acl-binding-representation) above, the
-projection string `Managed%20By` could be appended to a base-row URL
-to form a complete ACL projection query:
+The `"projection"` field of the ACL binding is a document representing
+a parsed *abstract syntax tree* for an attribute query fragment. The
+general form of the ACL document is an array of path elements:
+
+- `[` _element_ `,` ... `,` _column_ `]`
+
+This corresponds to the serialized query fragment `element/.../column`
+to project ACL content from an implicit base entity context using the
+ERMrest `/attribute/base` API.  The final _column_ MUST be a string
+literal naming a column in the effective entity-path context. Each
+anterior _element_ MAY use one of the following sub-document
+structures:
+
+- `{ "context":` _leftalias_ `,` _direction_ `:` _fkeyname_  `, "alias":` _rightalias_ `}`
+    - Links a new table instance to the existing path via inner join
+	- The left-hand path context is the table instance named by _leftalias_ or the immediately preceding path context if _leftalias_ is `null` or absent.
+	- The joining condition is determined by the named foreign key constraint _fkeyname_ where one end is tied to the left-hand path context and the other to the newly added table instance.
+	- The _direction_ of the joining condition is `"inbound"` or `"outbound"` and MUST be specified.
+	- The _rightalias_ string literal is bound to the new table instance unless it is `null` or absent.
+- `{ "and": [` _filter_ `,` ... `], "negate": ` _negate_ `}`
+    - A logical conjunction of multiple _filter_ clauses is applied to the query to constrain matching rows.
+	- The logical result is negated only if _negate_ is `true`.
+	- Each _filter_ clause may be a terminal filter element, conjunction, or disjunction.
+- `{ "or": [` _filter_ `,` ... `], "negate": ` _negate_ `}`
+    - A logical disjunction of multiple _filter_ clauses is applied to the query to constrain matching rows.
+	- The logical result is negated only if _negate_ is `true`.
+	- Each _filter_ clause may be a terminal filter element, conjunction, or disjunction.
+- `{ "filter": [` _leftalias_ `,` _column_ `], "operand":` _value_ `, "operator":` _operator_ `, "negate":` _negate_ `}`
+    - An individual filter _element_ is applied to the query or individual _filter_ clauses participate in a conjunction or disjunction.
+	- The filter constrains a named _column_ in the table named by _leftalias_ or the current path context if _leftalias_ is `null`.
+	- The _operator_ specifies the constraint operator via one of the valid operator names in the ERMrest REST API.
+	- The _value_ specifies the constant operand for a binary constraint operator.
+	- The logical result of the constraint is negated only if _negate_ is `true`.
+
+Many fields may be omitted from the above structures to allow concise
+projection documents:
+
+- Many `null` or absent values have a default semantics defined:
+    - _leftalias_ is omitted to get a default path-based entity context
+	- _rightalias_ is omitted if no alias binding is required
+	- _negate_ is omitted for normal (non-negated) logical decisions
+	- _operator_ is omitted for regular `"="` equality comparisons
+    - _value_ is omitted when the unary `"::null::"` operator is used
+- A few fields are required to be present with a non-null value
+    - _direction_ and _fkeyname_ MUST always be present in link documents.
+	- _filter_ MUST always be present in conjunction and disjunction documents.
+	- _column_ MUST always be present in filter clauses.
+	- _value_ MUST always be present with each binary _operator_ including the default `"="`
+- Two syntactic short-hands are allowed for bare column names:
+    - An single-element projection `[` _column_ `]` MAY omit the array and specify just the string literal _column_.
+	- An unqualified filter column `[ null,` _column_ `]` MAY omit the array and specify just the string literal _column_.
+
+#### Effective ACL Projection Query
+
+The [projection document](#projection-document) assumes that a *base
+row query* similar to `/ermrest/catalog/N/attribute/Base/key=X/` will
+be formulated by the system, and the projection document describes the
+suffix necessary to turn this into an ACL projection query. E.g. in
+the [dynamic ACL example](#dynamic-acl-binding-representation) above,
+the projection string `"Managed%20By"` names a column `Managed By`
+could be appended to a base-row URL to form a complete ACL projection
+query URL:
 
     /ermrest/catalog/N/attribute/My%20Schema:My20Table/key=X/Managed%20By
+
+For more complicated projection documents, there is a similar
+mechanical transformation which can produce an effective ACL
+projection query. The supported projection language covers a subset of
+all possible query URLs.
+
+#### Projection Types
 
 Zero or one rows MAY be returned as the query result. Several
 projected column types are supported, and more than one projection
