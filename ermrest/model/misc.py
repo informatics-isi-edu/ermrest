@@ -565,7 +565,7 @@ INSERT INTO _ermrest.model_%(restype)s_dynacl (%(columns)s, binding) VALUES (%(v
         return None
 
     def delete_dynacl(self, cur, name):
-        interp = self._interp_acl(name)
+        interp = self._interp_dynacl(name)
 
         self.enforce_right('owner') # pre-flight authz
 
