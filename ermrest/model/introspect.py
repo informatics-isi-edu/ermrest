@@ -28,7 +28,7 @@ import web
 
 from .. import exception
 from ..util import table_exists, view_exists, column_exists
-from .misc import frozendict, annotatable_classes, hasacls_classes
+from .misc import frozendict, annotatable_classes, hasacls_classes, hasdynacls_classes
 from .schema import Model, Schema
 from .type import build_type, text_type
 from .column import Column
@@ -428,6 +428,11 @@ SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid
     for klass in hasacls_classes:
         if hasattr(klass, 'introspect_acl_helper'):
             klass.introspect_acl_helper(cur, model)
+
+    # introspect ERMrest model ACLs
+    for klass in hasdynacls_classes:
+        if hasattr(klass, 'introspect_dynacl_helper'):
+            klass.introspect_dynacl_helper(cur, model)
 
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
