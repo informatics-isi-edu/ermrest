@@ -510,7 +510,6 @@ def hasdynacls(dynacl_types_supported):
     def introspect_dynacl_helper(orig_class, cur, model):
         def helper(resource=None, binding_name=None, binding=None):
             # TODO: build up and attach dynamic ACL object instead of dict
-            web.debug('introspect_dynacl_helper.helper(%s, %s, %s)' % (resource, binding_name, binding))
             resource.dynacls[binding_name] = binding
         _introspect_helper(orig_class, cur, model, 'dynacl', {'binding_name': 'text'}, {'binding': 'jsonb'}, helper)
 
