@@ -79,12 +79,8 @@ class Table (object):
             self.schema.tables[name] = self
 
     @staticmethod
-    def introspect_annotation(model=None, schema_name=None, table_name=None, annotation_uri=None, annotation_value=None):
-        model.schemas[schema_name].tables[table_name].annotations[annotation_uri] = annotation_value
-
-    @staticmethod
-    def introspect_acl(model=None, schema_name=None, table_name=None, acl=None, members=None):
-        model.schemas[schema_name].tables[table_name].acls[acl] = members
+    def keyed_resource(model=None, schema_name=None, table_name=None):
+        return model.schemas[schema_name].tables[table_name]
 
     def __str__(self):
         return ':%s:%s' % (

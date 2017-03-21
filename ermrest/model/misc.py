@@ -143,6 +143,66 @@ def keying(restype, keying):
         return orig_class
     return helper
 
+def _create_storage_table(orig_class, cur, suffix, extra_keys, extra_cols):
+    tname = 'model_%s_%s' % (orig_class._model_restype, suffix)
+    if table_exists(cur, '_ermrest', tname):
+        return
+    cur.execute("""
+CREATE TABLE _ermrest.%(tname)s (%(cols)s);
+""" % dict(
+    tname=tname,
+    cols=', '.join(
+        [
+            '%s %s NOT NULL' % (sql_identifier(colname), coltype)
+            for colname, coltype in [
+                (k, v[0]) for k, v in orig_class._model_keying.items()
+            ]
+            + extra_keys.items()
+            + extra_cols.items()
+        ] + [
+            'UNIQUE(%s)' % ', '.join([
+                sql_identifier(k)
+                for k in (orig_class._model_keying.keys() + extra_keys.keys())
+            ])
+        ]
+    )
+)
+    )
+
+def _introspect_helper(orig_class, cur, model, suffix, extra_keys, extra_cols, func):
+    tname = 'model_%s_%s' % (orig_class._model_restype, suffix)
+    cols = orig_class._model_keying.keys() + extra_keys.keys() + extra_cols.keys()
+    cur.execute("""
+SELECT %(cols)s FROM _ermrest.%(tname)s;
+""" % dict(
+    tname=tname,
+    cols=', '.join([sql_identifier(c) for c in cols])
+)
+    )
+    for row in cur:
+        kwargs0 = {
+            cols[i]: row[i]
+            for i in range(
+                    len(orig_class._model_keying.keys())
+            )
+        }
+        kwargs0['model'] = model
+
+        kwargs1 = {
+            cols[i]: row[i]
+            for i in range(
+                    len(orig_class._model_keying.keys()),
+                    len(orig_class._model_keying.keys()) + len(extra_keys.keys()) + len(extra_cols.keys())
+            )
+        }
+
+        try:
+            kwargs1['resource'] = orig_class.keyed_resource(**kwargs0)
+            func(**kwargs1)
+        except exception.ConflictModel:
+            # TODO: prune orphaned auxilliary storage?
+            pass
+
 def annotatable(orig_class):
     """Decorator to add annotation storage access interface to model classes.
 
@@ -213,46 +273,18 @@ DELETE FROM _ermrest.model_%s_annotation WHERE %s;
 
     @classmethod
     def create_storage_table(orig_class, cur):
-        if table_exists(cur, '_ermrest', 'model_%s_annotation' % orig_class._model_restype):
-            return
-        keys = orig_class._model_keying.keys() + ['annotation_uri']
-        cur.execute("""
-CREATE TABLE _ermrest.model_%(restype)s_annotation (%(cols)s);
-""" % dict(
-    restype=orig_class._model_restype,
-    cols=', '.join([ '%s %s NOT NULL' % (sql_identifier(k), orig_class._model_keying.get(k, ('text', None))[0]) for k in keys ]
-                   + [
-                       'annotation_value json',
-                       'UNIQUE(%s)' % ', '.join([ sql_identifier(k) for k in keys ])
-                   ]
-    )
-)
-        )
-        
+        _create_storage_table(orig_class, cur, 'annotation', {'annotation_uri': 'text'}, {'annotation_value': 'json'})
+
     @classmethod
     def introspect_helper(orig_class, cur, model):
-        """Introspect annotations on %s, adding them to model.""" % orig_class._model_restype
-        keys = orig_class._model_keying.keys() + ['annotation_uri', 'annotation_value']
-        cur.execute("""
-SELECT %s FROM _ermrest.model_%s_annotation;
-""" % (
-    ','.join([ sql_identifier(k) for k in keys]),
-    orig_class._model_restype
-)
-        )
-        for row in cur:
-            kwargs = dict([ (keys[i], row[i]) for i in range(len(keys)) ])
-            kwargs['model'] = model
-            try:
-                orig_class.introspect_annotation(**kwargs)
-            except exception.ConflictModel:
-                # TODO: prune orphaned annotation?
-                pass
+        def helper(resource=None, annotation_uri=None, annotation_value=None):
+            resource.annotations[annotation_uri] = annotation_value
+        _introspect_helper(orig_class, cur, model, 'annotation', {'annotation_uri': 'text'}, {'annotation_value': 'json'}, helper)
 
     setattr(orig_class, '_interp_annotation', _interp_annotation)
     setattr(orig_class, 'set_annotation', set_annotation)
     setattr(orig_class, 'delete_annotation', delete_annotation)
-    if hasattr(orig_class, 'introspect_annotation'):
+    if hasattr(orig_class, 'keyed_resource'):
         setattr(orig_class, 'introspect_helper', introspect_helper)
     setattr(orig_class, 'create_storage_table', create_storage_table)
     annotatable_classes.append(orig_class)
@@ -281,41 +313,13 @@ def hasacls(acls_supported, rights_supported, getparent):
 
     @classmethod
     def create_acl_storage_table(orig_class, cur):
-        if table_exists(cur, '_ermrest', 'model_%s_acl' % orig_class._model_restype):
-            return
-        keys = orig_class._model_keying.keys() + ['acl']
-        cur.execute("""
-CREATE TABLE _ermrest.model_%(restype)s_acl (%(cols)s);
-""" % dict(
-    restype=orig_class._model_restype,
-    cols=', '.join([
-        '%s %s NOT NULL' % (sql_identifier(k), orig_class._model_keying.get(k, ('text', None))[0])
-        for k in keys
-    ] + [
-        'members text[]',
-        'UNIQUE(%s)' % ', '.join([ sql_identifier(k) for k in keys ])
-    ])
-)
-        )
+        _create_storage_table(orig_class, cur, 'acl', {'acl': 'text'}, {'members': 'text[]'})
 
     @classmethod
     def introspect_acl_helper(orig_class, cur, model):
-        keys = orig_class._model_keying.keys() + ['acl', 'members']
-        cur.execute("""
-SELECT %(keys)s FROM _ermrest.model_%(restype)s_acl;
-""" % dict(
-    restype=orig_class._model_restype,
-    keys=', '.join([ sql_identifier(k) for k in keys ])
-)
-        )
-        for row in cur:
-            kwargs = dict([ (keys[i], row[i]) for i in range(len(keys)) ])
-            kwargs['model'] = model
-            try:
-                orig_class.introspect_acl(**kwargs)
-            except exception.ConflictModel:
-                # TODO: prune orphaned ACL?
-                pass
+        def helper(resource=None, acl=None, members=None):
+            resource.acls[acl] = members
+        _introspect_helper(orig_class, cur, model, 'acl', {'acl': 'text'}, {'members': 'text[]'}, helper)
 
     def set_acl(self, cur, aclname, members):
         """Set annotation on %s, returning previous value for updates or None.""" % self._model_restype
@@ -483,7 +487,7 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
             setattr(orig_class, '_enforce_right', enforce_right)
         setattr(orig_class, 'set_acl', set_acl)
         setattr(orig_class, 'delete_acl', delete_acl)
-        if hasattr(orig_class, 'introspect_acl'):
+        if hasattr(orig_class, 'keyed_resource'):
             setattr(orig_class, 'introspect_acl_helper', introspect_acl_helper)
         setattr(orig_class, 'create_acl_storage_table', create_acl_storage_table)
         hasacls_classes.append(orig_class)

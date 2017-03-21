@@ -69,8 +69,8 @@ class Column (object):
         model.schemas[schema_name].tables[table_name].columns[column_name].annotations[annotation_uri] = annotation_value
 
     @staticmethod
-    def introspect_acl(model=None, schema_name=None, table_name=None, column_name=None, acl=None, members=None):
-        model.schemas[schema_name].tables[table_name].columns[column_name].acls[acl] = members
+    def keyed_resource(model=None, schema_name=None, table_name=None, column_name=None):
+        return model.schemas[schema_name].tables[table_name].columns[column_name]
 
     def sql_comment_resource(self):
         return "COLUMN %s.%s.%s" % (

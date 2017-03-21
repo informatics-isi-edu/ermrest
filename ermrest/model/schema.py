@@ -44,14 +44,10 @@ class Model (object):
         )
         self.acls = AclDict(self)
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s"' % (k,)))
-    
-    @staticmethod
-    def introspect_annotation(model=None, annotation_uri=None, annotation_value=None):
-        model.annotations[annotation_uri] = annotation_value
 
     @staticmethod
-    def introspect_acl(model=None, acl=None, members=None):
-        model.acls[acl] = members
+    def keyed_resource(model=None):
+        return model
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
@@ -151,12 +147,8 @@ class Schema (object):
             self.model.schemas[name] = self
 
     @staticmethod
-    def introspect_annotation(model=None, schema_name=None, annotation_uri=None, annotation_value=None):
-        model.schemas[schema_name].annotations[annotation_uri] = annotation_value
-
-    @staticmethod
-    def introspect_acl(model=None, schema_name=None, acl=None, members=None):
-        model.schemas[schema_name].acls[acl] = members
+    def keyed_resource(model=None, schema_name=None):
+        return model.schemas[schema_name]
 
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):

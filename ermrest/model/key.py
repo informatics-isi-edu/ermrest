@@ -50,10 +50,10 @@ class Unique (object):
             self.table.uniques[cols] = self
         
     @staticmethod
-    def introspect_annotation(model=None, schema_name=None, table_name=None, column_names=None, annotation_uri=None, annotation_value=None):
+    def keyed_resource(model=None, schema_name=None, table_name=None, column_names=None):
         table = model.schemas[schema_name].tables[table_name]
         columns = [ table.columns[cname] for cname in column_names ]
-        table.uniques[frozenset(columns)].annotations[annotation_uri] = annotation_value
+        return table.uniques[frozenset(columns)]
 
     def enforce_right(self, aclname):
         """Proxy enforce_right to self.table for interface consistency."""
@@ -485,24 +485,14 @@ class KeyReference (object):
         self.comment = comment
 
     @staticmethod
-    def introspect_annotation(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None, annotation_uri=None, annotation_value=None):
+    def keyed_resource(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None):
         from_table = model.schemas[from_schema_name].tables[from_table_name]
         to_table = model.schemas[to_schema_name].tables[to_table_name]
         refmap = dict([
             (from_table.columns[from_cname], to_table.columns[to_cname])
             for from_cname, to_cname in zip(from_column_names, to_column_names)
         ])
-        from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].annotations[annotation_uri] = annotation_value
-
-    @staticmethod
-    def introspect_acl(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None, acl=None, members=None):
-        from_table = model.schemas[from_schema_name].tables[from_table_name]
-        to_table = model.schemas[to_schema_name].tables[to_table_name]
-        refmap = dict([
-            (from_table.columns[from_cname], to_table.columns[to_cname])
-            for from_cname, to_cname in zip(from_column_names, to_column_names)
-        ])
-        from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].acls[acl] = members
+        return from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)]
 
     def set_comment(self, conn, cur, comment):
         if self.constraint_name:

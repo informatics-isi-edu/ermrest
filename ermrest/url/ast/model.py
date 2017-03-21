@@ -264,52 +264,70 @@ class Tables (Api):
             return _post_commit_json(self, table)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
-class Acl (Api):
-    """A specific object's ACLs."""
+class AclCommon (Api):
     def __init__(self, catalog, subject):
         Api.__init__(self, catalog)
         self.subject = subject
-        self.aclname = None
-
-    def acl(self, aclname):
-        self.aclname = aclname
-        return self
+        self.kind = 'ACL'
+        self.key_kind = 'ACL name'
 
     def GET_subject(self, conn, cur):
         return self.subject.GET_body(conn, cur)
 
+    def GET_container(self, subject):
+        raise NotImplementedError()
+
+    def GET_element_key(self):
+        raise NotImplementedError()
+
     def GET_body(self, conn, cur):
         subject = self.GET_subject(conn, cur)
         subject.enforce_right('owner')
-        if self.aclname is not None:
-            return subject.acls[self.aclname]
+        container = self.GET_container(subject)
+        key = self.GET_element_key()
+        if key is not None:
+            return container[key]
         else:
-            return subject.acls
+            return container
 
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
+    def DELETE_body(self, cur, subject, key=None):
+        raise NotImplementedError()
+
+    def PUT_body(self, cur, subject, key, element):
+        raise NotImplementedError()
+
+    def validate_element(self, element):
+        raise NotImplementedError
+
     def SET_body(self, conn, cur, data):
         subject = self.GET_subject(conn, cur)
         subject.enforce_right('owner')
-        if self.aclname is None:
+        container = self.GET_container(subject)
+        key = self.GET_element_key()
+        if key is None:
             if data is None:
-                subject.delete_acl(cur, None)
+                self.DELETE_body(cur, subject)
             elif type(data) is dict:
-                for aclname in list(subject.acls):
-                    if aclname not in data:
-                        subject.delete_acl(cur, aclname)
-                for aclname, members in data.items():
-                    subject.set_acl(cur, aclname, members)
+                for existing_key in list(container):
+                    if existing_key not in data:
+                        self.DELETE_body(cur, subject, existing_key)
+                for data_key, data_element in data.items():
+                    self.PUT_body(cur, subject, data_key, self.validate_element(data_element))
             else:
-                raise exception.BadData('ACL set representation must be an object with ACLs keyed by ACL name.')
+                raise exception.BadData(
+                    '%(kind)s set document must be an object with each %(kind)s keyed by %(key_kind)s.' % dict(
+                        kind=self.kind,
+                        key_kind=self.key_kind
+                    )
+                )
         else:
             if data is None:
-                subject.delete_acl(cur, self.aclname)
-            elif type(data) is list:
-                subject.set_acl(cur, self.aclname, data)
+                self.DELETE_body(cur, subject, key)
             else:
-                raise exception.BadData('ACL representation must be an array of member strings.')
+                self.PUT_body(cur, subject, key, self.validate_element(data))
 
     def PUT(self, uri):
         return _MODIFY_with_json_input(self, self.SET_body, _post_commit)
@@ -317,16 +335,40 @@ class Acl (Api):
     def DELETE(self, uri):
         return _MODIFY(self, lambda conn, cur: self.SET_body(conn, cur, None), _post_commit)
 
+class Acl (AclCommon):
+    """A specific object's ACLs."""
+    def __init__(self, catalog, subject):
+        AclCommon.__init__(self, catalog, subject)
+        self.aclname = None
+
+    def acl(self, aclname):
+        self.aclname = aclname
+        return self
+
+    def GET_container(self, subject):
+        return subject.acls
+
+    def GET_element_key(self):
+        return self.aclname
+
+    def DELETE_body(self, cur, subject, key=None):
+        subject.delete_acl(cur, key)
+
+    def PUT_body(self, cur, subject, key, element):
+        subject.set_acl(cur, key, element)
+
+    def validate_element(self, element):
+        if type(element) is not list:
+            raise exception.BadData('ACL representation must be an array.')
+        for member in element:
+            if type(member) not in [str, unicode]:
+                raise exception.BadData('ACL member representation must be a string literal.')
+        return element
+
 class CatalogAcl (Acl):
     """A specific catalog's ACLs."""
     def __init__(self, catalog):
         Acl.__init__(self, catalog, catalog)
-
-    def SET_body(self, conn, cur, data):
-        subject = self.GET_subject(conn, cur)
-        if 'owner' not in data:
-            data['owner'] = subject.acls['owner']
-        Acl.SET_body(self, conn, cur, data)
 
 class SchemaAcl (Acl):
     """A specific schema's ACLs."""
@@ -334,17 +376,17 @@ class SchemaAcl (Acl):
         Acl.__init__(self, schema.catalog, schema)
 
 class TableAcl (Acl):
-    """A specific 's ACLs."""
+    """A specific table's ACLs."""
     def __init__(self, table):
         Acl.__init__(self, table.schema.catalog, table)
 
 class ColumnAcl (Acl):
-    """A specific 's ACLs."""
+    """A specific column's ACLs."""
     def __init__(self, column):
         Acl.__init__(self, column.table.schema.catalog, column)
 
 class ForeignkeyReferenceAcl (Acl):
-    """A specific 's ACLs."""
+    """A specific keyref's ACLs."""
     def __init__(self, fkey):
         Acl.__init__(self, fkey.catalog, fkey)
 
