@@ -215,6 +215,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             )
         if self.has_right('owner'):
             doc['acls'] = self.acls
+            doc['acl_bindings'] = self.dynacls
         return doc
 
     def prejson_ref(self):

@@ -341,6 +341,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             )
         if self.has_right('owner'):
             doc['acls'] = self.acls
+            doc['acl_bindings'] = self.dynacls
         return doc
 
     def sql_name(self):

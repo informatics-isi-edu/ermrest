@@ -430,6 +430,7 @@ def _keyref_prejson(self):
     )
     if self.has_right('owner'):
         doc['acls'] = self.acls
+        doc['acl_bindings'] = self.dynacls
     return doc
 
 def _keyref_has_right(self, aclname, roles=None):
