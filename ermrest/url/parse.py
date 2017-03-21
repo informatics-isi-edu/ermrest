@@ -48,6 +48,9 @@ def p_apis(p):
              | acls
              | aclsslash
              | acl
+             | dynacls
+             | dynaclsslash
+             | dynacl
              | annotations
              | annotationsslash
              | annotation
@@ -494,6 +497,24 @@ def p_aclsslash(p):
 def p_acl(p):
     """acl : aclsslash string"""
     p[0] = p[1].acl(p[2])
+
+def p_dynaclable(p):
+    """dynaclable : tableslash
+                  | columnslash
+                  | foreignkeyrefslash"""
+    p[0] = p[1]
+
+def p_dynacls(p):
+    """dynacls : dynaclable ACL_BINDING"""
+    p[0] = p[1].dynacls()
+
+def p_dynaclsslash(p):
+    """dynaclsslash : dynacls '/' """
+    p[0] = p[1]
+
+def p_dynacl(p):
+    """dynacl : dynaclsslash string"""
+    p[0] = p[1].dynacl(p[2])
 
 def p_annotatable(p):
     """annotatable : catalogslash

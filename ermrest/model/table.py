@@ -26,7 +26,7 @@ needed by other modules of the ermrest project.
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, udecode
-from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, enforce_63byte_id
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -36,6 +36,9 @@ import web
 
 @commentable
 @annotatable
+@hasdynacls(
+    { "owner", "update", "delete", "select" }
+)
 @hasacls(
     { "owner", "enumerate", "write", "insert", "update", "delete", "select" },
     { "owner", "insert", "update", "delete", "select" },
@@ -55,7 +58,7 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}):
+    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}):
         self.schema = schema
         self.name = name
         self.kind = kind
@@ -64,12 +67,25 @@ class Table (object):
             lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)),
             lambda k, v: enforce_63byte_id(k, "Column")
         )
-        self.uniques = AltDict(lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (",".join([unicode(c.name) for c in k]), self)))
-        self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (",".join([unicode(c.name) for c in k]), self)))
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self)))
+        self.uniques = AltDict(
+            lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (
+                ",".join([unicode(c.name) for c in k]), self)
+            )
+        )
+        self.fkeys = AltDict(
+            lambda k: exception.ConflictModel(
+                u"Requested foreign-key %s does not exist in table %s." % (
+                    ",".join([unicode(c.name) for c in k]), self)
+            )
+        )
+        self.annotations = AltDict(
+            lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self))
+        )
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
+        self.dynacls = AltDict(lambda k: exception.NotFound(u"dynamic ACL binding %s on table %s." % (k, self)))
+        self.dynacls.update(dynacls)
 
         for c in columns:
             self.columns[c.name] = c

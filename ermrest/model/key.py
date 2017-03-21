@@ -16,7 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, AclDict, keying, annotatable, commentable, hasacls, enforce_63byte_id, truncated_identifier
+from .misc import frozendict, AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
 
 import json
 
@@ -440,6 +440,9 @@ def _keyref_has_right(self, aclname, roles=None):
     return self._has_right(aclname, roles)
 
 @annotatable
+@hasdynacls(
+    { "owner", "insert", "update" }
+)
 @hasacls(
     {"write", "insert", "update", "enumerate"},
     {"insert", "update"},
@@ -459,7 +462,7 @@ def _keyref_has_right(self, aclname, roles=None):
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -482,6 +485,8 @@ class KeyReference (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
+        self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
+        self.dynacls.update(dynacls)
         self.comment = comment
 
     @staticmethod
@@ -671,6 +676,9 @@ SELECT _ermrest.model_change_event();
         return _keyref_has_right(self, aclname, roles)
 
 @annotatable
+@hasdynacls(
+    { "owner", "insert", "update" }
+)
 @hasacls(
     {"write", "insert", "update", "enumerate"},
     {"insert", "update"},
@@ -690,7 +698,7 @@ SELECT _ermrest.model_change_event();
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None, acls={}):
+    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -710,6 +718,8 @@ class PseudoKeyReference (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
+        self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
+        self.dynacls.update(dynacls)
         self.comment = comment
 
     def set_comment(self, conn, cur, comment):

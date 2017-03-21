@@ -396,6 +396,53 @@ class ForeignkeyReferenceAcl (Acl):
             raise NotImplementedError('ForeignkeyReferenceAcls on %d fkrs' % len(fkrs))
         return fkrs[0]
 
+class Dynacl (AclCommon):
+    def __init__(self, catalog, subject):
+        AclCommon.__init__(self, catalog, subject)
+        self.bindingname = None
+
+    def dynacl(self, name):
+        self.bindingname = name
+        return self
+
+    def GET_container(self, subject):
+        return subject.dynacls
+
+    def GET_element_key(self):
+        return self.bindingname
+
+    def DELETE_body(self, cur, subject, key=None):
+        subject.delete_dynacl(cur, key)
+
+    def PUT_body(self, cur, subject, key, element):
+        subject.set_dynacl(cur, key, element)
+
+    def validate_element(self, element):
+        if type(element) is not dict:
+            raise exception.BadData('Dynamic ACL binding representation must be an object.')
+        return element
+
+class TableDynacl (Dynacl):
+    """A specific table's dynamic ACLs."""
+    def __init__(self, table):
+        Dynacl.__init__(self, table.schema.catalog, table)
+
+class ColumnDynacl (Dynacl):
+    """A specific column's dynamic ACLs."""
+    def __init__(self, column):
+        Dynacl.__init__(self, column.table.schema.catalog, column)
+
+class ForeignkeyReferenceDynacl (Dynacl):
+    """A specific keyref's dynamic ACLs."""
+    def __init__(self, fkey):
+        Dynacl.__init__(self, fkey.catalog, fkey)
+
+    def GET_subject(self, conn, cur):
+        fkrs = self.subject.GET_body(conn, cur)
+        if len(fkrs) != 1:
+            raise NotImplementedError('ForeignkeyReferenceDynacls on %d fkrs' % len(fkrs))
+        return fkrs[0]
+
 class Comment (Api):
     """A specific object's comment.
 
@@ -558,6 +605,9 @@ class Table (Api):
         """The ACL set for this table."""
         return TableAcl(self)
 
+    def dynacls(self):
+        return TableDynacl(self)
+
     def comment(self):
         """The comment for this table."""
         return TableComment(self)
@@ -649,6 +699,10 @@ class Column (Api):
     def acls(self):
         """The ACL set for this column."""
         return ColumnAcl(self)
+
+    def dynacls(self):
+        """The ACL set for this column."""
+        return ColumnDynacl(self)
 
     def comment(self):
         return ColumnComment(self)
@@ -844,6 +898,9 @@ class ForeignkeyReferences (Api):
 
     def acls(self):
         return ForeignkeyReferenceAcl(self)
+
+    def dynacls(self):
+        return ForeignkeyReferenceDynacl(self)
 
     def annotations(self):
         return ForeignkeyReferenceAnnotations(self)

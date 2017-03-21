@@ -495,3 +495,108 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
 
     return helper
 
+hasdynacls_classes = []
+
+def hasdynacls(dynacl_types_supported):
+    """Decorator to add dynamic ACL storage access to model classes.
+
+       The keying() decorator MUST be applied first.
+    """
+    @classmethod
+    def create_dynacl_storage_table(orig_class, cur):
+        _create_storage_table(orig_class, cur, 'dynacl', {'binding_name': 'text'}, {'binding': 'jsonb'})
+
+    @classmethod
+    def introspect_dynacl_helper(orig_class, cur, model):
+        def helper(resource=None, binding_name=None, binding=None):
+            # TODO: build up and attach dynamic ACL
+            pass
+        _introspect_helper(orig_class, cur, 'dynacl', {'binding_name': 'text'}, {'binding': 'jsonb'}, helper)
+
+    def _interp_dynacl(self, name):
+        interp = {
+            k: sql_literal(v[1](self))
+            for k, v in self._model_keying.items()
+        }
+        interp['binding_name'] = sql_literal(name)
+        return interp
+
+    def set_dynacl(self, cur, name, binding):
+        assert name is not None
+
+        if binding is None:
+            return self.delete_dynacl(cur, name)
+
+        self.enforce_right('owner') # pre-flight authz
+        self.dynacls[name] = binding
+
+        interp = self._interp_dynacl(name)
+        keys = interp.keys()
+        where = ' AND '.join([
+            'new.%(col)s = old.%(col)s AND new.%(col)s = %(val)s' % dict(col=sql_identifier(k), val=interp[k])
+            for k in keys
+        ])
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+UPDATE _ermrest.model_%(restype)s_dynacl new
+SET binding = %(binding)s::jsonb
+FROM _ermrest.model_%(restype)s_dynacl old
+WHERE %(where)s
+RETURNING old.binding;
+""" % dict(
+    restype=self._model_restype,
+    binding=sql_literal(json.dumps(binding)),
+    where=where
+)
+        )
+        for oldvalue in cur:
+            return oldvalue
+
+        cur.execute("""
+INSERT INTO _ermrest.model_%(restype)s_dynacl (%(columns)s, binding) VALUES (%(values)s, %(binding)s::jsonb);
+""" % dict(
+    restype=self._model_restype,
+    columns=', '.join([sql_identifier(k) for k in keys]),
+    values=', '.join([interp[k] for k in keys]),
+    binding=sql_literal(json.dumps(binding))
+)
+        )
+        return None
+
+    def delete_dynacl(self, cur, name):
+        interp = self._interp_acl(name)
+
+        self.enforce_right('owner') # pre-flight authz
+
+        if name is None:
+            del interp['binding_name']
+            self.dynacls.clear()
+        elif name in self.dynacls:
+            del self.dynacls[name]
+
+        keys = interp.keys()
+        where = ' AND '.join([
+            '%s = %s' % (sql_identifier(k), interp[k])
+            for k in keys
+        ])
+        cur.execute("""
+SELECT _ermrest.model_change_event();
+DELETE FROM _ermrest.model_%(restype)s_dynacl WHERE %(where)s;
+""" % dict(
+    restype=self._model_restype,
+    where=where
+    )
+        )
+
+    def helper(orig_class):
+        setattr(orig_class, '_interp_dynacl', _interp_dynacl)
+        setattr(orig_class, 'set_dynacl', set_dynacl)
+        setattr(orig_class, 'delete_dynacl', delete_dynacl)
+        setattr(orig_class, 'dynacl_types_supported', dynacl_types_supported)
+        if hasattr(orig_class, 'keyed_resource'):
+            setattr(orig_class, 'introspect_dynacl_helper', introspect_dynacl_helper)
+        setattr(orig_class, 'create_dynacl_storage_table', create_dynacl_storage_table)
+        hasdynacls_classes.append(orig_class)
+        return orig_class
+
+    return helper

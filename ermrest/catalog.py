@@ -29,7 +29,7 @@ import sanepg2
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model import introspect, current_model_version
-from .model.misc import annotatable_classes, hasacls_classes
+from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
 
 __all__ = ['get_catalog_factory']
 
@@ -284,6 +284,10 @@ CREATE SCHEMA _ermrest;
         # create ACL storage tables
         for klass in hasacls_classes:
             klass.create_acl_storage_table(cur)
+
+        # create dynamic ACL binding storage tables
+        for klass in hasdynacls_classes:
+            klass.create_dynacl_storage_table(cur)
 
         if not table_exists(cur, '_ermrest', 'model_pseudo_key'):
             cur.execute("""

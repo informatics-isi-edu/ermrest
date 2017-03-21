@@ -57,6 +57,7 @@ literals = [
 # special strings which can be keywords when parsing
 keywords = [
     'acl',
+    'acl_binding',
     'after',
     'aggregate',
     'annotation',

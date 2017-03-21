@@ -21,10 +21,13 @@ import re
 from .. import exception
 from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, truncated_identifier
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, truncated_identifier
 
 @commentable
 @annotatable
+@hasdynacls(
+    { "owner", "update", "delete", "select" }
+)
 @hasacls(
     {"enumerate", "write", "insert", "update", "select"},
     {"insert", "update", "select", "delete"},
@@ -51,7 +54,7 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}, acls={}):
+    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}, acls={}, dynacls={}):
         self.table = None
         self.name = name
         self.position = position
@@ -63,10 +66,8 @@ class Column (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
-    
-    @staticmethod
-    def introspect_annotation(model=None, schema_name=None, table_name=None, column_name=None, annotation_uri=None, annotation_value=None):
-        model.schemas[schema_name].tables[table_name].columns[column_name].annotations[annotation_uri] = annotation_value
+        self.dynacls = AltDict(lambda k: exception.NotFound(u"dynamic ACL binding %s on column %s." % (k, self)))
+        self.dynacls.update(dynacls)
 
     @staticmethod
     def keyed_resource(model=None, schema_name=None, table_name=None, column_name=None):
