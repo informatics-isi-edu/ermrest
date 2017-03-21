@@ -29,6 +29,7 @@ _default_config = {
         "int4": { "aliases": [ "integer", "int" ] },
         "int8": { "aliases": [ "bigint" ] },
         "interval": None,
+        "jsonb": None,
         "serial2": { "aliases": [ "smallserial" ] },
         "serial4": { "aliases": [ "serial" ] },
         "serial8": { "aliases": [ "bigserial" ] },
