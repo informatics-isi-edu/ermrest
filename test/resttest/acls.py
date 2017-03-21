@@ -12,7 +12,6 @@ def setUpModule():
         common.primary_session.post('schema', json=_defs).raise_for_status()
 
 catalog_acls = dict(common.catalog_acls)
-catalog_acls['owner'] = [common.primary_client_id]
 
 def add_acl_tests(klass):
     for acl in klass.expected_acls:
@@ -185,7 +184,6 @@ class AclsT1Col (Acls):
         "write": None,
         "insert": None,
         "update": None,
-        "delete": None,
         "select": None,
         "enumerate": None
     }

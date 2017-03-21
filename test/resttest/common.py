@@ -145,7 +145,7 @@ else:
     secondary_client_id = None
 
 catalog_acls = {
-    # owner is defaulted
+    "owner": [primary_client_id],
     "write": [],
     "insert": [],
     "update": [],
