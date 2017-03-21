@@ -152,6 +152,7 @@ class Table (object):
         schema.enforce_right('create')
 
         acls = tabledoc.get('acls', {})
+        dynacls = tabledoc.get('acl_bindings', {})
         annotations = tabledoc.get('annotations', {})
         columns = Column.fromjson(tabledoc.get('column_definitions',[]), ermrest_config)
         comment = tabledoc.get('comment')
@@ -196,6 +197,9 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         for k, v in acls.items():
             table.set_acl(cur, k, v)
 
+        for k, v in dynacls.items():
+            table.set_dynacl(cur, k, v)
+
         def execute_if(sql):
             if sql:
                 try:
@@ -211,6 +215,8 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                 column.set_annotation(conn, cur, k, v)
             for k, v in column.acls.items():
                 column.set_acl(cur, k, v)
+            for k, v in column.dynacls.items():
+                column.set_dynacl(cur, k, v)
             try:
                 execute_if(column.btree_index_sql())
                 execute_if(column.pg_trgm_index_sql())
@@ -314,6 +320,8 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             fkr.add(conn, cur)
             for k, v in fkr.annotations.items():
                 fkr.set_annotation(conn, cur, k, v)
+            for k, v in fkr.dynacls.items():
+                fkr.set_dynacl(cur, k, v)
             yield fkr
 
     def prejson(self):

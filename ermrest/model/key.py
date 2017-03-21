@@ -652,6 +652,7 @@ SELECT _ermrest.model_change_event();
         pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
         annotations = refdoc.get('annotations', {})
         comment = refdoc.get('comment')
+        dynacls = refdoc.get('acl_bindings', {})
 
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
@@ -661,9 +662,9 @@ SELECT _ermrest.model_change_event();
             
         if fk_ref_map not in fkey.references:
             if fktable.kind == 'r' and pktable.kind == 'r':
-                fkr = KeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment)
+                fkr = KeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, dynacls=dynacls)
             else:
-                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment)
+                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, dynacls=dynacls)
             fkey.references[fk_ref_map] = fkr
             yield fkey.references[fk_ref_map]
 

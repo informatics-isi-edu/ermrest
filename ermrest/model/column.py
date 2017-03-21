@@ -182,6 +182,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         annotations = columndoc.get('annotations', {})
         nullok = columndoc.get('nullok', True)
         acls = columndoc.get('acls', {})
+        dynacls = columndoc.get('acl_bindings', {})
         try:
             return Column(
                 columndoc['name'],
@@ -191,7 +192,8 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
                 nullok,
                 comment,
                 annotations,
-                acls
+                acls,
+                dynacls
             )
         except KeyError, te:
             raise exception.BadData('Table document missing required field "%s"' % te)
