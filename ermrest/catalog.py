@@ -222,10 +222,7 @@ SELECT txid_current();
         cache_key = (str(self.descriptor), current_model_version(cur))
         model = self.MODEL_CACHE.get(cache_key)
         if (model is None) or private:
-            try:
-                model = introspect(cur, config)
-            except ValueError, te:
-                raise ValueError('Introspection on existing catalog failed (likely a policy mismatch): %s' % str(te))
+            model = introspect(cur, config)
 
             if private:
                 assert self.MODEL_CACHE.get(cache_key) != model
