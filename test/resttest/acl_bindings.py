@@ -7,6 +7,9 @@ import urllib
 _Sd = "AclBindingDefault"
 _Se = "AclBindingExplicit"
 
+_fkey_T2_T1 = [_Sd, "fkey T2 to T1"]
+_fkey_T3_T1 = [_Se, "fkey T3 to T1"]
+
 def setUpModule():
     r = common.primary_session.get('schema/%s' % _Sd)
     if r.status_code == 404:
@@ -31,7 +34,7 @@ class AclBindingT1 (common.ErmrestTest):
     additional_dynacls = {
         'my binding 2': {
             'types': ['owner'],
-            'projection': 'owner',
+            'projection': 'name',
             'projection_type': 'acl'
         }
     }
@@ -39,8 +42,24 @@ class AclBindingT1 (common.ErmrestTest):
     replacement_dynacls = {
         'my binding 3': {
             'types': ['owner', 'update'],
-            'projection': 'owner',
+            'projection': [{"inbound": _fkey_T2_T1}, 'name'],
             'projection_type': 'acl'
+        },
+        'my binding 4': {
+            'types': ['owner', 'update'],
+            'projection': [{"inbound": _fkey_T3_T1}, 'name'],
+            'projection_type': 'acl'
+        }
+    }
+
+    replacement_conflicts = {
+        'unknown column': {
+            'types': ['owner', 'update'],
+            'projection': ['owner']
+        },
+        'wrong sided fkey': {
+            'types': ['owner', 'update'],
+            'projection': [{"outbound": _fkey_T2_T1}, 'name']
         }
     }
 
@@ -97,13 +116,40 @@ class AclBindingT1 (common.ErmrestTest):
         self.assertHttp(self.session.delete(self._url()), 200)
         self._check({})
 
+    def test_6_conflicts(self):
+        for binding_name, binding in self.replacement_conflicts.items():
+            self.assertHttp(self.session.put(self._url(binding_name), json=binding), 409)
+
 class AclBindingT2 (AclBindingT1):
     resource = 'schema/%s/table/T2' % _Sd
 
-class AclBindingT2ColName (AclBindingT1):
+    replacement_dynacls = {
+        'my binding 3': {
+            'types': ['owner', 'update'],
+            'projection': [{"outbound": _fkey_T2_T1}, 'name'],
+            'projection_type': 'acl'
+        }
+    }
+
+    replacement_conflicts = {
+        'unknown column': {
+            'types': ['owner', 'update'],
+            'projection': ['owner']
+        },
+        'disconnected fkey': {
+            'types': ['owner', 'update'],
+            'projection': [{"inbound": _fkey_T3_T1}, 'name']
+        },
+        'wrong sided fkey': {
+            'types': ['owner', 'update'],
+            'projection': [{"inbound": _fkey_T2_T1}, 'name']
+        }
+    }
+
+class AclBindingT2ColName (AclBindingT2):
     resource = 'schema/%s/table/T2/column/name' % _Sd
 
-class AclBindingT2Fkey (AclBindingT2):
+class AclBindingT2Fkey (AclBindingT1):
     resource = 'schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_Sd, _Sd)
 
     supported_dynacl_types = {
@@ -123,6 +169,33 @@ class AclBindingT3 (AclBindingT1):
         }
     }
 
+    replacement_dynacls = {
+        'my binding 3': {
+            'types': ['owner', 'update'],
+            'projection': [{"outbound": _fkey_T3_T1}, 'name'],
+            'projection_type': 'acl'
+        }
+    }
+
+    replacement_conflicts = {
+        'unknown column': {
+            'types': ['owner', 'update'],
+            'projection': ['badcol']
+        },
+        'disconnected fkey A1': {
+            'types': ['owner', 'update'],
+            'projection': [{"outbound": _fkey_T2_T1}, 'name']
+        },
+        'disconnected fkey A2': {
+            'types': ['owner', 'update'],
+            'projection': [{"inbound": _fkey_T2_T1}, 'name']
+        },
+        'wrong sided fkey': {
+            'types': ['owner', 'update'],
+            'projection': [{"inbound": _fkey_T3_T1}, 'name']
+        }
+    }
+
 class AclBindingT3ColName (AclBindingT3):
     resource = 'schema/%s/table/T3/column/name' % _Se
 
@@ -132,7 +205,7 @@ class AclBindingT3Fkey (AclBindingT2Fkey):
     initial_dynacls = {
         'my binding 1': {
             'types': ['owner'],
-            'projection': 'owner',
+            'projection': 'name',
             'projection_type': 'acl'
         }
     }
@@ -190,6 +263,7 @@ _defs = {
                     ],
                     "foreign_keys": [
                         {
+                            "names": [ _fkey_T2_T1 ],
                             "foreign_key_columns": [{"schema_name": _Sd, "table_name": "T2", "column_name": "t1id"}],
                             "referenced_columns": [{"schema_name": _Sd, "table_name": "T1", "column_name": "id"}]
                         }
@@ -232,6 +306,7 @@ _defs = {
                     ],
                     "foreign_keys": [
                         {
+                            "names": [ _fkey_T3_T1 ],
                             "acl_bindings": AclBindingT3Fkey.initial_dynacls,
                             "foreign_key_columns": [{"schema_name": _Se, "table_name": "T3", "column_name": "t1id"}],
                             "referenced_columns": [{"schema_name": _Sd, "table_name": "T1", "column_name": "id"}]

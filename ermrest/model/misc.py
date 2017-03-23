@@ -16,6 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, table_exists, udecode
+from .. import ermpath
 from .type import _default_config
 
 import json
@@ -103,6 +104,166 @@ class AclDict (dict):
             return dict.__getitem__(self, k)
         except KeyError, e:
             return None
+
+class AclBinding (AltDict):
+    """Represents one acl binding."""
+    def __init__(self, model, resource, binding_name, doc):
+        def keyerror(k):
+            return KeyError(k)
+        def validator(k, v):
+            if k == 'types':
+                if type(v) is not list or len(v) == 0:
+                    raise exception.BadData('Field "types" in ACL binding "%s" must be a non-empty list of type names.' % binding_name)
+                for t in v:
+                    if t not in resource.dynacl_types_supported:
+                        raise exception.BadData('ACL binding type %r is not supported on this resource.' % t)
+            elif k == 'projection':
+                pass
+            elif k == 'projection_type':
+                if v not in ['acl', 'nonnull']:
+                    raise exception.BadData('ACL binding projection-type %r is not supported.' % (v,))
+            elif k == 'comment':
+                if type(v) not in [str, unicode]:
+                    raise exception.BadData('ACL binding comment must be of string type.')
+            else:
+                raise exception.BadData('Field "%s" in ACL binding "%s" not recognized.' % (k, binding_name))
+        AltDict.__init__(self, keyerror, validator)
+        self.model = model
+        self.resource = resource
+        self.binding_name = binding_name
+
+        # let AltDict validator behavior check each field above for simple stuff...
+        for k, v in doc.items():
+            self[k] = v
+
+        # now check overall constraints...
+        for k in ['types', 'projection']:
+            if k not in self:
+                raise exception.BadData('Field "%s" is required for ACL bindings.' % k)
+
+        # validate the projection against the model
+        aclpath, col, ctype = self._compile_projection()
+
+        # set default
+        if 'projection_type' not in self:
+            self['projection_type'] = 'acl' if ctype.name == 'text' else 'nonnull'
+
+    def _compile_projection(self):
+        proj = self['projection']
+
+        if type(proj) in [str, unicode]:
+            # expand syntactic sugar for bare column name projection
+            proj = [proj]
+
+        epath = ermpath.EntityPath(self.model)
+
+        if hasattr(self.resource, 'unique'):
+            epath.set_base_entity(self.resource.unique.table, 'base')
+        elif hasattr(self.resource, 'table'):
+            epath.set_base_entity(self.resource.table, 'base')
+        else:
+            epath.set_base_entity(self.resource, 'base')
+
+        def compile_join(elem):
+            # HACK: this repeats some of the path resolution logic that is tangled in the URL parser/AST code...
+            lalias = elem.get('context')
+            if lalias is not None:
+                if type(lalias) not in [str, unicode]:
+                    raise exception.BadData('Context %r in ACL binding %s must be a string literal alias name.' % (lalias, self.binding_name))
+                epath.set_context(elem['context'])
+
+            ltable = epath.current_entity_table()
+            ralias = elem.get('alias')
+            if ralias is not None:
+                if type(ralias) not in [str, unicode]:
+                    raise exception.BadData('Alias %r in ACL binding %s must be a string literal alias name.' % (lalias, self.binding_name))
+            fkeyname = elem.get('inbound', elem.get('outbound'))
+            if (type(fkeyname) is not list \
+                or len(fkeyname) != 2 \
+                or type(fkeyname[0]) not in [str, unicode] \
+                or type(fkeyname[1]) not in [str, unicode]
+            ):
+                raise exception.BadData('Foreign key name %r in ACL binding %s not valid.' % (fkeyname, self.binding_name))
+            fkeyname = tuple(fkeyname)
+
+            def find_fkeyref(sources, fkeyname):
+                for source in sources.values():
+                    for fkeyrefset in source.table_references.values():
+                        for constr in fkeyrefset:
+                            if constr.constraint_name == fkeyname:
+                                return constr
+                raise exception.ConflictModel('No foreign key %r found connected to table %s in ACL binding %s' % (
+                    fkeyname, ltable, self.binding_name
+                ))
+
+            if elem.get('inbound') is not None:
+                fkeyref = find_fkeyref(ltable.uniques, fkeyname)
+                refop = '@='
+            else:
+                fkeyref = find_fkeyref(ltable.fkeys, fkeyname)
+                refop = '=@'
+            epath.add_link(fkeyref, refop, ralias=ralias)
+
+        def compile_filter(elem):
+            if 'and' in elem:
+                filt = ast.data.predicate.Conjunction([ compile_filter(e) for e in elem['and'] ])
+            elif 'or' in elem:
+                filt = ast.data.predicate.Disjunction([ compile_filter(e) for e in elem['or'] ])
+            elif 'filter' in elem:
+                lname = elem['filter']
+                if type(lname) in [str, unicode]:
+                    # expand syntactic sugar for bare column name filter
+                    lname = [ lname ]
+                if (type(lname) is not list \
+                    or len(lname) != 2 \
+                    or type(lname[0]) not in [str, unicode] \
+                    or type(lname[1]) not in [str, unicode]
+                ):
+                    raise exception.BadData('Invalid filter column name %r in ACL binding %s.' % (lname, self.binding_name))
+                lname = ast.name(lname)
+                operator = elem.get('operator', '=')
+                try:
+                    klass = ast.data.predicatecls(operator)
+                except KeyError:
+                    raise exception.BadData('Unknown operator %r in ACL binding %s.' % (operator, self.binding_name))
+                if operator == 'null':
+                    filt = klass(lname)
+                else:
+                    operand = ast.Value(elem.get('operand', ''))
+                    filt = klass(lname, operand)
+            else:
+                raise exception.BadData('Filter element %r of ACL binding %s is malformed.' % (elem, self.binding_name))
+            if elem.get('negate', False):
+                filt = ast.data.predicate.Negation(filt)
+            return filt
+
+        # extend path with each element left to right
+        for elem in proj[0:-1]:
+            if type(elem) is not dict:
+                raise exception.BadData('Projection element %s of ACL binding %s must be an object.' % (elem, self.binding_name))
+            if 'inbound' in elem or 'outbound' in elem:
+                compile_join(elem)
+            else:
+                filt = compile_filter(elem)
+                filt.validate(epath)
+                epath.add_filter(filt)
+
+        # apply final projection
+        if type(proj[-1]) not in [str, unicode]:
+            raise exception.BadData('Projection for ACL binding %s must conclude with a string literal column name.' % self.binding_name)
+
+        col = epath.current_entity_table().columns[proj[-1]]
+        aclpath = ermpath.AttributePath(epath, [ (proj[-1], col, epath) ])
+        ctype = col.type
+        while ctype.is_array or ctype.is_domain:
+            ctype = ctype.base_type
+
+        if self.get('projection_type') == 'acl' and ctype.name != 'text':
+            raise exception.ConflictModel('ACL binding projection type %r not allowed for column %s in ACL binding %s.' % (
+                self['projection_type'], col, self.binding_name
+            ))
+
+        return (aclpath, col, ctype)
 
 def commentable(orig_class):
     """Decorator to add comment storage access interface to model classes.
@@ -509,8 +670,7 @@ def hasdynacls(dynacl_types_supported):
     @classmethod
     def introspect_dynacl_helper(orig_class, cur, model):
         def helper(resource=None, binding_name=None, binding=None):
-            # TODO: build up and attach dynamic ACL object instead of dict
-            resource.dynacls[binding_name] = binding
+            resource.dynacls[binding_name] = AclBinding(model, resource, binding_name, binding)
         _introspect_helper(orig_class, cur, model, 'dynacl', {'binding_name': 'text'}, {'binding': 'jsonb'}, helper)
 
     def _interp_dynacl(self, name):
@@ -528,7 +688,7 @@ def hasdynacls(dynacl_types_supported):
             return self.delete_dynacl(cur, name)
 
         self.enforce_right('owner') # pre-flight authz
-        self.dynacls[name] = binding
+        self.dynacls[name] = AclBinding(web.ctx.ermrest_catalog_model, self, name, binding)
 
         interp = self._interp_dynacl(name)
         keys = interp.keys()
