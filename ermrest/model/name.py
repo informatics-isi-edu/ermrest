@@ -26,9 +26,121 @@ import urllib
 import csv
 import web
 
-from ...util import sql_identifier, sql_literal
-from ... import exception
-from ...model.key import MultiKeyReference, ExplicitJoinReference
+from ..util import sql_identifier, sql_literal
+from .. import exception
+
+def _keyref_join_str(self, refop, lname, rname):
+    if refop == '=@':
+        lcols = self._from_column_names()
+        rcols = self._to_column_names()
+    else:
+        lcols = self._to_column_names()
+        rcols = self._from_column_names()
+    return '%s:%s%s%s:%s' % (lname, ','.join(lcols), refop, rname, ','.join(rcols))
+
+def _keyref_join_sql(self, refop, lname, rname):
+    if refop == '=@':
+        lcols = self._from_column_names()
+        rcols = self._to_column_names()
+    else:
+        lcols = self._to_column_names()
+        rcols = self._from_column_names()
+    return ' AND '.join([
+        '%s.%s = %s.%s' % (lname, sql_identifier(lcols[i]), rname, sql_identifier(rcols[i]))
+        for i in range(len(lcols))
+    ])
+
+class _Endpoint(object):
+
+    def __init__(self, table):
+        self.table = table
+
+class MultiKeyReference (object):
+    """A disjunctive join condition collecting several links.
+
+       This abstraction simulates a left-to-right reference.
+    """
+
+    def __init__(self, links):
+        assert len(links) > 0
+
+        self.ltable = None
+        self.rtable = None
+
+        for keyref, refop in links:
+            if refop == '=@':
+                ltable = keyref.foreign_key.table
+                rtable = keyref.unique.table
+            else:
+                ltable = keyref.unique.table
+                rtable = keyref.foreign_key.table
+
+            assert self.ltable is None or self.ltable == ltable
+            assert self.rtable is None or self.rtable == rtable
+
+            self.ltable = ltable
+            self.rtable = rtable
+
+        self.links = links
+        self.foreign_key = _Endpoint(ltable)
+        self.unique = _Endpoint(rtable)
+
+    def _visible_links(self):
+        return [ l for l in self.links if l.has_right('enumerate') ]
+
+    def join_str(self, refop, lname='..', rname='.'):
+        """Build a simplified representation of the join condition."""
+        assert refop == '=@'
+        parts = []
+        for keyref, refop in self._visible_links():
+            parts.append(keyref.join_str(refop, lname, rname))
+        return '(%s)' % (' OR '.join(parts))
+
+    def join_sql(self, refop, lname, rname):
+        assert refop == '=@'
+        return ' OR '.join([
+            '(%s)' % keyref.join_sql(refop, lname, rname)
+            for keyref, refop in self._visible_links()
+        ])
+
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        return self._visible_links()
+
+class ExplicitJoinReference (object):
+
+    def __init__(self, lcols, rcols):
+        assert len(lcols) == len(rcols)
+
+        self.lcols = lcols
+        self.rcols = rcols
+
+        ltable = lcols[0].table
+        rtable = rcols[0].table
+
+        self.foreign_key = _Endpoint(ltable)
+        self.unique = _Endpoint(rtable)
+
+    def _from_column_names(self):
+        return [ c.name for c in self.lcols ]
+
+    def _to_column_names(self):
+        return [ c.name for c in self.rcols ]
+
+    def join_str(self, refop, lname='..', rname='.'):
+        assert refop == '=@'
+        return _keyref_join_str(self, refop, lname, rname)
+
+    def join_sql(self, refop, lname, rname):
+        assert refop == '=@'
+        return _keyref_join_sql(self, refop, lname, rname)
+
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        for c in self.lcols + self.rcols:
+            if not c.has_right(aclname, roles):
+                return False
+        return True
 
 def _exact_link_cols(lcols, rcols):
     if len(lcols) != len(rcols):

@@ -18,6 +18,7 @@ from .. import exception
 from ..util import sql_identifier, sql_literal, table_exists, udecode
 from .. import ermpath
 from .type import _default_config
+from .name import Name
 
 import json
 import web
@@ -66,6 +67,17 @@ def truncated_identifier(parts, threshold=4):
     assert len(result) <= 63
     result = udecode(result)
     return result
+
+sufficient_rights = {
+    "owner": set(),
+    "create": {"owner"},
+    "write": {"owner"},
+    "insert": {"owner", "write"},
+    "update": {"owner", "write"},
+    "delete": {"owner", "write"},
+    "select": {"owner", "write", "update", "delete"},
+    "enumerate": {"owner", "create", "write", "insert", "update", "delete", "select"},
+}
 
 class AltDict (dict):
     """Alternative dict that raises custom errors."""
@@ -568,17 +580,6 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
            roles: the client roles for whom to make a decision
 
         """
-        sufficient_rights = {
-            "owner": set(),
-            "create": {"owner"},
-            "write": {"owner"},
-            "insert": {"owner", "write"},
-            "update": {"owner", "write"},
-            "delete": {"owner", "write"},
-            "select": {"owner", "write", "update", "delete"},
-            "enumerate": {"owner", "create", "write", "insert", "update", "delete", "select"},
-        }
-
         if roles is None:
             roles = set([
                 r['id'] if type(r) is dict else r
