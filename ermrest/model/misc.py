@@ -117,6 +117,36 @@ class AclDict (dict):
         except KeyError, e:
             return None
 
+class AclBasePredicate (object):
+    def validate(self, epath, allow_star=False):
+        pass
+
+    def sql_where(self, epath, elem, prefix=None):
+        assert prefix
+        key = None
+        for unique in elem.table.uniques.values():
+            nullok = False
+            for col in unique.columns:
+                if col.nullok:
+                    nullok = True
+                    break
+            if nullok:
+                continue
+            else:
+                key = unique
+                break
+        assert key
+        clauses = [
+            '%s.%s = %st0.%s' % (
+                prefix,
+                col.sql_name(),
+                prefix,
+                col.sql_name()
+            )
+            for col in key.columns
+        ]
+        return ' AND '.join(['(%s)' % clause for clause in clauses ])
+
 class AclBinding (AltDict):
     """Represents one acl binding."""
     def __init__(self, model, resource, binding_name, doc):
@@ -175,6 +205,8 @@ class AclBinding (AltDict):
             epath.set_base_entity(self.resource.table, 'base')
         else:
             epath.set_base_entity(self.resource, 'base')
+
+        epath.add_filter(AclBasePredicate())
 
         def compile_join(elem):
             # HACK: this repeats some of the path resolution logic that is tangled in the URL parser/AST code...
@@ -265,7 +297,7 @@ class AclBinding (AltDict):
             raise exception.BadData('Projection for ACL binding %s must conclude with a string literal column name.' % self.binding_name)
 
         col = epath.current_entity_table().columns[proj[-1]]
-        aclpath = ermpath.AttributePath(epath, [ (proj[-1], col, epath) ])
+        aclpath = ermpath.AttributePath(epath, [ (Name([proj[-1]]), col, epath) ])
         ctype = col.type
         while ctype.is_array or ctype.is_domain:
             ctype = ctype.base_type
@@ -276,6 +308,22 @@ class AclBinding (AltDict):
             ))
 
         return (aclpath, col, ctype)
+
+class AclPredicate (object):
+    def __init__(self, column):
+        self.left_col = column
+        self.left_elem = None
+
+    def validate(self, epath, allow_star=False):
+        self.left_elem = epath._path[epath.current_entity_position()]
+
+    def sql_where(self, epath, elem, prefix=''):
+        lname = '%st%d.%s' % (prefix, self.left_elem.pos, self.left_col.sql_name())
+        attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in web.ctx.webauthn2_context.attributes ])
+        if self.left_col.type.is_array:
+            return '%s && %s' % (lname, attrs)
+        else:
+            return '%s = ANY (%s)' % (lname, attrs)
 
 def commentable(orig_class):
     """Decorator to add comment storage access interface to model classes.
@@ -615,8 +663,17 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
                 # have right explicitly due to ACL intersection
                 return True
 
-        # TODO: add case for when dynamic rights are possible on this resource...
-            
+        if hasattr(self, 'dynacls'):
+            for binding in self.dynacls.values():
+                if not set(binding['types']).isdisjoint(sufficient_rights[aclname]):
+                    # dynamic rights are possible on this resource...
+                    return None
+
+        if parentres is not None:
+            if parentres.has_right(aclname, roles) is None:
+                # dynamic rights are possible on parent resource...
+                return None
+
         # finally, static deny decision
         return False
 

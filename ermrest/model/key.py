@@ -578,7 +578,9 @@ SELECT _ermrest.model_change_event();
             return names
                 
         def check_columns(cols, kind):
-            tnames = set(map(lambda d: (d.get('schema_name'), d.get('table_name')), cols))
+            fksname = fktable.schema.name if fktable else None
+            fktname = fktable.name if fktable else None
+            tnames = set(map(lambda d: (d.get('schema_name', fksname), d.get('table_name', fktname)), cols))
             if len(tnames) != 1:
                 raise exception.BadData('All %s columns must come from one table.' % kind)
             sname, tname = tnames.pop()

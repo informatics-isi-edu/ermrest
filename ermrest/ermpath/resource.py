@@ -257,27 +257,32 @@ class EntityElem (object):
 
         return self.keyref.join_sql(refop, 't%d' % ltnum, 't%d' % self.pos)
 
-    def sql_wheres(self):
+    def sql_wheres(self, prefix=''):
         """Generate SQL row conditions for filtering this element in the epath.
            
         """
-        return [ f.sql_where(self.epath, self) for f in self.filters ]
+        return [ f.sql_where(self.epath, self, prefix=prefix) for f in self.filters ]
 
-    def sql_table_elem(self):
+    def sql_table_elem(self, dynauthz=None, prefix=''):
         """Generate SQL table element representing this entity as part of the epath JOIN.
 
-        """
-        if self.pos == 0:
-            return '%s AS t0' % self.table.sql_name()
+           dynauthz: dynamic authorization mode to compile
+               None: do not compile dynamic ACLs
+               True: compile positive ACL... match rows client is authorized to access
+               False: compile negative ACL... match rows client is NOT authorized to access
 
+        """
+        alias = '%st%d' % (prefix, self.pos)
+        tsql = self.table.sql_name(dynauthz=dynauthz, alias=alias)
+        if self.pos == 0:
+            return tsql
         else:
-            return '%s JOIN %s AS t%d ON (%s)' % (
+            return '%s JOIN %s ON (%s)' % (
                 {"left": "LEFT OUTER", "right": "RIGHT OUTER", "full": "FULL OUTER", None: ""}[self.outer_type],
-                self.table.sql_name(),
-                self.pos,
+                tsql,
                 self.sql_join_condition()
-                )
-    
+            )
+
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
@@ -871,7 +876,7 @@ class AnyPath (object):
         elif hasattr(self, 'epath'):
             self.epath._path[0].table.enforce_right('select')
 
-        sql = self.sql_get(row_content_type=content_type, limit=limit)
+        sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True)
 
         #web.debug(sql)
 
@@ -1054,7 +1059,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1078,7 +1083,7 @@ WHERE %(pred)s
             for col in context_table.columns_in_order():
                 col.enforce_right('select')
             selects = ", ".join([
-                "t%d.%s" % (context_pos, sql_identifier(col.name))
+                "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
                 for col in context_table.columns_in_order()
             ])
 
@@ -1098,15 +1103,15 @@ WHERE %(pred)s
                 col.enforce_right('select')
 
         distinct_on_cols = [ 
-            't%d.%s' % (context_pos, sql_identifier(c.name))
+            '%st%d.%s' % (prefix, context_pos, sql_identifier(c.name))
             for c in shortest_pkey
         ]
 
-        tables = [ elem.sql_table_elem() for elem in self._path ]
+        tables = [ elem.sql_table_elem(dynauthz=dynauthz, prefix=prefix) for elem in self._path ]
 
         wheres = []
         for elem in self._path:
-            wheres.extend( elem.sql_wheres() )
+            wheres.extend( elem.sql_wheres(prefix=prefix) )
 
         if len(self._path) == 1:
             distinct_on = False
@@ -1284,7 +1289,7 @@ class AttributePath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1318,12 +1323,17 @@ class AttributePath (AnyPath):
 
             if hasattr(col, 'sql_name_with_talias'):
                 select = col.sql_name_with_talias(alias, output=True)
+            elif col is None and attribute is True:
+                select = "True"
             else:
                 select = "%s.%s" % (alias, col.sql_name())
 
             select = select
 
-            if attribute.alias is not None:
+            if attribute is True and col is None:
+                # short-circuit for dynacl decision output
+                selects.append(select)
+            elif attribute.alias is not None:
                 if unicode(attribute.alias) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
                 outputs.add(unicode(attribute.alias))
@@ -1361,9 +1371,9 @@ class AttributePath (AnyPath):
 
         if split_sort:
             # let the caller compose the query and the sort clauses
-            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on), page, sort1, limit, sort2)
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix), page, sort1, limit, sort2)
         else:
-            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on)
+            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix)
                 
             if sort1 is not None:
                 sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
@@ -1474,7 +1484,7 @@ class AttributeGroupPath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, row_content_type='application/json', limit=None):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1508,7 +1518,7 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, prefix=prefix)
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
@@ -1674,13 +1684,13 @@ class AggregatePath (AnyPath):
         # to honour generic API.  actually gated on self.add_sort() above so no need to test again
         pass
         
-    def sql_get(self, row_content_type='application/json', limit=None):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
         """Generate SQL query to get the resources described by this apath.
 
         """
         apath = AttributePath(self.epath, self.attributes)
         aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, dynauthz=dynauthz, prefix=prefix)
 
         # a pure aggregate query has aggregates
         sql = """
@@ -1790,7 +1800,7 @@ class TextFacet (AnyPath):
         version = next(cur)
         return version
 
-    def sql_get(self, row_content_type='application/json', limit=None):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
         queries = [
             # column ~* pattern is ciregexp...
             """(SELECT %(stext)s::text AS "schema", %(ttext)s::text AS "table", %(ctext)s::text AS "column" FROM %(sid)s.%(tid)s WHERE _ermrest.astext(%(cid)s) ~* %(pattern)s LIMIT 1)""" % dict(

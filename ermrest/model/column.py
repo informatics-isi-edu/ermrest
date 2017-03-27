@@ -88,7 +88,7 @@ class Column (object):
             )
 
     def has_right(self, aclname, roles=None):
-        if not self.table.has_right(aclname, roles):
+        if self.table.has_right(aclname, roles) is False:
             return False
         return self._has_right(aclname, roles)
 

@@ -55,8 +55,9 @@ class UnaryPredicate (Predicate):
         if self.right_expr is not None:
             raise TypeError('Operator %s does not accept right-hand value' % self.op)
 
-    def sql_where(self, epath, elem):
-        return 't%d.%s %s' % (
+    def sql_where(self, epath, elem, prefix=''):
+        return '%st%d.%s %s' % (
+            prefix,
             self.left_elem.pos,
             self.left_col.sql_name(),
             self.sqlop
@@ -79,16 +80,18 @@ class BinaryPredicate (Predicate):
         if self.right_expr is None:
             raise TypeError('Operator %s requires right-hand value' % self.op)
 
-    def sql_where(self, epath, elem):
+    def sql_where(self, epath, elem, prefix=''):
         if self.left_col.type.is_array:
-            return '(SELECT bool_or(v %s %s) FROM unnest(t%d.%s) x (v))' % (
+            return '(SELECT bool_or(v %s %s) FROM unnest(%st%d.%s) x (v))' % (
                 self.sqlop,
                 self.right_expr.sql_literal(self.left_col.type.base_type),
+                prefix,
                 self.left_elem.pos,
                 self.left_col.sql_name()
             )
         else:
-            return 't%d.%s %s %s' % (
+            return '%st%d.%s %s %s' % (
+                prefix,
                 self.left_elem.pos,
                 self.left_col.sql_name(),
                 self.sqlop,
@@ -117,12 +120,13 @@ class BinaryTextPredicate (BinaryPredicate):
         BinaryPredicate.validate(self, epath, allow_star=allow_star)
         # TODO: test text op/column type type
 
-    def _sql_left_value(self):
+    def _sql_left_value(self, prefix=''):
         """Generate SQL column value expression to allow overriding by subclasses."""
         if hasattr(self.left_col, 'sql_name_astext_with_talias'):
-            return self.left_col.sql_name_astext_with_talias('t%d' % self.left_elem.pos)
+            return self.left_col.sql_name_astext_with_talias('%st%d' % (prefix, self.left_elem.pos))
         else:
-            return "t%d.%s::%s" % (
+            return "%st%d.%s::%s" % (
+                prefix,
                 self.left_elem.pos,
                 self.left_col.sql_name(),
                 self._sql_left_type
@@ -131,7 +135,7 @@ class BinaryTextPredicate (BinaryPredicate):
     def _sql_right_value(self):
         return self.right_expr.sql_literal(model.text_type)
 
-    def sql_where(self, epath, elem):
+    def sql_where(self, epath, elem, prefix=''):
         def where_one(left):
             return '(%s %s %s)' % (
                 left,
@@ -139,7 +143,7 @@ class BinaryTextPredicate (BinaryPredicate):
                 self._sql_right_value()
             )
             
-        left = self._sql_left_value()
+        left = self._sql_left_value(prefix=prefix)
         if type(left) is set:
             return '(%s)' % ' OR '.join(map(where_one, left))
         else:
@@ -196,10 +200,10 @@ class RegexpPredicate (BinaryTextPredicate):
 class TextsearchPredicate (BinaryTextPredicate):
     sqlop = '@@'
 
-    def _sql_left_value(self):
+    def _sql_left_value(self, prefix=''):
         def wrap(left):
             'to_tsvector(%s)' % left
-        left = BinaryTextPredicate._sql_left_value(self)
+        left = BinaryTextPredicate._sql_left_value(self, prefix=prefix)
         if type(left) is set:
             return set(map(wrap, left))
         else:
@@ -221,24 +225,24 @@ class Negation (object):
     def validate(self, epath):
         return self.predicate.validate(epath)
 
-    def sql_where(self, epath, elem):
-        return 'NOT (%s)' % self.predicate.sql_where(epath, elem)
+    def sql_where(self, epath, elem, prefix=''):
+        return 'NOT (%s)' % self.predicate.sql_where(epath, elem, prefix=prefix)
 
 
 class Disjunction (list):
     def validate(self, epath):
         return [ f.validate(epath) for f in self ]
 
-    def sql_where(self, epath, elem):
-        preds_sql = [ "(%s)" % f.sql_where(epath, elem) for f in self ]
+    def sql_where(self, epath, elem, prefix=''):
+        preds_sql = [ "(%s)" % f.sql_where(epath, elem, prefix=prefix) for f in self ]
         return " OR ".join(preds_sql)
 
 class Conjunction (list):
     def validate(self, epath):
         return [ f.validate(epath) for f in self ]
 
-    def sql_where(self, epath, elem):
-        preds_sql = [ "(%s)" % f.sql_where(epath, elem) for f in self ]
+    def sql_where(self, epath, elem, prefix=''):
+        preds_sql = [ "(%s)" % f.sql_where(epath, elem, prefix=prefix) for f in self ]
         return " AND ".join(preds_sql)
 
 

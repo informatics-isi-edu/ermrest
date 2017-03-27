@@ -84,8 +84,8 @@ class FilterElem (PathElem):
     def validate(self, epath):
         return self.pred.validate(epath)
 
-    def sql_where(self, epath, elem):
-        return self.pred.sql_where(epath, elem)
+    def sql_where(self, epath, elem, prefix=''):
+        return self.pred.sql_where(epath, elem, prefix=prefix)
 
     def validate_attribute_update(self, apath):
         return self.pred.validate_attribute_update(apath)

@@ -29,6 +29,7 @@ from .column import Column
 from .table import Table
 from .schema import Model, Schema
 from .introspect import introspect, current_model_version
+from . import name
 
-__all__ = ["introspect", "current_model_version", "Model", "Schema", "Table", "Column", "Type"]
+__all__ = ["introspect", "current_model_version", "Model", "Schema", "Table", "Column", "Type", "name"]
 
