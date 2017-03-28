@@ -19,6 +19,7 @@ from ..util import sql_identifier, sql_literal, table_exists, udecode
 from .. import ermpath
 from .type import _default_config
 from .name import Name
+import predicate
 
 import json
 import web
@@ -117,36 +118,6 @@ class AclDict (dict):
         except KeyError, e:
             return None
 
-class AclBasePredicate (object):
-    def validate(self, epath, allow_star=False):
-        pass
-
-    def sql_where(self, epath, elem, prefix=None):
-        assert prefix
-        key = None
-        for unique in elem.table.uniques.values():
-            nullok = False
-            for col in unique.columns:
-                if col.nullok:
-                    nullok = True
-                    break
-            if nullok:
-                continue
-            else:
-                key = unique
-                break
-        assert key
-        clauses = [
-            '%s.%s = %st0.%s' % (
-                prefix,
-                col.sql_name(),
-                prefix,
-                col.sql_name()
-            )
-            for col in key.columns
-        ]
-        return ' AND '.join(['(%s)' % clause for clause in clauses ])
-
 class AclBinding (AltDict):
     """Represents one acl binding."""
     def __init__(self, model, resource, binding_name, doc):
@@ -206,7 +177,7 @@ class AclBinding (AltDict):
         else:
             epath.set_base_entity(self.resource, 'base')
 
-        epath.add_filter(AclBasePredicate())
+        epath.add_filter(predicate.AclBasePredicate())
 
         def compile_join(elem):
             # HACK: this repeats some of the path resolution logic that is tangled in the URL parser/AST code...
@@ -250,9 +221,9 @@ class AclBinding (AltDict):
 
         def compile_filter(elem):
             if 'and' in elem:
-                filt = ast.data.predicate.Conjunction([ compile_filter(e) for e in elem['and'] ])
+                filt = predicate.Conjunction([ compile_filter(e) for e in elem['and'] ])
             elif 'or' in elem:
-                filt = ast.data.predicate.Disjunction([ compile_filter(e) for e in elem['or'] ])
+                filt = predicate.Disjunction([ compile_filter(e) for e in elem['or'] ])
             elif 'filter' in elem:
                 lname = elem['filter']
                 if type(lname) in [str, unicode]:
@@ -264,21 +235,21 @@ class AclBinding (AltDict):
                     or type(lname[1]) not in [str, unicode]
                 ):
                     raise exception.BadData('Invalid filter column name %r in ACL binding %s.' % (lname, self.binding_name))
-                lname = ast.name(lname)
+                lname = Name(lname)
                 operator = elem.get('operator', '=')
                 try:
-                    klass = ast.data.predicatecls(operator)
+                    klass = predicate.predicatecls(operator)
                 except KeyError:
                     raise exception.BadData('Unknown operator %r in ACL binding %s.' % (operator, self.binding_name))
                 if operator == 'null':
                     filt = klass(lname)
                 else:
-                    operand = ast.Value(elem.get('operand', ''))
+                    operand = predicate.Value(elem.get('operand', ''))
                     filt = klass(lname, operand)
             else:
                 raise exception.BadData('Filter element %r of ACL binding %s is malformed.' % (elem, self.binding_name))
             if elem.get('negate', False):
-                filt = ast.data.predicate.Negation(filt)
+                filt = predicate.Negation(filt)
             return filt
 
         # extend path with each element left to right
@@ -308,26 +279,6 @@ class AclBinding (AltDict):
             ))
 
         return (aclpath, col, ctype)
-
-class AclPredicate (object):
-    def __init__(self, binding, column):
-        self.binding = binding
-        self.left_col = column
-        self.left_elem = None
-
-    def validate(self, epath, allow_star=False):
-        self.left_elem = epath._path[epath.current_entity_position()]
-
-    def sql_where(self, epath, elem, prefix=''):
-        lname = '%st%d.%s' % (prefix, self.left_elem.pos, self.left_col.sql_name())
-        if binding['projection_type'] == 'acl':
-            attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in web.ctx.webauthn2_context.attributes ])
-            if self.left_col.type.is_array:
-                return '%s && %s' % (lname, attrs)
-            else:
-                return '%s = ANY (%s)' % (lname, attrs)
-        else:
-            return '%s NOT NULL' % (lname,)
 
 def commentable(orig_class):
     """Decorator to add comment storage access interface to model classes.

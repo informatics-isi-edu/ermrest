@@ -56,32 +56,6 @@ class PageList (list):
     """
     pass
 
-class Value (object):
-    """Represent a literal value in an ERMREST URL.
-
-    """
-    def __init__(self, s):
-        self._str = s
-
-    def __str__(self):
-        return self._str
-
-    def validate(self, epath, etype):
-        """Validate value in typed context.
-
-           TODO: refactor a type object instead of using Column for etype
-        """
-        pass
-
-    def is_null(self):
-        return self._str is None
-    
-    def sql_literal(self, etype):
-        return etype.sql_literal(self._str)
-
-    def validate_attribute_update(self):
-        raise exception.BadSyntax('Value %s is not supported in an attribute update path filter.' % self)
-
 class Aggregate (Name):
     """Represent an aggregate function used as an attribute."""
 

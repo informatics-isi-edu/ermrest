@@ -29,6 +29,7 @@ import web
 import urllib
 
 from ..exception import *
+from ..model import predicate
 
 from lex import make_lexer, tokens, keywords
 import ast
@@ -145,7 +146,7 @@ def p_meta_key(p):
 
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """
-    p[0] = p[1].textfacet(ast.Value(p[4]))
+    p[0] = p[1].textfacet(predicate.Value(p[4]))
     
 def p_entity(p):
     """entity : catalogslash ENTITY '/' entityelem1 """
@@ -287,15 +288,15 @@ def p_sortitem_descending(p):
 
 def p_pageitem(p):
     """pageitem : string"""
-    p[0] = ast.Value(p[1])
+    p[0] = predicate.Value(p[1])
 
 def p_pageitem_null(p):
     """pageitem : OPMARK NULL OPMARK"""
-    p[0] = ast.Value(None)
+    p[0] = predicate.Value(None)
 
 def p_pageitem_empty(p):
     """pageitem : """
-    p[0] = ast.Value('')
+    p[0] = predicate.Value('')
 
 def p_bname_grow(p):
     """bname : bname ':' string"""
@@ -383,11 +384,11 @@ def p_filter(p):
 
 def p_predicate2(p):
     """predicate : sname op expr """
-    p[0] = ast.data.predicatecls(p[2])(p[1], p[3])
+    p[0] = predicate.predicatecls(p[2])(p[1], p[3])
 
 def p_predicate1(p):
     """predicate : sname opnull """
-    p[0] = ast.data.predicatecls(p[2])(p[1])
+    p[0] = predicate.predicatecls(p[2])(p[1])
 
 def p_neg_predicate1(p):
     """npredicate : predicate """
@@ -395,7 +396,7 @@ def p_neg_predicate1(p):
 
 def p_neg_predicate2(p):
     """npredicate : '!' predicate """
-    p[0] = ast.data.predicate.Negation( p[2] )
+    p[0] = predicate.Negation( p[2] )
 
 def p_paren_predicate(p):
     """predicate : '(' filter ')' """
@@ -403,7 +404,7 @@ def p_paren_predicate(p):
 
 def p_conjunction_base(p):
     """conjunction : npredicate """
-    p[0] = ast.data.predicate.Conjunction([p[1]])
+    p[0] = predicate.Conjunction([p[1]])
 
 def p_conjunction_grow(p):
     """conjunction : conjunction '&' npredicate"""
@@ -412,7 +413,7 @@ def p_conjunction_grow(p):
 
 def p_disjunction_base(p):
     """disjunction : conjunction ';' conjunction"""
-    p[0] = ast.data.predicate.Disjunction([p[1], p[3]])
+    p[0] = predicate.Disjunction([p[1], p[3]])
 
 def p_disjunction_grow(p):
     """disjunction : disjunction ';' conjunction"""
@@ -421,7 +422,7 @@ def p_disjunction_grow(p):
 
 def p_expr_const(p):
     """expr : string """
-    p[0] = ast.Value(p[1])
+    p[0] = predicate.Value(p[1])
 
 def p_expr_name(p):
     """expr : name """
@@ -429,7 +430,7 @@ def p_expr_name(p):
 
 def p_expr_empty(p):
     """expr : """
-    p[0] = ast.Value('')
+    p[0] = predicate.Value('')
     
 def p_op(p):
     """op : '='"""

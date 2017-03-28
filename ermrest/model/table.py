@@ -26,9 +26,10 @@ needed by other modules of the ermrest project.
 
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode
-from .misc import AltDict, AclDict, AclPredicate, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
+from .predicate import AclPredicate
 
 import urllib
 import json

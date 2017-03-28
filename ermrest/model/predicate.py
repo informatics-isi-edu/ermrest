@@ -19,8 +19,87 @@
 
 """
 
-from ....exception import *
-from .... import model
+from ..util import sql_literal
+from ..exception import *
+from .type import text_type
+
+import web
+
+class Value (object):
+    """Represent a literal value in an ERMREST URL.
+
+    """
+    def __init__(self, s):
+        self._str = s
+
+    def __str__(self):
+        return self._str
+
+    def validate(self, epath, etype, enforce_client=True):
+        """Validate value in typed context.
+
+           TODO: refactor a type object instead of using Column for etype
+        """
+        pass
+
+    def is_null(self):
+        return self._str is None
+
+    def sql_literal(self, etype):
+        return etype.sql_literal(self._str)
+
+    def validate_attribute_update(self):
+        raise BadSyntax('Value %s is not supported in an attribute update path filter.' % self)
+
+class AclBasePredicate (object):
+    def validate(self, epath, allow_star=False, enforce_client=True):
+        pass
+
+    def sql_where(self, epath, elem, prefix=None):
+        assert prefix
+        key = None
+        for unique in elem.table.uniques.values():
+            nullok = False
+            for col in unique.columns:
+                if col.nullok:
+                    nullok = True
+                    break
+            if nullok:
+                continue
+            else:
+                key = unique
+                break
+        assert key
+        clauses = [
+            '%s.%s = %st0.%s' % (
+                prefix,
+                col.sql_name(),
+                prefix,
+                col.sql_name()
+            )
+            for col in key.columns
+        ]
+        return ' AND '.join(['(%s)' % clause for clause in clauses ])
+
+class AclPredicate (object):
+    def __init__(self, binding, column):
+        self.binding = binding
+        self.left_col = column
+        self.left_elem = None
+
+    def validate(self, epath, allow_star=False, enforce_client=True):
+        self.left_elem = epath._path[epath.current_entity_position()]
+
+    def sql_where(self, epath, elem, prefix=''):
+        lname = '%st%d.%s' % (prefix, self.left_elem.pos, self.left_col.sql_name())
+        if self.binding['projection_type'] == 'acl':
+            attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in web.ctx.webauthn2_context.attributes ] + [sql_literal('*')])
+            if self.left_col.type.is_array:
+                return '%s && %s' % (lname, attrs)
+            else:
+                return '%s = ANY (%s)' % (lname, attrs)
+        else:
+            return '%s IS NOT NULL' % (lname,)
 
 class Predicate (object):
 

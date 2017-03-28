@@ -25,7 +25,7 @@ import tempfile
 
 from ..api import Api
 from . import path
-from .predicate import predicatecls
+from ....model.predicate import predicatecls
 from ....model.name import Name
 from .... import ermpath, exception
 from webauthn2.util import urlquote
