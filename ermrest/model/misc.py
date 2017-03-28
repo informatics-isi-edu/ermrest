@@ -310,7 +310,8 @@ class AclBinding (AltDict):
         return (aclpath, col, ctype)
 
 class AclPredicate (object):
-    def __init__(self, column):
+    def __init__(self, binding, column):
+        self.binding = binding
         self.left_col = column
         self.left_elem = None
 
@@ -319,11 +320,14 @@ class AclPredicate (object):
 
     def sql_where(self, epath, elem, prefix=''):
         lname = '%st%d.%s' % (prefix, self.left_elem.pos, self.left_col.sql_name())
-        attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in web.ctx.webauthn2_context.attributes ])
-        if self.left_col.type.is_array:
-            return '%s && %s' % (lname, attrs)
+        if binding['projection_type'] == 'acl':
+            attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in web.ctx.webauthn2_context.attributes ])
+            if self.left_col.type.is_array:
+                return '%s && %s' % (lname, attrs)
+            else:
+                return '%s = ANY (%s)' % (lname, attrs)
         else:
-            return '%s = ANY (%s)' % (lname, attrs)
+            return '%s NOT NULL' % (lname,)
 
 def commentable(orig_class):
     """Decorator to add comment storage access interface to model classes.
