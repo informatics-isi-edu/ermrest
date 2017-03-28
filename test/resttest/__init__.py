@@ -4,6 +4,7 @@ import common
 from acl_bindings import *
 from acls import *
 from annotations import *
+from authz_dynamic import *
 from authz_static import *
 from basics import *
 from bulkschema import *
