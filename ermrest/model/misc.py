@@ -217,7 +217,7 @@ class AclBinding (AltDict):
             else:
                 fkeyref = find_fkeyref(ltable.fkeys, fkeyname)
                 refop = '=@'
-            epath.add_link(fkeyref, refop, ralias=ralias)
+            epath.add_link(fkeyref, refop, ralias=ralias, enforce_client=False)
 
         def compile_filter(elem):
             if 'and' in elem:
@@ -260,8 +260,7 @@ class AclBinding (AltDict):
                 compile_join(elem)
             else:
                 filt = compile_filter(elem)
-                filt.validate(epath)
-                epath.add_filter(filt)
+                epath.add_filter(filt, enforce_client=False)
 
         # apply final projection
         if type(proj[-1]) not in [str, unicode]:

@@ -235,13 +235,13 @@ class EntityElem (object):
     def __repr__(self):
         return '<ermrest.ermpath.EntityElem %s>' % unicode(self)
 
-    def add_filter(self, filt):
+    def add_filter(self, filt, enforce_client=True):
         """Add a filtersql_name condition to this path element.
         """
-        filt.validate(self.epath)
+        filt.validate(self.epath, enforce_client=enforce_client)
         self.filters.append(filt)
 
-    def sql_join_condition(self):
+    def sql_join_condition(self, prefix):
         """Generate SQL condition for joining this element to the epath.
 
         """
@@ -255,7 +255,7 @@ class EntityElem (object):
         else:
             ltnum = self.context_pos
 
-        return self.keyref.join_sql(refop, 't%d' % ltnum, 't%d' % self.pos)
+        return self.keyref.join_sql(refop, '%st%d' % (prefix, ltnum), '%st%d' % (prefix, self.pos))
 
     def sql_wheres(self, prefix=''):
         """Generate SQL row conditions for filtering this element in the epath.
@@ -280,7 +280,7 @@ class EntityElem (object):
             return '%s JOIN %s ON (%s)' % (
                 {"left": "LEFT OUTER", "right": "RIGHT OUTER", "full": "FULL OUTER", None: ""}[self.outer_type],
                 tsql,
-                self.sql_join_condition()
+                self.sql_join_condition(prefix)
             )
 
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
@@ -783,7 +783,7 @@ class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
 
     """
-    def sql_get(self, row_content_type='application/json', limit=None):
+    def sql_get(self, row_content_type='application/json', limit=None, prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this path.
 
            The query will be of the form:
@@ -991,12 +991,12 @@ WHERE %(pred)s
         version = next(cur)
         return version
 
-    def add_filter(self, filt):
+    def add_filter(self, filt, enforce_client=True):
         """Add a filter condition to the current path.
 
            Filters restrict the matched rows of the right-most table.
         """
-        return self._path[self._context_index].add_filter(filt)
+        return self._path[self._context_index].add_filter(filt, enforce_client=enforce_client)
 
     def add_sort(self, sort):
         """Add a sortlist specification for final output.
@@ -1013,7 +1013,7 @@ WHERE %(pred)s
         self.after = after
         self.before = before
             
-    def add_link(self, keyref, refop, ralias=None, lalias=None, outer_type=None):
+    def add_link(self, keyref, refop, ralias=None, lalias=None, outer_type=None, enforce_client=True):
         """Extend the path by linking in another table.
 
            keyref specifies the foreign key and primary keys used
@@ -1042,7 +1042,8 @@ WHERE %(pred)s
             # '=@'
             rtable = keyref.unique.table
 
-        rtable.enforce_right('select')
+        if enforce_client:
+            rtable.enforce_right('select')
 
         assert self._context_index >= -1
         if self._context_index >= 0:
@@ -1059,7 +1060,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1081,7 +1082,8 @@ WHERE %(pred)s
         if selects is None:
             # non-enumerable columns will be omitted from entity results
             for col in context_table.columns_in_order():
-                col.enforce_right('select')
+                if enforce_client:
+                    col.enforce_right('select')
             selects = ", ".join([
                 "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
                 for col in context_table.columns_in_order()
@@ -1091,7 +1093,7 @@ WHERE %(pred)s
         pkeys = [
             k
             for k, unique in context_table.uniques.items()
-            if unique.has_right('select')
+            if unique.has_right('select') or not enforce_client
         ]
         if pkeys:
             pkeys.sort(key=lambda k: len(k))
@@ -1100,7 +1102,8 @@ WHERE %(pred)s
             shortest_pkey = context_table.columns_in_order()
             # check whether this meta-key is usable for client...
             for col in shortest_pkey:
-                col.enforce_right('select')
+                if enforce_client:
+                    col.enforce_right('select')
 
         distinct_on_cols = [ 
             '%st%d.%s' % (prefix, context_pos, sql_identifier(c.name))
@@ -1289,7 +1292,7 @@ class AttributePath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1371,9 +1374,9 @@ class AttributePath (AnyPath):
 
         if split_sort:
             # let the caller compose the query and the sort clauses
-            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix), page, sort1, limit, sort2)
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client), page, sort1, limit, sort2)
         else:
-            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix)
+            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
                 
             if sort1 is not None:
                 sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
@@ -1484,7 +1487,7 @@ class AttributeGroupPath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1518,7 +1521,7 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, prefix=prefix)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
@@ -1684,13 +1687,13 @@ class AggregatePath (AnyPath):
         # to honour generic API.  actually gated on self.add_sort() above so no need to test again
         pass
         
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
         """
         apath = AttributePath(self.epath, self.attributes)
         aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, dynauthz=dynauthz, prefix=prefix)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
 
         # a pure aggregate query has aggregates
         sql = """
@@ -1800,7 +1803,7 @@ class TextFacet (AnyPath):
         version = next(cur)
         return version
 
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix=''):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         queries = [
             # column ~* pattern is ciregexp...
             """(SELECT %(stext)s::text AS "schema", %(ttext)s::text AS "table", %(ctext)s::text AS "column" FROM %(sid)s.%(tid)s WHERE _ermrest.astext(%(cid)s) ~* %(pattern)s LIMIT 1)""" % dict(

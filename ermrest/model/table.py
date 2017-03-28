@@ -377,10 +377,9 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             for binding in self.dynacls.values():
                 if not set(binding['types']).isdisjoint(sufficient_rights[access_type]):
                     aclpath, col, ctype = binding._compile_projection()
-                    web.debug('Got relevant binding %r for %s' % (binding, alias))
                     aclpath.epath.add_filter(AclPredicate(binding, col))
                     authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
-                    clauses.append(authzpath.sql_get(limit=1, prefix=alias))
+                    clauses.append(authzpath.sql_get(limit=1, prefix=alias, enforce_client=False))
 
             where = ' OR '.join(["(%s)" % clause for clause in clauses ])
 

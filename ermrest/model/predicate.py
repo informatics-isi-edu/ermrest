@@ -115,9 +115,10 @@ class Predicate (object):
             str(self.op)
             )
 
-    def validate(self, epath, allow_star=False):
+    def validate(self, epath, allow_star=False, enforce_client=True):
         self.left_col, self.left_elem = self.left_name.validate(epath)
-        self.left_col.enforce_right('select')
+        if enforce_client:
+            self.left_col.enforce_right('select')
         if not allow_star and self.left_col.is_star_column():
             raise BadSyntax('Operator %s does not support text-search psuedo-column "*".' % self.op)
 
@@ -129,8 +130,8 @@ class UnaryPredicate (Predicate):
         Predicate.__init__(self, left_name, self.restop)
         self.right_expr = right_expr
 
-    def validate(self, epath):
-        Predicate.validate(self, epath)
+    def validate(self, epath, enforce_client=True):
+        Predicate.validate(self, epath, enforce_client=enforce_client)
         if self.right_expr is not None:
             raise TypeError('Operator %s does not accept right-hand value' % self.op)
 
@@ -154,8 +155,8 @@ class BinaryPredicate (Predicate):
             str(self.right_expr)
             )
     
-    def validate(self, epath, allow_star=False):
-        Predicate.validate(self, epath, allow_star=allow_star)
+    def validate(self, epath, allow_star=False, enforce_client=True):
+        Predicate.validate(self, epath, allow_star=allow_star, enforce_client=enforce_client)
         if self.right_expr is None:
             raise TypeError('Operator %s requires right-hand value' % self.op)
 
@@ -186,8 +187,8 @@ def op(rest_syntax):
 
 class BinaryOrderedPredicate (BinaryPredicate):
     
-    def validate(self, epath):
-        BinaryPredicate.validate(self, epath)
+    def validate(self, epath, enforce_client=True):
+        BinaryPredicate.validate(self, epath, enforce_client=enforce_client)
         self.right_expr.validate(epath, self.left_col)
         # TODO: test ordered op/column type compatibility
 
@@ -195,8 +196,8 @@ class BinaryTextPredicate (BinaryPredicate):
     
     _sql_left_type = 'text'
 
-    def validate(self, epath, allow_star=True):
-        BinaryPredicate.validate(self, epath, allow_star=allow_star)
+    def validate(self, epath, allow_star=True, enforce_client=True):
+        BinaryPredicate.validate(self, epath, allow_star=allow_star, enforce_client=enforce_client)
         # TODO: test text op/column type type
 
     def _sql_left_value(self, prefix=''):
@@ -212,7 +213,7 @@ class BinaryTextPredicate (BinaryPredicate):
             )
 
     def _sql_right_value(self):
-        return self.right_expr.sql_literal(model.text_type)
+        return self.right_expr.sql_literal(text_type)
 
     def sql_where(self, epath, elem, prefix=''):
         def where_one(left):
@@ -301,24 +302,24 @@ class Negation (object):
     def __init__(self, predicate):
         self.predicate = predicate
 
-    def validate(self, epath):
-        return self.predicate.validate(epath)
+    def validate(self, epath, enforce_client=True):
+        return self.predicate.validate(epath, enforce_client=enforce_client)
 
     def sql_where(self, epath, elem, prefix=''):
         return 'NOT (%s)' % self.predicate.sql_where(epath, elem, prefix=prefix)
 
 
 class Disjunction (list):
-    def validate(self, epath):
-        return [ f.validate(epath) for f in self ]
+    def validate(self, epath, enforce_client=True):
+        return [ f.validate(epath, enforce_client=enforce_client) for f in self ]
 
     def sql_where(self, epath, elem, prefix=''):
         preds_sql = [ "(%s)" % f.sql_where(epath, elem, prefix=prefix) for f in self ]
         return " OR ".join(preds_sql)
 
 class Conjunction (list):
-    def validate(self, epath):
-        return [ f.validate(epath) for f in self ]
+    def validate(self, epath, enforce_client=True):
+        return [ f.validate(epath, enforce_client=enforce_client) for f in self ]
 
     def sql_where(self, epath, elem, prefix=''):
         preds_sql = [ "(%s)" % f.sql_where(epath, elem, prefix=prefix) for f in self ]
