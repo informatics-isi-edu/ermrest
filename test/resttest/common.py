@@ -137,8 +137,11 @@ _secondary_cookies = os.getenv('TEST_COOKIES2')
 if _secondary_cookies:
     secondary_session._test_mount(_secondary_cookies, 'secondary session')
     secondary_client_id = secondary_session.get_client_id()
-    assert primary_client_id != secondary_client_id, "TEST_COOKIES1 and TEST_COOKIES2 must provide distinct client IDs"
-    sys.stderr.write('Using secondary_session with client ID %r.\n' % secondary_client_id)
+    if secondary_client_id is None:
+        secondary_session = None
+    else:
+        assert primary_client_id != secondary_client_id, "TEST_COOKIES1 and TEST_COOKIES2 must provide distinct client IDs"
+        sys.stderr.write('Using secondary_session with client ID %r.\n' % secondary_client_id)
 else:
     sys.stderr.write('Disabling secondary_session due to missing TEST_COOKIES2.\n\n')
     secondary_session = None
