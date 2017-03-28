@@ -229,10 +229,13 @@ class AclBinding (AltDict):
                 if type(lname) in [str, unicode]:
                     # expand syntactic sugar for bare column name filter
                     lname = [ lname ]
+                if type(lname) is list and lname[0] is None:
+                    lname = lname[1:]
                 if (type(lname) is not list \
-                    or len(lname) != 2 \
+                    or len(lname) < 1 \
                     or type(lname[0]) not in [str, unicode] \
-                    or type(lname[1]) not in [str, unicode]
+                    or len(lname) >= 2 and type(lname[1]) not in [str, unicode] \
+                    or len(lname) > 2
                 ):
                     raise exception.BadData('Invalid filter column name %r in ACL binding %s.' % (lname, self.binding_name))
                 lname = Name(lname)
