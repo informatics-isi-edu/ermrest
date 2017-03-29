@@ -43,6 +43,30 @@ _datacid_ACL_owner_acl = {
     "projection_type": "acl"
 }
 
+_assoccid_member_owner_acl = {
+    "types": ["owner"],
+    "projection": [{"outbound": [_S, "fkey Data_Category.c_id"]}, "member"],
+    "projection_type": "acl"
+}
+
+_assoccid_ACL_owner_acl = {
+    "types": ["owner"],
+    "projection": [{"outbound": [_S, "fkey Data_Category.c_id"]}, "ACL"],
+    "projection_type": "acl"
+}
+
+_assocdid_member_owner_acl = {
+    "types": ["owner"],
+    "projection": [{"outbound": [_S, "fkey Data_Category.d_id"]}, "member"],
+    "projection_type": "acl"
+}
+
+_assocdid_ACL_owner_acl = {
+    "types": ["owner"],
+    "projection": [{"outbound": [_S, "fkey Data_Category.d_id"]}, "ACL"],
+    "projection_type": "acl"
+}
+
 _extid_datacid_member_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Extension.id"]}, {"outbound": [_S, "fkey Data.c_id"]}, "member"],
@@ -133,41 +157,64 @@ class StaticHidden (common.ErmrestTest):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(409),
         'anonymous_get_extension': Expectation(409),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(409),
+        'anonymous_get_join1': Expectation(409),
     }
+
+    _get_data_urls = ['entity/%s:Data' % _S, 'attribute/%s:Data/*' % _S]
 
     def test_primary_get_data(self):
         expect = self.test_expectations['primary_get_data']
-        expect.check(self, common.primary_session.get('entity/%s:Data' % _S))
-        expect.check(self, common.primary_session.get('attribute/%s:Data/*' % _S))
+        for url in self._get_data_urls:
+            expect.check(self, common.primary_session.get(url))
 
     @unittest.skipIf(common.secondary_session is None, "secondary authz test requires TEST_COOKIES2")
     def test_secondary_get_data(self):
         expect = self.test_expectations['secondary_get_data']
-        expect.check(self, common.secondary_session.get('entity/%s:Data' % _S))
-        expect.check(self, common.secondary_session.get('attribute/%s:Data/*' % _S))
+        for url in self._get_data_urls:
+            expect.check(self, common.secondary_session.get(url))
 
     @unittest.skipIf(common.anonymous_session is None, "anonymous authz test requires ermrest_config permission")
     def test_anonymous_get_data(self):
         expect = self.test_expectations['anonymous_get_data']
-        expect.check(self, common.anonymous_session.get('entity/%s:Data' % _S))
-        expect.check(self, common.anonymous_session.get('attribute/%s:Data/*' % _S))
+        for url in self._get_data_urls:
+            expect.check(self, common.anonymous_session.get(url))
+
+    _get_extension_urls = ['entity/%s:Extension' % _S]
 
     def test_primary_get_extension(self):
         expect = self.test_expectations['primary_get_extension']
-        expect.check(self, common.primary_session.get('entity/%s:Extension' % _S))
-        expect.check(self, common.primary_session.get('attribute/%s:Extension/*' % _S))
+        for url in self._get_extension_urls:
+            expect.check(self, common.primary_session.get(url))
 
     @unittest.skipIf(common.secondary_session is None, "secondary authz test requires TEST_COOKIES2")
     def test_secondary_get_extension(self):
         expect = self.test_expectations['secondary_get_extension']
-        expect.check(self, common.secondary_session.get('entity/%s:Extension' % _S))
-        expect.check(self, common.secondary_session.get('attribute/%s:Extension/*' % _S))
+        for url in self._get_extension_urls:
+            expect.check(self, common.secondary_session.get(url))
 
     @unittest.skipIf(common.anonymous_session is None, "anonymous authz test requires ermrest_config permission")
     def test_anonymous_get_extension(self):
         expect = self.test_expectations['anonymous_get_extension']
-        expect.check(self, common.anonymous_session.get('entity/%s:Extension' % _S))
-        expect.check(self, common.anonymous_session.get('attribute/%s:Extension/*' % _S))
+        for url in self._get_extension_urls:
+            expect.check(self, common.anonymous_session.get(url))
+
+    _get_join1_url = 'entity/%(S)s:Data/%(S)s:Category/%(S)s:Data_Category/%(S)s:Data' % dict(S=_S)
+
+    def test_primary_get_join1(self):
+        expect = self.test_expectations['primary_get_join1']
+        expect.check(self, common.primary_session.get(self._get_join1_url))
+
+    @unittest.skipIf(common.secondary_session is None, "secondary authz test requires TEST_COOKIES2")
+    def test_secondary_get_join1(self):
+        expect = self.test_expectations['secondary_get_join1']
+        expect.check(self, common.secondary_session.get(self._get_join1_url))
+
+    @unittest.skipIf(common.anonymous_session is None, "anonymous authz test requires ermrest_config permission")
+    def test_anonymous_get_join1(self):
+        expect = self.test_expectations['anonymous_get_join1']
+        expect.check(self, common.anonymous_session.get(self._get_join1_url))
 
 class HiddenPolicy (StaticHidden):
     acls = {
@@ -195,6 +242,9 @@ class HiddenPolicy (StaticHidden):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(409),
         'anonymous_get_extension': Expectation(409),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(409),
+        'anonymous_get_join1': Expectation(409),
     }
 
 class StaticUnhidden (StaticHidden):
@@ -220,6 +270,9 @@ class StaticUnhidden (StaticHidden):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
     }
 
 class RowMemberOwner (StaticUnhidden):
@@ -227,7 +280,7 @@ class RowMemberOwner (StaticUnhidden):
         "Data": { "member": _member_owner_acl },
         "Extension": { "member": _member_owner_acl },
         "Category": { "member": _member_owner_acl },
-        "Data_Category": { }
+        "Data_Category": { "member": _assoccid_member_owner_acl }
     }
 
     test_expectations = {
@@ -237,6 +290,9 @@ class RowMemberOwner (StaticUnhidden):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
         'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(8)),
+        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(2)),
     }
 
 class Cat3Owner (StaticUnhidden):
@@ -255,8 +311,20 @@ class Cat3Owner (StaticUnhidden):
                 "projection_type": "nonnull"
             }
         },
-        "Category": { },
-        "Data_Category": { }
+        "Category": {
+            "cat3": {
+                "types": ["owner"],
+                "projection": [{"filter": "id", "operand": 3}, "id"],
+                "projection_type": "nonnull"
+            }
+        },
+        "Data_Category": {
+            "cat3": {
+                "types": ["owner"],
+                "projection": [{"filter": "c_id", "operand": 3}, "c_id"],
+                "projection_type": "nonnull"
+            }
+        }
     }
 
     test_expectations = {
@@ -266,6 +334,9 @@ class Cat3Owner (StaticUnhidden):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
         'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
+        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
     }
 
 class RowAclOwner (StaticUnhidden):
@@ -273,7 +344,7 @@ class RowAclOwner (StaticUnhidden):
         "Data": { "member": _ACL_owner_acl },
         "Extension": { "member": _ACL_owner_acl },
         "Category": { "member": _ACL_owner_acl },
-        "Data_Category": { }
+        "Data_Category": { "member": _assoccid_ACL_owner_acl }
     }
 
     test_expectations = {
@@ -283,6 +354,9 @@ class RowAclOwner (StaticUnhidden):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
         'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(6)),
+        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(2)),
     }
 
 class RowCategoryMemberOwner (RowMemberOwner):
@@ -290,7 +364,7 @@ class RowCategoryMemberOwner (RowMemberOwner):
         "Data": { "member1": _member_owner_acl, "member2": _datacid_member_owner_acl },
         "Extension": { "member1": _member_owner_acl, "member2": _extid_datacid_member_owner_acl },
         "Category": { "member1": _member_owner_acl },
-        "Data_Category": { }
+        "Data_Category": { "memebr1": _assocdid_member_owner_acl, "member2": _assoccid_member_owner_acl }
     }
 
     test_expectations = {
@@ -300,6 +374,9 @@ class RowCategoryMemberOwner (RowMemberOwner):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
         'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(12)),
+        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(5)),
     }
 
 class RowCategoryAclOwner (RowMemberOwner):
@@ -307,7 +384,7 @@ class RowCategoryAclOwner (RowMemberOwner):
         "Data": { "member1": _ACL_owner_acl, "member2": _datacid_ACL_owner_acl },
         "Extension": { "member1": _ACL_owner_acl, "member2": _extid_datacid_ACL_owner_acl },
         "Category": { "member1": _ACL_owner_acl },
-        "Data_Category": { }
+        "Data_Category": { "member1": _assocdid_ACL_owner_acl, "member2": _assoccid_ACL_owner_acl }
     }
 
     test_expectations = {
@@ -317,6 +394,9 @@ class RowCategoryAclOwner (RowMemberOwner):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
         'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(10)),
+        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(5)),
     }
 
 class CategoryMemberOwnerHiddenPolicy (HiddenPolicy):
@@ -334,6 +414,9 @@ class CategoryMemberOwnerHiddenPolicy (HiddenPolicy):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(409),
         'anonymous_get_extension': Expectation(409),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(409),
+        'anonymous_get_join1': Expectation(409),
     }
 
 class CategoryAclOwnerHiddenPolicy (HiddenPolicy):
@@ -351,6 +434,9 @@ class CategoryAclOwnerHiddenPolicy (HiddenPolicy):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(409),
         'anonymous_get_extension': Expectation(409),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(409),
+        'anonymous_get_join1': Expectation(409),
     }
 
 class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
@@ -380,6 +466,9 @@ class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(409),
         'anonymous_get_extension': Expectation(409),
+        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        'secondary_get_join1': Expectation(409),
+        'anonymous_get_join1': Expectation(409),
     }
 
 _data = [
