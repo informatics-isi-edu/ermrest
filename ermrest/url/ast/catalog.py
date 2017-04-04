@@ -229,7 +229,7 @@ class Meta (Api):
         content_type = negotiated_content_type(self.supported_types, self.default_content_type)
         def body(conn, cur):
             self.enforce_right('enumerate', uri)
-            return web.ctx.ermrest_catalog.model.acls
+            return web.ctx.ermrest_catalog_model.acls
 
         def post_commit(acls):
             web.header('Content-Type', content_type)
