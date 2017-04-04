@@ -162,15 +162,24 @@ ALTER TABLE _ermrest.model_catalog_annotation OWNER TO ${DAEMONUSER};
 EOF
     fi
 
+    # try to fix up a mistake in earlier dev versions of acls-everywhere branch...
+    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'model_model_acl'\" '$1'" - ${PGADMIN} < /dev/null)
+    if [[ -n "$tablename" ]]
+    then
+	cat <<EOF
+ALTER TABLE _ermrest.model_model_acl RENAME TO model_catalog_acl;
+EOF
+    fi
+
     tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'meta'\" '$1'" - ${PGADMIN} < /dev/null)
     if [[ -n "$tablename" ]]
     then
 	cat <<EOF
-CREATE TABLE IF NOT EXISTS _ermrest.model_model_acl (
+CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_acl (
   acl text PRIMARY KEY,
   members text[]
 );
-ALTER TABLE _ermrest.model_model_acl OWNER TO ${DAEMONUSER};
+ALTER TABLE _ermrest.model_catalog_acl OWNER TO ${DAEMONUSER};
 
 CREATE TABLE IF NOT EXISTS _ermrest.model_schema_acl (
   schema_name text,
@@ -212,7 +221,7 @@ CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_acl (
 );
 ALTER TABLE _ermrest.model_keyref_acl OWNER TO ${DAEMONUSER};
 
-INSERT INTO _ermrest.model_model_acl (acl, members)
+INSERT INTO _ermrest.model_catalog_acl (acl, members)
 SELECT
   CASE
     WHEN key = 'owner' THEN 'owner'
@@ -232,6 +241,46 @@ DROP TABLE _ermrest.meta;
 EOF
     fi
 
+    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'model_table_dynacl'\" '$1'" - ${PGADMIN} < /dev/null)
+    if [[ -z "$tablename" ]]
+    then
+	cat <<EOF
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_table_dynacl (
+  schema_name text,
+  table_name text,
+  binding_name text,
+  binding jsonb NOT NULL,
+  PRIMARY KEY (schema_name, table_name, binding_name)
+);
+ALTER TABLE _ermrest.model_table_dynacl OWNER TO ${DAEMONUSER};
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_column_dynacl (
+  schema_name text,
+  table_name text,
+  column_name text,
+  binding_name text,
+  binding jsonb NOT NULL,
+  PRIMARY KEY (schema_name, table_name, column_name, binding_name)
+);
+ALTER TABLE _ermrest.model_column_dynacl OWNER TO ${DAEMONUSER};
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_dynacl (
+  from_schema_name text,
+  from_table_name text,
+  from_column_names text[],
+  to_schema_name text,
+  to_table_name text,
+  to_column_names text[],
+  binding_name text,
+  binding jsonb NOT NULL,
+  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, binding_name)
+);
+ALTER TABLE _ermrest.model_keyref_dynacl OWNER TO ${DAEMONUSER};
+
+EOF
+    fi
+    
     cat <<EOF
 
 ALTER SCHEMA _ermrest OWNER TO ${DAEMONUSER};
