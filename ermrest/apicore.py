@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2016 University of Southern California
+# Copyright 2012-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import traceback
 import psycopg2
 import webauthn2
 from webauthn2.util import context_from_environment
+from collections import OrderedDict
 
 from .exception import *
 
@@ -85,11 +86,6 @@ syslogformatter = logging.Formatter('%(name)s[%(process)d.%(thread)d]: %(message
 sysloghandler.setFormatter(syslogformatter)
 logger.addHandler(sysloghandler)
 logger.setLevel(logging.INFO)
-
-# some log message templates
-log_template = u"%(elapsed_s)d.%(elapsed_ms)3.3ds %(client_ip)s user=%(client_identity)s req=%(reqid)s"
-log_trace_template = log_template + u" -- %(tracedata)s"
-log_final_template = log_template + u" (%(status)s) %(method)s %(proto)s://%(host)s/%(uri)s %(range)s %(type)s"
 
 # setup AMQP notices path
 try:
@@ -157,18 +153,16 @@ def log_parts():
     """Generate a dictionary of interpolation keys used by our logging template."""
     now = datetime.datetime.now(pytz.timezone('UTC'))
     elapsed = (now - web.ctx.ermrest_start_time)
-    client_identity = web.ctx.webauthn2_context and web.ctx.webauthn2_context.client or ''
-    if type(client_identity) is dict:
-        client_identity = json.dumps(client_identity, separators=(',',':'))
+    client_identity_obj = web.ctx.webauthn2_context and web.ctx.webauthn2_context.client or None
     parts = dict(
         elapsed_s = elapsed.seconds, 
         elapsed_ms = elapsed.microseconds/1000,
+        elapsed = elapsed.seconds + elapsed.microseconds/1000 * 0.001,
         client_ip = web.ctx.ip,
-        client_identity = urllib.quote(client_identity),
+        client_identity_obj = client_identity_obj,
         reqid = web.ctx.ermrest_request_guid
         )
     return parts
-
 
 def request_trace(tracedata):
     """Log one tracedata event as part of a request's audit trail.
@@ -177,19 +171,28 @@ def request_trace(tracedata):
     """
     parts = log_parts()
     if isinstance(tracedata, Exception):
-        parts['tracedata'] = u'%s' % tracedata
+        data = u'%s' % tracedata
     else:
-        parts['tracedata'] = tracedata
+        data = tracedata
         
-    logger.info( (log_trace_template % parts).encode('utf-8') )
-
+    od = OrderedDict([
+        (k, v) for k, v in [
+            ('elapsed', parts['elapsed']),
+            ('req', parts['reqid']),
+            ('trace', data),
+            ('client', parts['client_ip']),
+            ('user', parts['client_identity_obj']),
+        ]
+        if v
+    ])
+    logger.info( json.dumps(od, separators=(', ', ':')).encode('utf-8') )
 
 def request_init():
     """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
     web.ctx.ermrest_request_guid = random_name()
     web.ctx.ermrest_start_time = datetime.datetime.now(pytz.timezone('UTC'))
-    web.ctx.ermrest_request_content_range = '-/-'
-    web.ctx.ermrest_content_type = 'unknown'
+    web.ctx.ermrest_request_content_range = None
+    web.ctx.ermrest_content_type = None
     web.ctx.webauthn2_manager = webauthn2_manager
     web.ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
     web.ctx.ermrest_request_trace = request_trace
@@ -224,22 +227,31 @@ def request_init():
 def request_final():
     """Log final request handler state to finalize a request's audit trail."""
     parts = log_parts()
-    parts.update(dict(
-            status = web.ctx.status,
-            method = web.ctx.method,
-            proto = web.ctx.protocol,
-            host = web.ctx.host,
-            uri = web.ctx.env['REQUEST_URI'],
-            range = web.ctx.ermrest_request_content_range,
-            type = web.ctx.ermrest_content_type
-            ))
     if web.ctx.ermrest_catalog_pc is not None:
         if web.ctx.ermrest_catalog_pc.conn is not None:
             web.ctx.ermrest_request_trace(
                 'ERMrest DB conn LEAK averted in request_final()!?'
             )
             web.ctx.ermrest_catalog_pc.final()
-    logger.info( (log_final_template % parts).encode('utf-8') )
+    od = OrderedDict([
+        (k, v) for k, v in [
+            ('elapsed', parts['elapsed']),
+            ('req', parts['reqid']),
+            ('scheme', web.ctx.protocol),
+            ('host', web.ctx.host),
+            ('status', web.ctx.status),
+            ('method', web.ctx.method),
+            ('path', web.ctx.env['REQUEST_URI']),
+            ('range', web.ctx.ermrest_request_content_range),
+            ('type', web.ctx.ermrest_content_type),
+            ('client', parts['client_ip']),
+            ('user', parts['client_identity_obj']),
+            ('referrer', web.ctx.env.get('HTTP_REFERER')),
+            ('agent', web.ctx.env.get('HTTP_USER_AGENT')),
+        ]
+        if v
+    ])
+    logger.info( json.dumps(od, separators=(', ', ':')).encode('utf-8') )
 
 def web_method():
     """Wrap ERMrest request handler methods with common logic.
