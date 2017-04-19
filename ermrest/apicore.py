@@ -248,6 +248,7 @@ def request_final():
             ('user', parts['client_identity_obj']),
             ('referrer', web.ctx.env.get('HTTP_REFERER')),
             ('agent', web.ctx.env.get('HTTP_USER_AGENT')),
+            ('session', web.ctx.webauthn2_context.session),
         ]
         if v
     ])
