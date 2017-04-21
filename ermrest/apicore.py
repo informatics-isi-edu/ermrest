@@ -249,6 +249,7 @@ def request_final():
             ('referrer', web.ctx.env.get('HTTP_REFERER')),
             ('agent', web.ctx.env.get('HTTP_USER_AGENT')),
             ('session', web.ctx.webauthn2_context.session),
+            ('track', web.ctx.webauthn2_context.tracking),
         ]
         if v
     ])
