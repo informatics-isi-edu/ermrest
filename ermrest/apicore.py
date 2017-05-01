@@ -233,6 +233,11 @@ def request_final():
                 'ERMrest DB conn LEAK averted in request_final()!?'
             )
             web.ctx.ermrest_catalog_pc.final()
+    session = web.ctx.webauthn2_context.session
+    if session is None or isinstance(session, dict):
+        pass
+    else:
+        session = session.to_dict()
     od = OrderedDict([
         (k, v) for k, v in [
             ('elapsed', parts['elapsed']),
@@ -248,7 +253,7 @@ def request_final():
             ('user', parts['client_identity_obj']),
             ('referrer', web.ctx.env.get('HTTP_REFERER')),
             ('agent', web.ctx.env.get('HTTP_USER_AGENT')),
-            ('session', web.ctx.webauthn2_context.session),
+            ('session', session),
             ('track', web.ctx.webauthn2_context.tracking),
         ]
         if v
