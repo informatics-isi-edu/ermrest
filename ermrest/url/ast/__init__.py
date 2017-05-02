@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -95,3 +95,18 @@ class Aggregate (Name):
     def __repr__(self):
         return '<ermrest.url.ast.aggregate %s %s>' % (str(self.aggfunc), Name.__str__(self))
 
+class Binning (Name):
+    """Represent a binning function used as an attribute."""
+
+    def __init__(self, name, nbins=25, minv=None, maxv=None):
+        Name.__init__(self, name.nameparts)
+        if nbins is not None:
+            try:
+                self.nbins = nbins
+            except ValueError:
+                raise exception.BadSyntax('Value "%s" is not a valid decimal integer number of bins.' % self.nbins)
+        self.minv = minv
+        self.maxv = maxv
+
+    def __str__(self):
+        return 'bin(%s)' % (';'.join([Name.__str__(self), str(self.nbins), str(self.minv), str(self.maxv)]))

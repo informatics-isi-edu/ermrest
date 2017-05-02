@@ -89,6 +89,28 @@ The _path_ is interpreted slightly differently than in the `attribute` resource 
 
 The _group key_ list elements use the same notation as the _column reference_ elements in the `attribute` resource space. The _aggregate_ list elements use the same notation as the _aggregate_ elements in the `aggregate` resource space or the _column reference_ elements in the `attribute` resource space. An _aggregate_ using _column reference_ notation denotes an example value chosen from an arbitrary member of each group.
 
+## Attribute Binning
+
+In order to group numerical values into bins, e.g. for histogram presentation, a special *binning* operator is allowed in attribute or group key projections in place of a bare column reference:
+
+- `bin(` _column name_ `;` _nbins_ `;` _minval_ `;` _maxval_ `)`
+- `bin(` _in alias_ `:` _column name_ `;` _nbins_ `;` _minval_ `;` _maxval_ `)`
+
+The binning operator determines which bucket the value in _column name_ belongs to, dividing the requested range from _minval_ (inclusive) to _maxval_ (exclusive) into _nbins_ equal-width intervals. The result is always a three-element JSON array `[` _bucket_ `,` _lower_ `,` _upper_ `]` describing the bucket.
+
+- _bucket_: The bin number which the value falls into.
+    - `null`: The `null` bin captures all NULL values.
+	- 0: The zero bin captures all values below the requested range.
+    - 1: The first bin in the requested range.
+	- _nbins_: The last bin in the requested range.
+	- _bins_ + 1: The final bin captures all values above the requested range.
+- _lower_: The lower bound (inclusive) of the bin, or `null`.
+- _upper_: The upper bound (exclusive) of the bin, or `null`.
+
+If the client does not wish to consider NULL or out-of-range values, they MAY include an appropriate filter to exclude those rows from the query.
+
+A useful idiom is to use binning as a group-key in the `attributegroup` API with `cnt(*)` to count all matching rows within each bin. The results will be sparse: only bins with a non-zero row count will appear as grouped output rows. The sort modifier MAY be applied to the binning group key.
+
 ## Data Paths
 
 ERMrest introduces a general path-based syntax for naming data resources with idioms for navigation and filtering of entity sets. The _path_ element of the data resource name always denotes a set of entities or joined entities.  The path must be interpreted from left to right in order to understand its meaning. The denoted entity set is understood upon reaching the right-most element of the path and may be modified by the resource space or _api_ under which the path occurs.

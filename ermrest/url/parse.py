@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2016 University of Southern California
+# Copyright 2010-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -339,12 +339,27 @@ def p_attrlist1_grow(p):
 
 def p_attrcore(p):
     """attrcore : sname
-                | aggfunc"""
+                | aggfunc
+                | binfunc"""
     p[0] = p[1]
 
 def p_attrcore_agg(p):
     """aggfunc : string '(' sname ')'"""
     p[0] = ast.Aggregate(p[1], p[3])
+
+# TODO: uncomment if we implement automatic binning modes
+
+#def p_attrcore_bin_0(p):
+#    """binfunc : BIN '(' sname ')'"""
+#    p[0] = ast.Binning(p[3])
+
+#def p_binfunc_1(p):
+#    """binfunc : BIN '(' sname ';' expr ')'"""
+#    p[0] = ast.Binning(p[3], nbins=p[5])
+
+def p_binfunc_3(p):
+    """binfunc : BIN '(' sname ';' expr ';' expr ';' expr ')'"""
+    p[0] = ast.Binning(p[3], nbins=p[5], minv=p[7], maxv=p[9])
 
 def p_leafattritem(p):
     """leafattritem : attrcore"""
@@ -355,11 +370,13 @@ def p_leafattritem_aliased(p):
     p[0] = p[3].set_alias(p[1])
 
 def p_attritem(p):
-    """attritem : sname"""
+    """attritem : sname
+                | binfunc"""
     p[0] = p[1]
 
 def p_attritem_aliased(p):
-    """attritem : string ASSIGN sname"""
+    """attritem : string ASSIGN sname
+                | string ASSIGN binfunc"""
     p[0] = p[3].set_alias(p[1])
 
 def p_snamelist1(p):

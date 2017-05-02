@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1226,7 +1226,30 @@ class AttributePath (AnyPath):
             else:
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
 
-            if hasattr(col, 'sql_name_with_talias'):
+            if hasattr(attribute, 'nbins'):
+                if col.type.name not in {'int2', 'int4', 'int8', 'float', 'float4', 'float8', 'numeric', 'serial2', 'serial4', 'serial8'}:
+                    raise ConflictModel('Binning not supported on column type %s.' % col.type)
+
+                parts = {
+                    'talias': alias,
+                    'col':   col.sql_name(),
+                    'nbins': sql_literal(attribute.nbins),
+                    'minv':  col.type.sql_literal(str(attribute.minv)),
+                    'maxv':  col.type.sql_literal(str(attribute.maxv)),
+                }
+                parts['bucket'] = 'width_bucket(%(talias)s.%(col)s, %(minv)s, %(maxv)s, %(nbins)s::int)' % parts
+                select = """
+CASE
+  WHEN %(bucket)s IS NULL
+    THEN jsonb_build_array(NULL, NULL, NULL)
+  WHEN %(bucket)s < 1::int
+    THEN jsonb_build_array(%(bucket)s, NULL, %(minv)s)
+  WHEN %(bucket)s > %(nbins)s::int
+    THEN jsonb_build_array(%(bucket)s, %(maxv)s, NULL)
+  ELSE   jsonb_build_array(%(bucket)s, %(minv)s + (%(maxv)s - %(minv)s) * (%(bucket)s - 1), %(minv)s + (%(maxv)s - %(minv)s) * %(bucket)s)
+END
+""" % parts
+            elif hasattr(col, 'sql_name_with_talias'):
                 select = col.sql_name_with_talias(alias, output=True)
             else:
                 select = "%s.%s" % (alias, col.sql_name())
@@ -1537,6 +1560,9 @@ GROUP BY %(groupkeys)s
         for attribute, col, base in self.attributes:
             if hasattr(attribute, 'aggfunc'):
                 raise BadSyntax('Aggregated column %s not allowed in PUT.' % attribute)
+
+            if hasattr(attribute, 'nbins'):
+                raise BadSyntax('Binning of column %s not allowed in PUT.' % attribute)
 
             if col in nmkcols:
                 raise BadSyntax('Update column %s cannot be bound more than once.' % col)

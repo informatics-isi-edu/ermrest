@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,6 +47,8 @@ def _preprocess_attributes(epath, attributes):
 
         if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
             # expand '*' wildcard sugar as if user referenced each column
+            if hasattr(attribute, 'nbins'):
+                raise exception.BadSyntax('Wildcard column %s does not support binning.' % attribute)
             if attribute.alias is not None:
                 raise exception.BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
             if base == epath:
