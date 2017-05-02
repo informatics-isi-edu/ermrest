@@ -170,11 +170,10 @@ def request_trace(tracedata):
        tracedata: a string representation of trace event data
     """
     parts = log_parts()
-    if isinstance(tracedata, Exception):
-        data = u'%s' % tracedata
-    else:
-        data = tracedata
-        
+    try:
+        data = unicode(tracedata)
+    except UnicodeDecodeError:
+        data = str(tracedata).decode('utf-8')
     od = OrderedDict([
         (k, v) for k, v in [
             ('elapsed', parts['elapsed']),
