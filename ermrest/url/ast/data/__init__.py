@@ -47,6 +47,8 @@ def _preprocess_attributes(epath, attributes):
 
         if col.is_star_column() and not hasattr(attribute, 'aggfunc'):
             # expand '*' wildcard sugar as if user referenced each column
+            if hasattr(attribute, 'nbins'):
+                raise exception.BadSyntax('Wildcard column %s does not support binning.' % attribute)
             if attribute.alias is not None:
                 raise exception.BadSyntax('Wildcard column %s cannot be given an alias.' % attribute)
             if base == epath:

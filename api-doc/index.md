@@ -87,6 +87,11 @@ The [data resources](data/naming.md) make use of a model-driven language for den
   1. [Disjunctive Filter](data/naming.md#disjunctive-filter)
   1. [Conjunctive Normal Form](data/naming.md#conjunctive-normal-form)
   1. [Disjunctive Normal Form](data/naming.md#disjunctive-normal-form)
+1. Data Projection
+  1. [Attribute Projection](data/naming.md#attribute-names)
+  1. [Aggregate Projection](data/naming.md#aggregate-names)
+  1. [Grouped Attribute Projection](data/naming.md#attribute-group-names)
+  1. [Attribute Binning](data/naming.md#attribute-binning) i.e. for histograms
 1. [Sort Modifer](data/naming.md#sort-modifier)
 1. [Paging Modifiers](data/naming.md#paging-modifiers)
   1. [Before Modifier](data/naming.md#before-modifier)
