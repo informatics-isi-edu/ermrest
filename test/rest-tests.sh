@@ -329,7 +329,23 @@ EOF
 dotest "201::*::*" /catalog/${cid}/schema -T ${TEST_DATA} -X POST -H "Content-Type: application/json"
 dotest "409::*::*" /catalog/${cid}/schema -T ${TEST_DATA} -X POST -H "Content-Type: application/json"
 
-
+# test default require_primary_keys: true config behavior
+cat > ${TEST_DATA} <<EOF
+{
+   "kind": "table",
+   "schema_name": "test1",
+   "table_name": "test_nopkey",
+   "column_definitions": [
+      { "type": { "typename": "int8" }, "name": "key1" },
+      { "type": { "typename": "text" }, "name": "key2" }
+   ],
+   "keys": [
+      { "unique_columns": [ "key1" ] },
+      { "unique_columns": [ "key2" ] }
+   ]
+}
+EOF
+dotest "400::*::*" /catalog/${cid}/schema/test1/table -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 
 # sanity-check table with only key material
 cat > ${TEST_DATA} <<EOF
@@ -338,7 +354,7 @@ cat > ${TEST_DATA} <<EOF
    "schema_name": "test1",
    "table_name": "test_keyonly",
    "column_definitions": [
-      { "type": { "typename": "int8" }, "name": "key1" },
+      { "type": { "typename": "int8" }, "name": "key1", "nullok": false },
       { "type": { "typename": "text" }, "name": "key2" }
    ],
    "keys": [
@@ -414,23 +430,50 @@ cvals=(
     '{"foo":"bar"}'
 )
 
+cvals2=(
+    False
+    2.0
+    2.0
+    2
+    2
+    2
+    two
+    twotwotwo
+    '**two**'
+    '2025-03-21T11:32:57-0000'
+    '2025-03-21T11:32:57'
+    '22:32:57-0000'
+    '22:32:57'
+    '2025-03-24'
+    '2648a44e-c82d-22e4-b6d7-00222930f5c2'
+    'P2Y2M3DT4H5M6S'
+    2
+    2
+    2
+    '{"f2oo":"bar2"}'
+)
+
 for typeno in "${!ctypes[@]}"
 do
     ctype="${ctypes[$typeno]}"
     cval="${cvals[$typeno]}"
+    cval2="${cvals2[$typeno]}"
 
     # apply escaping in limited form to cover cvals array above
     cval_uri=$(sed -e 's/:/%3A/g' -e 's/"/%22/g' -e 's/{/%7B/g' -e 's/}/%7D/g' <<<"${cval}")
     cval_array=$(sed -e 's/"/\\"/g' <<<"${cval}")
     cval_array="{\"${cval_array}\",\"${cval_array}\"}"
     cval_csv="\"$(sed -e 's/"/""/g' <<<"${cval}")\""
+    cval2_csv="\"$(sed -e 's/"/""/g' <<<"${cval2}")\""
     cval_array_csv="\"$(sed -e 's/"/""/g' <<<"${cval_array}")\""
     case "$ctype" in
 	jsonb|float*|int?|serial*)
 	    cval_json="${cval}"
+	    cval2_json="${cval2}"
 	    ;;
 	*)
 	    cval_json="\"${cval}\""
+	    cval2_json="\"${cval2}\""
 	    ;;
     esac
     
@@ -448,7 +491,7 @@ do
    "schema_name": "test1",
    "table_name": "test_ctype_${ctype}",
    "column_definitions": [ 
-      { "type": { "typename": "${ctype}" }, "name": "column1" },
+      { "type": { "typename": "${ctype}" }, "name": "column1", "nullok": false },
       { "type": { "typename": "text" }, "name": "column2" },
       { "type": ${col3_type}, "name": "column3" }
    ],
@@ -500,13 +543,13 @@ EOF
 	# test insertion of rows with array data
 	cat > ${TEST_DATA} <<EOF
 column1,column2,column3
-${cval_csv},value1,
-,value2,${cval_array_csv}
+${cval_csv},value1,${cval_array_csv}
+${cval2_csv},value2,${cval_array_csv}
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: text/csv" -T ${TEST_DATA} -X POST
 
 	cat > ${TEST_DATA} <<EOF
-[{"column1": ${cval_json}, "column2": "value1", "column3": null}, {"column2": "value2", "column3": [${cval_json}, ${cval_json}]}]
+[{"column1": ${cval_json}, "column2": "value1", "column3": null}, {"column1": ${cval2_json}, "column2": "value2", "column3": [${cval_json}, ${cval_json}]}]
 EOF
 	dotest "200::*::*" "/catalog/${cid}/entity/test1:test_ctype_${ctype}" -H "Content-Type: application/json" -T ${TEST_DATA}
 
@@ -572,7 +615,7 @@ do
    "schema_name": "test1",
    "table_name": "test_etype_${etype}",
    "column_definitions": [ 
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
       { "type": { "typename": "text" }, "name": "name" },
       { "type": { "typename": "${etype}" }, "name": "payload" }
    ],
@@ -643,7 +686,7 @@ cat > ${TEST_DATA} <<EOF
    "schema_name": "test1",
    "table_name": "test_level1",
    "column_definitions": [ 
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
       { "type": { "typename": "text" }, "name": "name" }
    ],
    "keys": [ { "unique_columns": [ "id" ] } ]
@@ -783,11 +826,11 @@ cat > ${TEST_DATA} <<EOF
    "schema_name": "test1",
    "table_name": "test_level2",
    "column_definitions": [ 
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} },
       { "type": { "typename": "int8" }, "name": "level1_id"},
       { "type": { "typename": "text" }, "name": "name" }
    ],
-   "keys": [ { "unique_columns": [ "id" ] } ],
+   "keys": [ { "unique_columns": [ "id" ], "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} } ],
    "foreign_keys": [
       { 
         "foreign_key_columns": [{"schema_name": "test1", "table_name": "test_level2", "column_name": "level1_id"}],
@@ -807,13 +850,13 @@ cat > ${TEST_DATA} <<EOF
    "schema_name": "test1",
    "table_name": "test_composite2",
    "column_definitions": [ 
-      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} },
       { "type": { "typename": "timestamptz" }, "name": "last_update" },
       { "type": { "typename": "text" }, "name": "name", "nullok": true },
       { "type": { "typename": "int8" }, "name": "site", "nullok": false }
    ],
    "keys": [ 
-      { "unique_columns": [ "id", "site" ] } 
+      { "unique_columns": [ "id", "site" ], "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} } 
    ],
    "foreign_keys": [
       { 
@@ -839,7 +882,7 @@ dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2
 dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/column/name -X DELETE
 
 cat > ${TEST_DATA} <<EOF
-{ "type": { "typename": "text" }, "name": "name", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }
+{ "type": { "typename": "text" }, "name": "name", "nullok": false, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }
 EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/column -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/column/name
@@ -847,14 +890,17 @@ dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2
 # key API tests
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
-dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id -X DELETE
-dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
-
+cat > ${TEST_DATA} <<EOF
+{ "unique_columns": [ "name" ], "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }
+EOF
+dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/key -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
+dotest "204::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/name -X DELETE
+dotest "404::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/name
+dotest "409::*::*" /catalog/${cid}/schema/test1/table/test_level2/key/id -X DELETE # w/ config require_primary_keys: true
 cat > ${TEST_DATA} <<EOF
 { "unique_columns": [ "id" ], "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }
 EOF
 dotest "201::*::*" /catalog/${cid}/schema/test1/table/test_level2/key -H "Content-Type: application/json" -T ${TEST_DATA} -X POST
-dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/key/id
 
 # foreign key API tests
 dotest "200::application/json::*" /catalog/${cid}/schema/test1/table/test_level2/foreignkey
@@ -927,7 +973,7 @@ cat > ${TEST_DATA} <<EOF
    "schema_name": "test1",
    "table_name": "test_level2b",
    "column_definitions": [
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
       { "type": { "typename": "int8" }, "name": "level1_id1"},
       { "type": { "typename": "int8" }, "name": "level1_id2"},
       { "type": { "typename": "text" }, "name": "name" }
@@ -1025,7 +1071,7 @@ cat > ${TEST_DATA} <<EOF
    "table_name": "test_comments",
    "comment": "TABLE1",
    "column_definitions": [ 
-      { "type": { "typename": "int8" }, "name": "id", "comment": "COLUMN1" },
+      { "type": { "typename": "int8" }, "name": "id", "comment": "COLUMN1", "nullok": false },
       { "type": { "typename": "int8" }, "name": "level1_id", "comment": "COLUMN2" },
       { "type": { "typename": "text" }, "name": "name", "comment": "COLUMN3" },
       { "type": { "typename": "int8" }, "name": "level1_id2", "comment": "COLUMN4" }
@@ -1242,7 +1288,7 @@ cat > ${TEST_DATA} <<EOF
    "schema_name": "ɐɯǝɥɔs%",
    "table_name": "ǝlqɐʇ%",
    "column_definitions": [ 
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
       { "type": { "typename": "text" }, "name": "ǝɯɐu%" }
    ],
    "keys": [ { "unique_columns": [ "id" ] } ]
@@ -1373,7 +1419,7 @@ dokeynamestest()
    "schema_name": "test1",
    "table_name": "test_level2c",
    "column_definitions": [
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
       { "type": { "typename": "int8" }, "name": "level1_id1"},
       { "type": { "typename": "text" }, "name": "name" }
    ],
@@ -1406,7 +1452,7 @@ dofkrnamestest()
    "schema_name": "test1",
    "table_name": "test_level2c",
    "column_definitions": [
-      { "type": { "typename": "int8" }, "name": "id" },
+      { "type": { "typename": "int8" }, "name": "id", "nullok": false },
       { "type": { "typename": "int8" }, "name": "level1_id1"},
       { "type": { "typename": "text" }, "name": "name" }
    ],
@@ -1441,7 +1487,7 @@ cat > ${TEST_DATA} <<EOF
    "schema_name": "test1",
    "table_name": "pagedata",
    "column_definitions": [ 
-      { "type": { "typename": "serial4" }, "name": "id" },
+      { "type": { "typename": "serial4" }, "name": "id", "nullok": false },
       { "type": { "typename": "text" }, "name": "name" },
       { "type": { "typename": "int4" }, "name": "value" }
    ],

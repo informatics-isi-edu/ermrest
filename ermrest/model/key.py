@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
 from .misc import frozendict, AltDict, annotatable, commentable
 
+import web
 import json
 
 @annotatable('key', dict(
@@ -84,6 +85,14 @@ SELECT _ermrest.model_change_event();
             ('CONSTRAINT %s' % sql_identifier(self.constraint_name[1]) if self.constraint_name else ''),
             ','.join([sql_identifier(c.name) for c in self.columns]),
         )
+
+    def is_primary_key(self):
+        if not self.columns:
+            return False
+        for col in self.columns:
+            if col.nullok:
+                return False
+        return True
 
     def _column_names(self):
         """Canonicalized column names list."""
@@ -159,6 +168,9 @@ SELECT _ermrest.model_change_event();
         for pk in self.constraints:
             if pk != self:
                 pk.delete(conn, cur)
+        del self.table.uniques[self.columns]
+        if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
+            raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
         
     def prejson(self):
         return dict(
@@ -272,7 +284,9 @@ SELECT _ermrest.model_change_event();
         for pk in self.constraints:
             if pk != self:
                 pk.delete(conn, cur)
-        
+        del self.table.uniques[self.columns]
+        if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
+            raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
 
 class ForeignKey (object):
     """A foreign key."""

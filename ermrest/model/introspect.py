@@ -432,6 +432,9 @@ FROM _ermrest.model_pseudo_keyref ;
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
+
+    if config.get('require_primary_keys', True):
+        model.require_primary_keys()
     
     if not table_exists(cur, '_ermrest', 'valuemap'):
         # rebuild missing table and add it to model manually since we already introspected

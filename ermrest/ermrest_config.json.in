@@ -58,6 +58,7 @@
 	    "routing_key": ""
 	}
     },
-    
+
+    "require_primary_keys": true,
     "default_limit" : 100
 }
