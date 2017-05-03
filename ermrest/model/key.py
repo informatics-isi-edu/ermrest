@@ -229,6 +229,14 @@ SELECT _ermrest.model_change_event();
             if pk != self:
                 pk.set_comment(conn, cur, comment)
  
+    def is_primary_key(self):
+        if not self.columns:
+            return False
+        for col in self.columns:
+            if col.nullok:
+                return False
+        return True
+
     def _column_names(self):
         """Canonicalized column names list."""
         cnames = [ unicode(col.name) for col in self.columns ]
