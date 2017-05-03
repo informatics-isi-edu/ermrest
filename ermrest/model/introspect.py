@@ -146,6 +146,16 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
+
+    PSEUDO_NOT_NULL_COLUMNS = '''
+SELECT
+  id AS nn_id,
+  current_database() AS table_catalog,
+  schema_name AS nn_table_schema,
+  table_name AS nn_table_name,
+  column_name AS nn_column_name
+FROM _ermrest.model_pseudo_notnull ;
+'''
     
     # Select the unique key reference columns
     PKEY_COLUMNS = '''
@@ -301,6 +311,13 @@ FROM _ermrest.model_pseudo_keyref ;
             schemas[(dname, sname)] = Schema(model, sname)
         assert (dname, sname, tname) not in tables
         tables[(dname, sname, tname)] = Table(schemas[(dname, sname)], tname, cols, tkind, tcomment)
+
+    # Introspect psuedo not-null constraints
+    cur.execute(PSEUDO_NOT_NULL_COLUMNS)
+    for nn_id, dname, sname, tname, cname in cur:
+        # skip if column is not found due to orphaned psuedo not-null entry...
+        if (dname, sname, tname, cname) in columns:
+            columns[(dname, sname, tname, cname)].nullok = False
 
     # also get empty tables
     cur.execute(SELECT_TABLES)

@@ -317,6 +317,17 @@ CREATE TABLE _ermrest.model_pseudo_key (
 );
 """)
             
+        if not table_exists(cur, self._SCHEMA_NAME, 'model_pseudo_notnull'):
+            cur.execute("""
+CREATE TABLE _ermrest.model_pseudo_notnull (
+  id serial PRIMARY KEY,
+  schema_name text NOT NULL,
+  table_name text NOT NULL,
+  column_name text NOT NULL,
+  UNIQUE(schema_name, table_name, column_name)
+);
+""")
+
         if not table_exists(cur, self._SCHEMA_NAME, 'model_pseudo_keyref'):
             cur.execute("""
 CREATE TABLE _ermrest.model_pseudo_keyref (

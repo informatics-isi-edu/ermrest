@@ -216,6 +216,14 @@ CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE A
   SELECT \$1::text;
 \$\$ LANGUAGE SQL;
 
+CREATE TABLE IF NOT EXISTS _ermrest.model_pseudo_notnull (
+  id serial PRIMARY KEY,
+  schema_name text NOT NULL,
+  table_name text NOT NULL,
+  column_name text NOT NULL,
+  UNIQUE(schema_name, table_name, column_name)
+);
+
 COMMIT;
 
 BEGIN;
