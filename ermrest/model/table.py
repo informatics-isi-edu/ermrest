@@ -120,6 +120,16 @@ class Table (object):
         cols.sort(key=lambda c: c.position)
         return cols
 
+    def has_primary_key(self):
+        for k in self.uniques.values():
+            if k.is_primary_key():
+                return True
+        return False
+
+    def require_primary_keys(self):
+        if not self.has_primary_key():
+            raise exception.rest.RuntimeError('Table %s lacks primary key. Contact ERMrest administrator.' % self)
+
     def writable_kind(self):
         """Return true if table is writable in SQL.
 
@@ -191,7 +201,11 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             for fkr in table.add_fkeyref(conn, cur, fkeydoc):
                 # need to drain this generating function
                 pass
-        
+
+        if ermrest_config.get('require_primary_keys', True):
+            if not table.has_primary_key():
+                raise exception.BadData('Table definitions require at least one not-null key constraint.')
+
         for k, v in annotations.items():
             table.set_annotation(conn, cur, k, v)
 

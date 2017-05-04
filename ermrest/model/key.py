@@ -19,6 +19,7 @@ from ..util import sql_identifier, sql_literal, constraint_exists
 from .misc import frozendict, AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
 from .name import _keyref_join_str, _keyref_join_sql
 
+import web
 import json
 
 @annotatable
@@ -94,6 +95,14 @@ SELECT _ermrest.model_change_event();
             ('CONSTRAINT %s' % sql_identifier(self.constraint_name[1]) if self.constraint_name else ''),
             ','.join([sql_identifier(c.name) for c in self.columns]),
         )
+
+    def is_primary_key(self):
+        if not self.columns:
+            return False
+        for col in self.columns:
+            if col.nullok:
+                return False
+        return True
 
     def _column_names(self):
         """Canonicalized column names list."""
@@ -171,6 +180,9 @@ SELECT _ermrest.model_change_event();
         for pk in self.constraints:
             if pk != self:
                 pk.delete(conn, cur)
+        del self.table.uniques[self.columns]
+        if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
+            raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
         
     def prejson(self):
         return dict(
@@ -243,6 +255,14 @@ SELECT _ermrest.model_change_event();
             if pk != self:
                 pk.set_comment(conn, cur, comment)
  
+    def is_primary_key(self):
+        if not self.columns:
+            return False
+        for col in self.columns:
+            if col.nullok:
+                return False
+        return True
+
     def _column_names(self):
         """Canonicalized column names list."""
         cnames = [ unicode(col.name) for col in self.columns ]
@@ -300,6 +320,9 @@ SELECT _ermrest.model_change_event();
         for pk in self.constraints:
             if pk != self:
                 pk.delete(conn, cur)
+        del self.table.uniques[self.columns]
+        if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
+            raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
 
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'

@@ -63,7 +63,11 @@ class Model (object):
         if self.has_right('owner'):
             doc['acls'] = self.acls
         return doc
-        
+
+    def require_primary_keys(self):
+        for schema in self.schemas.values():
+            schema.require_primary_keys()
+
     def lookup_table(self, tname):
         """Lookup an unqualified table name if and only if it is unambiguous across schemas."""
         tables = set()
@@ -199,6 +203,10 @@ class Schema (object):
         if self.has_right('owner'):
             doc['acls'] = self.acls
         return doc
+
+    def require_primary_keys(self):
+        for table in self.tables.values():
+            table.require_primary_keys()
 
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""
