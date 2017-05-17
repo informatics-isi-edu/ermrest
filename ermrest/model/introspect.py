@@ -433,8 +433,7 @@ FROM _ermrest.model_pseudo_keyref ;
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
 
-    if config.get('require_primary_keys', True):
-        model.require_primary_keys()
+    model.check_primary_keys(config.get('require_primary_keys', True))
     
     if not table_exists(cur, '_ermrest', 'valuemap'):
         # rebuild missing table and add it to model manually since we already introspected

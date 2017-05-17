@@ -44,9 +44,9 @@ class Model (object):
                     ])
             )
 
-    def require_primary_keys(self):
+    def check_primary_keys(self, require):
         for schema in self.schemas.values():
-            schema.require_primary_keys()
+            schema.check_primary_keys(require)
 
     def lookup_table(self, tname):
         """Lookup an unqualified table name if and only if it is unambiguous across schemas."""
@@ -180,9 +180,9 @@ class Schema (object):
                     ])
             )
 
-    def require_primary_keys(self):
+    def check_primary_keys(self, require):
         for table in self.tables.values():
-            table.require_primary_keys()
+            table.check_primary_keys(require)
 
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""

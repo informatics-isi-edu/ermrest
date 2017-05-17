@@ -89,9 +89,12 @@ class Table (object):
                 return True
         return False
 
-    def require_primary_keys(self):
+    def check_primary_keys(self, require):
         if not self.has_primary_key():
-            raise exception.rest.RuntimeError('Table %s lacks primary key. Contact ERMrest administrator.' % self)
+            if require:
+                raise exception.rest.RuntimeError('Table %s lacks primary key. Contact ERMrest administrator.' % self)
+            else:
+                web.debug('WARNING: Table %s lacks primary key.' % self)
 
     def writable_kind(self):
         """Return true if table is writable in SQL.
