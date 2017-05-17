@@ -455,8 +455,7 @@ SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
 
-    if config.get('require_primary_keys', True):
-        model.require_primary_keys()
+    model.check_primary_keys(config.get('require_primary_keys', True))
 
     return model
 
