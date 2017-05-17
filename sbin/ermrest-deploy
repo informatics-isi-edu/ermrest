@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS _ermrest.model_pseudo_notnull (
   column_name text NOT NULL,
   UNIQUE(schema_name, table_name, column_name)
 );
+ALTER TABLE _ermrest.model_pseudo_notnull OWNER TO ermrest;
 
 COMMIT;
 
