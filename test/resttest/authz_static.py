@@ -17,6 +17,7 @@ def setUpModule():
 #  select: ['*']
 #  else: []
 
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class Authz (common.ErmrestTest):
     # authz tests will use secondary_session to drop implicit ownership-based rights
     session = common.secondary_session
