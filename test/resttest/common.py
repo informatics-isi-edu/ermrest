@@ -83,10 +83,11 @@ class TestSession (requests.Session):
                 )
 
         if reportname:
-            dump_cookies(
-                self.cookies,
-                ('Created %s' + (' with cookies %s:\n' % cookiefilename if cookiefilename else '\n')) % reportname
-            )
+            preamble = ('Created %s' + (' with cookies %s:\n' % cookiefilename if cookiefilename else '\n')) % reportname
+            if False:
+                dump_cookies(self.cookies, preamble)
+            else:
+                sys.stderr.write(preamble)
 
     def _path2url(self, path):
         if path == '' or path[0] != '/':
