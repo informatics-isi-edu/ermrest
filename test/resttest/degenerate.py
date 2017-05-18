@@ -20,7 +20,8 @@ class LongIdentifiers (common.ErmrestTest):
                             "column_definitions": [
                                 {
                                     "name": "id",
-                                    "type": {"typename": "text"}
+                                    "type": {"typename": "text"},
+                                    "nullok": False
                                 },
                                 {
                                     "name": cname,
@@ -93,7 +94,7 @@ class KeysOnly (common.ErmrestTest):
         "schema_name": _schema,
         "table_name": _table,
         "column_definitions": [
-            { "type": { "typename": "int8" }, "name": "key1" },
+            { "type": { "typename": "int8" }, "name": "key1", "nullok": False },
             { "type": { "typename": "text" }, "name": "key2" }
         ],
         "keys": [
@@ -160,7 +161,7 @@ class Unicode (common.ErmrestTest):
             "schema_name": sname,
             "table_name": tname,
             "column_definitions": [
-                {"type": {"typename": "int8"}, "name": "id"},
+                {"type": {"typename": "int8"}, "name": "id", "nullok": False},
                 {"type": {"typename": "text"}, "name": cname}
             ],
             "keys": [

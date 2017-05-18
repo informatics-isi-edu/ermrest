@@ -57,7 +57,7 @@ class EtypeJson (common.ErmrestTest):
             "schema_name": _schema,
             "table_name": cls._table_name(),
             "column_definitions": [ 
-                { "type": { "typename": "int8" }, "name": "id" },
+                { "type": { "typename": "int8" }, "name": "id", "nullok": False },
                 { "type": { "typename": "text" }, "name": "name" },
                 { "type": { "typename": cls.etype }, "name": "payload" }
             ],
@@ -125,17 +125,18 @@ class CtypeText (common.ErmrestTest):
             "schema_name": _schema,
             "table_name": self._table_name(),
             "column_definitions": [
+                {"type": {"typename": "serial"}, "name": "sid", "nullok": False},
                 {"type": {"typename": self.ctype}, "name": "column1"},
                 {"type": {"typename": "text"}, "name": "column2"},
                 {"type": {"typename": "%s[]" % self.ctype, "is_array": True, "base_type": {"typename": self.ctype}}, "name": "column3"}
             ],
-            "keys": [ {"unique_columns": ["column1"]} ]
+            "keys": [ {"unique_columns": ["sid"]}, {"unique_columns": ["column1"]} ]
         }
     
     def _data(self):
         return [
-            {"column1": self.cval, "column2": "value1", "column3": None}, 
-            {"column1": None, "column2": "value2", "column3": [self.cval, self.cval]} 
+            {"sid": 1, "column1": self.cval, "column2": "value1", "column3": None}, 
+            {"sid": 2, "column1": None, "column2": "value2", "column3": [self.cval, self.cval]} 
         ]
     
     def test_01_create(self):
@@ -148,7 +149,7 @@ class CtypeText (common.ErmrestTest):
         r = self.session.get('schema/%s/table/%s' % (_schema, self._table_name()))
         self.assertHttp(r, 200, 'application/json')
         doc = r.json()
-        self.assertEqual(doc['column_definitions'][0]['type']['typename'], self.ctype)
+        self.assertEqual(doc['column_definitions'][1]['type']['typename'], self.ctype)
 
     def test_04_load(self):
         self.assertHttp(
@@ -197,8 +198,8 @@ class CtypeJsonb (CtypeText):
         # override because we don't want to deal w/ test suite limitations
         # SQL NULL vs JSON null vs empty string for JSON vs CSV inputs
         return [
-            {"column1": self.cval, "column2": "value1", "column3": None}, 
-            {"column1": 5, "column2": "value2", "column3": [self.cval, self.cval]} 
+            {"sid": 1, "column1": self.cval, "column2": "value1", "column3": None}, 
+            {"sid": 2, "column1": 5, "column2": "value2", "column3": [self.cval, self.cval]} 
         ]
 
 class CtypeFloat4 (CtypeText):
@@ -252,16 +253,16 @@ class CtypeSerial2 (CtypeInt2):
     def _table_def(self):
         """Don't make arrays of this type."""
         doc = CtypeInt2._table_def(self)
-        doc['column_definitions'][2] = {"type": {"typename": self.ctype}, "name": "column3"}
+        doc['column_definitions'][3] = {"type": {"typename": self.ctype}, "name": "column3"}
         return doc
 
     def _data(self):
         """Don't make arrays of this type."""
         return [
-            { "column1": None, "column2": "value1", "column3": self.cval },
-            { "column1": None, "column2": "value1", "column3": self.cval },
-            { "column1": None, "column2": "value2", "column3": self.cval },
-            { "column1": None, "column2": "value2", "column3": self.cval },
+            {"sid": 1, "column1": None, "column2": "value1", "column3": self.cval },
+            {"sid": 2, "column1": None, "column2": "value1", "column3": self.cval },
+            {"sid": 3, "column1": None, "column2": "value2", "column3": self.cval },
+            {"sid": 4, "column1": None, "column2": "value2", "column3": self.cval },
         ]
     
     def test_04_load(self):
@@ -296,7 +297,7 @@ class CtypeLongtext (CtypeText):
     def _table_def(self):
         """Don't make arrays of this type."""
         doc = CtypeText._table_def(self)
-        doc['column_definitions'][2] = {"type": {"typename": self.ctype}, "name": "column3"}
+        doc['column_definitions'][3] = {"type": {"typename": self.ctype}, "name": "column3"}
         return doc
 
     def _data(self):

@@ -24,7 +24,7 @@ def defs(S):
         _T2:{
             "kind": "table",
             "column_definitions": [ 
-                { "type": { "typename": "int8" }, "name": "id" },
+                { "type": { "typename": "int8" }, "name": "id", "nullok": False },
                 { "type": { "typename": "int8" }, "name": "level1_id"},
                 { "type": { "typename": "text" }, "name": "name" }
             ],
@@ -39,7 +39,7 @@ def defs(S):
         _T2b: {
             "kind": "table",
             "column_definitions": [
-                { "type": {"typename": "int8" }, "name": "id", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}},
+                { "type": {"typename": "int8" }, "name": "id", "nullok": False, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}},
                 { "type": {"typename": "int8" }, "name": "level1_id1", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}},
                 { "type": {"typename": "int8" }, "name": "level1_id2", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}},
                 { "type": {"typename": "text" }, "name": "name", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}}
@@ -279,7 +279,7 @@ class ConstraintNameNone (common.ErmrestTest):
                 "schema_name": _S,
                 "table_name": self.table,
                 "column_definitions": [
-                    { "type": { "typename": "int8" }, "name": "id" },
+                    { "type": { "typename": "int8" }, "name": "id", "nullok": False },
                     { "type": { "typename": "int8" }, "name": "level1_id1"},
                     { "type": { "typename": "text" }, "name": "name" }
                 ],

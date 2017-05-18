@@ -11,7 +11,7 @@ _defs = {
                 _T: {
                     "kind": "table",
                     "column_definitions": [ 
-                        { "type": { "typename": "serial4" }, "name": "id" },
+                        { "type": { "typename": "serial4" }, "name": "id", "nullok": False },
                         { "type": { "typename": "text" }, "name": "name" },
                         { "type": { "typename": "int4" }, "name": "value" }
                     ],
