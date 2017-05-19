@@ -398,12 +398,18 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                     authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
                     clauses.append(authzpath.sql_get(limit=1, prefix=alias, enforce_client=False))
 
-            where = ' OR '.join(["(%s)" % clause for clause in clauses ])
-
             if dynauthz:
-                tsql = "(SELECT * FROM %s %s WHERE (%s))" % (tsql, alias or 's', where)
+                tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
+                    tsql,
+                    alias or 's',
+                    ' OR '.join(["(%s)" % clause for clause in clauses ])
+                )
             else:
-                tsql = "(SELECT * FROM %s %s WHERE COALESCE(NOT (%s), True))" % (tsql, alias or 's', where)
+                tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
+                    tsql,
+                    alias or 's',
+                    ' AND '.join(["COALESCE(NOT (%s), True)" % clause for clause in clauses ])
+                )
 
         if alias is not None:
             tsql = "%s AS %s" % (tsql, sql_identifier(alias))
