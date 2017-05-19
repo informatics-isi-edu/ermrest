@@ -263,7 +263,7 @@ class EntityElem (object):
         """
         return [ f.sql_where(self.epath, self, prefix=prefix) for f in self.filters ]
 
-    def sql_table_elem(self, dynauthz=None, prefix=''):
+    def sql_table_elem(self, dynauthz=None, access_type='select', prefix=''):
         """Generate SQL table element representing this entity as part of the epath JOIN.
 
            dynauthz: dynamic authorization mode to compile
@@ -273,7 +273,7 @@ class EntityElem (object):
 
         """
         alias = '%st%d' % (prefix, self.pos)
-        tsql = self.table.sql_name(dynauthz=dynauthz, alias=alias)
+        tsql = self.table.sql_name(dynauthz=dynauthz, access_type=access_type, alias=alias)
         if self.pos == 0:
             return tsql
         else:
@@ -705,6 +705,22 @@ FROM (
                             if not fkr.has_right('update'):
                                 raise rest.Forbidden(u'update access with non-NULL value in column %s' % unicode(c.name))
 
+                    if self.table.has_right('update') is None:
+                        # need to enforce dynamic ACLs
+                        parts2 = dict(parts)
+                        parts2['table'] = self.table.sql_name(dynauthz=False, access_type='update', alias="t")
+                        cur.execute(("""
+SELECT i.*
+FROM %(table)s
+JOIN (
+  SELECT %(icols)s FROM %(input_table)s i
+) i
+ON (%(keymatches)s)
+LIMIT 1""") % parts2
+                        )
+                        if cur.rowcount > 0:
+                            raise Forbidden(u'update access on one or more rows in table %s' % self.table)
+
                     cur.execute(
                         preserialize(("""
 UPDATE %(table)s t SET %(assigns)s FROM (
@@ -1060,7 +1076,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1110,7 +1126,7 @@ WHERE %(pred)s
             for c in shortest_pkey
         ]
 
-        tables = [ elem.sql_table_elem(dynauthz=dynauthz, prefix=prefix) for elem in self._path ]
+        tables = [ elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix) for elem in self._path ]
 
         wheres = []
         for elem in self._path:
@@ -1197,6 +1213,12 @@ WHERE %(keymatches)s
         table.enforce_right('delete')
         if not table.writable_kind():
             raise ConflictModel('Entity %s is not writable.' % table)
+
+        if table.has_right('delete') is None:
+            # need to enforce dynamic ACLs
+            cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.sql_get(dynauthz=False, access_type='delete'))
+            if cur.fetchone():
+                raise Forbidden(u'delete access on one or more matching rows in table %s' % self.table)
         
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         cnt = cur.fetchone()[0]
@@ -1204,9 +1226,6 @@ WHERE %(keymatches)s
             raise NotFound('entities matching request path')
         notify_data_change(cur, table)
         cur.execute(self.sql_delete())
-        if cnt > cur.rowcount:
-            # HACK: assume difference in rowcount is due to row-level security??
-            raise rest.Forbidden('deletion of one or more rows')
 
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
@@ -1292,7 +1311,7 @@ class AttributePath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1397,9 +1416,9 @@ END
 
         if split_sort:
             # let the caller compose the query and the sort clauses
-            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client), page, sort1, limit, sort2)
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client), page, sort1, limit, sort2)
         else:
-            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
+            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
                 
             if sort1 is not None:
                 sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
@@ -1455,6 +1474,14 @@ WHERE %(keymatches)s
         """Delete entity attributes.
 
         """
+        etable = self.epath.current_entity_table()
+        etable.enforce_right('update')
+        if etable.has_right('update') is None:
+            # need to enforce dynamic ACLs
+            cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(dynauthz=False, access_type='update'))
+            if cur.fetchone():
+                raise Forbidden(u'update access on one or more matching rows in table %s' % etable)
+
         equery = self.epath.sql_get()
         nmkcols = set()
         
@@ -1510,7 +1537,7 @@ class AttributeGroupPath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1544,7 +1571,7 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
