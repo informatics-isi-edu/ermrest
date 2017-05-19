@@ -111,6 +111,88 @@ def expect_row_count(count):
         test.assertEqual(len(response.json()), count, "Expected %d results, got IDs %r" % (count, map(lambda r: r['id'], response.json())))
     return check
 
+_put_row_data_primary = [
+    {"id": 11, "name": "public 1 modified"},
+    {"id": 12, "name": "public 2 modified"},
+    {"id": 13, "name": "public 3 modified"},
+    {"id": 14, "name": "public 4 modified"},
+    {"id": 21, "name": "restricted group 1 modified"},
+    {"id": 22, "name": "restricted group 2 modified"},
+    {"id": 23, "name": "restricted group 3 modified"},
+    {"id": 24, "name": "restricted group 4 modified"},
+    {"id": 31, "name": "restricted member 1 modified"},
+    {"id": 32, "name": "restricted member 2 modified"},
+    {"id": 33, "name": "restricted member 3 modified"},
+    {"id": 34, "name": "restricted member 4 modified"},
+    {"id": 41, "name": "private 1 modified"},
+    {"id": 42, "name": "private 2 modified"},
+    {"id": 43, "name": "private 3 modified"},
+    {"id": 44, "name": "private 4 modified"},
+]
+
+_put_row_data_secondary = [
+    {"id": 11, "name": "public 1 modified"},
+    {"id": 12, "name": "public 2 modified"},
+    {"id": 21, "name": "restricted group 1 modified"},
+    {"id": 22, "name": "restricted group 2 modified"},
+    {"id": 31, "name": "restricted member 1 modified"},
+    {"id": 32, "name": "restricted member 2 modified"},
+]
+
+_put_row_data_anonymous = [
+    {"id": 11, "name": "public 1 modified"},
+    {"id": 12, "name": "public 2 modified"},
+]
+
+def add_data_update_tests(klass):
+    for session in ['primary', 'secondary', 'anonymous']:
+        for data in ['primary', 'secondary', 'anonymous']:
+
+            test_data = {
+                'primary': _put_row_data_primary,
+                'secondary': _put_row_data_secondary,
+                'anonymous': _put_row_data_anonymous
+            }[data]
+
+            @unittest.skipIf(getattr(common, '%s_session' % session) is None, "%s authz test requires %s session" % (session, session))
+            def test1(self):
+                expect = self.test_expectations['%s_put_row_data_%s' % (session, data)]
+                expect.check(
+                    self,
+                    getattr(common, '%s_session' % session).put(
+                        self._put_row_data_url,
+                        json=test_data
+                    ))
+
+            @unittest.skipIf(getattr(common, '%s_session' % session) is None, "%s authz test requires %s session" % (session, session))
+            def test2(self):
+                expect = self.test_expectations['%s_put_row_data_%s' % (session, data)]
+                expect.check(
+                    self,
+                    getattr(common, '%s_session' % session).put(
+                        self._put_col_data_url,
+                        json=test_data
+                    ))
+
+            @unittest.skipIf(getattr(common, '%s_session' % session) is None, "%s authz test requires %s session" % (session, session))
+            def test3(self):
+                expect = self.test_expectations['%s_put_row_data_%s' % (session, data)]
+                expect.check(
+                    self,
+                    getattr(common, '%s_session' % session).delete(
+                        'attribute/%s:Data/%s/name' % (
+                            _S, 
+                            ';'.join([ "id=%d" % row['id'] for row in test_data ])
+                        )
+                    ))
+
+            setattr(klass, 'test_%s_put_row_data_%s' % (session, data), test1)
+            setattr(klass, 'test_%s_put_col_data_%s' % (session, data), test2)
+            setattr(klass, 'test_%s_delete_col_data_%s' % (session, data), test3)
+
+    return klass
+
+@add_data_update_tests
 class StaticHidden (common.ErmrestTest):
     acls = {
         "Data": {
@@ -158,6 +240,15 @@ class StaticHidden (common.ErmrestTest):
         'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_data': Expectation(409),
         'anonymous_get_data': Expectation(409),
+        'primary_put_row_data_primary': Expectation([200,204]),
+        'primary_put_row_data_secondary': Expectation([200,204]),
+        'primary_put_row_data_anonymous': Expectation([200,204]),
+        'secondary_put_row_data_primary': Expectation(409),
+        'secondary_put_row_data_secondary': Expectation(409),
+        'secondary_put_row_data_anonymous': Expectation(409),
+        'anonymous_put_row_data_primary': Expectation(409),
+        'anonymous_put_row_data_secondary': Expectation(409),
+        'anonymous_put_row_data_anonymous': Expectation(409),
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(409),
         'anonymous_get_extension': Expectation(409),
@@ -184,6 +275,10 @@ class StaticHidden (common.ErmrestTest):
         expect = self.test_expectations['anonymous_get_data']
         for url in self._get_data_urls:
             expect.check(self, common.anonymous_session.get(url))
+
+    _put_row_data_url = 'entity/%s:Data' % _S
+    _put_col_data_url = 'attributegroup/%s:Data/id;name' % _S
+    # tests added by add_data_update_tests decorator...
 
     _get_extension_urls = ['entity/%s:Extension' % _S]
 
@@ -244,6 +339,12 @@ class HiddenPolicy (StaticHidden):
         {
             'secondary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
             'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(16)),
+            'secondary_put_row_data_primary': Expectation([200,204]),
+            'secondary_put_row_data_secondary': Expectation([200,204]),
+            'secondary_put_row_data_anonymous': Expectation([200,204]),
+            'anonymous_put_row_data_primary': Expectation([200,204]),
+            'anonymous_put_row_data_secondary': Expectation([200,204]),
+            'anonymous_put_row_data_anonymous': Expectation([200,204]),
         }
     )
 
@@ -268,6 +369,12 @@ class StaticUnhidden (StaticHidden):
         {
             'secondary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
             'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(16)),
+            'secondary_put_row_data_primary': Expectation([200,204]),
+            'secondary_put_row_data_secondary': Expectation([200,204]),
+            'secondary_put_row_data_anonymous': Expectation([200,204]),
+            'anonymous_put_row_data_primary': Expectation([200,204]),
+            'anonymous_put_row_data_secondary': Expectation([200,204]),
+            'anonymous_put_row_data_anonymous': Expectation([200,204]),
             'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
             'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
             'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
@@ -288,6 +395,10 @@ class RowMemberOwner (StaticUnhidden):
         {
             'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
             'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
+            'secondary_put_row_data_primary': Expectation(403),
+            'secondary_put_row_data_secondary': Expectation(403),
+            'anonymous_put_row_data_primary': Expectation(401),
+            'anonymous_put_row_data_secondary': Expectation(401),
             'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
             'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
             'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(8)),
@@ -331,6 +442,8 @@ class Cat3Owner (StaticUnhidden):
         RowMemberOwner.test_expectations,
         {
             'secondary_get_data': Expectation(200, 'application/json', expect_row_count(4)),
+            'secondary_put_row_data_anonymous': Expectation(403),
+            'anonymous_put_row_data_anonymous': Expectation(401),
             'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
             'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
             'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
@@ -381,6 +494,8 @@ class RowCategoryAclOwner (RowMemberOwner):
     test_expectations = _merge(
         RowCategoryMemberOwner.test_expectations,
         {
+            'secondary_put_row_data_secondary': Expectation([200,204]),
+            'secondary_put_row_data_anonymous': Expectation([200,204]),
             'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(10)),
         }
     )
@@ -398,6 +513,12 @@ class CategoryMemberOwnerHiddenPolicy (HiddenPolicy):
         {
             'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
             'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
+            'secondary_put_row_data_primary': Expectation(403),
+            'secondary_put_row_data_secondary': Expectation(403),
+            'secondary_put_row_data_anonymous': Expectation(403),
+            'anonymous_put_row_data_primary': Expectation(401),
+            'anonymous_put_row_data_secondary': Expectation(401),
+            'anonymous_put_row_data_anonymous': Expectation(401),
         }
     )
 
@@ -409,7 +530,13 @@ class CategoryAclOwnerHiddenPolicy (HiddenPolicy):
         "Data_Category": { }
     }
 
-    test_expectations = CategoryMemberOwnerHiddenPolicy.test_expectations
+    test_expectations = _merge(
+        CategoryMemberOwnerHiddenPolicy.test_expectations,
+        {
+            'secondary_put_row_data_secondary': Expectation([200,204]),
+            'secondary_put_row_data_anonymous': Expectation([200,204]),
+        }
+    )
 
 class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
     bindings = {
@@ -436,6 +563,8 @@ class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
         {
             'secondary_get_data': Expectation(200, 'application/json', expect_row_count(12)),
             'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(8)),
+            'secondary_put_row_data_primary': Expectation(403),
+            'anonymous_put_row_data_primary': Expectation(401),
         }
     )
 
