@@ -17,6 +17,10 @@ def setUpModule():
 #  select: ['*']
 #  else: []
 
+def _merge(d1, d2):
+    d1 = dict(d1)
+    d1.update(d2)
+    return d1
 
 # some reusable ACL binding idioms
 _member_owner_acl = {
@@ -235,17 +239,13 @@ class HiddenPolicy (StaticHidden):
         }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(409),
-        'anonymous_get_extension': Expectation(409),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(409),
-        'anonymous_get_join1': Expectation(409),
-    }
+    test_expectations = _merge(
+        StaticHidden.test_expectations,
+        {
+            'secondary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
+            'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(16)),
+        }
+    )
 
 class StaticUnhidden (StaticHidden):
     acls = {
@@ -263,17 +263,17 @@ class StaticUnhidden (StaticHidden):
         }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-    }
+    test_expectations = _merge(
+        StaticHidden.test_expectations,
+        {
+            'secondary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
+            'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(16)),
+            'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
+            'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
+            'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+            'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
+        }
+    )
 
 class RowMemberOwner (StaticUnhidden):
     bindings = {
@@ -283,17 +283,17 @@ class RowMemberOwner (StaticUnhidden):
         "Data_Category": { "member": _assoccid_member_owner_acl }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(2)),
-    }
+    test_expectations = _merge(
+        StaticUnhidden.test_expectations,
+        {
+            'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
+            'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
+            'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
+            'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
+            'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(8)),
+            'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(2)),
+        }
+    )
 
 class Cat3Owner (StaticUnhidden):
     bindings = {
@@ -327,17 +327,15 @@ class Cat3Owner (StaticUnhidden):
         }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(4)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
-        'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
-        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
-    }
+    test_expectations = _merge(
+        RowMemberOwner.test_expectations,
+        {
+            'secondary_get_data': Expectation(200, 'application/json', expect_row_count(4)),
+            'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
+            'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
+            'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
+        }
+    )
 
 class RowAclOwner (StaticUnhidden):
     bindings = {
@@ -347,17 +345,12 @@ class RowAclOwner (StaticUnhidden):
         "Data_Category": { "member": _assoccid_ACL_owner_acl }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(6)),
-        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(2)),
-    }
+    test_expectations = _merge(
+        RowMemberOwner.test_expectations,
+        {
+            'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(6)),
+        }
+    )
 
 class RowCategoryMemberOwner (RowMemberOwner):
     bindings = {
@@ -367,17 +360,15 @@ class RowCategoryMemberOwner (RowMemberOwner):
         "Data_Category": { "memebr1": _assocdid_member_owner_acl, "member2": _assoccid_member_owner_acl }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(12)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(7)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(12)),
-        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(5)),
-    }
+    test_expectations = _merge(
+        RowMemberOwner.test_expectations,
+        {
+            'secondary_get_data': Expectation(200, 'application/json', expect_row_count(12)),
+            'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(7)),
+            'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(12)),
+            'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(5)),
+        }
+    )
 
 class RowCategoryAclOwner (RowMemberOwner):
     bindings = {
@@ -387,17 +378,12 @@ class RowCategoryAclOwner (RowMemberOwner):
         "Data_Category": { "member1": _assocdid_ACL_owner_acl, "member2": _assoccid_ACL_owner_acl }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(12)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(7)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(10)),
-        'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(5)),
-    }
+    test_expectations = _merge(
+        RowCategoryMemberOwner.test_expectations,
+        {
+            'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(10)),
+        }
+    )
 
 class CategoryMemberOwnerHiddenPolicy (HiddenPolicy):
     bindings = {
@@ -407,17 +393,13 @@ class CategoryMemberOwnerHiddenPolicy (HiddenPolicy):
         "Data_Category": { }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(409),
-        'anonymous_get_extension': Expectation(409),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(409),
-        'anonymous_get_join1': Expectation(409),
-    }
+    test_expectations = _merge(
+        HiddenPolicy.test_expectations,
+        {
+            'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
+            'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
+        }
+    )
 
 class CategoryAclOwnerHiddenPolicy (HiddenPolicy):
     bindings = {
@@ -427,17 +409,7 @@ class CategoryAclOwnerHiddenPolicy (HiddenPolicy):
         "Data_Category": { }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(8)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(4)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(409),
-        'anonymous_get_extension': Expectation(409),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(409),
-        'anonymous_get_join1': Expectation(409),
-    }
+    test_expectations = CategoryMemberOwnerHiddenPolicy.test_expectations
 
 class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
     bindings = {
@@ -459,17 +431,13 @@ class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
         "Data_Category": { }
     }
 
-    test_expectations = {
-        'primary_get_data': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_data': Expectation(200, 'application/json', expect_row_count(12)),
-        'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(8)),
-        'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_extension': Expectation(409),
-        'anonymous_get_extension': Expectation(409),
-        'primary_get_join1': Expectation(200, 'application/json', expect_row_count(16)),
-        'secondary_get_join1': Expectation(409),
-        'anonymous_get_join1': Expectation(409),
-    }
+    test_expectations = _merge(
+        HiddenPolicy.test_expectations,
+        {
+            'secondary_get_data': Expectation(200, 'application/json', expect_row_count(12)),
+            'anonymous_get_data': Expectation(200, 'application/json', expect_row_count(8)),
+        }
+    )
 
 _data = [
     (
