@@ -29,9 +29,7 @@ As a protocol, the [ERMrest REST API](api-doc/index.md) can be easily accessed b
 	- Schema management
 	- Data retrieval
 	- Data modification
-  - Experimental [support for PostgreSQL 9.5 row level security](user-doc/row-level-security.md)
-    - Web client identity and attributes (groups/roles) exposed during data processing
-	- Local, DBA-applied row level policies can test against web identity and attributes (no REST management of these policies yet)
+  - Fine-grained [access control lists](user-doc/acls.md) to manage access policies
 
 ### Prerequisites
 
@@ -40,31 +38,34 @@ ERMrest is developed and tested primarily on the CentOS 7 enterprise Linux distr
 - mod_wsgi
 - web.py lightweight web framework
 - psycopg2 database driver
-- PostgreSQL 9.4 or later
+- PostgreSQL 9.5 or later (9.6 recommended)
 - webauthn security adaptation layer (another product of our group)
 
 ### Installation
 
-See [ERMrest Installation (CentOS 6)](user-doc/install-centos7.md).
+See [ERMrest Installation (CentOS 7)](user-doc/install-centos7.md).
 
 ### Operational Model
 
 1. The HTTPS connection is terminated by Apache HTTPD.
+1. The `mod_webauthn` Apache HTTPD module determined authenticated client context for requests
 1. The ERMrest service code executes as the `ermrest` daemon user
 1. The service configuration is loaded from `~ermrest/ermrest_config.json`:
-  - Security provider configuration via embedded webauthn configuration data (will change in future)
   - Core access control policy for catalog creation.
   - Data type presentation.
 1. All dynamic data is stored in the RDBMS.
-1. Client authentication context is determined by callouts to the webauthn module:
+  - The catalog's data model
+  - The catalog's fine-grained access control lists
+  - The catalog's data content
+1. Client authentication context is retrieved from Apache request environment
   - Client identity
   - Client roles/group membership.
 1. Catalog-level authorization of service requests is determined by the service code:
   - ACLs retrieved from RDBMS
   - ACLs are intersected with authenticated client context.
 1. The RDBMS is accessed using daemon service credentials
-  - Course-grained authorization is handled in service prior to executing SQL for clients
-  - PostgreSQL MAY enforce fine-grained data access authorization using row level security policies
+  - Fine-grained *static* authorization is handled in service prior to executing SQL
+  - Fine-grained *dynamic* authorization is handled in service by compiling policy checks into SQL
 
 ## Help and Contact
 
