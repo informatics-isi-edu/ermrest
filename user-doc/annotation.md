@@ -519,10 +519,10 @@ Default heuristics:
 - `url_pattern` MUST be specified. If it is not specified, the asset annotation will be ignored.
 - The annotation explicitly indicates that the associated column is the asset location.
 - In addition to native columns, the following properties are also available under the annotated column object and can be referred in the _pattern_ e.g. `URI.md5_hex` where `URI` is the annotated column. 
-  - _annotated_column_.`md5_hex` for hex  
-  - _annotated_column_.`md5_base64` for base64
-  - _annotated_column_.`filename` for filename
-  - _annotated_column_.`size` for size in bytes
+  - `md5_hex` for hex  
+  - `md5_base64` for base64
+  - `filename` for filename
+  - `size` for size in bytes
 - Nothing may be inferred without additional payload patterns present.
 
 Protocol-specific metadata retrieval MAY be applied once an asset location is known. How to present or reconcile contradictions in metadata found in multiple sources is beyond the scope of this specification.
