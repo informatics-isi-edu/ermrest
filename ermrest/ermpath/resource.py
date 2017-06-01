@@ -721,6 +721,24 @@ LIMIT 1""") % parts2
                         if cur.rowcount > 0:
                             raise Forbidden(u'update access on one or more rows in table %s' % self.table)
 
+                    for c in nmkcols:
+                        if c.has_right('update') is None:
+                            # need to enforce dynamic ACLs
+                            parts2 = dict(parts)
+                            parts2['table'] = self.table.sql_name(access_type='update', alias="t", dynauthz_testcol=c)
+                            sql = ("""
+SELECT i.*
+FROM %(table)s
+JOIN (
+  SELECT %(icols)s FROM %(input_table)s i
+) i
+ON (%(keymatches)s)
+LIMIT 1""") % parts2
+                            #web.debug(sql)
+                            cur.execute(sql)
+                            if cur.rowcount > 0:
+                                raise Forbidden(u'update access on column %s for one or more rows' % c)
+
                     cur.execute(
                         preserialize(("""
 UPDATE %(table)s t SET %(assigns)s FROM (

@@ -370,7 +370,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             doc['acl_bindings'] = self.dynacls
         return doc
 
-    def sql_name(self, dynauthz=None, access_type='select', alias=None):
+    def sql_name(self, dynauthz=None, access_type='select', alias=None, dynauthz_testcol=None):
         """Generate SQL representing this entity for use as a FROM clause.
 
            dynauthz: dynamic authorization mode to compile
@@ -380,6 +380,10 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
            access_type: the access type to be enforced for dynauthz
 
+           dynauthz_testcol:
+               None: normal mode
+               col: match rows where client is NOT authorized to access column
+
            The result is a schema-qualified table name for dynauthz=None, else a subquery.
         """
         tsql = '.'.join([
@@ -387,29 +391,44 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             sql_identifier(self.name)
         ])
 
-        if dynauthz is not None and self.has_right(access_type) is None:
-            assert alias is not None
-            clauses = ['False']
+        talias = alias if alias else 's'
 
-            for binding in self.dynacls.values():
-                if not set(binding['types']).isdisjoint(sufficient_rights[access_type]):
-                    aclpath, col, ctype = binding._compile_projection()
-                    aclpath.epath.add_filter(AclPredicate(binding, col))
-                    authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
-                    clauses.append(authzpath.sql_get(limit=1, prefix=alias, enforce_client=False))
+        if dynauthz is not None:
+            assert alias is not None
+            assert dynauthz_testcol is None
+
+            if self.has_right(access_type) is None:
+                clauses = ['False']
+
+                for binding in self.dynacls.values():
+                    if not set(binding['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
+                        aclpath, col, ctype = binding._compile_projection()
+                        aclpath.epath.add_filter(AclPredicate(binding, col))
+                        authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
+                        clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=alias, enforce_client=False))
+            else:
+                clauses = ['True']        
 
             if dynauthz:
-                tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
+                tsql = "(SELECT %s FROM %s %s WHERE (%s))" % (
+                    ', '.join([ c.sql_name_dynauthz(talias, dynauthz=True, access_type=access_type) for c in self.columns_in_order()]),
                     tsql,
-                    alias or 's',
-                    ' OR '.join(["(%s)" % clause for clause in clauses ])
+                    talias,
+                    ' OR '.join(["(%s)" % clause for clause in clauses ]),
                 )
             else:
                 tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
                     tsql,
-                    alias or 's',
+                    talias,
                     ' AND '.join(["COALESCE(NOT (%s), True)" % clause for clause in clauses ])
                 )
+        elif dynauthz_testcol is not None:
+            assert alias is not None
+            tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
+                tsql,
+                talias,
+                dynauthz_testcol.sql_name_dynauthz(talias, dynauthz=False, access_type=access_type)
+            )
 
         if alias is not None:
             tsql = "%s AS %s" % (tsql, sql_identifier(alias))

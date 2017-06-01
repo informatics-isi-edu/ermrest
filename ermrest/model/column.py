@@ -17,11 +17,13 @@
 import urllib
 import json
 import re
+import web
 
-from .. import exception
+from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, truncated_identifier
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, truncated_identifier, sufficient_rights
+from .predicate import AclPredicate
 
 @commentable
 @annotatable
@@ -226,6 +228,40 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             table_name=self.table.name,
             column_name=self.name
             )
+
+    def sql_name_dynauthz(self, talias, dynauthz, access_type='select'):
+        """Generate SQL representing this column for use as a SELECT clause.
+
+           dynauthz: dynamic authorization mode to compile
+               True: compile positive ACL... column value or NULL if unauthorized
+               False: compile negative ACL... True if unauthorized, else False
+
+           access_type: the access type to be enforced for dynauthz
+
+           The result is a select clause for dynauthz=True, scalar for dynauthz=False.
+        """
+        csql = sql_identifier(self.name)
+
+        if self.has_right(access_type) is None:
+            clauses = ['False']
+            for binding in self.dynacls.values():
+                if not set(binding['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
+                    aclpath, col, ctype = binding._compile_projection()
+                    aclpath.epath.add_filter(AclPredicate(binding, col))
+                    authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
+                    clauses.append(authzpath.sql_get(limit=1, prefix=talias, enforce_client=False))
+
+            if dynauthz:
+                return "CASE WHEN %s THEN %s ELSE NULL::%s END AS %s" % (
+                    ' OR '.join(["(%s)" % clause for clause in clauses ]),
+                    csql,
+                    self.type.sql(basic_storage=True),
+                    sql_identifier(self.name)
+                )
+            else:
+                return '(%s)' % ' AND '.join("COALESCE(NOT (%s), True)" % clause for clause in clauses)
+
+        return '%s AS %s' % (csql, sql_identifier(self.name))
 
     def sql_name(self, alias=None):
         if alias:
