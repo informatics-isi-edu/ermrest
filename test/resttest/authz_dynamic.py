@@ -186,6 +186,9 @@ def make_delete_test(session, data, get_url, get_expect):
         get_expect(self, session, data).check(self, test_session.delete(get_url(self, test_data)))
     return test
 
+def _test_data_id_preds(test_data):
+    return ';'.join([ "id=%d" % row['id'] for row in test_data ])
+
 def add_data_update_tests(klass):
     for session in ['primary', 'secondary', 'anonymous']:
         for data in ['primary', 'secondary', 'anonymous']:
@@ -202,25 +205,50 @@ def add_data_update_tests(klass):
             )
             setattr(
                 klass,
-                'test_%s_put_col_data_%s' % (session, data),
+                'test_%s_put_name_data_%s' % (session, data),
                 make_put_test(
                     session,
                     data,
                     lambda self: self._put_col_data_url,
-                    lambda self, session, data: self.test_expectations['%s_put_col_data_%s' % (session, data)]
+                    lambda self, session, data: (
+                        self.test_expectations.get(
+                            '%s_put_col_data_%s' % (session, data),
+                            self.test_expectations['%s_put_row_data_%s' % (session, data)]
+                        )
+                    )
                 )
             )
             setattr(
                 klass,
-                'test_%s_delete_col_data_%s' % (session, data),
+                'test_%s_delete_name_data_%s' % (session, data),
                 make_delete_test(
                     session,
                     data,
-                    lambda self, test_data: 'attribute/%s:Data/%s/name' % (
-                        _S, 
-                        ';'.join([ "id=%d" % row['id'] for row in test_data ])
-                    ),
-                    lambda self, session, data: self.test_expectations['%s_put_col_data_%s' % (session, data)]
+                    lambda self, test_data: 'attribute/%s:Data/%s/name' % (_S, _test_data_id_preds(test_data)),
+                    lambda self, session, data: (
+                        self.test_expectations.get(
+                            '%s_put_col_data_%s' % (session, data),
+                            self.test_expectations['%s_put_row_data_%s' % (session, data)]
+                        )
+                    )
+                )
+            )
+            setattr(
+                klass,
+                'test_%s_delete_value_data_%s' % (session, data),
+                make_delete_test(
+                    session,
+                    data,
+                    lambda self, test_data: 'attribute/%s:Data/%s/value' % (_S, _test_data_id_preds(test_data)),
+                    lambda self, session, data: (
+                        self.test_expectations.get(
+                            '%s_put_value_data_%s' % (session, data),
+                            self.test_expectations.get(
+                                '%s_put_col_data_%s' % (session, data),
+                                self.test_expectations['%s_put_row_data_%s' % (session, data)]
+                            )
+                        )
+                    )
                 )
             )
 
@@ -306,21 +334,12 @@ class StaticHidden (common.ErmrestTest):
         'primary_put_row_data_primary': Expectation([200,204]),
         'primary_put_row_data_secondary': Expectation([200,204]),
         'primary_put_row_data_anonymous': Expectation([200,204]),
-        'primary_put_col_data_primary': Expectation([200,204]),
-        'primary_put_col_data_secondary': Expectation([200,204]),
-        'primary_put_col_data_anonymous': Expectation([200,204]),
         'secondary_put_row_data_primary': Expectation(409),
         'secondary_put_row_data_secondary': Expectation(409),
         'secondary_put_row_data_anonymous': Expectation(409),
-        'secondary_put_col_data_primary': Expectation(409),
-        'secondary_put_col_data_secondary': Expectation(409),
-        'secondary_put_col_data_anonymous': Expectation(409),
         'anonymous_put_row_data_primary': Expectation(409),
         'anonymous_put_row_data_secondary': Expectation(409),
         'anonymous_put_row_data_anonymous': Expectation(409),
-        'anonymous_put_col_data_primary': Expectation(409),
-        'anonymous_put_col_data_secondary': Expectation(409),
-        'anonymous_put_col_data_anonymous': Expectation(409),
         'primary_get_extension': Expectation(200, 'application/json', expect_row_count(16)),
         'secondary_get_extension': Expectation(409),
         'anonymous_get_extension': Expectation(409),
@@ -420,15 +439,9 @@ class HiddenPolicy (StaticHidden):
             'secondary_put_row_data_primary': Expectation([200,204]),
             'secondary_put_row_data_secondary': Expectation([200,204]),
             'secondary_put_row_data_anonymous': Expectation([200,204]),
-            'secondary_put_col_data_primary': Expectation([200,204]),
-            'secondary_put_col_data_secondary': Expectation([200,204]),
-            'secondary_put_col_data_anonymous': Expectation([200,204]),
             'anonymous_put_row_data_primary': Expectation([200,204]),
             'anonymous_put_row_data_secondary': Expectation([200,204]),
             'anonymous_put_row_data_anonymous': Expectation([200,204]),
-            'anonymous_put_col_data_primary': Expectation([200,204]),
-            'anonymous_put_col_data_secondary': Expectation([200,204]),
-            'anonymous_put_col_data_anonymous': Expectation([200,204]),
         }
     )
 
@@ -467,10 +480,14 @@ class MemberColumnSelectUpdate (HiddenPolicy):
             'secondary_put_row_data_secondary': Expectation(403),
             'secondary_put_col_data_primary': Expectation([200,204]),
             'secondary_put_col_data_secondary': Expectation([200,204]),
+            'secondary_put_value_data_primary': Expectation(403),
+            'secondary_put_value_data_secondary': Expectation(403),
             'anonymous_put_row_data_primary': Expectation(401),
             'anonymous_put_row_data_secondary': Expectation(401),
             'anonymous_put_col_data_primary': Expectation([200,204]),
             'anonymous_put_col_data_secondary': Expectation([200,204]),
+            'anonymous_put_value_data_primary': Expectation(401),
+            'anonymous_put_value_data_secondary': Expectation(401),
         }
     )
 
@@ -497,8 +514,6 @@ class MemberColumnSelectUpdate (HiddenPolicy):
         expect = self.test_expectations['anonymous_get_data_filtered']
         for url in self._get_data_filtered_urls:
             expect.check(self, common.anonymous_session.get(url))
-
-    
 
 class StaticUnhidden (StaticHidden):
     acls = {
@@ -547,12 +562,8 @@ class RowMemberOwner (StaticUnhidden):
             }),
             'secondary_put_row_data_primary': Expectation(403),
             'secondary_put_row_data_secondary': Expectation(403),
-            'secondary_put_col_data_primary': Expectation(403),
-            'secondary_put_col_data_secondary': Expectation(403),
             'anonymous_put_row_data_primary': Expectation(401),
             'anonymous_put_row_data_secondary': Expectation(401),
-            'anonymous_put_col_data_primary': Expectation(401),
-            'anonymous_put_col_data_secondary': Expectation(401),
             'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(8)),
             'anonymous_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
             'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(8)),
@@ -604,9 +615,7 @@ class Cat3Owner (StaticUnhidden):
                 expect_values({13,23,33,43})
             }),
             'secondary_put_row_data_anonymous': Expectation(403),
-            'secondary_put_col_data_anonymous': Expectation(403),
             'anonymous_put_row_data_anonymous': Expectation(401),
-            'anonymous_put_col_data_anonymous': Expectation(401),
             'secondary_get_extension': Expectation(200, 'application/json', expect_row_count(4)),
             'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
             'anonymous_get_join1': Expectation(200, 'application/json', expect_row_count(4)),
@@ -673,8 +682,6 @@ class RowCategoryAclOwner (RowMemberOwner):
             }),
             'secondary_put_row_data_secondary': Expectation([200,204]),
             'secondary_put_row_data_anonymous': Expectation([200,204]),
-            'secondary_put_col_data_secondary': Expectation([200,204]),
-            'secondary_put_col_data_anonymous': Expectation([200,204]),
             'secondary_get_join1': Expectation(200, 'application/json', expect_row_count(10)),
         }
     )
@@ -701,15 +708,9 @@ class CategoryMemberOwnerHiddenPolicy (HiddenPolicy):
             'secondary_put_row_data_primary': Expectation(403),
             'secondary_put_row_data_secondary': Expectation(403),
             'secondary_put_row_data_anonymous': Expectation(403),
-            'secondary_put_col_data_primary': Expectation(403),
-            'secondary_put_col_data_secondary': Expectation(403),
-            'secondary_put_col_data_anonymous': Expectation(403),
             'anonymous_put_row_data_primary': Expectation(401),
             'anonymous_put_row_data_secondary': Expectation(401),
             'anonymous_put_row_data_anonymous': Expectation(401),
-            'anonymous_put_col_data_primary': Expectation(401),
-            'anonymous_put_col_data_secondary': Expectation(401),
-            'anonymous_put_col_data_anonymous': Expectation(401),
         }
     )
 
@@ -730,8 +731,6 @@ class CategoryAclOwnerHiddenPolicy (HiddenPolicy):
             }),
             'secondary_put_row_data_secondary': Expectation([200,204]),
             'secondary_put_row_data_anonymous': Expectation([200,204]),
-            'secondary_put_col_data_secondary': Expectation([200,204]),
-            'secondary_put_col_data_anonymous': Expectation([200,204]),
         }
     )
 
@@ -767,9 +766,7 @@ class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
                 expect_values({11,12,21,22,31,32,41,42})
             }),
             'secondary_put_row_data_primary': Expectation(403),
-            'secondary_put_col_data_primary': Expectation(403),
             'anonymous_put_row_data_primary': Expectation(401),
-            'anonymous_put_col_data_primary': Expectation(401),
         }
     )
     

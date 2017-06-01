@@ -263,7 +263,7 @@ class EntityElem (object):
         """
         return [ f.sql_where(self.epath, self, prefix=prefix) for f in self.filters ]
 
-    def sql_table_elem(self, dynauthz=None, access_type='select', prefix=''):
+    def sql_table_elem(self, dynauthz=None, access_type='select', prefix='', dynauthz_testcol=None):
         """Generate SQL table element representing this entity as part of the epath JOIN.
 
            dynauthz: dynamic authorization mode to compile
@@ -271,9 +271,13 @@ class EntityElem (object):
                True: compile positive ACL... match rows client is authorized to access
                False: compile negative ACL... match rows client is NOT authorized to access
 
+           dynauthz_testcol:
+               None: normal mode
+               col: match rows where client is NOT authorized to access column
+
         """
         alias = '%st%d' % (prefix, self.pos)
-        tsql = self.table.sql_name(dynauthz=dynauthz, access_type=access_type, alias=alias)
+        tsql = self.table.sql_name(dynauthz=dynauthz, access_type=access_type, alias=alias, dynauthz_testcol=dynauthz_testcol)
         if self.pos == 0:
             return tsql
         else:
@@ -1094,7 +1098,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, dynauthz_testcol=None):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1123,6 +1127,9 @@ WHERE %(pred)s
                 for col in context_table.columns_in_order()
             ])
 
+        if dynauthz_testcol is not None:
+            assert context_table.columns[dynauthz_testcol.name] == dynauthz_testcol
+
         # choose a pkey that the client is allowed to use
         pkeys = [
             k
@@ -1144,7 +1151,17 @@ WHERE %(pred)s
             for c in shortest_pkey
         ]
 
-        tables = [ elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix) for elem in self._path ]
+        tables = [
+            elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix)
+            for elem in self._path[0:context_pos]
+        ] + [
+            # dynauthz_testcol may be None or an actual column here...
+            self._path[context_pos].sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix, dynauthz_testcol=dynauthz_testcol)
+        ] + [
+            # this is usually empty list but might not if a URL path ends with a context reset
+            elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix)
+            for elem in self._path[context_pos+1:]
+        ]
 
         wheres = []
         for elem in self._path:
@@ -1502,12 +1519,17 @@ WHERE %(keymatches)s
 
         equery = self.epath.sql_get()
         nmkcols = set()
-        
+
         # delete columns are named explicitly
         for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
                 col.enforce_right('update')
+                if col.has_right('update') is None:
+                    # need to enforce dynamic ACLs
+                    cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(access_type='update', dynauthz_testcol=col))
+                    if cur.fetchone():
+                        raise Forbidden(u'update access on column %s for one or more rows' % col)
                 nmkcols.add(col)
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
