@@ -445,6 +445,32 @@ class HiddenPolicy (StaticHidden):
         }
     )
 
+class SelectOnly (HiddenPolicy):
+    bindings = {
+        "Data": {
+            "member": {
+                "types": ["select"],
+                "projection": "id",
+                "projection_type": "nonnull"
+            }
+        },
+        "Extension": { "member": _id_owner_nonnull },
+        "Category": { "member": _id_owner_nonnull },
+        "Data_Category": { "member": _did_owner_nonnull },
+    }
+
+    test_expectations = _merge(
+        HiddenPolicy.test_expectations,
+        {
+            'secondary_put_row_data_primary': Expectation(403),
+            'secondary_put_row_data_secondary': Expectation(403),
+            'secondary_put_row_data_anonymous': Expectation(403),
+            'anonymous_put_row_data_primary': Expectation(401),
+            'anonymous_put_row_data_secondary': Expectation(401),
+            'anonymous_put_row_data_anonymous': Expectation(401),
+        }
+    )
+
 class MemberColumnSelectUpdate (HiddenPolicy):
     col_acls = {
         "Data": {
