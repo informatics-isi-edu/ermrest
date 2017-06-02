@@ -622,7 +622,7 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
 
         if hasattr(self, 'dynacls'):
             for binding in self.dynacls.values():
-                if not set(binding['types']).isdisjoint(sufficient_rights[aclname]):
+                if not set(binding['types']).isdisjoint(sufficient_rights[aclname].union({aclname})):
                     # dynamic rights are possible on this resource...
                     return None
 
