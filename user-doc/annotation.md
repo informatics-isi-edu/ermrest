@@ -178,11 +178,7 @@ the concept.
 
 `tag:isrd.isi.edu,2016:ignore`
 
-This key is allowed on any number of the following model elements:
-
-- Schema
-- Table
-- Column
+This key is allowed on any number of Schema, Table, or Column model elements. The only part of chaise that is using this annotation is search application. It does not have any effects on other applications (i.e., record, record-edit, and recordset). 
 
 This key was previously specified for these model elements but such use is deprecated:
 
@@ -538,7 +534,8 @@ At present, the Chaise implementation of the asset annotation has the following 
 
 List of _context_ names that are used in ermrest:
 - `"compact"`: Any compact, tabular presentation of data from multiple entities.
-- `"compact/brief"`: A limited compact, tabular presentation of data from multiple entities to be shown under the `detailed` context. In this context, only a page of data will be shown with a link to the access the `compact` context for more detail.  
+  - `"compact/brief"`: A limited compact, tabular presentation of data from multiple entities to be shown under the `detailed` context. In this context, only a page of data will be shown with a link to the access the `compact` context for more detail.  
+  - `"compact/select"`: A sub-context of `compact` that is used for selecting entities, e.g. when prompting the user for choosing a foreign key value.
 - `"detailed"`: Any detailed read-only, entity-level presentation context.
 - `"entry"`: Any data-entry presentation context, i.e. when prompting the user for input column values.
   - `"entry/edit"`: A sub-context of `entry` that only applies to editing existing resources.
@@ -555,16 +552,16 @@ If more than one _context_ name in the annotation payload matches, the _options_
 
 The following matrix illustrates which context is meaningful in which annotation.
 
+| Annotation                                              | compact | compact/brief | compact/select | detailed | entry | entry/edit | entry/create | filter | row_name | * |
+|---------------------------------------------------------|---------|---------------|----------------|----------|-------|------------|--------------|--------|----------|---|
+| [2015 Display](#2015-display)                           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Ignore](#2016-ignore)                             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Visible Columns](#2016-visible-columns)           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Column Display](#2016-column-display)             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Table Display](#2016-table-display)               | X       | X             | X              | X        | -     | -          | -            | X      | X        | X |
+| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | -              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Table Alternatives](#2016-table-alternatives)     | X       | -             | X              | X        | -     | -          | -            | X      | -        | X |
 
-| Annotation                                              | compact | compact/brief | detailed | entry | entry/edit | entry/create | filter | name | * |
-|---------------------------------------------------------|---------|---------------|----------|-------|------------|--------------|---------|------|---|
-| [2015 Display](#2015-display)                           | X       | -             | X        | X     | X          | X            | X       | -    | X |
-| [2016 Ignore](#2016-ignore)                             | X       | -             | X        | X     | X          | X            | X       | -    | X |
-| [2016 Visible Columns](#2016-visible-columns)           | X       | -             | X        | X     | X          | X            | X       | -    | X |
-| [2016 Column Display](#2016-column-display)             | X       |  -            | X        | X     | X          | X            | X       | -    | X |
-| [2016 Table Display](#2016-table-display)               | X       | X             | X        | -     | -          | -            | X       | X    | X |
-| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | X        | X     | X          | X            | X       | -    | X |
-| [2016 Table Alternatives](#2016-table-alternatives)           | X       | -             | X        | -     | -          | -            | X       | -    | X |
 
 ## Pattern Expansion
 
