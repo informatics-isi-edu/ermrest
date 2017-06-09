@@ -58,7 +58,7 @@ here is a quick matrix to locate them.
 | [2016 Generated](#2016-generated) | X | X | X | - | - | Generated model element |
 | [2016 Ignore](#2016-ignore) | X | X | X | - | - | Ignore model element |
 | [2016 Immutable](#2016-immutable) | X | X | X | - | - | Immutable model element |
-| [2016 Non Deletable](#2016-non-deletable) | - | - | X | - | - | Non-deletable table |
+| [2016 Non Deletable](#2016-non-deletable) | X | X | - | - | - | Non-deletable model element |
 | [2016 App Links](#2016-app-links) | X | X | - | - | - | Intra-Chaise app links |
 | [2016 Table Display](#2016-table-display) | X | X | - | - | - | Table-specific display options |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
