@@ -514,6 +514,7 @@ Supported JSON payload patterns:
 Default heuristics:
 - The `2017 Asset` annotation explicitly indicates that the associated column is the asset location.
 - `url_pattern` MUST be specified. If it is not specified or if it produces a null value, the asset annotation will be ignored.
+- Column MUST be `text` typed. Otherwise the asset annotation will be ignored.
 - In addition to native columns, the following properties are also available under the annotated column object and can be referred in the _pattern_ e.g. `URI.md5_hex` where `URI` is the annotated column. 
   - `md5_hex` for hex  
   - `md5_base64` for base64
