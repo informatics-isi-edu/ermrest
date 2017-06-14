@@ -634,12 +634,12 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         # finally, static deny decision
         return False
 
-    def enforce_right(self, aclname):
+    def enforce_right(self, aclname, require_true=False):
         """Policy enforcement for named right."""
         decision = self.has_right(aclname)
-        if decision is False:
-            # we can't stop now if decision is True or None...
-            raise exception.Forbidden('%s access on %s' % (aclname, web.ctx.env['REQUEST_URI']))
+        if decision is False or require_true and not decision:
+            # None means static right is absent but dynamic rights are possible...
+            raise exception.Forbidden('%s access on %s' % (aclname, self))
 
     def rights(self):
         return {

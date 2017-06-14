@@ -743,6 +743,50 @@ LIMIT 1""") % parts2
                             if cur.rowcount > 0:
                                 raise Forbidden(u'update access on column %s for one or more rows' % c)
 
+                    for fkr in [
+                            fkr
+                            for fk in self.table.fkeys.values()
+                            for fkr in fk.references.values()
+                            if not set(fkr.foreign_key.columns).isdisjoint(set(nmkcols))
+                    ]:
+                        if fkr.has_right('update') is None:
+                            # need to enforce dynamic ACLs
+                            fkr_cols = [
+                                (
+                                    (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
+                                    if fc in nmkcols
+                                    else (u't.%s' % fc.sql_name())
+                                )
+                                for fc, uc in fkr.reference_map_frozen
+                            ]
+                            sql = ("""
+SELECT *
+FROM (
+  SELECT %(fkr_cols)s
+  FROM (SELECT %(icols)s FROM %(input_table)s i) i
+  JOIN %(table)s t ON (%(keymatches)s)
+  WHERE %(fkr_nonnull)s
+  EXCEPT
+  SELECT %(domain_key_cols)s FROM %(domain_table)s
+) s
+LIMIT 1""") % dict(
+    table = parts['table'],
+    input_table = parts['input_table'],
+    icols = parts['icols'],
+    keymatches = parts['keymatches'],
+    fkr_cols = ','.join(fkr_cols),
+    fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
+    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d'),
+    domain_key_cols = ','.join([
+        u'd.%s' % uc.sql_name()
+        for fc, uc in fkr.reference_map_frozen
+    ]),
+)
+                            #web.debug(sql)
+                            cur.execute(sql)
+                            if cur.rowcount > 0:
+                                raise Forbidden(u'update access on foreign key reference %s' % fkr)
+
                     cur.execute(
                         preserialize(("""
 UPDATE %(table)s t SET %(assigns)s FROM (
@@ -761,15 +805,59 @@ RETURNING %(tcols)s""") % parts
                 assert allow_missing
 
             if allow_missing:
-                self.table.enforce_right('insert')
-                for c in set(mkcols).union(set(nmkcols)):
-                    c.enforce_right('insert')
-                for c, fkrs in nonnull_fkrs.items():
-                    for fkr in fkrs:
-                        if not fkr.has_right('insert'):
-                            raise rest.Forbidden(u'insert access with non-NULL value in column %s' % unicode(c.name))
+                # only check for insert rights if there are non-matching row keys
+                cur.execute(("""
+SELECT * FROM (
+  SELECT %(icols)s FROM %(input_table)s i
+""" + ("""
+  JOIN (
+    SELECT %(emkcols)s FROM %(input_table)s e
+    EXCEPT SELECT %(mkcols)s FROM %(table)s e
+  ) t ON (%(keymatches)s)""" if use_defaults is None else ""
+) + ") i LIMIT 1") % parts
+                )
+                if cur.rowcount > 0:
+                    self.table.enforce_right('insert', require_true=True)
+
+                    for c in set(mkcols).union(set(nmkcols)):
+                        c.enforce_right('insert', require_true=True)
+
+                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_fkrs.values() ]):
+                        fkr.enforce_right('insert')
+                        if fkr.has_right('insert') is None:
+                            # need to enforce dynamic ACLs
+                            fkr_cols = [
+                                (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
+                                for fc, uc in fkr.reference_map_frozen
+                            ]
+                            sql = ("""
+SELECT *
+FROM (
+  SELECT %(fkr_cols)s
+  FROM (SELECT %(icols)s FROM %(input_table)s i) i
+  WHERE %(fkr_nonnull)s
+  EXCEPT
+  SELECT %(domain_key_cols)s FROM %(domain_table)s
+) s
+LIMIT 1""") % dict(
+    input_table = parts['input_table'],
+    icols = parts['icols'],
+    fkr_cols = ','.join(fkr_cols),
+    fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
+    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d'),
+    domain_key_cols = ','.join([
+        u'd.%s' % uc.sql_name()
+        for fc, uc in fkr.reference_map_frozen
+    ]),
+)
+                            #web.debug(sql)
+                            cur.execute(sql)
+                            if cur.rowcount > 0:
+                                raise Forbidden(u'insert access on foreign key reference %s' % fkr)
+
                 if not parts['cols']:
                     raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
+
                 parts.update(
                     icols = ','.join(
                         ['i.%s' % c.sql_name(mkcol_aliases.get(c)) for c in mkcols if use_defaults is None or c.name not in use_defaults]
