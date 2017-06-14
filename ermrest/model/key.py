@@ -489,6 +489,10 @@ class KeyReference (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
+        if 'insert' not in self.acls:
+            self.acls['insert'] = ['*']
+        if 'update' not in self.acls:
+            self.acls['update'] = ['*']
         self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
         self.dynacls.update(dynacls)
         self.comment = comment

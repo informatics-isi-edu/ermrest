@@ -275,21 +275,24 @@ field is replaced with a NULL value.
 #### Reference ACLs
 
 A reference-level ACL describes whether to permit foreign key
-references to be expressed. When not configured locally, the effective
-reference-level ACL is inherited from the constituent foreign key
-columns (any value is allowed if the column write would be allowed,
-subject to normal foreign key reference integrity constraints).
+references to be expressed.
+
+Reference ACLs are set to `["*"]` if not otherwise specified in the
+request.  In practice, reference ACLs are less often restricted and so
+this default simplifies common configurations. A model which needs to
+restrict expression of foreign keys SHOULD explicitly override the
+default ACLs; to completely disable expression of foreign keys, the
+reference ACL set `{"insert": [], "update": []}` MAY be used.
 
 Reference constraints are considered part of the enclosing table
-resource and do not have separable ownership. Reference ACLs are set
-to `null` if not otherwise specified in the request.
+resource and do not have separable ownership.
 
 [Dynamic reference ACL bindings](#dynamic-reference-acls) can augment
-column-level ACLs to enable expression of only a subset of data in a
-column governed by that constraint. These bindings only affect data
-modification requests. These ACLs are actually managed on foreign key
-reference constraints, but their effect is to limit what new values
-can be expressed in the foreign key's constituent columns.
+reference ACLs to enable expression of only a subset of data in a
+column governed by that reference constraint. These ACLs are actually
+managed on foreign key reference constraints, but their effect is to
+limit what new values can be expressed in the foreign key's
+constituent columns.
 
 ### Dynamic ACL Bindings
 
