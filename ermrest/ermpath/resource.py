@@ -776,7 +776,7 @@ LIMIT 1""") % dict(
     keymatches = parts['keymatches'],
     fkr_cols = ','.join(fkr_cols),
     fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
-    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d'),
+    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
     domain_key_cols = ','.join([
         u'd.%s' % uc.sql_name()
         for fc, uc in fkr.reference_map_frozen
@@ -844,7 +844,7 @@ LIMIT 1""") % dict(
     icols = parts['icols'],
     fkr_cols = ','.join(fkr_cols),
     fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
-    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d'),
+    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
     domain_key_cols = ','.join([
         u'd.%s' % uc.sql_name()
         for fc, uc in fkr.reference_map_frozen

@@ -370,7 +370,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             doc['acl_bindings'] = self.dynacls
         return doc
 
-    def sql_name(self, dynauthz=None, access_type='select', alias=None, dynauthz_testcol=None):
+    def sql_name(self, dynauthz=None, access_type='select', alias=None, dynauthz_testcol=None, dynauthz_testfkr=None):
         """Generate SQL representing this entity for use as a FROM clause.
 
            dynauthz: dynamic authorization mode to compile
@@ -384,6 +384,10 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                None: normal mode
                col: match rows where client is NOT authorized to access column
 
+           dynauthz_testfkr:
+               None: normal mode
+               fkr: compile using dynamic ACLs from fkr instead of from this table
+
            The result is a schema-qualified table name for dynauthz=None, else a subquery.
         """
         tsql = '.'.join([
@@ -393,21 +397,27 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
         talias = alias if alias else 's'
 
-        if dynauthz is not None:
-            assert alias is not None
-            assert dynauthz_testcol is None
-
-            if self.has_right(access_type) is None:
+        def get_dynacl_clauses(src):
+            if src.has_right(access_type) is None:
                 clauses = ['False']
 
-                for binding in self.dynacls.values():
+                for binding in src.dynacls.values():
                     if not set(binding['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
                         aclpath, col, ctype = binding._compile_projection()
                         aclpath.epath.add_filter(AclPredicate(binding, col))
                         authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
                         clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=alias, enforce_client=False))
             else:
-                clauses = ['True']        
+                clauses = ['True']
+            return clauses
+
+        if dynauthz is not None:
+            assert alias is not None
+            assert dynauthz_testcol is None
+            if dynauthz_testfkr is not None:
+                assert dynauthz_testfkr.unique.table == self
+
+            clauses = get_dynacl_clauses(self if dynauthz_testfkr is None else dynauthz_testfkr)
 
             if dynauthz:
                 tsql = "(SELECT %s FROM %s %s WHERE (%s))" % (
