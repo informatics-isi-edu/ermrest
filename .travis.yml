@@ -13,6 +13,7 @@ env:
     - TEST_COOKIES2=~/cookies2
     - TEST_SSL_VERIFY=false
     - HTTPD_ERROR_LOG=/var/log/apache2/error.log
+    - PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 before_install:
   - sudo apt-get -y update
