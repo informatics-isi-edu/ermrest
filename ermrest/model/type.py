@@ -169,28 +169,29 @@ class Type (object):
     def default_value(self, raw):
         """Converts raw default value with base_type hints.
         """
-        # BUG: raw default value may have SQL cast syntax, e.g. '(0)::smallint', which is not a valid Python literal
         if not raw:
             return raw
-        elif re.match(_pg_serial_default_pattern, raw) \
-                and re.match('(big|small)?serial.*', self.name):
+
+        if re.match(_pg_serial_default_pattern, raw) \
+           and re.match('(big|small)?serial.*', self.name):
             # strip off sequence default since we indicate serial type
             return None
-        elif self.name in [ 'int2', 'int4', 'int8', 'smallint', 'bigint', 'integer', 'int' ]:
+
+        m = re.match(r"NULL::[a-z ]*", raw)
+        if m:
+            return None
+
+        m = re.match(r"['(](?P<val>.*)[')]::[a-z ]*", raw)
+        if m:
+            raw = m.groupdict()['val']
+
+        if self.name in [ 'int2', 'int4', 'int8', 'smallint', 'bigint', 'integer', 'int' ]:
             return int(raw)
         elif self.name in [ 'float', 'float4', 'float8', 'real', 'double precision' ]:
             return float(raw)
         elif self.name in [ 'bool', 'boolean' ]:
             return raw is not None and raw.lower() == 'true'
-        
-        m = re.match(r"'(?P<val>.*)'::[a-z ]*", raw)
-        if m:
-            return m.groupdict()['val']
 
-        m = re.match(r"NULL::[a-z ]*", raw)
-        if m:
-            return None
-        
         raise exception.ConflictData('Unhandled scalar default value: %s' % raw)
 
     @staticmethod
