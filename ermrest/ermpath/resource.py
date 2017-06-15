@@ -704,10 +704,8 @@ FROM (
                     self.table.enforce_right('update')
                     for c in nmkcols:
                         c.enforce_right('update')
-                    for c, fkrs in nonnull_nmkcol_fkrs.items():
-                        for fkr in fkrs:
-                            if not fkr.has_right('update'):
-                                raise rest.Forbidden(u'update access with non-NULL value in column %s' % unicode(c.name))
+                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
+                        fkr.enforce_right('update')
 
                     if self.table.has_right('update') is None:
                         # need to enforce dynamic ACLs
@@ -743,12 +741,7 @@ LIMIT 1""") % parts2
                             if cur.rowcount > 0:
                                 raise Forbidden(u'update access on column %s for one or more rows' % c)
 
-                    for fkr in [
-                            fkr
-                            for fk in self.table.fkeys.values()
-                            for fkr in fk.references.values()
-                            if not set(fkr.foreign_key.columns).isdisjoint(set(nmkcols))
-                    ]:
+                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
                         if fkr.has_right('update') is None:
                             # need to enforce dynamic ACLs
                             fkr_cols = [
@@ -844,7 +837,7 @@ LIMIT 1""") % dict(
     icols = parts['icols'],
     fkr_cols = ','.join(fkr_cols),
     fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
-    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
+    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='insert', alias='d', dynauthz_testfkr=fkr),
     domain_key_cols = ','.join([
         u'd.%s' % uc.sql_name()
         for fc, uc in fkr.reference_map_frozen

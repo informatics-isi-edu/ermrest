@@ -65,12 +65,12 @@ class Table (object):
         self.kind = kind
         self.comment = comment
         self.columns = AltDict(
-            lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)),
+            lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self.name)),
             lambda k, v: enforce_63byte_id(k, "Column")
         )
         self.uniques = AltDict(
             lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (
-                ",".join([unicode(c.name) for c in k]), self)
+                ",".join([unicode(c.name) for c in k]), self.name)
             )
         )
         self.fkeys = AltDict(
@@ -307,6 +307,8 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         column.table = self
         for k, v in column.annotations.items():
             column.set_annotation(conn, cur, k, v)
+        for k, v in column.acls.items():
+            column.set_acl(cur, k, v)
         return column
 
     def delete_column(self, conn, cur, cname):
@@ -338,6 +340,8 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             fkr.add(conn, cur)
             for k, v in fkr.annotations.items():
                 fkr.set_annotation(conn, cur, k, v)
+            for k, v in fkr.acls.items():
+                fkr.set_acl(cur, k, v)
             for k, v in fkr.dynacls.items():
                 fkr.set_dynacl(cur, k, v)
             yield fkr

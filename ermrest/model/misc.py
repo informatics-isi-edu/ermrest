@@ -89,6 +89,8 @@ class AltDict (dict):
 
     def __getitem__(self, k):
         try:
+            if type(k) is str:
+                k = k.decode('utf8')
             result = dict.__getitem__(self, k)
             return result
         except KeyError:

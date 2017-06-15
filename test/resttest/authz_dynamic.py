@@ -130,36 +130,36 @@ def expect_values(values):
     return check
 
 _put_row_data_primary = [
-    {"id": 11, "name": "public 1 modified"},
-    {"id": 12, "name": "public 2 modified"},
-    {"id": 13, "name": "public 3 modified"},
-    {"id": 14, "name": "public 4 modified"},
-    {"id": 21, "name": "restricted group 1 modified"},
-    {"id": 22, "name": "restricted group 2 modified"},
-    {"id": 23, "name": "restricted group 3 modified"},
-    {"id": 24, "name": "restricted group 4 modified"},
-    {"id": 31, "name": "restricted member 1 modified"},
-    {"id": 32, "name": "restricted member 2 modified"},
-    {"id": 33, "name": "restricted member 3 modified"},
-    {"id": 34, "name": "restricted member 4 modified"},
-    {"id": 41, "name": "private 1 modified"},
-    {"id": 42, "name": "private 2 modified"},
-    {"id": 43, "name": "private 3 modified"},
-    {"id": 44, "name": "private 4 modified"},
+    {"id": 11, "c_id": 1, "name": "public 1 modified"},
+    {"id": 12, "c_id": 2, "name": "public 2 modified"},
+    {"id": 13, "c_id": 3, "name": "public 3 modified"},
+    {"id": 14, "c_id": 4, "name": "public 4 modified"},
+    {"id": 21, "c_id": 1, "name": "restricted group 1 modified"},
+    {"id": 22, "c_id": 2, "name": "restricted group 2 modified"},
+    {"id": 23, "c_id": 3, "name": "restricted group 3 modified"},
+    {"id": 24, "c_id": 4, "name": "restricted group 4 modified"},
+    {"id": 31, "c_id": 1, "name": "restricted member 1 modified"},
+    {"id": 32, "c_id": 2, "name": "restricted member 2 modified"},
+    {"id": 33, "c_id": 3, "name": "restricted member 3 modified"},
+    {"id": 34, "c_id": 4, "name": "restricted member 4 modified"},
+    {"id": 41, "c_id": 1, "name": "private 1 modified"},
+    {"id": 42, "c_id": 2, "name": "private 2 modified"},
+    {"id": 43, "c_id": 3, "name": "private 3 modified"},
+    {"id": 44, "c_id": 4, "name": "private 4 modified"},
 ]
 
 _put_row_data_secondary = [
-    {"id": 11, "name": "public 1 modified"},
-    {"id": 12, "name": "public 2 modified"},
-    {"id": 21, "name": "restricted group 1 modified"},
-    {"id": 22, "name": "restricted group 2 modified"},
-    {"id": 31, "name": "restricted member 1 modified"},
-    {"id": 32, "name": "restricted member 2 modified"},
+    {"id": 11, "c_id": 1, "name": "public 1 modified"},
+    {"id": 12, "c_id": 2, "name": "public 2 modified"},
+    {"id": 21, "c_id": 1, "name": "restricted group 1 modified"},
+    {"id": 22, "c_id": 2, "name": "restricted group 2 modified"},
+    {"id": 31, "c_id": 1, "name": "restricted member 1 modified"},
+    {"id": 32, "c_id": 2, "name": "restricted member 2 modified"},
 ]
 
 _put_row_data_anonymous = [
-    {"id": 11, "name": "public 1 modified"},
-    {"id": 12, "name": "public 2 modified"},
+    {"id": 11, "c_id": 1, "name": "public 1 modified"},
+    {"id": 12, "c_id": 1, "name": "public 2 modified"},
 ]
 
 def make_put_test(session, data, get_url, get_expect):
@@ -286,11 +286,22 @@ class StaticHidden (common.ErmrestTest):
         "Data_Category": {}
     }
 
+    fkr_acls = {
+        "schema/%s/table/Data/foreignkey/c_id/reference/Category/id" % _S: {
+            "insert": ["*"],
+            "update": ["*"],
+        }
+    }
+
     bindings = {
         "Data": { "member": _id_owner_nonnull },
         "Extension": { "member": _id_owner_nonnull },
         "Category": { "member": _id_owner_nonnull },
         "Data_Category": { "member": _did_owner_nonnull },
+    }
+
+    fkr_bindings = {
+        # "schema/%s/table/Data/foreignkey/c_id/reference/Category/id" % _S: {}
     }
 
     @classmethod
@@ -312,8 +323,12 @@ class StaticHidden (common.ErmrestTest):
                         common.primary_session.get(aclurl).json()
                 ):
                     common.primary_session.put(aclurl, json=col_acl).raise_for_status()
+        for fkr_url_frag, fkr_acls in cls.fkr_acls.items():
+            common.primary_session.put('%s/acl' % fkr_url_frag, json=fkr_acls).raise_for_status()
         for tname, bindings in cls.bindings.items():
             common.primary_session.put('schema/%s/table/%s/acl_binding' % (_S, tname), json=bindings).raise_for_status()
+        for fkr_url_frag, bindings in cls.fkr_bindings.items():
+            common.primary_session.put('%s/acl_binding' % fkr_url_frag, json=bindings).raise_for_status()
 
     def setUp(self):
         # reset data in case we have mutation test cases
@@ -444,6 +459,49 @@ class HiddenPolicy (StaticHidden):
             'anonymous_put_row_data_anonymous': Expectation([200,204]),
         }
     )
+
+class RestrictedFkr (HiddenPolicy):
+    fkr_acls = {
+        "schema/%s/table/Data/foreignkey/c_id/reference/Category/id" % _S: {
+            "insert": [],
+            "update": [],
+        }
+    }
+
+    test_expectations = _merge(
+        HiddenPolicy.test_expectations,
+        {
+            'secondary_put_row_data_primary': Expectation(403),
+            'secondary_put_row_data_secondary': Expectation(403),
+            'secondary_put_row_data_anonymous': Expectation(403),
+            'anonymous_put_row_data_primary': Expectation(401),
+            'anonymous_put_row_data_secondary': Expectation(401),
+            'anonymous_put_row_data_anonymous': Expectation(401),
+
+            'secondary_put_col_data_primary': Expectation([200, 204]),
+            'secondary_put_col_data_secondary': Expectation([200, 204]),
+            'secondary_put_col_data_anonymous': Expectation([200, 204]),
+            'anonymous_put_col_data_primary': Expectation([200, 204]),
+            'anonymous_put_col_data_secondary': Expectation([200, 204]),
+            'anonymous_put_col_data_anonymous': Expectation([200, 204]),
+        }
+    )
+
+class RestrictedFkrDomainAcl (RestrictedFkr):
+    fkr_bindings = {
+        "schema/%s/table/Data/foreignkey/c_id/reference/Category/id" % _S: {
+            "aclowner": _ACL_owner_acl
+        }
+    }
+
+    test_expectations = _merge(
+        RestrictedFkr.test_expectations,
+        {
+            'secondary_put_row_data_secondary': Expectation([200, 204]),
+            'secondary_put_row_data_anonymous': Expectation([200, 204]),
+            'anonymous_put_row_data_anonymous': Expectation([200, 204]),
+        }
+)
 
 class SelectOnly (HiddenPolicy):
     bindings = {

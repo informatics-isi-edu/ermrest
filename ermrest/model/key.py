@@ -437,10 +437,13 @@ def _keyref_prejson(self):
     return doc
 
 def _keyref_has_right(self, aclname, roles=None):
-    if not self.unique.has_right('enumerate', roles):
-        return False
-    if not self.foreign_key.columns_have_right(aclname):
-        return False
+    if aclname == 'enumerate':
+        if not self.unique.has_right('enumerate', roles):
+            return False
+        decision = self.foreign_key.columns_have_right('enumerate')
+        if not decision:
+            # None or False may happen here
+            return decision
     return self._has_right(aclname, roles)
 
 @annotatable
@@ -489,10 +492,6 @@ class KeyReference (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
-        if 'insert' not in self.acls:
-            self.acls['insert'] = ['*']
-        if 'update' not in self.acls:
-            self.acls['update'] = ['*']
         self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
         self.dynacls.update(dynacls)
         self.comment = comment
@@ -661,6 +660,8 @@ SELECT _ermrest.model_change_event();
         pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
         annotations = refdoc.get('annotations', {})
         comment = refdoc.get('comment')
+        acls = {"insert": ["*"], "update": ["*"]}
+        acls.update(refdoc.get('acls', {}))
         dynacls = refdoc.get('acl_bindings', {})
 
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
@@ -671,9 +672,9 @@ SELECT _ermrest.model_change_event();
             
         if fk_ref_map not in fkey.references:
             if fktable.kind == 'r' and pktable.kind == 'r':
-                fkr = KeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, dynacls=dynacls)
+                fkr = KeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, acls=acls, dynacls=dynacls)
             else:
-                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, dynacls=dynacls)
+                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, acls=acls, dynacls=dynacls)
             fkey.references[fk_ref_map] = fkr
             yield fkey.references[fk_ref_map]
 
