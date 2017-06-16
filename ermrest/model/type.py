@@ -15,6 +15,7 @@
 #
 
 import re
+import json
 
 from .. import exception
 
@@ -156,6 +157,8 @@ class Type (object):
             elif self.name in [ 'float', 'float4', 'float8' ]:
                 return "%s" % float(v)
             else:
+                if self.name in [ 'json', 'jsonb' ]:
+                    v = json.dumps(v)
                 # text and text-like...
                 return u"'" + unicode(v).replace(u"'", u"''") + u"'::%s" % self.sql()
         except ValueError:
@@ -192,8 +195,11 @@ class Type (object):
             return float(raw)
         elif self.name in [ 'bool', 'boolean' ]:
             return raw is not None and raw.lower() == 'true'
-
-        raise exception.ConflictData('Unhandled scalar default value: %s' % raw)
+        elif self.name in [ 'json', 'jsonb' ]:
+            return json.loads(raw)
+        else:
+            # fall back for text and text-like e.g. domains or other unknown types
+            return raw
 
     @staticmethod
     def fromjson(typedoc, ermrest_config):
