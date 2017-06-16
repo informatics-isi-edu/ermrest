@@ -352,7 +352,14 @@ access to fields within rows of a table.
         - Field targeted during row updates
 		- Field cleared by attribute deletes
   
-Column-level dynamic ACLs are not involved in row deletion decisions.
+Column-level dynamic ACLs are not involved in row insertion nor
+deletion decisions.
+
+As a convenience, columns inherit the dynamic ACL bindings of their
+table. Thus, if no column-level ACL bindings are specified, the column
+allows whatever operation the table would allow for that row. The
+column-level policy MAY apply a special binding value of `false` to
+suppress an ACL binding inherited from the table under the same name.
 
 #### Dynamic Reference ACLs
 
@@ -544,6 +551,17 @@ column of the table grants `owner` dynamic access type for individual
 rows. The representation uses an array for the `type` so that multiple
 access modes can be more easily configured without having to repeat the
 same projection many times.
+
+#### Inheritence and False Binding
+
+As a convenience, columns effectively inherit the ACL bindings of
+their table. A column whose `"acl_bindings"` document is empty will
+permit all operations that the table would allow for each row. To
+grant fewer writes, the column-level `"acl_bindings"` MUST override
+the named bindings inherited from the table.
+
+- Replacement: the column MAY provide a different binding document under the same binding name.
+- Suppression: the column MAY provide a literal `false` value instead of a binding document.
 
 #### Projection Document
 

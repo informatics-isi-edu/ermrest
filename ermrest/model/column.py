@@ -22,8 +22,7 @@ import web
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, truncated_identifier, sufficient_rights
-from .predicate import AclPredicate
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, truncated_identifier, sufficient_rights, get_dynacl_clauses
 
 @commentable
 @annotatable
@@ -229,6 +228,21 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             column_name=self.name
             )
 
+    def dynauthz_restricted(self, access_type='select'):
+        """Return True if the policy check for column involves dynacls more restrictive than table."""
+        if self.has_right(access_type):
+            # column statically allows so is not restrictive
+            return False
+        if self.table.has_right(access_type):
+            # column has dynacls while table does not
+            return True
+        for aclname in self.table.dynacls:
+            if aclname in self.dynacls:
+                # column overrides a table-level dynacl
+                return True
+        # column inherits all table-level dynacls so is equal or more permissive
+        return False
+
     def sql_name_dynauthz(self, talias, dynauthz, access_type='select'):
         """Generate SQL representing this column for use as a SELECT clause.
 
@@ -242,22 +256,24 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         """
         csql = sql_identifier(self.name)
 
-        if self.has_right(access_type) is None:
-            clauses = ['False']
-            for binding in self.dynacls.values():
-                if not set(binding['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
-                    aclpath, col, ctype = binding._compile_projection()
-                    aclpath.epath.add_filter(AclPredicate(binding, col))
-                    authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
-                    clauses.append(authzpath.sql_get(limit=1, prefix=talias, enforce_client=False))
+        # effective dynacls is inherited table dynacls overridden by local dynacls
+        dynacls = dict(self.table.dynacls)
+        dynacls.update(self.dynacls)
+        clauses = get_dynacl_clauses(self, access_type, talias, dynacls)
 
+        if self.has_right(access_type) is None:
             if dynauthz:
-                return "CASE WHEN %s THEN %s ELSE NULL::%s END AS %s" % (
-                    ' OR '.join(["(%s)" % clause for clause in clauses ]),
-                    csql,
-                    self.type.sql(basic_storage=True),
-                    sql_identifier(self.name)
-                )
+                if self.dynauthz_restricted(access_type):
+                    # need to enforce more restrictive column policy
+                    return "CASE WHEN %s THEN %s ELSE NULL::%s END AS %s" % (
+                        ' OR '.join(["(%s)" % clause for clause in clauses ]),
+                        csql,
+                        self.type.sql(basic_storage=True),
+                        sql_identifier(self.name)
+                    )
+                else:
+                    # optimization: row-level access has been checked
+                    pass
             else:
                 return '(%s)' % ' AND '.join("COALESCE(NOT (%s), True)" % clause for clause in clauses)
 

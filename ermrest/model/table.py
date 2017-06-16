@@ -26,10 +26,9 @@ needed by other modules of the ermrest project.
 
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode
-from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
-from .predicate import AclPredicate
 
 import urllib
 import json
@@ -401,27 +400,13 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
         talias = alias if alias else 's'
 
-        def get_dynacl_clauses(src):
-            if src.has_right(access_type) is None:
-                clauses = ['False']
-
-                for binding in src.dynacls.values():
-                    if not set(binding['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
-                        aclpath, col, ctype = binding._compile_projection()
-                        aclpath.epath.add_filter(AclPredicate(binding, col))
-                        authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
-                        clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=alias, enforce_client=False))
-            else:
-                clauses = ['True']
-            return clauses
-
         if dynauthz is not None:
             assert alias is not None
             assert dynauthz_testcol is None
             if dynauthz_testfkr is not None:
                 assert dynauthz_testfkr.unique.table == self
 
-            clauses = get_dynacl_clauses(self if dynauthz_testfkr is None else dynauthz_testfkr)
+            clauses = get_dynacl_clauses(self if dynauthz_testfkr is None else dynauthz_testfkr, access_type, alias)
 
             if dynauthz:
                 tsql = "(SELECT %s FROM %s %s WHERE (%s))" % (

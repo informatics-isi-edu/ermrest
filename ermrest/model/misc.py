@@ -624,7 +624,7 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
 
         if hasattr(self, 'dynacls'):
             for binding in self.dynacls.values():
-                if not set(binding['types']).isdisjoint(sufficient_rights[aclname].union({aclname})):
+                if not set(binding['types'] if binding else []).isdisjoint(sufficient_rights[aclname].union({aclname})):
                     # dynamic rights are possible on this resource...
                     return None
 
@@ -687,7 +687,10 @@ def hasdynacls(dynacl_types_supported):
     @classmethod
     def introspect_dynacl_helper(orig_class, cur, model):
         def helper(resource=None, binding_name=None, binding=None):
-            resource.dynacls[binding_name] = AclBinding(model, resource, binding_name, binding)
+            if binding is False:
+                resource.dynacls[binding_name] = False
+            else:
+                resource.dynacls[binding_name] = AclBinding(model, resource, binding_name, binding)
         _introspect_helper(orig_class, cur, model, 'dynacl', {'binding_name': 'text'}, {'binding': 'jsonb'}, helper)
 
     def _interp_dynacl(self, name):
@@ -705,7 +708,10 @@ def hasdynacls(dynacl_types_supported):
             return self.delete_dynacl(cur, name)
 
         self.enforce_right('owner') # pre-flight authz
-        self.dynacls[name] = AclBinding(web.ctx.ermrest_catalog_model, self, name, binding)
+        if binding is False:
+            self.dynacls[name] = False
+        else:
+            self.dynacls[name] = AclBinding(web.ctx.ermrest_catalog_model, self, name, binding)
 
         interp = self._interp_dynacl(name)
         keys = interp.keys()
@@ -777,3 +783,23 @@ DELETE FROM _ermrest.model_%(restype)s_dynacl WHERE %(where)s;
         return orig_class
 
     return helper
+
+def get_dynacl_clauses(src, access_type, prefix, dynacls=None):
+    if dynacls is None:
+        dynacls = src.dynacls
+
+    if src.has_right(access_type) is None:
+        clauses = ['False']
+
+        for binding in dynacls.values():
+            if binding is False:
+                continue
+            if not set(binding['types'] if binding else []).isdisjoint(sufficient_rights[access_type].union({access_type})):
+                aclpath, col, ctype = binding._compile_projection()
+                aclpath.epath.add_filter(predicate.AclPredicate(binding, col))
+                authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
+                clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False))
+    else:
+        clauses = ['True']
+
+    return clauses

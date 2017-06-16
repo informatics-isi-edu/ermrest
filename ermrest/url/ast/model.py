@@ -418,8 +418,8 @@ class Dynacl (AclCommon):
         subject.set_dynacl(cur, key, element)
 
     def validate_element(self, element):
-        if type(element) is not dict:
-            raise exception.BadData('Dynamic ACL binding representation must be an object.')
+        if type(element) is not dict and element is not False:
+            raise exception.BadData('Dynamic ACL binding representation must be an object or literal false value.')
         return element
 
 class TableDynacl (Dynacl):

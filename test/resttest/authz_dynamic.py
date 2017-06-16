@@ -300,6 +300,10 @@ class StaticHidden (common.ErmrestTest):
         "Data_Category": { "member": _did_owner_nonnull },
     }
 
+    col_bindings = {
+        # "schema/%s/table/Data/column/%s" % _S: {}
+    }
+
     fkr_bindings = {
         # "schema/%s/table/Data/foreignkey/c_id/reference/Category/id" % _S: {}
     }
@@ -327,6 +331,8 @@ class StaticHidden (common.ErmrestTest):
             common.primary_session.put('%s/acl' % fkr_url_frag, json=fkr_acls).raise_for_status()
         for tname, bindings in cls.bindings.items():
             common.primary_session.put('schema/%s/table/%s/acl_binding' % (_S, tname), json=bindings).raise_for_status()
+        for col_url_frag, bindings in cls.col_bindings.items():
+            common.primary_session.put('%s/acl_binding' % col_url_frag, json=bindings).raise_for_status()
         for fkr_url_frag, bindings in cls.fkr_bindings.items():
             common.primary_session.put('%s/acl_binding' % fkr_url_frag, json=bindings).raise_for_status()
 
@@ -529,11 +535,39 @@ class SelectOnly (HiddenPolicy):
         }
     )
 
+class MemberColumnInherit (HiddenPolicy):
+    col_acls = {
+        "Data": {
+            "value": {"select": [], "update": []},
+            "values": {"select": [], "update": []}
+        }
+    }
+
 class MemberColumnSelectUpdate (HiddenPolicy):
     col_acls = {
         "Data": {
             "value": {"select": [], "update": []},
             "values": {"select": [], "update": []}
+        }
+    }
+
+    col_bindings = {
+        "schema/%s/table/Data/column/value" % _S: {
+            # test overriding inherited binding w/ different one
+            "member": {
+                "types": ["select", "update"],
+                "projection": "member",
+                "projection_type": "acl"
+            }
+        },
+        "schema/%s/table/Data/column/values" % _S: {
+            # test suppressing inherited binding
+            "member": False,
+            "member2": {
+                "types": ["select", "update"],
+                "projection": "member",
+                "projection_type": "acl"
+            }
         }
     }
 
@@ -979,7 +1013,7 @@ _defs = {
                             "name": "value",
                             "type": {"typename": "int"},
                             "acl_bindings": {
-                                "member": {
+                                "member2": {
                                     "types": ["select", "update"],
                                     "projection": "member",
                                     "projection_type": "acl"
@@ -996,7 +1030,7 @@ _defs = {
                                 }
                             },
                             "acl_bindings": {
-                                "member": {
+                                "member2": {
                                     "types": ["select", "update"],
                                     "projection": "member",
                                     "projection_type": "acl"

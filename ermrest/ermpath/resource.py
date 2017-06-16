@@ -724,7 +724,7 @@ LIMIT 1""") % parts2
                             raise Forbidden(u'update access on one or more rows in table %s' % self.table)
 
                     for c in nmkcols:
-                        if c.has_right('update') is None:
+                        if c.has_right('update') is None and c.dynauthz_restricted('update'):
                             # need to enforce dynamic ACLs
                             parts2 = dict(parts)
                             parts2['table'] = self.table.sql_name(access_type='update', alias="t", dynauthz_testcol=c)
@@ -1606,7 +1606,7 @@ WHERE %(keymatches)s
             if base == self.epath:
                 # column in final entity path element
                 col.enforce_right('update')
-                if col.has_right('update') is None:
+                if col.has_right('update') is None and col.dynauthz_restricted('update'):
                     # need to enforce dynamic ACLs
                     cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(access_type='update', dynauthz_testcol=col))
                     if cur.fetchone():
