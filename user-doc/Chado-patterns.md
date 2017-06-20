@@ -35,6 +35,7 @@ CREATE TABLE cvterm (
   definition text,
   is_obsolete boolean NOT NULL,
   is_relationshiptype boolean NOT NULL,
+  synonyms text[],
   UNIQUE (cvname, name, is_obsolete)
 );
 ```
@@ -50,28 +51,48 @@ The `cvtermpath` table stores transitive closures of term-to-term relationship g
 
 ```
 CREATE TABLE cvtermpath (
-  type_id integer NOT NULL REFERENCES cvterm (cvterm_id),
-  subject_id integer NOT NULL REFERENCES cvterm (cvterm_id),
-  object_id integer NOT NULL REFERENCES cvterm (cvterm_id),
+  type_dbxref text NOT NULL REFERENCES cvterm (cvterm_dbxref),
+  subject_dbxref text NOT NULL REFERENCES cvterm (cvterm_dbxref),
+  object_dbxref text NOT NULL REFERENCES cvterm (cvterm_dbxref),
   pathdistance integer NOT NULL,
-  UNIQUE (type_id, subject_id, object_id)
+  UNIQUE (type_dbxref, subject_dbxref, object_dbxref)
 );
 ```
 
 We constrain the path table:
 
-1. Don't allow NULL `type_id` which is a closure over multiple relationships
+1. Don't allow NULL `type_dbxref` which is a closure over multiple relationships
 2. Don't store multiple rows for same subject, relationship, object. Store *minimum* path distance.
 
 ## Domain tables
 
 We can have any number of domain tables to enumerate a subset of
-controlled vocabulary terms.
+controlled vocabulary terms. Each domain table is a filtered subset of
+`cvterm` with the same structure. A domain table could be implemented as
+materialized views defined with `create materialized view mydomain1 as select * from cvterm where ...`,
+as tables curated by hand, etc.
 
 ```
 CREATE TABLE mydomain1 (
-  dbxref text PRIMARY KEY REFERENCES cvterm (dbxref)
+  cvterm_id serial PRIMARY KEY,
+  dbxref text UNIQUE NOT NULL,
+  cvname text NOT NULL,
+  name text NOT NULL,
+  definition text,
+  is_obsolete boolean NOT NULL,
+  is_relationshiptype boolean NOT NULL,
+  synonyms text[],
+  UNIQUE (cvname, name, is_obsolete)
 );
+```
+## Domain path tables
+For each domain table, we will have a corresponding table defined as a subset of
+`cvtermpath` with all records that include any term in the domain table. For example,
+a domain path table could be defined with
+```
+create materialized view mydomain1_path as
+  select * from cvtermpath p
+  join mydomain1 d on d.dbxref = p.subject_dbxref or d.dbxref = p.object_dbxref;
 ```
 
 ## Data tables using controlled terms
