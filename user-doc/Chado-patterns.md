@@ -8,9 +8,9 @@ Chado schema for controlled vocabularies.
 
 1. We want to load ontologies easily, so being consistent with Chado is probably helpful.
 2. We want to separate ontology/vocabulary preparation from normal data management operations
-  - Vocabularies and terms are defined *before* use in data tables
-  - Restricted domain tables are used to present subsets of ontologies for use in data columns
-  - Data serialization should not depend on order vocabularies are loaded
+   - Vocabularies and terms are defined *before* use in data tables
+   - Restricted domain tables are used to present subsets of ontologies for use in data columns
+   - Data serialization should not depend on order vocabularies are loaded
 3. We will use the dbxref concept specifically with _DB_ `:` _ACCESSION_ `:` _VERSION_ textual formatted indentifiers as keys and foreign keys in vocabulary storage columns, e.g. `OBO_REL:is_a:`.
 
 ## Chado-derived core tables
@@ -28,8 +28,7 @@ The `cvterm` table enumerates all available terms.
 
 ```
 CREATE TABLE cvterm (
-  cvterm_id serial PRIMARY KEY,
-  dbxref text UNIQUE NOT NULL,
+  dbxref text PRIMARY KEY,
   cvname text NOT NULL,
   name text NOT NULL,
   definition text,
@@ -42,7 +41,7 @@ CREATE TABLE cvterm (
 
 We simplify the dbxref model:
 
-1. Don't need/want serial IDs except for efficient internal mappings
+1. Don't need/want serial IDs which are inconsistent between DB instances
 2. Want direct denormalized access to dbxref
 
 ### cvtermpath
@@ -74,8 +73,7 @@ as tables curated by hand, etc.
 
 ```
 CREATE TABLE mydomain1 (
-  cvterm_id serial PRIMARY KEY,
-  dbxref text UNIQUE NOT NULL,
+  dbxref text PRIMARY KEY REFERENCES cvterm(dbxref),
   cvname text NOT NULL,
   name text NOT NULL,
   definition text,
@@ -85,6 +83,8 @@ CREATE TABLE mydomain1 (
   UNIQUE (cvname, name, is_obsolete)
 );
 ```
+We want a foreign key reference constraint to emphasize that the domain table is a proper subset of the core cvterm table.
+
 ## Domain path tables
 For each domain table, we will have a corresponding table defined as a subset of
 `cvtermpath` with all records that include any term in the domain table. For example,
@@ -126,15 +126,16 @@ term set.
 
 ### Prettier term display
 
-Any consumer can recognize the foreign key chain, through domain
-table, to the `cvterm` table to understand how to retrieve name or
-definition information from a dbxref value.
+Because the domain table uses the same schema as the core cvterm table,
+it includes definitions and other metadata. Some presentation customization
+can be done based on this information alone. However, there might be more
+vocabulary-aware UX features desired in some cases?
 
 Options:
 
-1. Hard-code detection of `cvterm` table name in some specific schema?
-2. Rely on schema annotation to mark the `cvterm` table as a vocabulary?
-3. Do duck-type signature detection to recognize the structure of `cvterm` table?
+1. Use normal Chaise/annotation features to adjust domain table "row name".
+2. Detect fkey chain to core cvterm table to enable special vocabulary functions?
+3. Annotate domain tables to enable special vocabulary functions?
 
 ### Semantic search via transitive closures
 
