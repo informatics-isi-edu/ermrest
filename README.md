@@ -51,21 +51,21 @@ See [ERMrest Installation (CentOS 7)](user-doc/install-centos7.md).
 1. The `mod_webauthn` Apache HTTPD module determined authenticated client context for requests
 1. The ERMrest service code executes as the `ermrest` daemon user
 1. The service configuration is loaded from `~ermrest/ermrest_config.json`:
-  - Core access control policy for catalog creation.
-  - Data type presentation.
+   - Core access control policy for catalog creation.
+   - Data type presentation.
 1. All dynamic data is stored in the RDBMS.
-  - The catalog's data model
-  - The catalog's fine-grained access control lists
-  - The catalog's data content
+   - The catalog's data model
+   - The catalog's fine-grained access control lists
+   - The catalog's data content
 1. Client authentication context is retrieved from Apache request environment
-  - Client identity
-  - Client roles/group membership.
+   - Client identity
+   - Client roles/group membership.
 1. Catalog-level authorization of service requests is determined by the service code:
-  - ACLs retrieved from RDBMS
-  - ACLs are intersected with authenticated client context.
+   - ACLs retrieved from RDBMS
+   - ACLs are intersected with authenticated client context.
 1. The RDBMS is accessed using daemon service credentials
-  - Fine-grained *static* authorization is handled in service prior to executing SQL
-  - Fine-grained *dynamic* authorization is handled in service by compiling policy checks into SQL
+   - Fine-grained *static* authorization is handled in service prior to executing SQL
+   - Fine-grained *dynamic* authorization is handled in service by compiling policy checks into SQL
 
 ## Help and Contact
 
