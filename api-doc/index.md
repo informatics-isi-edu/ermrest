@@ -139,6 +139,7 @@ The ERMrest interface supports typical HTTP operations to manage these different
   1. [Model Annotations](model/rest.md#model-annotations)
     1. [Annotation List Retrieval](model/rest.md#annotation-list-retrieval)
     1. [Annotation Creation](model/rest.md#annotation-creation)
+    1. [Annotation Bulk Update](model/rest.md#annotation-bulk-update)
     1. [Annotation Retrieval](model/rest.md#annotation-retrieval)
     1. [Annotation Deletion](model/rest.md#annotation-deletion)
   1. [Model Comments](model/rest.md#model-comments)

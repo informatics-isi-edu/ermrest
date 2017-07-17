@@ -398,7 +398,37 @@ def annotatable(orig_class):
         ] + [
             ('annotation_uri', sql_wrap(key))
         ])
-        
+
+    def set_annotations(self, conn, cur, doc):
+        """Replace full annotations doc on %s, returning None."""
+        self.enforce_right('owner')
+        self.delete_annotation(conn, cur, None)
+        interp = self._interp_annotation(None)
+
+        # find static part of row representing self
+        del interp['annotation_uri']
+        columns = list(interp.keys())
+        selfvals = [ interp[c] for c in columns ]
+
+        # build rows for each field in doc
+        values = ', '.join([
+            '(%s)' % ', '.join(selfvals + [ sql_literal(key), sql_literal(json.dumps(value)) ])
+            for key, value in doc.items()
+        ])
+
+        # reform the column name list for INSERT statement
+        columns += [ 'annotation_uri', 'annotation_value' ]
+        columns = ', '.join([ sql_identifier(c) for c in columns ])
+
+        if values:
+            cur.execute("""
+INSERT INTO _ermrest.model_%s_annotation (%s) VALUES %s;
+""" % (orig_class._model_restype, columns, values)
+
+            )
+
+        return None
+
     def set_annotation(self, conn, cur, key, value):
         """Set annotation on %s, returning previous value for updates or None.""" % orig_class._model_restype
         assert key is not None
@@ -429,6 +459,7 @@ RETURNING old.annotation_value;
         columns = ', '.join([sql_identifier(k) for k in interp.keys()] + ['annotation_value'])
         values = ', '.join([interp[k] for k in interp.keys()] + [sql_literal(json.dumps(value))])
         cur.execute("""
+SELECT _ermrest.model_change_event();
 INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
 """ % (orig_class._model_restype, columns, values)
         )
@@ -447,8 +478,8 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
         ])
         cur.execute("""
 SELECT _ermrest.model_change_event();
-DELETE FROM _ermrest.model_%s_annotation WHERE %s;
-""" % (orig_class._model_restype, where)
+DELETE FROM _ermrest.model_%s_annotation %s;
+""" % (orig_class._model_restype, ('WHERE %s' % where) if where else '')
         )
 
     @classmethod
@@ -463,6 +494,7 @@ DELETE FROM _ermrest.model_%s_annotation WHERE %s;
 
     setattr(orig_class, '_interp_annotation', _interp_annotation)
     setattr(orig_class, 'set_annotation', set_annotation)
+    setattr(orig_class, 'set_annotations', set_annotations)
     setattr(orig_class, 'delete_annotation', delete_annotation)
     if hasattr(orig_class, 'keyed_resource'):
         setattr(orig_class, 'introspect_helper', introspect_helper)

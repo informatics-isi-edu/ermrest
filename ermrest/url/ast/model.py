@@ -535,11 +535,13 @@ class Annotations (Api):
         return _GET(self, self.GET_body, _post_commit_json)
 
     def PUT_body(self, conn, cur, value):
-        if self.key is None:
-            raise exception.rest.NoMethod('PUT only supported on individually keyed annotations')
         subject = self.GET_subject(conn, cur)
-        oldval = subject.set_annotation(conn, cur, self.key, value)
-        return oldval is None
+        if self.key is None:
+            subject.set_annotations(conn, cur, value)
+            return False
+        else:
+            oldval = subject.set_annotation(conn, cur, self.key, value)
+            return oldval is None
 
     def PUT(self, uri):
         def post_commit(self, created):

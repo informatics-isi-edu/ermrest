@@ -3,11 +3,10 @@ import unittest
 import common
 import basics
 
-_S = 'annotations'
-_T2b = basics._T2b
-
+_S = 'anno'
 _defs = basics.defs(_S)
-_table_defs = _defs['schemas'][_S]['tables']
+_T1 = basics._T1
+_T2b = basics._T2b
 
 def setUpModule():
     r = common.primary_session.get('schema/%s' % _S)
@@ -15,69 +14,79 @@ def setUpModule():
         # idempotent because unittest can re-enter module several times...
         common.primary_session.post('schema', json=_defs).raise_for_status()
 
-def add_annotation_tests(klass):
-    # generate annotation API tests over many resources in table
-    resources = basics.expand_table_resources(_S, _table_defs, klass.table) + [
-        # annotations on catalog itself...
-        ''
-    ]
+def _merge(d1, d2):
+    d = dict(d1)
+    d.update(d2)
+    return d
 
-    tags = [
-        'tag:misd.isi.edu,2015:test0',
-        'tag:misd.isi.edu,2015:test1',
-        'tag:misd.isi.edu,2015:test2'
-    ]
+class AnnotationCatalog (common.ErmrestTest):
+    uri = 'annotation'
 
-    configs = [
-        ('value 0', 'value 0'),
-        (None, 'value 1'),
-        (None, 'value 2')
-    ]
+    state0 = {}
 
-    for r in range(len(resources)):
-        res = resources[r]
-        for k in range(3):
-            tag = tags[k]
-            before, after = configs[k]
+    state1 = {
+        'tag:misd.isi.edu,2015:test1': 'test 1',
+        'tag:misd.isi.edu,2015:test2': 'test 2',
+    }
 
-            setattr(klass, 'test_r%02d_tag%d_before' % (r, k), lambda self: self._check(res, tag, before))
-            setattr(klass, 'test_r%02d_tag%d_change' % (r, k), lambda self: self._change(res, tag, after))
-            setattr(klass, 'test_r%02d_tag%d_delete' % (r, k), lambda self: self._change(res, tag, None))
+    state2 = {
+        'tag:misd.isi.edu,2015:test1': 'test 1',
+        'tag:misd.isi.edu,2015:test2': 'test 2',
+        'tag:misd.isi.edu,2015:test3': 'test 3',
+    }
 
-    return klass
+    def _set_bulk(self, newstate):
+        self.assertHttp(self.session.put(self.uri, json=newstate), 204)
 
-@add_annotation_tests
-class Annotations (common.ErmrestTest):
-    table = _T2b
+    def _set_each(self, newstate):
+        for k, value in newstate.items():
+            self.assertHttp(self.session.put('%s/%s' % (self.uri, common.urlquote(k)), json=value), [201, 204])
 
-    def _check(self, resource, key, value=None):
-        if resource != '':
-            resource += '/'
-        r = self.session.get('%sannotation' % resource)
+    def _check_bulk(self, state):
+        r = self.session.get(self.uri)
         self.assertHttp(r, 200, 'application/json')
-        self.assertEqual(r.json().get(key), value)
-        r = self.session.get('%sannotation/%s' % (resource, common.urlquote(key)))
-        if value is None:
-            self.assertHttp(r, 404)
-        else:
+        self.assertEqual(r.json(), state)
+
+    def _check_each(self, state):
+        for k, value in state.items():
+            r = self.session.get('%s/%s' % (self.uri, common.urlquote(k)))
             self.assertHttp(r, 200, 'application/json')
             self.assertEqual(r.json(), value)
 
-    def _change(self, resource, key, value=None):
-        if resource != '':
-            resource += '/'
-        if value is None:
-            self.assertHttp(
-                self.session.delete('%sannotation/%s' % (resource, common.urlquote(key))),
-                204
-            )
-            self._check(resource, key, value)
-        else:
-            self.assertHttp(
-                self.session.put('%sannotation/%s' % (resource, common.urlquote(key)), json=value),
-                201
-            )
-            self._check(resource, key, value)
+    def test_0_bulk_clear(self):
+        self._set_bulk(self.state0)
+        self._check_bulk(self.state0)
+
+    def test_1_bulk_set(self):
+        self._set_bulk(self.state1)
+        self._check_bulk(self.state1)
+        self._check_each(self.state1)
+
+    def test_2_set_each(self):
+        self._set_each(self.state2)
+        self._check_bulk(_merge(self.state1, self.state2))
+        self._check_bulk(_merge(self.state1, self.state2))
+
+    def test_3_delete(self):
+        for k in _merge(self.state1, self.state2):
+            self.assertHttp(self.session.delete('%s/%s' % (self.uri, common.urlquote(k))), 204)
+        self._check_bulk({})
+
+class AnnotationSchema (AnnotationCatalog):
+    uri = 'schema/%s/annotation' % (_S,)
+
+class AnnotationTable (AnnotationCatalog):
+    uri = 'schema/%s/table/%s/annotation' % (_S, _T2b)
+
+class AnnotationColumn (AnnotationCatalog):
+    uri = 'schema/%s/table/%s/column/id/annotation' % (_S, _T2b)
+
+class AnnotationKey (AnnotationCatalog):
+    uri = 'schema/%s/table/%s/key/id/annotation' % (_S, _T2b)
+
+class AnnotationFKey (AnnotationCatalog):
+    uri = 'schema/%s/table/%s/foreignkey/level1_id1/reference/%s:%s/id/annotation' % (_S, _T2b, _S, _T1)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
