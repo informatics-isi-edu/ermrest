@@ -185,9 +185,15 @@ class Type (object):
         if m:
             return None
 
-        m = re.match(r"['(](?P<val>.*)[')]::[a-z ]*", raw)
+        m = re.match(r"[(]['(](?P<val>.*)[')]::[a-z ]*[)]::[a-z ]*", raw)
         if m:
+            # nested expression  ('val'::base_type)::domain_type
             raw = m.groupdict()['val']
+        else:
+            # basic expression 'val'::type
+            m = re.match(r"['(](?P<val>.*)[')]::[a-z ]*", raw)
+            if m:
+                raw = m.groupdict()['val']
 
         if self.name in [ 'int2', 'int4', 'int8', 'smallint', 'bigint', 'integer', 'int' ]:
             return int(raw)

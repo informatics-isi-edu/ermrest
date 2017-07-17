@@ -515,7 +515,7 @@ Default heuristics:
 - The `2017 Asset` annotation explicitly indicates that the associated column is the asset location.
 - `url_pattern` MUST be specified. If it is not specified or if it produces a null value, the asset annotation will be ignored.
 - Column MUST be `text` typed. Otherwise the asset annotation will be ignored.
-- In addition to native columns, the following properties are also available under the annotated column object and can be referred in the _pattern_ e.g. `URI.md5_hex` where `URI` is the annotated column. 
+- In addition to native columns, the following properties are also available under the annotated column object and can be referred in the _pattern_ e.g. `_URI.md5_hex` where `URI` is the annotated column (notice the [underscore before the column name](https://github.com/informatics-isi-edu/ermrestjs/wiki/Template-and-Markdown-Guide#raw-values)). 
   - `md5_hex` for hex  
   - `md5_base64` for base64
   - `filename` for filename
@@ -566,21 +566,24 @@ The following matrix illustrates which context is meaningful in which annotation
 
 ## Pattern Expansion
 
-When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{column name}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
+When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{{column name}}` or `{{{ column name}}}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
 
-For example, a _table_ may have a [`tag:misd.isi.edu,2015:url`](#2015-url) annotation containing the following payload:
+For example, a _column_ may have a [`tag:isrd.isi.edu,2016:column-display`](#2016-column-display) annotation containing the following payload:
 
 ```
 {
-    "pattern": "https://www.example.org/collections/{collection}/media/{object}",
-    "presentation": "embed"
+   "*" : {
+       "markdown_pattern": "[{{{title}}}](https://dev.isrd.isi.edu/chaise/search?name={{{_name}}})"
+   }
 }
 ```
 
-A web user agent that consumes this annotation and the related table data would likely embed the following `<iframe>` tag for each entity:
+A web user agent that consumes this annotation and the related table data would likely display the following as the value of the column:
 
 ```
-<iframe src="https://www.example.org/collections/123/media/XYZ"></iframe>
+<p>
+    <img src="https://dev.isrd.isi.edu/chaise/search?name=col%20name" alt="Title of Image">
+</p>
 ```
 
 For detailed explanation on template and markdown language please refer to [Template and Markdown Guide](https://github.com/informatics-isi-edu/ermrestjs/wiki/Template-and-Markdown-Guide).
