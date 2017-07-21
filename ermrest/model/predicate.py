@@ -46,7 +46,7 @@ class Value (object):
         return self._str is None
 
     def sql_literal(self, etype):
-        return etype.sql_literal(self._str)
+        return etype.sql_literal(etype.url_parse(self._str))
 
     def validate_attribute_update(self):
         raise BadSyntax('Value %s is not supported in an attribute update path filter.' % self)

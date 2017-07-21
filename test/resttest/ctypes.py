@@ -1,6 +1,7 @@
 
 import unittest
 import common
+import json
 
 _schema = 'ctypes'
 
@@ -11,35 +12,48 @@ def setUpModule():
         # idempotent because unittest can re-enter module several times... :-(
         common.primary_session.post(url)
 
+def add_etype_vk_wk_rk(klass, vk, wk, rk):
+    def check_json(self):
+        r = self.session.get(self._read_urls()[rk])
+        self.assertHttp(r, 200, 'application/json')
+        self.assertJsonEqual(r.json(), self._data(vk))
+    setattr(klass, 'test_%s_%s_json_2_read_%s' % (vk, wk, rk), check_json)
+
+    def check_csv(self):
+        r = self.session.get(self._read_urls()[rk], headers={"Accept": "text/csv"})
+        self.assertHttp(r, 200, 'text/csv')
+        self.assertEqual(r.content, self._data_csv(vk))
+    setattr(klass, 'test_%s_%s_csv_2_read_%s' % (vk, wk, rk), check_csv)
+
+def add_etype_vk_wk(klass, vk, wk):
+    def load_json(self):
+        self.assertHttp(self.session.put(self._write_urls()[wk], json=self._data(vk)), 200)
+    setattr(klass, 'test_%s_%s_json_1_load' % (vk, wk), load_json)
+
+    def load_csv(self):
+        self.assertHttp(
+            self.session.put(
+                self._write_urls()[wk],
+                data=self._data_csv(vk),
+                headers={'Content-Type': 'text/csv'}
+            ), 200)
+    setattr(klass, 'test_%s_%s_csv_1_load' % (vk, wk), load_csv)
+
+    for rk in klass._read_urls().keys():
+        add_etype_vk_wk_rk(klass, vk, wk, rk)
+
+    def check_query(self):
+        if self.etype == 'jsonb':
+            r = self.session.get(self._query_url(self._values[vk]))
+            self.assertHttp(r, 200, 'application/json')
+            self.assertJsonEqual(r.json(), self._data(vk))
+    setattr(klass, 'test_%s_%s_pred_3' % (vk, wk), check_query)
+
 def add_etype_tests(klass):
     # generate a dense set of related tests by nested loops over value, write URL, read URL, and content-types
     for vk in klass._values.keys():
         for wk in klass._write_urls().keys():
-            def load_json(self):
-                self.assertHttp(self.session.put(self._write_urls()[wk], json=self._data(vk)), 200)
-            setattr(klass, 'test_%s_%s_json_1_load' % (vk, wk), load_json)
-
-            def load_csv(self):
-                self.assertHttp(
-                    self.session.put(
-                        self._write_urls()[wk],
-                        data=common.array_to_csv(self._data(vk), json_array=True),
-                        headers={'Content-Type': 'text/csv'}
-                    ), 200)
-            setattr(klass, 'test_%s_%s_csv_1_load' % (vk, wk), load_csv)
-
-            for rk in klass._read_urls().keys():
-                def check_json(self):
-                    r = self.session.get(self._read_urls()[rk])
-                    self.assertHttp(r, 200, 'application/json')
-                    self.assertJsonEqual(r.json(), self._data(vk))
-                setattr(klass, 'test_%s_%s_json_2_read_%s' % (vk, wk, rk), check_json)
-
-                def check_csv(self):
-                    r = self.session.get(self._read_urls()[rk], headers={"Accept": "text/csv"})
-                    self.assertHttp(r, 200, 'text/csv')
-                    self.assertMultilineEqual(r.content, common.array_to_csv(self._data(vk)))
-                setattr(klass, 'test_%s_%s_csv_2_read_%s' % (vk, wk, rk), check_json)
+            add_etype_vk_wk(klass, vk, wk)
     return klass
                                          
 @add_etype_tests
@@ -71,9 +85,12 @@ class EtypeJson (common.ErmrestTest):
     @classmethod
     def _write_urls(cls):
         return  {
-            "entity": 'entity/%s:%s' % (_schema, cls._table_name()),
-            "attributegroup": 'attributegroup/%s:%s/id;name,payload' % (_schema, cls._table_name())
+            "1entity": 'entity/%s:%s' % (_schema, cls._table_name()),
+            "2attributegroup": 'attributegroup/%s:%s/id;name,payload' % (_schema, cls._table_name())
         }
+
+    def _query_url(self, value):
+        return 'entity/%s:%s/payload=%s' % (_schema, self._table_name(), common.urlquote(json.dumps(value)))
 
     @classmethod
     def _read_urls(cls):
@@ -88,7 +105,8 @@ class EtypeJson (common.ErmrestTest):
         "object": {"foo": "bar"},
         "numbers": [5, 6],
         "strings": ["foo", "bar"],
-        "objects": [{"foo": "bar"}, {"foo": "bar"}]
+        "objects": [{"foo": "bar"}, {"foo": "bar"}],
+        "null": None
     }
 
     def _data(self, key):
@@ -96,7 +114,17 @@ class EtypeJson (common.ErmrestTest):
             {"id": 1, "name": "row1", "payload": self._values[key]}
         ]
 
-class EtypeJsonb (EtypeJson): etype = 'jsonb'    
+    def _data_csv(self, key):
+        val = json.dumps(self._values[key])
+        if val.find('"') >= 0 or val.find(',') >= 0:
+            val = '"%s"' % val.replace('"', '""')
+        return """id,name,payload
+1,row1,%s
+""" % val
+
+class EtypeJsonb (EtypeJson):
+    etype = 'jsonb'
+
 
 class CtypeText (common.ErmrestTest):
     ctype = 'text'
