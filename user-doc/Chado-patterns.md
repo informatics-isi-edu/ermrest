@@ -46,7 +46,7 @@ CREATE TABLE cv (
 The `dbxref` table enumerates global, unique, stable public identifiers. This table probably won't be used in day-to-day
 queries because the db, accession, and version are included in denormalized form elsewhere; it's included in the model
 because this is the only place the dbxref `description` field exists.
-
+```
 CREATE TABLE dbxref (
   name text PRIMARY KEY,
   db text NOT NULL REFERENCES db(name) DEFERRABLE,
@@ -55,7 +55,7 @@ CREATE TABLE dbxref (
   description text,
   UNIQUE(db, accession, version)
 );
-
+```
 ### cvterm
 
 The `cvterm` table enumerates all available terms. In addition to denormalizing the `dbxref` and `cv` fields, we've
@@ -296,9 +296,22 @@ A GUDMAP user is more likely to want to look for EMAPA:32927 than any
 of the dbxrefs in this entry (`alternate_dbxrefs` includes the
 versioned version EMAPA:32927:). It might make more sense for the
 `dbxref_unversioned` column of the domain table to include the
-unversioned dbxref that users are most likely to recognize (and maybe
-renaming it to something like `dbxref_common` that reflects that it's more
-commonly used).
+unversioned dbxref that users are most likely to recognize, like this:
+```
+dbxref              | UBERON:0000006:
+dbxref_unversioned  | EMAPA:32927
+cv                  | uberon
+name                | islet of Langerhans
+definition          | the clusters of hormone-producing cells that are scattered throughout the pancreas
+is_obsolete         | f
+is_relationshiptype | f
+synonyms            | {"pancreatic islet","pancreatic insula","islets of Langerhans","island of pancreas","island of Langerhans"}
+alternate_dbxrefs   | {XAO:0000159:,VHOG:0000646:,UMLS:C0022131:,MIAA:0000076:,MESH:D007515:,MAT:0000076:,
+                       URL:http://linkedlifedata.com/resource/umls/id/C0022131:,
+		       URL:http://en.wikipedia.org/wiki/Islets_of_Langerhans:,GAID:324:,FMA:16016:,EV:0100130:,EMAPA:32927:,
+		       EFO:0000856:,CALOHA:TS-0741:,BTO:0000991:,AAO:0010406:,NULL:C12608:,MP:0005215:,MESH:A03.734.414:,MA:0000127:}
+```
+If we do this, we might want to change the name `dbxref_unversioned` to something like `dbxref_common`.
 
 ### Second thoughts about arrays in cvterm
 
@@ -310,8 +323,8 @@ or
 ```
 '{foo}' <@ bar
 ```
-The second form will take advantage of gin indexes; the first form will not. We might want to consider moving
-the array columns in `cvterm` to different tables.
+The second form will take advantage of gin indexes; the first form will not. Pattern matching is also difficult on array elements.
+We might want to consider moving the array columns in `cvterm` to different tables.
 
 ## Implementation
 
