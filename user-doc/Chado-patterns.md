@@ -66,7 +66,7 @@ array fields for synonyms and alternate dbxrefs (derived from the chado `cvterms
 create table cvterm (
   dbxref text PRIMARY KEY REFERENCES dbxref(name) DEFERRABLE,
   dbxref_unversioned text NOT NULL,
-  cv text NOT NULL,
+  cv text NOT NULL REFERENCES cv(name) DEFERRABLE,
   name text NOT NULL,
   definition text,
   is_obsolete boolean NOT NULL,
@@ -265,7 +265,7 @@ keys):
 ```
 CREATE TABLE cvterm_dbxref (
   cvterm_dbxref_id bigserial PRIMARY KEY,
-  primary_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  cvterm text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
   alternate_dbxref text NOT NULL REFERENCES dbxref(name) DEFERRABLE,
   is_for_definition boolean,
   UNIQUE(primary_dbxref, alternate_dbxref)
