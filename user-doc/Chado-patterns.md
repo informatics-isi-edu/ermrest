@@ -18,44 +18,80 @@ Chado schema for controlled vocabularies.
 Assume a basic ontology storage area similar to
 [Chado CV Module](http://gmod.org/wiki/Chado_CV_Module).  Here, we
 only focus on the few tables that would affect normal data
-management. Additional tables may exist for vocabulary management but
-once vocabularies are populated, only the following tables matter for
-normal data I/O and query.
+management.
+
+### db
+The `db` table enumerates database authorities.
+```
+CREATE TABLE db (
+  name text PRIMARY KEY,
+  description text,
+  urlprefix text,
+  url text
+  );
+
+```
+
+### cv
+The `cv` table enumerates controlled vocabularies.
+```
+CREATE TABLE cv (
+  name text PRIMARY KEY,
+  definition text
+);
+
+```
+
+### dbxref
+The `dbxref` table enumerates global, unique, stable public identifiers. This table probably won't be used in day-to-day
+queries because the db, accession, and version are included in denormalized form elsewhere; it's included in the model
+because this is the only place the dbxref `description` field exists.
+
+CREATE TABLE dbxref (
+  name text PRIMARY KEY,
+  db text NOT NULL REFERENCES db(name) DEFERRABLE,
+  accession text NOT NULL,
+  version text NOT NULL DEFAULT '',
+  description text,
+  UNIQUE(db, accession, version)
+);
 
 ### cvterm
 
-The `cvterm` table enumerates all available terms.
+The `cvterm` table enumerates all available terms. In addition to denormalizing the `dbxref` and `cv` fields, we've
+added a `dbxref_unversioned` field (the dbxref without version information, which is likely to be searched for) and
+array fields for synonyms and alternate dbxrefs (derived from the chado `cvtermsynonym` and `cvterm_dbxref` tables).
 
 ```
-CREATE TABLE cvterm (
-  dbxref text PRIMARY KEY,
-  cvname text NOT NULL,
+create table cvterm (
+  dbxref text PRIMARY KEY REFERENCES dbxref(name) DEFERRABLE,
+  dbxref_unversioned text NOT NULL,
+  cv text NOT NULL,
   name text NOT NULL,
   definition text,
   is_obsolete boolean NOT NULL,
   is_relationshiptype boolean NOT NULL,
   synonyms text[],
-  UNIQUE (cvname, name, is_obsolete)
+  alternate_dbxrefs text[],
+  UNIQUE(cv, name, is_obsolete),
+  CHECK(dbxref LIKE dbxref_unversioned || ':%')
 );
 ```
-
-We simplify the dbxref model:
-
-1. Don't need/want serial IDs which are inconsistent between DB instances
-2. Want direct denormalized access to dbxref
 
 ### cvtermpath
 
 The `cvtermpath` table stores transitive closures of term-to-term relationship graphs.
+The `cvtermpath_id` field is present only because ermrest requires a single-valued unique key.
 
 ```
 CREATE TABLE cvtermpath (
-  type_dbxref text NOT NULL REFERENCES cvterm (cvterm_dbxref),
-  subject_dbxref text NOT NULL REFERENCES cvterm (cvterm_dbxref),
-  object_dbxref text NOT NULL REFERENCES cvterm (cvterm_dbxref),
+  cvtermpath_id bigserial PRIMARY KEY,
+  type_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  subject_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  object_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
   pathdistance integer NOT NULL,
-  UNIQUE (type_dbxref, subject_dbxref, object_dbxref)
-);
+  UNIQUE(type_dbxref, subject_dbxref, object_dbxref)
+);  
 ```
 
 We constrain the path table:
@@ -73,14 +109,12 @@ as tables curated by hand, etc.
 
 ```
 CREATE TABLE mydomain1 (
-  dbxref text PRIMARY KEY REFERENCES cvterm(dbxref),
-  cvname text NOT NULL,
-  name text NOT NULL,
-  definition text,
-  is_obsolete boolean NOT NULL,
-  is_relationshiptype boolean NOT NULL,
-  synonyms text[],
-  UNIQUE (cvname, name, is_obsolete)
+  cvtermpath_id bigserial PRIMARY KEY,
+  type_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  subject_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  object_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  pathdistance integer NOT NULL,
+  UNIQUE(type_dbxref, subject_dbxref, object_dbxref)
 );
 ```
 We want a foreign key reference constraint to emphasize that the domain table is a proper subset of the core cvterm table.
@@ -201,3 +235,87 @@ robustness against large term sets being encoded in URLs. The
 client-side complexity does not change much as long as you need to
 guide users through a query-construction UX...
 
+
+## Open questions
+
+### Should we differentiate between different types of synonyms?
+
+Currently, all synonyms included in the `cvtermsynonym` table are included in the `synonyms` field of `cvterm`.
+Synonyms can be of different types, however, and we may want to treat synonyms differently based on their type.
+To facilitate discussion, I've included the `cvtermsynonym` table (denormalized for our-style foreign keys),
+which includes all synonyms and their types:
+```
+create table cvtermsynonym (
+  cvtermsynonym_id bigserial PRIMARY KEY,
+  dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  synonym text NOT NULL,
+  synonym_type text,
+  UNIQUE (dbxref, synonym)
+);
+```
+### Which alternate dbxrefs should be included in the cvterm table?
+
+Chado has a table called `cvterm_dbxref` which includes both external
+dbxrefs and dbxrefs that are used for provenance
+information. Currently, we include both in the `alternate_dbxrefs`
+field of the `cvterm` database. To facilitate discussion, I've
+included the `cvterm_dbxref` table (denormalized for our-style foreign
+keys):
+
+```
+CREATE TABLE cvterm_dbxref (
+  cvterm_dbxref_id bigserial PRIMARY KEY,
+  primary_dbxref text NOT NULL REFERENCES cvterm(dbxref) DEFERRABLE,
+  alternate_dbxref text NOT NULL REFERENCES dbxref(name) DEFERRABLE,
+  is_for_definition boolean,
+  UNIQUE(primary_dbxref, alternate_dbxref)
+);
+```
+
+### What dbxrefs should appear in the domain table?
+
+Our current model specifies that domain tables should have the same format as `cvterm` tables, with the `dbxref` field a foreign
+key to the `cvterm` table. For example, one entry from Uberon looks like this:
+
+```
+dbxref              | UBERON:0000006:
+dbxref_unversioned  | UBERON:0000006
+cv                  | uberon
+name                | islet of Langerhans
+definition          | the clusters of hormone-producing cells that are scattered throughout the pancreas
+is_obsolete         | f
+is_relationshiptype | f
+synonyms            | {"pancreatic islet","pancreatic insula","islets of Langerhans","island of pancreas","island of Langerhans"}
+alternate_dbxrefs   | {XAO:0000159:,VHOG:0000646:,UMLS:C0022131:,MIAA:0000076:,MESH:D007515:,MAT:0000076:,
+                       URL:http://linkedlifedata.com/resource/umls/id/C0022131:,
+		       URL:http://en.wikipedia.org/wiki/Islets_of_Langerhans:,GAID:324:,FMA:16016:,EV:0100130:,EMAPA:32927:,
+		       EFO:0000856:,CALOHA:TS-0741:,BTO:0000991:,AAO:0010406:,NULL:C12608:,MP:0005215:,MESH:A03.734.414:,MA:0000127:}
+```
+
+A GUDMAP user is more likely to want to look for EMAPA:32927 than any
+of the dbxrefs in this entry (`alternate_dbxrefs` includes the
+versioned version EMAPA:32927:). It might make more sense for the
+`dbxref_unversioned` column of the domain table to include the
+unversioned dbxref that users are most likely to recognize (and maybe
+renaming it to something like `dbxref_common` that reflects that it's more
+commonly used).
+
+### Second thoughts about arrays in cvterm
+
+In Postgres, there are two equivalent ways to express "'foo' is an element of the array bar" in a query:
+```
+'foo' = ANY(bar)
+```
+or
+```
+'{foo}' <@ bar
+```
+The second form will take advantage of gin indexes; the first form will not. We might want to consider moving
+the array columns in `cvterm` to different tables.
+
+## Implementation
+
+See the [data commons chado directory](https://github.com/informatics-isi-edu/data-commons/tree/master/chado) for
+scripts to create a data_commons schema and pull data from chado into those tables. See the
+[data commons chado/obo directory](https://github.com/informatics-isi-edu/data-commons/tree/master/chado/obo)
+for information about reading obo files into standard chado tables.
