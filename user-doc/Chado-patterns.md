@@ -324,7 +324,7 @@ or
 '{foo}' <@ bar
 ```
 The second form will take advantage of gin indexes; the first form will not. Pattern matching is also difficult on array elements.
-We might want to consider moving the array columns in `cvterm` to different tables.
+We might want to consider dropping the array columns from `cvterm` and using `cvtermsynonym` and `cvterm_dbxref` instead.
 
 ## Implementation
 
