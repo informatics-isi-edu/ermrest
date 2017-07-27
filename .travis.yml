@@ -9,9 +9,11 @@ addons:
 
 env:
   global:
-    - COOKIES=~/cookies
-    - VERBOSE=brief
+    - TEST_COOKIES1=~/cookies1
+    - TEST_COOKIES2=~/cookies2
+    - TEST_SSL_VERIFY=false
     - HTTPD_ERROR_LOG=/var/log/apache2/error.log
+    - PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 before_install:
   - sudo apt-get -y update
@@ -23,6 +25,7 @@ before_install:
   - sudo apt-get -y purge python-psycopg2
   - sudo pip install web.py
   - sudo pip install psycopg2
+  - pip install requests
   - sudo ln -s /etc/apache2/conf-enabled /etc/apache2/conf.d
   - sudo a2enmod ssl
   - sudo a2ensite default-ssl
@@ -44,17 +47,21 @@ install:
 before_script:
   - sudo -H -u webauthn webauthn2-manage adduser test1
   - sudo -H -u webauthn webauthn2-manage passwd test1 dummypassword
+  - sudo -H -u webauthn webauthn2-manage adduser test2
+  - sudo -H -u webauthn webauthn2-manage passwd test2 dummypassword
   - sudo -H -u webauthn webauthn2-manage addattr admin
   - sudo -H -u webauthn webauthn2-manage assign test1 admin
 
 script:
   - sudo ./test/ermrest-registry-purge-tests.sh
-  - curl --fail -k -b $COOKIES -c $COOKIES -d username=test1 -d password=dummypassword https://${HOSTNAME}/authn/session
-  - bash ./test/rest-tests.sh
+  - curl --fail -k -b ${TEST_COOKIES1} -c ${TEST_COOKIES1} -d username=test1 -d password=dummypassword https://${HOSTNAME}/authn/session
+  - curl --fail -k -b ${TEST_COOKIES2} -c ${TEST_COOKIES2} -d username=test2 -d password=dummypassword https://${HOSTNAME}/authn/session
+  - python ./test/resttest
 
 after_failure:
   - sudo ls -lR /etc/apache2
   - sudo ls -lR /var/run/apache2
+  - cat ${TEST_COOKIES1}
   - sudo cat /etc/apache2/conf.d/webauthn.conf
   - sudo cat /etc/apache2/conf.d/wsgi_webauthn2.conf
   - sudo cat /etc/apache2/conf.d/wsgi_ermrest.conf

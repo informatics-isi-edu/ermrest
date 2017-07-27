@@ -15,13 +15,20 @@
 #
 
 from .. import exception
-from ..util import sql_identifier, view_exists
-from .misc import AltDict, commentable, annotatable
+from ..util import sql_identifier, view_exists, udecode
+from .misc import AltDict, AclDict, keying, commentable, annotatable, hasacls, enforce_63byte_id
 from .table import Table
 
 import json
 import web
 
+@annotatable
+@hasacls(
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
+    { "owner", "create" },
+    None
+)
+@keying('catalog', { })
 class Model (object):
     """Represents a database model.
     
@@ -29,20 +36,33 @@ class Model (object):
     database sense of the term.
     """
     
-    def __init__(self, schemas=None):
-        if schemas is None:
-            schemas = AltDict(lambda k: exception.ConflictModel(u"Schema %s does not exist." % k))
-        self.schemas = schemas
-    
+    def __init__(self, version):
+        self.version = version
+        self.schemas = AltDict(
+            lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
+            lambda k, v: enforce_63byte_id(k, "Schema")
+        )
+        self.acls = AclDict(self)
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s"' % (k,)))
+
+    @staticmethod
+    def keyed_resource(model=None):
+        return model
+
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
-        return dict(
+        doc = dict(
+            annotations=self.annotations,
+            rights=self.rights(),
             schemas=dict([ 
-                    (s, self.schemas[s].prejson()) for s in self.schemas 
-                    ])
-            )
+                (sname, schema.prejson()) for sname, schema in self.schemas.items() if schema.has_right('enumerate')
+            ])
+        )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+        return doc
 
     def check_primary_keys(self, require):
         for schema in self.schemas.values():
@@ -53,11 +73,14 @@ class Model (object):
         tables = set()
 
         for schema in self.schemas.values():
-            if tname in schema.tables:
-                tables.add( schema.tables[tname] )
+            if schema.has_right('enumerate'):
+                if tname in schema.tables:
+                    table = schema.tables[tname]
+                    if table.has_right('enumerate'):
+                        tables.add( table )
 
         if len(tables) == 0:
-            raise exception.ConflictModel('Table %s does not exist.' % tname)
+            raise exception.ConflictModel('Table %s not found in model.' % tname)
         elif len(tables) > 1:
             raise exception.ConflictModel('Table name %s is ambiguous.' % tname)
         else:
@@ -69,52 +92,39 @@ class Model (object):
             raise exception.ConflictModel('Requested schema %s is a reserved schema name.' % sname)
         if sname in self.schemas:
             raise exception.ConflictModel('Requested schema %s already exists.' % sname)
+        self.enforce_right('create')
         cur.execute("""
 CREATE SCHEMA %(schema)s ;
 SELECT _ermrest.model_change_event();
 """ % dict(schema=sql_identifier(sname)))
-        return Schema(self, sname)
+        newschema = Schema(self, sname)
+        if not self.has_right('owner'):
+            newschema.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
+            newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
+        return newschema
 
     def delete_schema(self, conn, cur, sname):
         """Remove a schema from the model."""
-        if sname not in self.schemas:
-            raise exception.ConflictModel('Requested schema %s does not exist.' % sname)
+        schema = self.schemas[sname]
+        schema.enforce_right('owner')
+        self.schemas[sname].delete_annotation(conn, cur, None)
+        self.schemas[sname].delete_acl(cur, None, purging=True)
         cur.execute("""
 DROP SCHEMA %s ;
 SELECT _ermrest.model_change_event();
 """ % sql_identifier(sname))
-        self.schemas[sname].delete_annotation(conn, cur, None)
         del self.schemas[sname]
 
-    def recreate_value_map(self, conn, cur, empty=False):
-        vmap_parts = []
-        for schema in self.schemas.values():
-            for table in schema.tables.values():
-                for column in table.columns.values():
-                    part = column.ermrest_value_map_sql()
-                    if part:
-                        vmap_parts.append(part)
-
-        if empty or not vmap_parts:
-            # create a dummy/empty view if no data sources exist (or empty table is requested)
-            vmap_parts = ["SELECT 's'::text, 't'::text, 'c'::text, 'v'::text WHERE False"]
-
-        if view_exists(cur, '_ermrest', 'valuemap'):
-            cur.execute("DROP MATERIALIZED VIEW IF EXISTS _ermrest.valuemap ;")
-                        
-        cur.execute("""
-DROP TABLE IF EXISTS _ermrest.valuemap ;
-CREATE TABLE _ermrest.valuemap ("schema", "table", "column", "value")
-AS %s ;
-CREATE INDEX _ermrest_valuemap_cluster_idx ON _ermrest.valuemap ("schema", "table", "column");
-CREATE INDEX _ermrest_valuemap_value_idx ON _ermrest.valuemap USING gin ( "value" gin_trgm_ops );
-""" % ' UNION '.join(vmap_parts)
-                )
-
-@commentable()
-@annotatable('schema', dict(
-    schema_name=('text', lambda self: unicode(self.name))
-    )
+@commentable
+@annotatable
+@hasacls(
+    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
+    { "owner", "create" },
+    lambda self: self.model
+)
+@keying(
+    'schema',
+    { "schema_name": ('text', lambda self: unicode(self.name)) },
 )
 class Schema (object):
     """Represents a database schema.
@@ -123,26 +133,33 @@ class Schema (object):
     also has a reference to its 'model'.
     """
     
-    def __init__(self, model, name, comment=None, annotations={}):
+    def __init__(self, model, name, comment=None, annotations={}, acls={}):
         self.model = model
         self.name = name
         self.comment = comment
-        self.tables = AltDict(lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, self)))
-        self.annotations = dict()
+        self.tables = AltDict(
+            lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))),
+            lambda k, v: enforce_63byte_id(k, "Table")
+        )
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on schema "%s"' % (k, unicode(self.name))))
         self.annotations.update(annotations)
+
+        self.acls = AclDict(self)
+        self.acls.update(acls)
         
         if name not in self.model.schemas:
             self.model.schemas[name] = self
 
     @staticmethod
-    def introspect_annotation(model=None, schema_name=None, annotation_uri=None, annotation_value=None):
-        model.schemas[schema_name].annotations[annotation_uri] = annotation_value
+    def keyed_resource(model=None, schema_name=None):
+        return model.schemas[schema_name]
 
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):
         sname = schemadoc.get('schema_name')
         comment = schemadoc.get('comment')
         annotations = schemadoc.get('annotations', {})
+        acls = schemadoc.get('acls', {})
         tables = schemadoc.get('tables', {})
         
         schema = model.create_schema(conn, cur, sname)
@@ -151,6 +168,9 @@ class Schema (object):
         
         for k, v in annotations.items():
             schema.set_annotation(conn, cur, k, v)
+
+        for k, v in acls.items():
+            schema.set_acl(cur, k, v)
             
         for k, tabledoc in tables.items():
             tname = tabledoc.get('table_name', k)
@@ -171,14 +191,18 @@ class Schema (object):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
-        return dict(
+        doc = dict(
             schema_name=self.name,
             comment=self.comment,
+            rights=self.rights(),
             annotations=self.annotations,
             tables=dict([
-                    (t, self.tables[t].prejson()) for t in self.tables
+                    (tname, table.prejson()) for tname, table in self.tables.items() if table.has_right('enumerate')
                     ])
             )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+        return doc
 
     def check_primary_keys(self, require):
         for table in self.tables.values():
@@ -187,7 +211,7 @@ class Schema (object):
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""
         if tname not in self.tables:
-            raise exception.ConflictModel('Requested table %s does not exist in schema %s.' % (tname, self.name))
+            raise exception.ConflictModel(u'Requested table %s does not exist in schema %s.' % (udecode(tname), udecode(self.name)))
         self.tables[tname].delete(conn, cur)
         del self.tables[tname]
 

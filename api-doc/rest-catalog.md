@@ -62,7 +62,7 @@ Typical error response codes include:
 The GET method is used to get a summary of all access control (ACL)
 lists:
 
-    GET /ermrest/catalog/42/meta HTTP/1.1
+    GET /ermrest/catalog/42/acl HTTP/1.1
 	Host: www.example.com
 
 On success, this request yields the ACL content as an object with one value list for each named ACL:
@@ -71,12 +71,7 @@ On success, this request yields the ACL content as an object with one value list
 	Content-Type: application/json
 
 	{
-	  "schema_write_user": ["user1"],
-	  "content_write_user": ["user1", "group2"],
-	  "content_read_user": ["user1"],
-	  "read_user": ["*"],
-	  "owner": ["user1"],
-	  "write_user": ["user1"]
+	  "owner": ["user1", "group2"]
 	}
 
 White-space is added above for readability. This legacy representation is likely to change in future revisions.
@@ -89,9 +84,9 @@ Typical error response codes include:
 ## Access Control List Retrieval
 
 The GET method is used to get a summary of a specific access control (ACL)
-list (`content_read_user` in this example):
+list (`owner` in this example):
 
-    GET /ermrest/catalog/42/meta/content_read_user HTTP/1.1
+    GET /ermrest/catalog/42/acl/owner HTTP/1.1
 	Host: www.example.com
 
 On success, this request yields the ACL content as a value list:
@@ -99,71 +94,9 @@ On success, this request yields the ACL content as a value list:
 	HTTP/1.1 200 OK
 	Content-Type: application/json
 
-	["user1", "group2", ...]
+	["user1", "group2"]
 
 This legacy representation is likely to change in future revisions.
-
-Typical error response codes include:
-- 404 Not Found
-- 403 Forbidden
-- 401 Unauthorized
-
-## Access Control Entry Creation
-
-The PUT method is used to add a role name, i.e. a user or group, to an ACL:
-
-    PUT /ermrest/catalog/42/meta/content_read_user/user2 HTTP/1.1
-	Host: www.example.com
-
-The role name MUST be URL-encoded.  The special entry value `*`,
-i.e. `%2A` when encoded in the URL, is the wild-card entry which will
-match any client.
-
-On success, this request yields an empty response:
-
-	HTTP/1.1 204 No Content
-
-Typical error response codes include:
-- 404 Not Found
-- 403 Forbidden
-- 401 Unauthorized
-
-## Access Control Entry Retrieval
-
-The GET method is used to get a specific member of a specific access
-control (ACL) list (`user2` of `content_read_user` in this example):
-
-    GET /ermrest/catalog/42/meta/content_read_user/user2 HTTP/1.1
-	Host: www.example.com
-
-The role name MUST be URL-encoded.
-
-On success, this request yields the ACL entry as a single JSON value:
-
-	HTTP/1.1 200 OK
-	Content-Type: application/json
-
-	"user2"
-
-This legacy representation is likely to change in future revisions.
-
-Typical error response codes include:
-- 404 Not Found
-- 403 Forbidden
-- 401 Unauthorized
-
-## Access Control Entry Deletion
-
-The DELETE method is used to add a role name, i.e. a user or group, to an ACL:
-
-    DELETE /ermrest/catalog/42/meta/content_read_user/user2 HTTP/1.1
-	Host: www.example.com
-
-The role name MUST be URL-encoded.
-
-On success, this request yields an empty response:
-
-	HTTP/1.1 204 No Content
 
 Typical error response codes include:
 - 404 Not Found

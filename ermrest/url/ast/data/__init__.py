@@ -25,8 +25,8 @@ import tempfile
 
 from ..api import Api
 from . import path
-from .predicate import predicatecls
-from ..name import Name
+from ....model.predicate import predicatecls
+from ....model.name import Name
 from .... import ermpath, exception
 from webauthn2.util import urlquote
 
@@ -138,7 +138,6 @@ def _PUT(handler, uri, put_thunk, vresource):
 
     def body(conn, cur):
         input_data.seek(0) # rewinds buffer, in case of retry
-        handler.enforce_content_write(cur, uri)
         handler.set_http_etag( vresource.get_data_version(cur) )
         handler.http_check_preconditions(method='PUT')
         result = put_thunk([
@@ -165,7 +164,6 @@ def _DELETE(handler, uri, resource, vresource):
     """Perform HTTP DELETE of generic data resources.
     """
     def body(conn, cur):
-        handler.enforce_content_write(cur, uri)
         handler.set_http_etag( vresource.get_data_version(cur) )
         handler.http_check_preconditions(method='DELETE')
         resource.delete(conn, cur)
@@ -182,36 +180,24 @@ def _DELETE(handler, uri, resource, vresource):
 class TextFacet (Api):
     """A specific text facet by textfragment.
 
-       HACK: Parameters for the corresponding AttributeGroupPath query
-       are built by the URL parser to avoid circular dependencies in
-       the AST sub-modules.
-
     """
 
     default_content_type = 'application/json'
 
-    def __init__(self, catalog, filterelem, facetkeys, facetvals):
+    def __init__(self, catalog, pattern):
         Api.__init__(self, catalog)
-        self.filterelem = filterelem
-        self.facetkeys = facetkeys
-        self.facetvals = facetvals
         self.http_vary.add('accept')
         cur = web.ctx.ermrest_catalog_pc.cur
-        self.enforce_content_read(cur)
-        self.model = self.catalog.manager.get_model(cur)
-        epath = ermpath.EntityPath(self.model)
-        epath.set_base_entity(self.model.ermrest_schema.tables['valuemap'])
-        epath.add_filter(self.filterelem)
-        self.agpath = ermpath.AttributeGroupPath(
-            epath,
-            _preprocess_attributes(epath, self.facetkeys),
-            _preprocess_attributes(epath, self.facetvals)
+        self.textfacet = ermpath.TextFacet(
+            catalog,
+            web.ctx.ermrest_catalog_model,
+            pattern
         )
 
     def GET(self, uri):
         """Perform HTTP GET of text facet.
         """
-        return _GET(self, uri, self.agpath, self.agpath.epath)
+        return _GET(self, uri, self.textfacet, self.textfacet)
 
 class Entity (Api):
     """A specific entity set by entitypath."""
@@ -221,13 +207,11 @@ class Entity (Api):
     def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
         cur = web.ctx.ermrest_catalog_pc.cur
-        self.enforce_content_read(cur)
-        self.model = self.catalog.manager.get_model(cur)
-        self.epath = ermpath.EntityPath(self.model)
+        self.epath = ermpath.EntityPath(web.ctx.ermrest_catalog_model)
         if len(elem.name.nameparts) == 2:
-            table = self.model.schemas[elem.name.nameparts[0]].tables[elem.name.nameparts[1]]
+            table = web.ctx.ermrest_catalog_model.schemas.get_enumerable(elem.name.nameparts[0]).tables.get_enumerable(elem.name.nameparts[1])
         elif len(elem.name.nameparts) == 1:
-            table = self.model.lookup_table(elem.name.nameparts[0])
+            table = web.ctx.ermrest_catalog_model.lookup_table(elem.name.nameparts[0])
         else:
             raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % elem.name)
         self.epath.set_base_entity(table, elem.alias)
@@ -246,7 +230,7 @@ class Entity (Api):
                 
             self.epath.set_context(alias)
         else:
-            keyref, refop, lalias = elem.resolve_link(self.model, self.epath)
+            keyref, refop, lalias = elem.resolve_link(web.ctx.ermrest_catalog_model, self.epath)
             outer_type = elem.outer_type if hasattr(elem, 'outer_type') else None
             self.epath.add_link(keyref, refop, elem.alias, lalias, outer_type=outer_type)
             

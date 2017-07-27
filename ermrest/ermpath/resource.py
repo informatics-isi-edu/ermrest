@@ -235,13 +235,13 @@ class EntityElem (object):
     def __repr__(self):
         return '<ermrest.ermpath.EntityElem %s>' % unicode(self)
 
-    def add_filter(self, filt):
+    def add_filter(self, filt, enforce_client=True):
         """Add a filtersql_name condition to this path element.
         """
-        filt.validate(self.epath)
+        filt.validate(self.epath, enforce_client=enforce_client)
         self.filters.append(filt)
 
-    def sql_join_condition(self):
+    def sql_join_condition(self, prefix):
         """Generate SQL condition for joining this element to the epath.
 
         """
@@ -255,29 +255,38 @@ class EntityElem (object):
         else:
             ltnum = self.context_pos
 
-        return self.keyref.join_sql(refop, 't%d' % ltnum, 't%d' % self.pos)
+        return self.keyref.join_sql(refop, '%st%d' % (prefix, ltnum), '%st%d' % (prefix, self.pos))
 
-    def sql_wheres(self):
+    def sql_wheres(self, prefix=''):
         """Generate SQL row conditions for filtering this element in the epath.
            
         """
-        return [ f.sql_where(self.epath, self) for f in self.filters ]
+        return [ f.sql_where(self.epath, self, prefix=prefix) for f in self.filters ]
 
-    def sql_table_elem(self):
+    def sql_table_elem(self, dynauthz=None, access_type='select', prefix='', dynauthz_testcol=None):
         """Generate SQL table element representing this entity as part of the epath JOIN.
 
-        """
-        if self.pos == 0:
-            return '%s AS t0' % self.table.sql_name()
+           dynauthz: dynamic authorization mode to compile
+               None: do not compile dynamic ACLs
+               True: compile positive ACL... match rows client is authorized to access
+               False: compile negative ACL... match rows client is NOT authorized to access
 
+           dynauthz_testcol:
+               None: normal mode
+               col: match rows where client is NOT authorized to access column
+
+        """
+        alias = '%st%d' % (prefix, self.pos)
+        tsql = self.table.sql_name(dynauthz=dynauthz, access_type=access_type, alias=alias, dynauthz_testcol=dynauthz_testcol)
+        if self.pos == 0:
+            return tsql
         else:
-            return '%s JOIN %s AS t%d ON (%s)' % (
+            return '%s JOIN %s ON (%s)' % (
                 {"left": "LEFT OUTER", "right": "RIGHT OUTER", "full": "FULL OUTER", None: ""}[self.outer_type],
-                self.table.sql_name(),
-                self.pos,
-                self.sql_join_condition()
-                )
-    
+                tsql,
+                self.sql_join_condition(prefix)
+            )
+
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
@@ -384,6 +393,11 @@ class EntityElem (object):
         skip_key_tests = False
 
         if use_defaults is not None:
+            use_defaults = set([
+                self.table.columns.get_enumerable(cname).name
+                for cname in use_defaults
+            ])
+
             if use_defaults.intersection( set([ c.name for c in mkcols ]) ):
                 # default values for one or more key columns have been requested
                 # input rows cannot be tested for key uniqueness except by trying to insert!
@@ -622,6 +636,46 @@ FROM (
             if total_rows > total_mkeys:
                 raise ConflictData('Multiple input rows share the same unique key information.')
 
+        # -- pre-checks for restricted fkey write scenarios
+        # 1. accumulate all fkrs into a map  { c: {fkr,...} }
+        nonnull_fkey_col_fkrs = dict()
+        for fk in self.table.fkeys.values():
+            for c in fk.columns:
+                if c not in nonnull_fkey_col_fkrs:
+                    nonnull_fkey_col_fkrs[c] = set(fk.references.values())
+                else:
+                    nonnull_fkey_col_fkrs[c].update(set(fk.references.values()))
+
+        # 2. prune columns from map if column is not affected by request or no input data IS NOT NULL
+        for c in list(nonnull_fkey_col_fkrs):
+            if c in mkcols:
+                alias = mkcol_aliases.get(c)
+            elif c in nmkcols:
+                alias = nmkcol_aliases.get(c)
+            else:
+                # prune this unaffected column
+                del nonnull_fkey_col_fkrs[c]
+                continue
+            cur.execute("SELECT True FROM %s WHERE %s IS NOT NULL LIMIT 1" % (parts['input_table'], c.sql_name(alias)))
+            row = cur.fetchone()
+            if row and row[0]:
+                pass
+            else:
+                del nonnull_fkey_col_fkrs[c]
+
+        # 3. make mkcol and nmkcol specific maps of affected columns (same fkr may appear in both for composites fkrs)
+        nonnull_mkcol_fkrs = dict()
+        nonnull_nmkcol_fkrs = dict()
+        nonnull_fkrs = dict()
+        for c, fkrs in nonnull_fkey_col_fkrs.items():
+            nonnull_fkrs[c] = fkrs
+            if c in mkcols:
+                nonnull_mkcol_fkrs[c] = fkrs
+            elif c in nmkcols:
+                nonnull_nmkcol_fkrs[c] = fkrs
+
+        del nonnull_fkey_col_fkrs
+
         def preserialize(sql):
             if content_type == 'text/csv':
                 # TODO implement and use row_to_csv() stored procedure?
@@ -647,6 +701,85 @@ FROM (
             if allow_existing:
                 if nmkcols:
                     # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
+                    self.table.enforce_right('update')
+                    for c in nmkcols:
+                        c.enforce_right('update')
+                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
+                        fkr.enforce_right('update')
+
+                    if self.table.has_right('update') is None:
+                        # need to enforce dynamic ACLs
+                        parts2 = dict(parts)
+                        parts2['table'] = self.table.sql_name(dynauthz=False, access_type='update', alias="t")
+                        cur.execute(("""
+SELECT i.*
+FROM %(table)s
+JOIN (
+  SELECT %(icols)s FROM %(input_table)s i
+) i
+ON (%(keymatches)s)
+LIMIT 1""") % parts2
+                        )
+                        if cur.rowcount > 0:
+                            raise Forbidden(u'update access on one or more rows in table %s' % self.table)
+
+                    for c in nmkcols:
+                        if c.has_right('update') is None and c.dynauthz_restricted('update'):
+                            # need to enforce dynamic ACLs
+                            parts2 = dict(parts)
+                            parts2['table'] = self.table.sql_name(access_type='update', alias="t", dynauthz_testcol=c)
+                            sql = ("""
+SELECT i.*
+FROM %(table)s
+JOIN (
+  SELECT %(icols)s FROM %(input_table)s i
+) i
+ON (%(keymatches)s)
+LIMIT 1""") % parts2
+                            #web.debug(sql)
+                            cur.execute(sql)
+                            if cur.rowcount > 0:
+                                raise Forbidden(u'update access on column %s for one or more rows' % c)
+
+                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
+                        if fkr.has_right('update') is None:
+                            # need to enforce dynamic ACLs
+                            fkr_cols = [
+                                (
+                                    (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
+                                    if fc in nmkcols
+                                    else (u't.%s' % fc.sql_name())
+                                )
+                                for fc, uc in fkr.reference_map_frozen
+                            ]
+                            sql = ("""
+SELECT *
+FROM (
+  SELECT %(fkr_cols)s
+  FROM (SELECT %(icols)s FROM %(input_table)s i) i
+  JOIN %(table)s t ON (%(keymatches)s)
+  WHERE %(fkr_nonnull)s
+  EXCEPT
+  SELECT %(domain_key_cols)s FROM %(domain_table)s
+) s
+LIMIT 1""") % dict(
+    table = parts['table'],
+    input_table = parts['input_table'],
+    icols = parts['icols'],
+    keymatches = parts['keymatches'],
+    fkr_cols = ','.join(fkr_cols),
+    fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
+    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
+    domain_key_cols = ','.join([
+        u'd.%s' % uc.sql_name()
+        for fc, uc in fkr.reference_map_frozen
+    ]),
+)
+                            #web.debug(sql)
+                            cur.execute(sql)
+                            if cur.rowcount > 0:
+                                raise Forbidden(u'update access on foreign key reference %s' % fkr)
+
                     cur.execute(
                         preserialize(("""
 UPDATE %(table)s t SET %(assigns)s FROM (
@@ -657,7 +790,7 @@ RETURNING %(tcols)s""") % parts
                         )
                     )
 
-                results.extend(make_row_thunk(None, cur, content_type)())
+                    results.extend(make_row_thunk(None, cur, content_type)())
 
                 if allow_missing is None:
                     raise NotImplementedError("EntityElem.put allow_existing=%s allow_missing=%s" % (allow_existing, allow_missing))
@@ -665,8 +798,59 @@ RETURNING %(tcols)s""") % parts
                 assert allow_missing
 
             if allow_missing:
+                # only check for insert rights if there are non-matching row keys
+                cur.execute(("""
+SELECT * FROM (
+  SELECT %(icols)s FROM %(input_table)s i
+""" + ("""
+  JOIN (
+    SELECT %(emkcols)s FROM %(input_table)s e
+    EXCEPT SELECT %(mkcols)s FROM %(table)s e
+  ) t ON (%(keymatches)s)""" if use_defaults is None else ""
+) + ") i LIMIT 1") % parts
+                )
+                if cur.rowcount > 0:
+                    self.table.enforce_right('insert', require_true=True)
+
+                    for c in set(mkcols).union(set(nmkcols)):
+                        c.enforce_right('insert', require_true=True)
+
+                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_fkrs.values() ]):
+                        fkr.enforce_right('insert')
+                        if fkr.has_right('insert') is None:
+                            # need to enforce dynamic ACLs
+                            fkr_cols = [
+                                (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
+                                for fc, uc in fkr.reference_map_frozen
+                            ]
+                            sql = ("""
+SELECT *
+FROM (
+  SELECT %(fkr_cols)s
+  FROM (SELECT %(icols)s FROM %(input_table)s i) i
+  WHERE %(fkr_nonnull)s
+  EXCEPT
+  SELECT %(domain_key_cols)s FROM %(domain_table)s
+) s
+LIMIT 1""") % dict(
+    input_table = parts['input_table'],
+    icols = parts['icols'],
+    fkr_cols = ','.join(fkr_cols),
+    fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
+    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='insert', alias='d', dynauthz_testfkr=fkr),
+    domain_key_cols = ','.join([
+        u'd.%s' % uc.sql_name()
+        for fc, uc in fkr.reference_map_frozen
+    ]),
+)
+                            #web.debug(sql)
+                            cur.execute(sql)
+                            if cur.rowcount > 0:
+                                raise Forbidden(u'insert access on foreign key reference %s' % fkr)
+
                 if not parts['cols']:
                     raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
+
                 parts.update(
                     icols = ','.join(
                         ['i.%s' % c.sql_name(mkcol_aliases.get(c)) for c in mkcols if use_defaults is None or c.name not in use_defaults]
@@ -718,7 +902,7 @@ class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
 
     """
-    def sql_get(self, row_content_type='application/json', limit=None):
+    def sql_get(self, row_content_type='application/json', limit=None, prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this path.
 
            The query will be of the form:
@@ -755,6 +939,8 @@ class AnyPath (object):
         extras = []
         
         for attribute, col, base in self.attributes:
+            col.enforce_right('select')
+
             sql_attr = sql_identifier(
                 attribute.alias is not None and unicode(attribute.alias) or unicode(col.name)
                 )
@@ -801,9 +987,15 @@ class AnyPath (object):
            Note: only text content types are supported with
            output_file writing.
         """
-        # TODO: refactor this common code between 
 
-        sql = self.sql_get(row_content_type=content_type, limit=limit)
+        # we defer base entity enforcement to allow insert-only use cases
+        if hasattr(self, '_path'):
+            # EntityPath
+            self._path[0].table.enforce_right('select')
+        elif hasattr(self, 'epath'):
+            self.epath._path[0].table.enforce_right('select')
+
+        sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True)
 
         #web.debug(sql)
 
@@ -839,7 +1031,7 @@ class AnyPath (object):
             cur.execute(sql)
             
             return make_row_thunk(None, cur, content_type)()
-        
+
 class EntityPath (AnyPath):
     """Hierarchical ERM data access to whole entities, i.e. table rows.
 
@@ -918,12 +1110,12 @@ WHERE %(pred)s
         version = next(cur)
         return version
 
-    def add_filter(self, filt):
+    def add_filter(self, filt, enforce_client=True):
         """Add a filter condition to the current path.
 
            Filters restrict the matched rows of the right-most table.
         """
-        return self._path[self._context_index].add_filter(filt)
+        return self._path[self._context_index].add_filter(filt, enforce_client=enforce_client)
 
     def add_sort(self, sort):
         """Add a sortlist specification for final output.
@@ -940,7 +1132,7 @@ WHERE %(pred)s
         self.after = after
         self.before = before
             
-    def add_link(self, keyref, refop, ralias=None, lalias=None, outer_type=None):
+    def add_link(self, keyref, refop, ralias=None, lalias=None, outer_type=None, enforce_client=True):
         """Extend the path by linking in another table.
 
            keyref specifies the foreign key and primary keys used
@@ -969,6 +1161,9 @@ WHERE %(pred)s
             # '=@'
             rtable = keyref.unique.table
 
+        if enforce_client:
+            rtable.enforce_right('select')
+
         assert self._context_index >= -1
         if self._context_index >= 0:
             rcontext = self._context_index
@@ -984,7 +1179,7 @@ WHERE %(pred)s
             self.aliases[ralias] = rpos
 
 
-    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, dynauthz_testcol=None):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1000,24 +1195,58 @@ WHERE %(pred)s
            encoding path references and filter conditions.
 
         """
-        selects = selects or ("t%d.*" % (self.current_entity_position()))
+        context_table = self._path[self._context_index].table
+        context_pos = self.current_entity_position()
 
-        pkeys = self._path[self._context_index].table.uniques.keys()
+        if selects is None:
+            # non-enumerable columns will be omitted from entity results
+            for col in context_table.columns_in_order():
+                if enforce_client:
+                    col.enforce_right('select')
+            selects = ", ".join([
+                "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
+                for col in context_table.columns_in_order()
+            ])
+
+        if dynauthz_testcol is not None:
+            assert context_table.columns[dynauthz_testcol.name] == dynauthz_testcol
+
+        # choose a pkey that the client is allowed to use
+        pkeys = [
+            k
+            for k, unique in context_table.uniques.items()
+            if unique.has_right('select') or not enforce_client
+        ]
         if pkeys:
             pkeys.sort(key=lambda k: len(k))
-            shortest_pkey = self._path[self._context_index].table.uniques[pkeys[0]].columns
+            shortest_pkey = context_table.uniques[pkeys[0]].columns
         else:
-            shortest_pkey = self._path[self._context_index].table.columns_in_order()
-        distinct_on_cols = [ 
-            't%d.%s' % (self.current_entity_position(), sql_identifier(c.name))
-             for c in shortest_pkey
-            ]
+            shortest_pkey = context_table.columns_in_order()
+            # check whether this meta-key is usable for client...
+            for col in shortest_pkey:
+                if enforce_client:
+                    col.enforce_right('select')
 
-        tables = [ elem.sql_table_elem() for elem in self._path ]
+        distinct_on_cols = [ 
+            '%st%d.%s' % (prefix, context_pos, sql_identifier(c.name))
+            for c in shortest_pkey
+        ]
+
+        tables = [
+            elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix)
+            for elem in self._path[0:context_pos]
+        ] + [
+            # dynauthz_testcol may be None or an actual column here...
+            self._path[context_pos].sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix, dynauthz_testcol=dynauthz_testcol)
+        ] + [
+            # this is usually empty list but might not if a URL path ends with a context reset
+            elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix)
+            for elem in self._path[context_pos+1:]
+        ]
 
         wheres = []
         for elem in self._path:
-            wheres.extend( elem.sql_wheres() )
+            wheres.extend( elem.sql_wheres(prefix=prefix) )
 
         if len(self._path) == 1:
             distinct_on = False
@@ -1039,9 +1268,9 @@ FROM %(tables)s
             table = self.current_entity_table()
 
             def sort_lookup(key):
-                if key.keyname not in table.columns:
-                    raise ConflictModel('Sort key "%s" not found in table "%s".' % (key.keyname, table.name))
-                return (key.keyname, key.descending, table.columns[key.keyname].type)
+                column = table.columns.get_enumerable(key.keyname)
+                # select access is already enforced above for enumerable output columns
+                return (key.keyname, key.descending, column.type)
 
             sortvec, sort1, sort2 = sort_components(map(sort_lookup, self.sort), self.before is not None)
         else:
@@ -1097,8 +1326,15 @@ WHERE %(keymatches)s
            conn: sanepg2 database connection to catalog
         """
         table = self.current_entity_table()
+        table.enforce_right('delete')
         if not table.writable_kind():
             raise ConflictModel('Entity %s is not writable.' % table)
+
+        if table.has_right('delete') is None:
+            # need to enforce dynamic ACLs
+            cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.sql_get(dynauthz=False, access_type='delete'))
+            if cur.fetchone():
+                raise Forbidden(u'delete access on one or more matching rows in table %s' % self.table)
         
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         cnt = cur.fetchone()[0]
@@ -1106,10 +1342,7 @@ WHERE %(keymatches)s
             raise NotFound('entities matching request path')
         notify_data_change(cur, table)
         cur.execute(self.sql_delete())
-        if cnt > cur.rowcount:
-            # HACK: assume difference in rowcount is due to row-level security??
-            raise Forbidden('deletion of one or more rows')
-        
+
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
 
@@ -1162,7 +1395,7 @@ WHERE %(keymatches)s
         
         if len(self._path) != 1:
             raise BadData("unsupported path length for put")
-        
+
         return self._path[0].put(conn, cur, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults, attr_aliases)
         
 
@@ -1194,7 +1427,7 @@ class AttributePath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1271,12 +1504,17 @@ END
 """ % parts
             elif hasattr(col, 'sql_name_with_talias'):
                 select = col.sql_name_with_talias(alias, output=True)
+            elif col is None and attribute is True:
+                select = "True"
             else:
                 select = "%s.%s" % (alias, col.sql_name())
 
             select = select
 
-            if attribute.alias is not None:
+            if attribute is True and col is None:
+                # short-circuit for dynacl decision output
+                selects.append(select)
+            elif attribute.alias is not None:
                 if unicode(attribute.alias) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
                 outputs.add(unicode(attribute.alias))
@@ -1314,9 +1552,9 @@ END
 
         if split_sort:
             # let the caller compose the query and the sort clauses
-            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on), page, sort1, limit, sort2)
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client), page, sort1, limit, sort2)
         else:
-            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on)
+            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
                 
             if sort1 is not None:
                 sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
@@ -1372,13 +1610,27 @@ WHERE %(keymatches)s
         """Delete entity attributes.
 
         """
+        etable = self.epath.current_entity_table()
+        etable.enforce_right('update')
+        if etable.has_right('update') is None:
+            # need to enforce dynamic ACLs
+            cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(dynauthz=False, access_type='update'))
+            if cur.fetchone():
+                raise Forbidden(u'update access on one or more matching rows in table %s' % etable)
+
         equery = self.epath.sql_get()
         nmkcols = set()
-        
+
         # delete columns are named explicitly
         for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
+                col.enforce_right('update')
+                if col.has_right('update') is None and col.dynauthz_restricted('update'):
+                    # need to enforce dynamic ACLs
+                    cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(access_type='update', dynauthz_testcol=col))
+                    if cur.fetchone():
+                        raise Forbidden(u'update access on column %s for one or more rows' % col)
                 nmkcols.add(col)
             elif base in self.epath.aliases:
                 # column in interior path referenced by alias
@@ -1426,7 +1678,7 @@ class AttributeGroupPath (AnyPath):
         self.after = after
         self.before = before
             
-    def sql_get(self, row_content_type='application/json', limit=None):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -1460,7 +1712,7 @@ class AttributeGroupPath (AnyPath):
                 groupkeys.append( sql_identifier(unicode(col.name)) )
 
         aggregates, extras = self._sql_get_agg_attributes()
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
@@ -1629,13 +1881,13 @@ class AggregatePath (AnyPath):
         # to honour generic API.  actually gated on self.add_sort() above so no need to test again
         pass
         
-    def sql_get(self, row_content_type='application/json', limit=None):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
         """
         apath = AttributePath(self.epath, self.attributes)
         aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
-        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False)
+        asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
 
         # a pure aggregate query has aggregates
         sql = """
@@ -1694,3 +1946,72 @@ def row_to_csv(row, desc=None):
         web.debug('row_to_csv', row, e)
 
        
+class TextFacet (AnyPath):
+
+    def __init__(self, catalog, model, pattern):
+        self.catalog = catalog
+        self._model = model
+        self.pattern = pattern
+
+    def add_sort(self, sort):
+        """Dummy interface."""
+        pass
+
+    def add_paging(self, after, before):
+        """Dummy interface."""
+        pass
+            
+    def columns(self):
+        """Generate (schema, table, column) set."""
+        def get_policy(policy, name):
+            policy = policy if policy else {}
+            if policy is True:
+                return policy
+            elif name in policy:
+                return policy[name]
+            else:
+                return {}
+
+        policy = web.ctx.ermrest_config.get('textfacet_policy', False)
+            
+        for sname, schema in self._model.schemas.items():
+            if not schema.has_right('enumerate'):
+                continue
+            s_policy = get_policy(policy, sname)
+            if s_policy:
+                for tname, table in schema.tables.items():
+                    if not table.has_right('select'):
+                        continue
+                    t_policy = get_policy(s_policy, tname)
+                    if t_policy:
+                        for cname, column in table.columns.items():
+                            if not column.has_right('select'):
+                                continue
+                            c_policy = get_policy(t_policy, cname)
+                            if c_policy:
+                                yield (sname, tname, column)
+
+    def get_data_version(self, cur):
+        """Get data version txid considering all tables in catalog."""
+        cur.execute("""SELECT COALESCE(max(snap_txid), 0) AS snap_txid FROM _ermrest.data_version""")
+        version = next(cur)
+        return version
+
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+        queries = [
+            # column ~* pattern is ciregexp...
+            """(SELECT %(stext)s::text AS "schema", %(ttext)s::text AS "table", %(ctext)s::text AS "column" FROM %(sid)s.%(tid)s WHERE _ermrest.astext(%(cid)s) ~* %(pattern)s LIMIT 1)""" % dict(
+                stext=sql_literal(sname),
+                ttext=sql_literal(tname),
+                ctext=sql_literal(column.name),
+                pattern=sql_literal(unicode(self.pattern)),
+                sid=sql_identifier(sname),
+                tid=sql_identifier(tname),
+                cid=sql_identifier(column.name)
+            )
+            for sname, tname, column in self.columns()
+        ] + [
+            """(SELECT 's' AS "schema", 't' AS "table", 'c' AS "column" WHERE false)"""
+        ]
+        return ' UNION ALL '.join(queries)
+                    

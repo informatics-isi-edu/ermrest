@@ -30,6 +30,7 @@ _default_config = {
         "int4": { "aliases": [ "integer", "int" ] },
         "int8": { "aliases": [ "bigint" ] },
         "interval": None,
+        "jsonb": None,
         "serial2": { "aliases": [ "smallserial" ] },
         "serial4": { "aliases": [ "serial" ] },
         "serial8": { "aliases": [ "bigserial" ] },
@@ -148,6 +149,20 @@ class Type (object):
         else:
             name = self.name
         return name
+
+    def url_parse(self, v):
+        try:
+            if self.name in [ 'integer', 'int2', 'int4', 'int8', 'bigint', 'serial2', 'serial4', 'serial8' ]:
+                return int(v)
+            elif self.name in [ 'float', 'float4', 'float8' ]:
+                return float(v)
+            elif self.name in [ 'json', 'jsonb' ]:
+                return json.loads(v)
+            else:
+                # text and text-like...
+                return unicode(v)
+        except ValueError:
+            raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 
     def sql_literal(self, v):
         try:

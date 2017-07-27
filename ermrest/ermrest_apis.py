@@ -117,7 +117,10 @@ class Dispatcher (object):
             raise te
         except psycopg2.Error, te:
             # e.g. DB connection errors while getting Catalog instance, already logged by web_method
-            raise te
+            raise
+        except (ConflictModel, Forbidden, BadData), te:
+            # don't trace these normal response exceptions
+            raise
         except:
             et, ev, tb = sys.exc_info()
             web.debug(u'got exception "%s" during URI parse' % ev,

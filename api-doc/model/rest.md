@@ -718,6 +718,7 @@ Typical error response codes include:
 
 Annotations are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
 
+- _service_ `/catalog/` _cid_
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
@@ -761,7 +762,7 @@ The PUT operation is used to add or replace a single annotation:
 
 In this operation, the `application/json` _annotation document_ is supplied as input:
 
-    POST subject/annotation/annotation_key HTTP/1.1
+    PUT subject/annotation/annotation_key HTTP/1.1
 	Host: www.example.com
 	Content-Type: application/json
     
@@ -778,6 +779,28 @@ or:
     HTTP/1.1 200 OK
 
 without any response body. The `200` response indicates the _annotation document_ replaces a previous one, while `201` responses indicate that a new _annotation key_ has been added to the parent resource.
+
+Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized
+
+### Annotation Bulk Update
+
+The PUT operation can also replace the whole annotation list at once:
+
+- _subject_ `/annotation`
+
+In this operation, the `application/json` _annotation list_ is supplied as input to specify all _annotation key_ and _annotation document_ values at once:
+
+    PUT subject/annotation HTTP/1.1
+    Host: www.example.com
+    Content-Type: application/json
+    
+    {
+      annotation key: annotation document, ...
+    }
+
+This operation completely replaces any existing annotations, including dropping any which were present under an _annotation key_ not specified in the bulk input list. This is most useful to an administrator who is intentionally clearing stale annotation content.
 
 Typical error response codes include:
 - 403 Forbidden

@@ -16,16 +16,20 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, annotatable, commentable
+from .misc import frozendict, AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
+from .name import _keyref_join_str, _keyref_join_sql
 
 import web
 import json
 
-@annotatable('key', dict(
-    schema_name=('text', lambda self: unicode(self.table.schema.name)),
-    table_name=('text', lambda self: unicode(self.table.name)),
-    column_names=('text[]', lambda self: self._column_names())
-    )
+@annotatable
+@keying(
+    'key',
+    {
+        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
+        "table_name": ('text', lambda self: unicode(self.table.name)),
+        "column_names": ('text[]', lambda self: self._column_names())
+    }
 )
 class Unique (object):
     """A unique constraint."""
@@ -36,20 +40,26 @@ class Unique (object):
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
+        if constraint_name is not None:
+            enforce_63byte_id(constraint_name[1], 'Uniqueness constraint')
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.comment = comment
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
         
     @staticmethod
-    def introspect_annotation(model=None, schema_name=None, table_name=None, column_names=None, annotation_uri=None, annotation_value=None):
+    def keyed_resource(model=None, schema_name=None, table_name=None, column_names=None):
         table = model.schemas[schema_name].tables[table_name]
         columns = [ table.columns[cname] for cname in column_names ]
-        table.uniques[frozenset(columns)].annotations[annotation_uri] = annotation_value
+        return table.uniques[frozenset(columns)]
+
+    def enforce_right(self, aclname):
+        """Proxy enforce_right to self.table for interface consistency."""
+        self.table.enforce_right(aclname)
 
     def set_comment(self, conn, cur, comment):
         # comment this particular constraint
@@ -150,7 +160,9 @@ SELECT _ermrest.model_change_event();
         if not self.constraint_name:
             n = 1
             while True:
-                name = '%s_%s_key%d' % (self.table.name, list(self.columns)[0].name, n)
+                name = truncated_identifier(
+                    [self.table.name, '_', list(self.columns)[0].name, '%d' % n]
+                )
                 if not constraint_exists(cur, name):
                     break
                 n += 1
@@ -180,11 +192,21 @@ SELECT _ermrest.model_change_event();
             names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
             )
 
-@annotatable('key', dict(
-    schema_name=('text', lambda self: unicode(self.table.schema.name)),
-    table_name=('text', lambda self: unicode(self.table.name)),
-    column_names=('text[]', lambda self: self._column_names())
-    )
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        for c in self.columns:
+            if not c.has_right('enumerate', roles):
+                return False
+        return True
+
+@annotatable
+@keying(
+    'key',
+    {
+        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
+        "table_name": ('text', lambda self: unicode(self.table.name)),
+        "column_names": ('text[]', lambda self: self._column_names())
+    }
 )
 class PseudoUnique (object):
     """A pseudo-uniqueness constraint."""
@@ -199,7 +221,7 @@ class PseudoUnique (object):
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.comment = comment
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
 
         if cols not in self.table.uniques:
@@ -210,6 +232,10 @@ class PseudoUnique (object):
 
     def __repr__(self):
         return '<ermrest.model.PseudoUnique %s>' % str(self)
+
+    def enforce_right(self, aclname):
+        """Proxy enforce_right to self.table for interface consistency."""
+        self.table.enforce_right(aclname)
 
     def set_comment(self, conn, cur, comment):
         # comment this particular constraint
@@ -259,6 +285,7 @@ SELECT _ermrest.model_change_event();
                 fkeyref.pre_delete(conn, cur)
 
     def add(self, conn, cur):
+        self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         cur.execute("""
 SELECT _ermrest.model_change_event();
 INSERT INTO _ermrest.model_pseudo_key 
@@ -282,6 +309,7 @@ INSERT INTO _ermrest.model_pseudo_key
             self.set_annotation(conn, cur, k, v)
 
     def delete(self, conn, cur):
+        self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         self.pre_delete(conn, cur)
         if self.id:
             cur.execute("""
@@ -295,6 +323,13 @@ SELECT _ermrest.model_change_event();
         del self.table.uniques[self.columns]
         if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
             raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
+
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        for c in self.columns:
+            if not c.has_right('enumerate', roles):
+                return False
+        return True
 
 class ForeignKey (object):
     """A foreign key."""
@@ -341,6 +376,22 @@ class ForeignKey (object):
                 refs.append( kr.prejson() )
         return refs
 
+    def columns_have_right(self, aclname, roles=None):
+        for c in self.columns:
+            if not c.has_right(aclname, roles):
+                return False
+        return True
+
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        if not self.columns_have_right(aclname, roles):
+            return False
+        for krset in self.table_references.values():
+            for kr in krset:
+                if kr.has_right(aclname, roles):
+                    return True
+        return False
+
 def _guarded_add(s, new_fkr):
     """Deduplicate FKRs by tracking duplicates under leader.constraints if leader exists in set s.
     """
@@ -350,27 +401,6 @@ def _guarded_add(s, new_fkr):
             return
     # otherwise this is a new leader
     s.add(new_fkr)
-
-def _keyref_join_str(self, refop, lname, rname):
-    if refop == '=@':
-        lcols = self._from_column_names()
-        rcols = self._to_column_names()
-    else:
-        lcols = self._to_column_names()
-        rcols = self._from_column_names()
-    return '%s:%s%s%s:%s' % (lname, ','.join(lcols), refop, rname, ','.join(rcols))
-
-def _keyref_join_sql(self, refop, lname, rname):
-    if refop == '=@':
-        lcols = self._from_column_names()
-        rcols = self._to_column_names()
-    else:
-        lcols = self._to_column_names()
-        rcols = self._from_column_names()
-    return ' AND '.join([
-        '%s.%s = %s.%s' % (lname, sql_identifier(lcols[i]), rname, sql_identifier(rcols[i]))
-        for i in range(len(lcols))
-    ])
 
 def _keyref_from_column_names(self):
     f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
@@ -393,27 +423,53 @@ def _keyref_prejson(self):
     for fc in self.reference_map.keys():
         fcs.append( fc.prejson_ref() )
         pcs.append( self.reference_map[fc].prejson_ref() )
-    return dict(
+    doc = dict(
         foreign_key_columns=fcs,
         referenced_columns=pcs,
+        rights=self.rights(),
         comment=self.comment,
         annotations=self.annotations,
         names=[ constraint_name_prejson(c) for c in self.constraints ]
     )
+    if self.has_right('owner'):
+        doc['acls'] = self.acls
+        doc['acl_bindings'] = self.dynacls
+    return doc
 
-@annotatable('keyref', dict(
-    from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-    from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
-    from_column_names=('text[]', lambda self: self._from_column_names()),
-    to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
-    to_table_name=('text', lambda self: unicode(self.unique.table.name)),
-    to_column_names=('text[]', lambda self: self._to_column_names())
-    )
+def _keyref_has_right(self, aclname, roles=None):
+    if aclname == 'enumerate':
+        if not self.unique.has_right('enumerate', roles):
+            return False
+        decision = self.foreign_key.columns_have_right('enumerate')
+        if not decision:
+            # None or False may happen here
+            return decision
+    return self._has_right(aclname, roles)
+
+@annotatable
+@hasdynacls(
+    { "owner", "insert", "update" }
+)
+@hasacls(
+    {"write", "insert", "update", "enumerate"},
+    {"insert", "update"},
+    lambda self: self.foreign_key.table
+)
+@keying(
+    'keyref',
+    {
+        "from_schema_name": ('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+        "from_table_name": ('text', lambda self: unicode(self.foreign_key.table.name)),
+        "from_column_names": ('text[]', lambda self: self._from_column_names()),
+        "to_schema_name": ('text', lambda self: unicode(self.unique.table.schema.name)),
+        "to_table_name": ('text', lambda self: unicode(self.unique.table.name)),
+        "to_column_names": ('text[]', lambda self: self._to_column_names())
+    }
 )
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -428,21 +484,27 @@ class KeyReference (object):
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         _guarded_add(unique.table_references[foreign_key.table], self)
+        if constraint_name is not None:
+            enforce_63byte_id(constraint_name[1], 'Foreign-key constraint')
         self.constraint_name = constraint_name
         self.constraints = set([self])
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
+        self.acls = AclDict(self)
+        self.acls.update(acls)
+        self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
+        self.dynacls.update(dynacls)
         self.comment = comment
 
     @staticmethod
-    def introspect_annotation(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None, annotation_uri=None, annotation_value=None):
+    def keyed_resource(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None):
         from_table = model.schemas[from_schema_name].tables[from_table_name]
         to_table = model.schemas[to_schema_name].tables[to_table_name]
         refmap = dict([
             (from_table.columns[from_cname], to_table.columns[to_cname])
             for from_cname, to_cname in zip(from_column_names, to_column_names)
         ])
-        from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)].annotations[annotation_uri] = annotation_value
+        return from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)]
 
     def set_comment(self, conn, cur, comment):
         if self.constraint_name:
@@ -489,12 +551,15 @@ SELECT _ermrest.model_change_event();
 
     def pre_delete(self, conn, cur):
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
     
     def add(self, conn, cur):
         if not self.constraint_name:
             n = 1
             while True:
-                name = '%s_%s_fkey%d' % (self.foreign_key.table.name, list(self.foreign_key.columns)[0].name, n)
+                name = truncated_identifier(
+                    [ self.foreign_key.table.name, '_', list(self.foreign_key.columns)[0].name, '%d' % n ]
+                )
                 if not constraint_exists(cur, name):
                     break
                 n += 1
@@ -539,7 +604,9 @@ SELECT _ermrest.model_change_event();
             return names
                 
         def check_columns(cols, kind):
-            tnames = set(map(lambda d: (d.get('schema_name'), d.get('table_name')), cols))
+            fksname = fktable.schema.name if fktable else None
+            fktname = fktable.name if fktable else None
+            tnames = set(map(lambda d: (d.get('schema_name', fksname), d.get('table_name', fktname)), cols))
             if len(tnames) != 1:
                 raise exception.BadData('All %s columns must come from one table.' % kind)
             sname, tname = tnames.pop()
@@ -593,6 +660,9 @@ SELECT _ermrest.model_change_event();
         pk_columns = list(check_columns(refdoc.get('referenced_columns', []), 'referenced'))
         annotations = refdoc.get('annotations', {})
         comment = refdoc.get('comment')
+        acls = {"insert": ["*"], "update": ["*"]}
+        acls.update(refdoc.get('acls', {}))
+        dynacls = refdoc.get('acl_bindings', {})
 
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
@@ -602,9 +672,9 @@ SELECT _ermrest.model_change_event();
             
         if fk_ref_map not in fkey.references:
             if fktable.kind == 'r' and pktable.kind == 'r':
-                fkr = KeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment)
+                fkr = KeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, acls=acls, dynacls=dynacls)
             else:
-                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment)
+                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, constraint_name=fk_name, annotations=annotations, comment=comment, acls=acls, dynacls=dynacls)
             fkey.references[fk_ref_map] = fkr
             yield fkey.references[fk_ref_map]
 
@@ -614,19 +684,33 @@ SELECT _ermrest.model_change_event();
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
-@annotatable('keyref', dict(
-    from_schema_name=('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-    from_table_name=('text', lambda self: unicode(self.foreign_key.table.name)),
-    from_column_names=('text[]', lambda self: self._from_column_names()),
-    to_schema_name=('text', lambda self: unicode(self.unique.table.schema.name)),
-    to_table_name=('text', lambda self: unicode(self.unique.table.name)),
-    to_column_names=('text[]', lambda self: self._to_column_names())
-    )
+    def has_right(self, aclname, roles=None):
+        return _keyref_has_right(self, aclname, roles)
+
+@annotatable
+@hasdynacls(
+    { "owner", "insert", "update" }
+)
+@hasacls(
+    {"write", "insert", "update", "enumerate"},
+    {"insert", "update"},
+    lambda self: self.foreign_key.table
+)
+@keying(
+    'keyref',
+    {
+        "from_schema_name": ('text', lambda self: unicode(self.foreign_key.table.schema.name)),
+        "from_table_name": ('text', lambda self: unicode(self.foreign_key.table.name)),
+        "from_column_names": ('text[]', lambda self: self._from_column_names()),
+        "to_schema_name": ('text', lambda self: unicode(self.unique.table.schema.name)),
+        "to_table_name": ('text', lambda self: unicode(self.unique.table.name)),
+        "to_column_names": ('text[]', lambda self: self._to_column_names())
+    }
 )
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -642,8 +726,12 @@ class PseudoKeyReference (object):
         self.id = id
         self.constraint_name = constraint_name
         self.constraints = set([self])
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
+        self.acls = AclDict(self)
+        self.acls.update(acls)
+        self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
+        self.dynacls.update(dynacls)
         self.comment = comment
 
     def set_comment(self, conn, cur, comment):
@@ -688,8 +776,10 @@ SELECT _ermrest.model_change_event();
 
     def pre_delete(self, conn, cur):
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
 
     def add(self, conn, cur):
+        self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
         fk_cols = list(self.foreign_key.columns)
         cur.execute("""
 SELECT _ermrest.model_change_event();
@@ -717,6 +807,7 @@ INSERT INTO _ermrest.model_pseudo_keyref
             self.set_annotation(conn, cur, k, v)
         
     def delete(self, conn, cur):
+        self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
         self.pre_delete(conn, cur)
         if self.id:
             cur.execute("""
@@ -728,80 +819,6 @@ SELECT _ermrest.model_change_event();
             if fkr != self:
                 fkr.delete(conn, cur)
 
-class _Endpoint(object):
+    def has_right(self, aclname, roles=None):
+        return _keyref_has_right(self, aclname, roles)
 
-    def __init__(self, table):
-        self.table = table
-                
-class MultiKeyReference (object):
-    """A disjunctive join condition collecting several links.
-
-       This abstraction simulates a left-to-right reference.
-    """
-
-    def __init__(self, links):
-        assert len(links) > 0
-        
-        self.ltable = None
-        self.rtable = None
-
-        for keyref, refop in links:
-            if refop == '=@':
-                ltable = keyref.foreign_key.table
-                rtable = keyref.unique.table
-            else:
-                ltable = keyref.unique.table
-                rtable = keyref.foreign_key.table
-                
-            assert self.ltable is None or self.ltable == ltable
-            assert self.rtable is None or self.rtable == rtable
-
-            self.ltable = ltable
-            self.rtable = rtable
-
-        self.links = links
-        self.foreign_key = _Endpoint(ltable)
-        self.unique = _Endpoint(rtable)
-
-    def join_str(self, refop, lname='..', rname='.'):
-        """Build a simplified representation of the join condition."""
-        assert refop == '=@'
-        parts = []
-        for keyref, refop in self.links:
-            parts.append(keyref.join_str(refop, lname, rname))
-        return '(%s)' % (' OR '.join(parts))
-                         
-    def join_sql(self, refop, lname, rname):
-        assert refop == '=@'
-        return ' OR '.join([
-            '(%s)' % keyref.join_sql(refop, lname, rname)
-            for keyref, refop in self.links
-        ])
-
-class ExplicitJoinReference (object):
-
-    def __init__(self, lcols, rcols):
-        assert len(lcols) == len(rcols)
-
-        self.lcols = lcols
-        self.rcols = rcols
-
-        ltable = lcols[0].table
-        rtable = rcols[0].table
-
-        self.foreign_key = _Endpoint(ltable)
-        self.unique = _Endpoint(rtable)
-
-    def _from_column_names(self):
-        return [ c.name for c in self.lcols ]
-
-    def _to_column_names(self):
-        return [ c.name for c in self.rcols ]
-        
-    def join_str(self, refop, lname='..', rname='.'):
-        assert refop == '=@'
-        return _keyref_join_str(self, refop, lname, rname)
-        
-    def join_sql(self, refop, lname, rname):
-        assert refop == '=@'
-        return _keyref_join_sql(self, refop, lname, rname)

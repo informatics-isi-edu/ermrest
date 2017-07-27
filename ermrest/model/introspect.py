@@ -28,12 +28,18 @@ import web
 
 from .. import exception
 from ..util import table_exists, view_exists, column_exists
-from .misc import frozendict, annotatable_classes
+from .misc import frozendict, annotatable_classes, hasacls_classes, hasdynacls_classes
 from .schema import Model, Schema
 from .type import build_type, text_type
 from .column import Column
 from .table import Table
 from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyReference
+
+def current_model_version(cur):
+    cur.execute("""
+SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
+""")
+    return cur.next()[0]
 
 def introspect(cur, config=None):
     """Introspects a Catalog (i.e., a database).
@@ -260,7 +266,13 @@ FROM _ermrest.model_pseudo_keyref ;
     fkeys    = dict()
     fkeyrefs = dict()
 
-    model = Model()
+    cur.execute("""
+SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
+"""
+    )
+    version = cur.next()[0]
+    
+    model = Model(version)
 
     # upgrade catalogs in the field to support named pseudo keyrefs
     if table_exists(cur, "_ermrest", "model_pseudo_keyref") \
@@ -429,25 +441,21 @@ FROM _ermrest.model_pseudo_keyref ;
         if hasattr(klass, 'introspect_helper'):
             klass.introspect_helper(cur, model)
 
+    # introspect ERMrest model ACLs
+    for klass in hasacls_classes:
+        if hasattr(klass, 'introspect_acl_helper'):
+            klass.introspect_acl_helper(cur, model)
+
+    # introspect ERMrest model ACLs
+    for klass in hasdynacls_classes:
+        if hasattr(klass, 'introspect_dynacl_helper'):
+            klass.introspect_dynacl_helper(cur, model)
+
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
     del model.schemas['_ermrest']
 
-    model.check_primary_keys(config.get('require_primary_keys', True))
-    
-    if not table_exists(cur, '_ermrest', 'valuemap'):
-        # rebuild missing table and add it to model manually since we already introspected
-        web.debug('NOTICE: adding empty valuemap during model introspection')
-        model.recreate_value_map(cur.connection, cur, empty=True)
-        valuemap_columns = ['schema', 'table', 'column', 'value']
-        for i in range(len(valuemap_columns)):
-            valuemap_columns[i] = Column(
-                valuemap_columns[i],
-                i,
-                text_type,
-                None
-            )
-        model.ermrest_schema.tables['valuemap'] = Table(model.ermrest_schema, 'valuemap', valuemap_columns, 't')
+    model.check_primary_keys(web.ctx.ermrest_config.get('require_primary_keys', True))
 
     return model
 

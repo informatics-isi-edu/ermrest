@@ -174,6 +174,7 @@ def request_trace(tracedata):
         data = unicode(tracedata)
     except UnicodeDecodeError:
         data = str(tracedata).decode('utf-8')
+
     od = OrderedDict([
         (k, v) for k, v in [
             ('elapsed', parts['elapsed']),
@@ -287,18 +288,14 @@ def web_method():
                     except psycopg2.ProgrammingError, e:
                         if e.pgcode == '42501':
                             # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
-                            raise rest.Forbidden(e.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
+                            raise rest.Forbidden(e.pgerror.decode('utf8').replace('ERROR:  ','').replace('\n','') + ' and is')
                         elif e.pgcode == '42601':
                             # SQL syntax error means we have buggy code!
                             web.debug(e.pgcode, e.pgerror)
                             raise rest.RuntimeError('Query generation error, contact ERMrest administrator')
                         else:
                             # re-raise and let outer handlers below do something more generic
-                            raise e
-                    except:
-                        et, e, tb = sys.exc_info()
-                        request_trace(e)
-                        raise
+                            raise
                 except (rest.WebException, web.HTTPError), e:
                     # exceptions signal normal REST response scenarios
                     raise e
@@ -313,7 +310,7 @@ def web_method():
                 except UnsupportedMediaType, e:
                     raise rest.UnsupportedMediaType(e.message)
                 except psycopg2.Error, e:
-                    request_trace("Postgres error: %s (%s)" % (e.pgerror, e.pgcode))
+                    request_trace(u"Postgres error: %s (%s)" % (e.pgerror.decode('utf8'), e.pgcode))
                     if e.pgcode is not None:
                         if e.pgcode[0:2] == '08':
                             raise rest.ServiceUnavailable('Database connection error.')
@@ -328,6 +325,8 @@ def web_method():
                         
                     # TODO: simplify postgres error text?
                     web.debug(e, e.pgcode, e.pgerror)
+                    et, ev, tb = sys.exc_info()
+                    web.debug('got exception "%s"' % str(ev), traceback.format_exception(et, ev, tb))
                     raise rest.Conflict( str(e) )
                 except (psycopg2.pool.PoolError, psycopg2.OperationalError), e:
                     raise rest.ServiceUnavailable(e.message)

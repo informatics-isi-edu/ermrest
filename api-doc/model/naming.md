@@ -15,6 +15,19 @@ where the components of this root path are:
 
 The catalog resource has a representation which provides basic information about it including access control lists.
 
+### Catalog Annotations
+
+Each catalog annotation is reified as a model-level resource:
+
+- _service_ `/catalog/` _cid_ `/annotation/` _annotation key_
+
+This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
+
+Additionally, a composite resource summarizes all existing annotations on one catalog for convenient discovery and bulk retrieval:
+
+- _service_ `/catalog/` _cid_ `/annotation`
+- _service_ `/catalog/` _cid_ `/annotation/`
+
 ## Schemata Names
 
 The ERMrest model resources are named under a root collection of schemata for a particular catalog:

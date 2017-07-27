@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,9 +26,122 @@ import urllib
 import csv
 import web
 
-from ...util import sql_identifier, sql_literal
-from ... import exception
-from ...model.key import MultiKeyReference, ExplicitJoinReference
+from ..util import sql_identifier, sql_literal
+from .. import exception
+from .predicate import Value
+
+def _keyref_join_str(self, refop, lname, rname):
+    if refop == '=@':
+        lcols = self._from_column_names()
+        rcols = self._to_column_names()
+    else:
+        lcols = self._to_column_names()
+        rcols = self._from_column_names()
+    return '%s:%s%s%s:%s' % (lname, ','.join(lcols), refop, rname, ','.join(rcols))
+
+def _keyref_join_sql(self, refop, lname, rname):
+    if refop == '=@':
+        lcols = self._from_column_names()
+        rcols = self._to_column_names()
+    else:
+        lcols = self._to_column_names()
+        rcols = self._from_column_names()
+    return ' AND '.join([
+        '%s.%s = %s.%s' % (lname, sql_identifier(lcols[i]), rname, sql_identifier(rcols[i]))
+        for i in range(len(lcols))
+    ])
+
+class _Endpoint(object):
+
+    def __init__(self, table):
+        self.table = table
+
+class MultiKeyReference (object):
+    """A disjunctive join condition collecting several links.
+
+       This abstraction simulates a left-to-right reference.
+    """
+
+    def __init__(self, links):
+        assert len(links) > 0
+
+        self.ltable = None
+        self.rtable = None
+
+        for keyref, refop in links:
+            if refop == '=@':
+                ltable = keyref.foreign_key.table
+                rtable = keyref.unique.table
+            else:
+                ltable = keyref.unique.table
+                rtable = keyref.foreign_key.table
+
+            assert self.ltable is None or self.ltable == ltable
+            assert self.rtable is None or self.rtable == rtable
+
+            self.ltable = ltable
+            self.rtable = rtable
+
+        self.links = links
+        self.foreign_key = _Endpoint(ltable)
+        self.unique = _Endpoint(rtable)
+
+    def _visible_links(self):
+        return [ l for l in self.links if l.has_right('enumerate') ]
+
+    def join_str(self, refop, lname='..', rname='.'):
+        """Build a simplified representation of the join condition."""
+        assert refop == '=@'
+        parts = []
+        for keyref, refop in self._visible_links():
+            parts.append(keyref.join_str(refop, lname, rname))
+        return '(%s)' % (' OR '.join(parts))
+
+    def join_sql(self, refop, lname, rname):
+        assert refop == '=@'
+        return ' OR '.join([
+            '(%s)' % keyref.join_sql(refop, lname, rname)
+            for keyref, refop in self._visible_links()
+        ])
+
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        return self._visible_links()
+
+class ExplicitJoinReference (object):
+
+    def __init__(self, lcols, rcols):
+        assert len(lcols) == len(rcols)
+
+        self.lcols = lcols
+        self.rcols = rcols
+
+        ltable = lcols[0].table
+        rtable = rcols[0].table
+
+        self.foreign_key = _Endpoint(ltable)
+        self.unique = _Endpoint(rtable)
+
+    def _from_column_names(self):
+        return [ c.name for c in self.lcols ]
+
+    def _to_column_names(self):
+        return [ c.name for c in self.rcols ]
+
+    def join_str(self, refop, lname='..', rname='.'):
+        assert refop == '=@'
+        return _keyref_join_str(self, refop, lname, rname)
+
+    def join_sql(self, refop, lname, rname):
+        assert refop == '=@'
+        return _keyref_join_sql(self, refop, lname, rname)
+
+    def has_right(self, aclname, roles=None):
+        assert aclname == 'enumerate'
+        for c in self.lcols + self.rcols:
+            if not c.has_right(aclname, roles):
+                return False
+        return True
 
 def _exact_link_cols(lcols, rcols):
     if len(lcols) != len(rcols):
@@ -93,17 +206,19 @@ def _default_link_table2table(left, right):
     for pk in left.uniques.values():
         if right in pk.table_references:
             links.extend([
-                    (ref, '@=')
-                    for ref in pk.table_references[right]
-                    ])
+                (ref, '@=')
+                for ref in pk.table_references[right]
+                if ref.has_right('enumerate')
+            ])
 
     # look for left-to-right references
     for fk in left.fkeys.values():
         if right in fk.table_references:
             links.extend([
-                    (ref, '=@')
-                    for ref in fk.table_references[right]
-                    ])
+                (ref, '=@')
+                for ref in fk.table_references[right]
+                if ref.has_right('enumerate')
+            ])
 
     if len(links) == 0:
         raise exception.ConflictModel('No link found between tables %s and %s' % (left, right))
@@ -184,45 +299,39 @@ class Name (object):
 
         if len(self.nameparts) == 3:
             n0, n1, n2 = self.nameparts
-            return (model.schemas[n0].tables[n1].columns[n2],None)
+            return (model.schemas.get_enumerable(n0).tables.get_enumerable(n1).columns.get_enumerable(n2),None)
         
-        else:
+        try:
             if len(self.nameparts) == 1:
                 if base is epath:
-                    if self.nameparts[0] in ptable.columns:
-                        return (ptable.columns[self.nameparts[0]], epath)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(ptable)))
+                    return (ptable.columns.get_enumerable(self.nameparts[0]), epath)
                 elif base in epath.aliases:
-                    if self.nameparts[0] in epath[base].table.columns:
-                        return (epath[base].table.columns[self.nameparts[0]], base)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table alias %s.' % (self.nameparts[0], base))
+                    return (epath[base].table.columns.get_enumerable(self.nameparts[0]), base)
                 elif base is not None:
-                    assert hasattr(base, 'columns')
-                    if self.nameparts[0] in base.columns:
-                        return (base.columns[self.nameparts[0]], None)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(base)))
-                elif self.nameparts[0] in ptable.columns:
-                    return (ptable.columns[self.nameparts[0]], epath)
-                elif self.nameparts[0] == '*':
-                    return (ptable.freetext_column(), epath)
+                    return (base.columns.get_enumerable(self.nameparts[0]), None)
                 else:
-                    raise exception.ConflictModel('Column %s does not exist in table %s.' % (self.nameparts[0], str(ptable)))
+                    try:
+                        return (ptable.columns.get_enumerable(self.nameparts[0]), epath)
+                    except exception.ConflictModel, e:
+                        if self.nameparts[0] == '*':
+                            return (ptable.freetext_column(), epath)
+                        raise
 
             elif len(self.nameparts) == 2:
                 n0, n1 = self.nameparts
                 if n0 in epath.aliases:
-                    if n1 in epath[n0].table.columns:
-                        return (epath[n0].table.columns[n1], n0)
-                    elif self.nameparts[1] == '*':
-                        return (epath[n0].table.freetext_column(), n0)
-                    else:
-                        raise exception.ConflictModel('Column %s does not exist in table %s (alias %s).' % (n1, epath[n0].table, n0))
+                    try:
+                        return (epath[n0].table.columns.get_enumerable(n1), n0)
+                    except exception.ConflictModel, e:
+                        if self.nameparts[1] == '*':
+                            return (epath[n0].table.freetext_column(), n0)
+                        raise
 
                 table = model.lookup_table(n0)
-                return (table.columns[n1], None)
+                return (table.columns.get_enumerable(n1), None)
+
+        except exception.NotFound, e:
+            raise exception.ConflictModel(unicode(e))
 
         raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
 
@@ -251,8 +360,7 @@ class Name (object):
 
         elif len(self.nameparts) == 2:
             n0, n1 = self.nameparts
-
-            table = model.schemas[n0].tables[n1]
+            table = model.schemas.get_enumerable(n0).tables.get_enumerable(n1)
             keyref, refop = _default_link_table2table(ptable, table)
             return keyref, refop, None
 
@@ -333,7 +441,7 @@ class NameList (list):
 
         c0, base = rnames[0].resolve_column(model, epath)
         if base in epath.aliases or base == epath:
-            raise exception.ConflictModel('Right names in (left)=(right) link notation must not resolve to new table instance.')
+            raise exception.ConflictModel('Right names in (left)=(right) link notation must resolve to new table instance.')
 
         rcols = [ c0 ]
 

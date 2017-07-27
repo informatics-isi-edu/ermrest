@@ -114,9 +114,6 @@ The ERMrest interface supports typical HTTP operations to manage these different
   1. [Catalog Retrieval](rest-catalog.md#catalog-retrieval)
   1. [Catalog Deletion](rest-catalog.md#catalog-deletion)
 	 1. [ACL Retrieval](rest-catalog.md#access-control-list-retrieval)
-	 1. [ACL Entry Creation](rest-catalog.md#access-control-entry-creation)
-	 1. [ACL Entry Retrieval](rest-catalog.md#access-control-entry-retrieval)
-	 1. [ACL Entry Deletion](rest-catalog.md#access-control-entry-deletion)
 1. [Model-level operations](model/rest.md)
   1. [Schemata Retrieval](model/rest.md#schemata-retrieval)
   1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)
@@ -142,6 +139,7 @@ The ERMrest interface supports typical HTTP operations to manage these different
   1. [Model Annotations](model/rest.md#model-annotations)
     1. [Annotation List Retrieval](model/rest.md#annotation-list-retrieval)
     1. [Annotation Creation](model/rest.md#annotation-creation)
+    1. [Annotation Bulk Update](model/rest.md#annotation-bulk-update)
     1. [Annotation Retrieval](model/rest.md#annotation-retrieval)
     1. [Annotation Deletion](model/rest.md#annotation-deletion)
   1. [Model Comments](model/rest.md#model-comments)
@@ -252,6 +250,7 @@ ERMrest generically exposes a range of scalar and array-of-scalar attribute type
 - `int2`, `int4`, `int8`: Two's complement integers in 2-byte, 4-byte, or 8-byte widths, respectively.
 - `serial2`, `serial4`, `serial8`: Corresponding to `int2`, `int4`, and `int8` with an auto-incremented default behavior on insertion.
 - `text`: Variable-length text containing Unicode characters, using UTF-8 encoding in all supported MIME types (currently CSV and JSON).
+- `jsonb`: JSON text strings parsed and stored in PostgreSQL's binary JSON variant.
 
 The [binary filter predicate](data/naming.md#binary-filter-predicate)
 language of ERMrest URIs compare a stored scalar column value (the
@@ -288,10 +287,9 @@ for other reasons:
 
 - `uuid`: Universally Unique Identifiers, e.g. `a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11`.
 - `numeric`: Arbitrary-precision decimal numerical data.
-- `time`: Time values lacking date information.
+- `time` and `timetz`: Time values lacking date information.
 - `timestamp`: Timestamps lacking timezone information.
 - `json`: JSON text strings.
-- `jsonb`: JSON text strings parsed and stored in PostgreSQL's binary JSON variant.
 - various `text` and `character` types with length constraints: No
   length constraints or padding are considered or enforced by ERMrest
   and for the most part these map to variable-length `text` storage

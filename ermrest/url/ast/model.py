@@ -29,7 +29,7 @@ from ...util import negotiated_content_type
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
     handler.emit_headers()
-    if resource is None:
+    if resource is None and content_type == 'text/plain':
         return ''
     if resource is '' and web.ctx.status == '200 OK':
         web.ctx.status = '204 No Content'
@@ -55,21 +55,18 @@ def _post_commit_json(handler, resource):
 
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
-        handler.enforce_content_read(cur)
-        handler.catalog.manager.get_model(cur)
-        handler.set_http_etag( handler.catalog.manager._model_version )
+        handler.enforce_right('enumerate')
+        handler.set_http_etag( web.ctx.ermrest_catalog_model.version )
         handler.http_check_preconditions()
         return thunk(conn, cur)
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
 
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
-        handler.enforce_content_read(cur)
-        handler.enforce_schema_write(cur)
         # we need a private (uncached) copy of model because we mutate it optimistically
         # and this could corrupt a cached copy if our operation is not committed to DB
-        handler.catalog.manager.get_model(cur, private=True)
-        handler.set_http_etag( handler.catalog.manager._model_version )
+        web.ctx.ermrest_catalog_model = handler.catalog.manager.get_model(cur, private=True)
+        handler.set_http_etag( web.ctx.ermrest_catalog_model.version )
         handler.http_check_preconditions(method='PUT')
         result = thunk(conn, cur)
         handler.set_http_etag( handler.catalog.manager.get_model_update_version(cur) )
@@ -89,7 +86,7 @@ class Schemas (Api):
         Api.__init__(self, catalog)
 
     def GET_body(self, conn, cur):
-        return self.catalog.manager._model
+        return web.ctx.ermrest_catalog_model
         
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
@@ -97,7 +94,7 @@ class Schemas (Api):
     def POST_body(self, conn, cur, doc):
         """Create schemas and/or tables."""
         # don't collide with model module...
-        modelobj = self.catalog.manager._model
+        modelobj = web.ctx.ermrest_catalog_model
 
         deferred_fkeys = []
         
@@ -193,6 +190,10 @@ class Schema (Api):
         self.schemas = Schemas(catalog)
         self.name = name
 
+    def acls(self):
+        """The ACL set for this schema."""
+        return SchemaAcl(self)
+
     def comment(self):
         """The comment for this schema."""
         return SchemaComment(self)
@@ -208,17 +209,19 @@ class Schema (Api):
         """A specific table for this schema."""
         return Table(self, name)
 
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, final=False):
         try:
-            return self.catalog.manager._model.schemas[unicode(self.name)]
-        except exception.ConflictModel:
-            raise exception.NotFound(u'Schema %s not found.' % unicode(self.name))
-    
+            return web.ctx.ermrest_catalog_model.schemas.get_enumerable(unicode(self.name))
+        except exception.ConflictModel, e:
+            if final:
+                raise exception.NotFound(u'schema %s' % self.name)
+            raise
+
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
 
     def POST_body(self, conn, cur):
-        self.catalog.manager._model.create_schema(conn, cur, unicode(self.name))
+        return web.ctx.ermrest_catalog_model.create_schema(conn, cur, unicode(self.name))
 
     def POST(self, uri):
         def post_commit(self, ignored):
@@ -227,7 +230,8 @@ class Schema (Api):
         return _MODIFY(self, self.POST_body, post_commit)
 
     def DELETE_body(self, conn, cur):
-        self.catalog.manager._model.delete_schema(conn, cur, unicode(self.name))
+        schema = self.GET_body(conn, cur, True)
+        web.ctx.ermrest_catalog_model.delete_schema(conn, cur, unicode(schema.name))
         return ''
             
     def DELETE(self, uri):
@@ -248,7 +252,7 @@ class Tables (Api):
         return _GET(self, self.GET_body, _post_commit_json)
     
     def GET_body(self, conn, cur):
-        return self.schema.GET_body(conn, cur).tables.values()
+        return [ t for t in self.schema.GET_body(conn, cur).tables.values() if t.has_right('enumerate') ]
 
     def POST_body(self, conn, cur, tabledoc):
         schema = self.schema.GET_body(conn, cur)
@@ -259,6 +263,185 @@ class Tables (Api):
             web.ctx.status = '201 Created'
             return _post_commit_json(self, table)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
+
+class AclCommon (Api):
+    def __init__(self, catalog, subject):
+        Api.__init__(self, catalog)
+        self.subject = subject
+        self.kind = 'ACL'
+        self.key_kind = 'ACL name'
+
+    def GET_subject(self, conn, cur):
+        return self.subject.GET_body(conn, cur)
+
+    def GET_container(self, subject):
+        raise NotImplementedError()
+
+    def GET_element_key(self):
+        raise NotImplementedError()
+
+    def GET_body(self, conn, cur):
+        subject = self.GET_subject(conn, cur)
+        subject.enforce_right('owner')
+        container = self.GET_container(subject)
+        key = self.GET_element_key()
+        if key is not None:
+            return container[key]
+        else:
+            return container
+
+    def GET(self, uri):
+        return _GET(self, self.GET_body, _post_commit_json)
+
+    def DELETE_body(self, cur, subject, key=None):
+        raise NotImplementedError()
+
+    def PUT_body(self, cur, subject, key, element):
+        raise NotImplementedError()
+
+    def validate_element(self, element):
+        raise NotImplementedError
+
+    def SET_body(self, conn, cur, data):
+        subject = self.GET_subject(conn, cur)
+        subject.enforce_right('owner')
+        container = self.GET_container(subject)
+        key = self.GET_element_key()
+        if key is None:
+            if data is None:
+                self.DELETE_body(cur, subject)
+            elif type(data) is dict:
+                for existing_key in list(container):
+                    if existing_key not in data:
+                        self.DELETE_body(cur, subject, existing_key)
+                for data_key, data_element in data.items():
+                    self.PUT_body(cur, subject, data_key, self.validate_element(data_element))
+            else:
+                raise exception.BadData(
+                    '%(kind)s set document must be an object with each %(kind)s keyed by %(key_kind)s.' % dict(
+                        kind=self.kind,
+                        key_kind=self.key_kind
+                    )
+                )
+        else:
+            if data is None:
+                self.DELETE_body(cur, subject, key)
+            else:
+                self.PUT_body(cur, subject, key, self.validate_element(data))
+
+    def PUT(self, uri):
+        return _MODIFY_with_json_input(self, self.SET_body, _post_commit)
+
+    def DELETE(self, uri):
+        return _MODIFY(self, lambda conn, cur: self.SET_body(conn, cur, None), _post_commit)
+
+class Acl (AclCommon):
+    """A specific object's ACLs."""
+    def __init__(self, catalog, subject):
+        AclCommon.__init__(self, catalog, subject)
+        self.aclname = None
+
+    def acl(self, aclname):
+        self.aclname = aclname
+        return self
+
+    def GET_container(self, subject):
+        return subject.acls
+
+    def GET_element_key(self):
+        return self.aclname
+
+    def DELETE_body(self, cur, subject, key=None):
+        subject.delete_acl(cur, key)
+
+    def PUT_body(self, cur, subject, key, element):
+        subject.set_acl(cur, key, element)
+
+    def validate_element(self, element):
+        if type(element) is not list:
+            raise exception.BadData('ACL representation must be an array.')
+        for member in element:
+            if type(member) not in [str, unicode]:
+                raise exception.BadData('ACL member representation must be a string literal.')
+        return element
+
+class CatalogAcl (Acl):
+    """A specific catalog's ACLs."""
+    def __init__(self, catalog):
+        Acl.__init__(self, catalog, catalog)
+
+class SchemaAcl (Acl):
+    """A specific schema's ACLs."""
+    def __init__(self, schema):
+        Acl.__init__(self, schema.catalog, schema)
+
+class TableAcl (Acl):
+    """A specific table's ACLs."""
+    def __init__(self, table):
+        Acl.__init__(self, table.schema.catalog, table)
+
+class ColumnAcl (Acl):
+    """A specific column's ACLs."""
+    def __init__(self, column):
+        Acl.__init__(self, column.table.schema.catalog, column)
+
+class ForeignkeyReferenceAcl (Acl):
+    """A specific keyref's ACLs."""
+    def __init__(self, fkey):
+        Acl.__init__(self, fkey.catalog, fkey)
+
+    def GET_subject(self, conn, cur):
+        fkrs = self.subject.GET_body(conn, cur)
+        if len(fkrs) != 1:
+            raise NotImplementedError('ForeignkeyReferenceAcls on %d fkrs' % len(fkrs))
+        return fkrs[0]
+
+class Dynacl (AclCommon):
+    def __init__(self, catalog, subject):
+        AclCommon.__init__(self, catalog, subject)
+        self.bindingname = None
+
+    def dynacl(self, name):
+        self.bindingname = name
+        return self
+
+    def GET_container(self, subject):
+        return subject.dynacls
+
+    def GET_element_key(self):
+        return self.bindingname
+
+    def DELETE_body(self, cur, subject, key=None):
+        subject.delete_dynacl(cur, key)
+
+    def PUT_body(self, cur, subject, key, element):
+        subject.set_dynacl(cur, key, element)
+
+    def validate_element(self, element):
+        if type(element) is not dict and element is not False:
+            raise exception.BadData('Dynamic ACL binding representation must be an object or literal false value.')
+        return element
+
+class TableDynacl (Dynacl):
+    """A specific table's dynamic ACLs."""
+    def __init__(self, table):
+        Dynacl.__init__(self, table.schema.catalog, table)
+
+class ColumnDynacl (Dynacl):
+    """A specific column's dynamic ACLs."""
+    def __init__(self, column):
+        Dynacl.__init__(self, column.table.schema.catalog, column)
+
+class ForeignkeyReferenceDynacl (Dynacl):
+    """A specific keyref's dynamic ACLs."""
+    def __init__(self, fkey):
+        Dynacl.__init__(self, fkey.catalog, fkey)
+
+    def GET_subject(self, conn, cur):
+        fkrs = self.subject.GET_body(conn, cur)
+        if len(fkrs) != 1:
+            raise NotImplementedError('ForeignkeyReferenceDynacls on %d fkrs' % len(fkrs))
+        return fkrs[0]
 
 class Comment (Api):
     """A specific object's comment.
@@ -294,7 +477,7 @@ class Comment (Api):
     def DELETE(self, uri):
         def body(conn, cur):
             self.SET_body(conn, cur, self.GET_subject(conn, cur), None)
-            return ''
+            return None
         return _MODIFY(self, body, _post_commit)       
 
 class SchemaComment (Comment):
@@ -346,19 +529,19 @@ class Annotations (Api):
         if self.key is None:
             return subject.annotations
         else:
-            if self.key not in subject.annotations:
-                raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
             return subject.annotations[self.key]
 
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
     def PUT_body(self, conn, cur, value):
-        if self.key is None:
-            raise exception.rest.NoMethod('PUT only supported on individually keyed annotations')
         subject = self.GET_subject(conn, cur)
-        oldval = subject.set_annotation(conn, cur, self.key, value)
-        return oldval is None
+        if self.key is None:
+            subject.set_annotations(conn, cur, value)
+            return False
+        else:
+            oldval = subject.set_annotation(conn, cur, self.key, value)
+            return oldval is None
 
     def PUT(self, uri):
         def post_commit(self, created):
@@ -378,6 +561,10 @@ class Annotations (Api):
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+class CatalogAnnotations(Annotations):
+    def __init__(self, catalog):
+        Annotations.__init__(self, catalog, catalog)
 
 class TableAnnotations (Annotations):
     def __init__(self, table):
@@ -416,6 +603,13 @@ class Table (Api):
         self.schema = schema
         self.name = name
 
+    def acls(self):
+        """The ACL set for this table."""
+        return TableAcl(self)
+
+    def dynacls(self):
+        return TableDynacl(self)
+
     def comment(self):
         """The comment for this table."""
         return TableComment(self)
@@ -444,26 +638,27 @@ class Table (Api):
         return Foreignkey(self, column_set, catalog=self.catalog)
 
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
     
-    def GET_body(self, conn, cur):
-        model = self.catalog.manager._model
+    def GET_body(self, conn, cur, final=False):
         if self.schema is not None:
             schema = self.schema.GET_body(conn, cur)
         try:
             if self.schema is not None:
-                return schema.tables[unicode(self.name)]
+                return schema.tables.get_enumerable(unicode(self.name))
             else:
-                return model.lookup_table(unicode(self.name))
+                return web.ctx.ermrest_catalog_model.lookup_table(unicode(self.name))
         except exception.ConflictModel, e:
-            raise exception.NotFound(str(e))
+            if final:
+                raise exception.NotFound(u"table %s in schema %s" % (self.name, schema.name))
+            raise
 
     def POST(self, uri):
         # give more helpful error message
         raise exception.rest.NoMethod('create tables at the table collection resource instead')
 
     def DELETE_body(self, conn, cur):
-        table = self.GET_body(conn, cur)
+        table = self.GET_body(conn, cur, True)
         table.schema.delete_table(conn, cur, str(self.name))
         return ''
 
@@ -503,21 +698,33 @@ class Column (Api):
         self.table = table
         self.name = name
 
+    def acls(self):
+        """The ACL set for this column."""
+        return ColumnAcl(self)
+
+    def dynacls(self):
+        """The ACL set for this column."""
+        return ColumnDynacl(self)
+
     def comment(self):
         return ColumnComment(self)
 
     def annotations(self):
         return ColumnAnnotations(self)
 
-    def GET_body(self, conn, cur):
-        return self.table.GET_body(conn, cur).columns[unicode(self.name)]
+    def GET_body(self, conn, cur, final=False):
+        table = self.table.GET_body(conn, cur)
+        try:
+            return table.columns.get_enumerable(unicode(self.name))
+        except exception.ConflictModel, e:
+            raise exception.NotFound(u"column %s in table %s" % (self.name, table.name))
     
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
     
     def DELETE_body(self, conn, cur):
-        table = self.table.GET_body(conn, cur)
-        table.delete_column(conn, cur, str(self.name))
+        column = self.GET_body(conn, cur, True)
+        column.table.delete_column(conn, cur, str(self.name))
         return ''
 
     def DELETE(self, uri):
@@ -532,7 +739,7 @@ class Keys (Api):
         self.table = table
 
     def GET_body(self, conn, cur):
-        return self.table.GET_body(conn, cur).uniques.values()
+        return [ u for u in self.table.GET_body(conn, cur).uniques.values() if u.has_right('enumerate') ]
 
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
@@ -562,7 +769,7 @@ class Key (Api):
         
     def GET_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns[unicode(c)] for c in self.columns ])
+        cols = frozenset([ table.columns.get_enumerable(unicode(c)) for c in self.columns ])
         if cols not in table.uniques:
             raise exception.rest.NotFound(u'key (%s)' % (u','.join([ unicode(c) for c in cols])))
         return table.uniques[cols]
@@ -585,7 +792,7 @@ class Foreignkeys (Api):
         self.table = table
 
     def GET_body(self, conn, cur):
-        return self.table.GET_body(conn, cur).fkeys.values()
+        return [ fk for fk in self.table.GET_body(conn, cur).fkeys.values() if fk.has_right('enumerate') ]
         
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
@@ -613,15 +820,18 @@ class Foreignkey (Api):
         """A set of foreign key references from this foreign key."""
         return ForeignkeyReferences(self.table.schema.catalog).with_from_key(self)
 
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, final=False):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns[str(c)] for c in self.columns ])
-        if cols not in table.fkeys:
-            raise exception.rest.NotFound(u'foreign key (%s)' % (u','.join([ unicode(c) for c in cols])))
-        return table.fkeys[cols]
+        cols = frozenset([ table.columns.get_enumerable(str(c)) for c in self.columns ])
+        try:
+            return table.fkeys.get_enumerable(cols)
+        except exception.ConflictModel, e:
+            if final:
+                raise exception.NotFound(u'foreign key %s in table %s' % (u",".join([ c.name for c in cols]), table.name))
+            raise
     
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
     
 class ForeignkeyReferences (Api):
     """A set of foreign key references."""
@@ -688,6 +898,12 @@ class ForeignkeyReferences (Api):
         assert self._to_table
         return self.with_to_key( self._to_table.key(to_columns) )
 
+    def acls(self):
+        return ForeignkeyReferenceAcl(self)
+
+    def dynacls(self):
+        return ForeignkeyReferenceDynacl(self)
+
     def annotations(self):
         return ForeignkeyReferenceAnnotations(self)
 
@@ -714,17 +930,17 @@ class ForeignkeyReferences (Api):
         # find matching foreign key references...
         if from_table:
             fkrs = []
-            for fk in from_table.fkeys.values():
-                for rt in fk.table_references.keys():
+            for fk in [ fk for fk in from_table.fkeys.values() if fk.has_right('enumerate') ]:
+                for rt in [ rt for rt in fk.table_references.keys() if rt.has_right('enumerate') ]:
                     fkrs.extend( fk.table_references[rt] )
 
             if from_key:
                 # filter by foreign key
-                fkrs = [ fkr for fkr in fkrs if fkr.foreign_key == from_key ]
+                fkrs = [ fkr for fkr in fkrs if fkr.foreign_key == from_key and fkr.has_right('enumerate') ]
 
             if to_table:
                 # filter by to_table
-                fkrs = [ fkr for fkr in fkrs if fkr.unique.table == to_table ]
+                fkrs = [ fkr for fkr in fkrs if fkr.unique.table == to_table and fkr.has_right('enumerate') ]
                 if to_key:
                     # filter by to_key
                     fkrs = [ fkr for fkr in fkrs if fkr.unique == to_key ]
@@ -733,13 +949,13 @@ class ForeignkeyReferences (Api):
             # since from_table is absent, we must have to_table info...
             assert to_table
             fkrs = []
-            for u in to_table.uniques.values():
+            for u in [ r for u in to_table.uniques.values() if u.has_right('enumerate') ]:
                 for rt in u.table_references.keys():
                     fkrs.extend( u.table_references[rt] )
 
             if to_key:
                 # filter by to_key
-                fkrs = [ fkr for fkr in fkrs if fkr.unique == to_key ]
+                fkrs = [ fkr for fkr in fkrs if fkr.unique == to_key if u.has_right('enumerate') ]
 
         return fkrs
 

@@ -24,9 +24,9 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
-from .. import exception
-from ..util import sql_identifier, sql_literal
-from .misc import AltDict, annotatable, commentable
+from .. import exception, ermpath
+from ..util import sql_identifier, sql_literal, udecode
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -34,11 +34,22 @@ import urllib
 import json
 import web
 
-@commentable()
-@annotatable('table', dict(
-    schema_name=('text', lambda self: unicode(self.schema.name)),
-    table_name=('text', lambda self: unicode(self.name))
-    )
+@commentable
+@annotatable
+@hasdynacls(
+    { "owner", "update", "delete", "select" }
+)
+@hasacls(
+    { "owner", "enumerate", "write", "insert", "update", "delete", "select" },
+    { "owner", "insert", "update", "delete", "select" },
+    lambda self: self.schema
+)
+@keying(
+    'table',
+    {
+        "schema_name": ('text', lambda self: unicode(self.schema.name)),
+        "table_name": ('text', lambda self: unicode(self.name))
+    }
 )
 class Table (object):
     """Represents a database table.
@@ -47,16 +58,34 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns, kind, comment=None, annotations={}):
+    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}):
         self.schema = schema
         self.name = name
         self.kind = kind
         self.comment = comment
-        self.columns = AltDict(lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self)))
-        self.uniques = AltDict(lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (k, self)))
-        self.fkeys = AltDict(lambda k: exception.ConflictModel(u"Requested foreign-key %s does not exist in table %s." % (k, self)))
-        self.annotations = dict()
+        self.columns = AltDict(
+            lambda k: exception.ConflictModel(u"Requested column %s does not exist in table %s." % (k, self.name)),
+            lambda k, v: enforce_63byte_id(k, "Column")
+        )
+        self.uniques = AltDict(
+            lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (
+                ",".join([unicode(c.name) for c in k]), self.name)
+            )
+        )
+        self.fkeys = AltDict(
+            lambda k: exception.ConflictModel(
+                u"Requested foreign-key %s does not exist in table %s." % (
+                    ",".join([unicode(c.name) for c in k]), self)
+            )
+        )
+        self.annotations = AltDict(
+            lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self))
+        )
         self.annotations.update(annotations)
+        self.acls = AclDict(self)
+        self.acls.update(acls)
+        self.dynacls = AltDict(lambda k: exception.NotFound(u"dynamic ACL binding %s on table %s." % (k, self)))
+        self.dynacls.update(dynacls)
 
         for c in columns:
             self.columns[c.name] = c
@@ -66,8 +95,8 @@ class Table (object):
             self.schema.tables[name] = self
 
     @staticmethod
-    def introspect_annotation(model=None, schema_name=None, table_name=None, annotation_uri=None, annotation_value=None):
-        model.schemas[schema_name].tables[table_name].annotations[annotation_uri] = annotation_value
+    def keyed_resource(model=None, schema_name=None, table_name=None):
+        return model.schemas[schema_name].tables[table_name]
 
     def __str__(self):
         return ':%s:%s' % (
@@ -78,8 +107,15 @@ class Table (object):
     def __repr__(self):
         return '<ermrest.model.Table %s>' % str(self)
 
+    def has_right(self, aclname, roles=None):
+        if aclname in {'enumerate',}:
+            # we need parent enumeration too
+            if not self.schema.has_right(aclname, roles):
+                return False
+        return self._has_right(aclname, roles)
+
     def columns_in_order(self):
-        cols = self.columns.values()
+        cols = [ c for c in self.columns.values() if c.has_right('enumerate') ]
         cols.sort(key=lambda c: c.position)
         return cols
 
@@ -126,10 +162,17 @@ class Table (object):
         if kind != 'table':
             raise exception.ConflictData('Kind "%s" not supported in table creation' % kind)
 
+        schema.enforce_right('create')
+
+        acls = tabledoc.get('acls', {})
+        dynacls = tabledoc.get('acl_bindings', {})
         annotations = tabledoc.get('annotations', {})
         columns = Column.fromjson(tabledoc.get('column_definitions',[]), ermrest_config)
         comment = tabledoc.get('comment')
         table = Table(schema, tname, columns, 'r', comment, annotations)
+        if not schema.has_right('owner'):
+            table.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
+            table.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
 
         clauses = []
         for column in columns:
@@ -168,15 +211,29 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         for k, v in annotations.items():
             table.set_annotation(conn, cur, k, v)
 
+        for k, v in acls.items():
+            table.set_acl(cur, k, v)
+
+        for k, v in dynacls.items():
+            table.set_dynacl(cur, k, v)
+
         def execute_if(sql):
             if sql:
-                cur.execute(sql)
-            
+                try:
+                    cur.execute(sql)
+                except:
+                    web.debug('Got error executing SQL: %s' % sql)
+                    raise
+
         for column in columns:
             if column.comment is not None:
                 column.set_comment(conn, cur, column.comment)
             for k, v in column.annotations.items():
                 column.set_annotation(conn, cur, k, v)
+            for k, v in column.acls.items():
+                column.set_acl(cur, k, v)
+            for k, v in column.dynacls.items():
+                column.set_dynacl(cur, k, v)
             try:
                 execute_if(column.btree_index_sql())
                 execute_if(column.pg_trgm_index_sql())
@@ -187,6 +244,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         return table
 
     def delete(self, conn, cur):
+        self.enforce_right('owner')
         self.pre_delete(conn, cur)
         cur.execute("""
 DROP %(kind)s %(sname)s.%(tname)s ;
@@ -200,8 +258,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
     tnamestr=sql_literal(self.name)
 )
         )
-            
-    
+
     def pre_delete(self, conn, cur):
         """Do any maintenance before table is deleted."""
         for fkey in self.fkeys.values():
@@ -211,9 +268,11 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         for column in self.columns.values():
             column.pre_delete(conn, cur)
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
 
     def alter_table(self, conn, cur, alterclause):
         """Generic ALTER TABLE ... wrapper"""
+        self.enforce_right('owner')
         cur.execute("""
 ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
 SELECT _ermrest.model_change_event();
@@ -234,6 +293,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 
     def add_column(self, conn, cur, columndoc, ermrest_config):
         """Add column to table."""
+        self.enforce_right('owner')
         # new column always goes on rightmost position
         position = len(self.columns)
         column = Column.fromjson_single(columndoc, position, ermrest_config)
@@ -246,12 +306,13 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         column.table = self
         for k, v in column.annotations.items():
             column.set_annotation(conn, cur, k, v)
+        for k, v in column.acls.items():
+            column.set_acl(cur, k, v)
         return column
 
     def delete_column(self, conn, cur, cname):
         """Delete column from table."""
-        if cname not in self.columns:
-            raise exception.NotFound('column %s in table %s:%s' % (cname, self.schema.name, self.name))
+        self.enforce_right('owner')
         column = self.columns[cname]
         for unique in self.uniques.values():
             if column in unique.columns:
@@ -265,32 +326,39 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
                     
     def add_unique(self, conn, cur, udoc):
         """Add a unique constraint to table."""
+        self.enforce_right('owner')
         for key in Unique.fromjson_single(self, udoc):
             key.add(conn, cur)
             yield key
 
     def add_fkeyref(self, conn, cur, fkrdoc):
         """Add foreign-key reference constraint to table."""
+        self.enforce_right('owner')
         for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
             # new foreign key constraint must be added to table
             fkr.add(conn, cur)
             for k, v in fkr.annotations.items():
                 fkr.set_annotation(conn, cur, k, v)
+            for k, v in fkr.acls.items():
+                fkr.set_acl(cur, k, v)
+            for k, v in fkr.dynacls.items():
+                fkr.set_dynacl(cur, k, v)
             yield fkr
 
     def prejson(self):
-        return dict(
+        doc = dict(
             schema_name=self.schema.name,
             table_name=self.name,
+            rights=self.rights(),
             column_definitions=[
                 c.prejson() for c in self.columns_in_order()
                 ],
             keys=[
-                u.prejson() for u in self.uniques.values()
+                u.prejson() for u in self.uniques.values() if u.has_right('enumerate')
                 ],
             foreign_keys=[
                 fkr.prejson()
-                for fk in self.fkeys.values() for fkr in fk.references.values()
+                for fk in self.fkeys.values() for fkr in fk.references.values() if fkr.has_right('enumerate')
                 ],
             kind={
                 'r':'table', 
@@ -300,12 +368,71 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             comment=self.comment,
             annotations=self.annotations
             )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+            doc['acl_bindings'] = self.dynacls
+        return doc
 
-    def sql_name(self):
-        return '.'.join([
-                sql_identifier(self.schema.name),
-                sql_identifier(self.name)
-                ])
+    def sql_name(self, dynauthz=None, access_type='select', alias=None, dynauthz_testcol=None, dynauthz_testfkr=None):
+        """Generate SQL representing this entity for use as a FROM clause.
+
+           dynauthz: dynamic authorization mode to compile
+               None: do not compile dynamic ACLs
+               True: compile positive ACL... match rows client is authorized to access
+               False: compile negative ACL... match rows client is NOT authorized to access
+
+           access_type: the access type to be enforced for dynauthz
+
+           dynauthz_testcol:
+               None: normal mode
+               col: match rows where client is NOT authorized to access column
+
+           dynauthz_testfkr:
+               None: normal mode
+               fkr: compile using dynamic ACLs from fkr instead of from this table
+
+           The result is a schema-qualified table name for dynauthz=None, else a subquery.
+        """
+        tsql = '.'.join([
+            sql_identifier(self.schema.name),
+            sql_identifier(self.name)
+        ])
+
+        talias = alias if alias else 's'
+
+        if dynauthz is not None:
+            assert alias is not None
+            assert dynauthz_testcol is None
+            if dynauthz_testfkr is not None:
+                assert dynauthz_testfkr.unique.table == self
+
+            clauses = get_dynacl_clauses(self if dynauthz_testfkr is None else dynauthz_testfkr, access_type, alias)
+
+            if dynauthz:
+                tsql = "(SELECT %s FROM %s %s WHERE (%s))" % (
+                    ', '.join([ c.sql_name_dynauthz(talias, dynauthz=True, access_type=access_type) for c in self.columns_in_order()]),
+                    tsql,
+                    talias,
+                    ' OR '.join(["(%s)" % clause for clause in clauses ]),
+                )
+            else:
+                tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
+                    tsql,
+                    talias,
+                    ' AND '.join(["COALESCE(NOT (%s), True)" % clause for clause in clauses ])
+                )
+        elif dynauthz_testcol is not None:
+            assert alias is not None
+            tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
+                tsql,
+                talias,
+                dynauthz_testcol.sql_name_dynauthz(talias, dynauthz=False, access_type=access_type)
+            )
+
+        if alias is not None:
+            tsql = "%s AS %s" % (tsql, sql_identifier(alias))
+
+        return tsql
 
     def freetext_column(self):
         return FreetextColumn(self)

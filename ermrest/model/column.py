@@ -17,18 +17,30 @@
 import urllib
 import json
 import re
+import web
 
-from .. import exception
-from ..util import sql_identifier, sql_literal
+from .. import exception, ermpath
+from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import annotatable, commentable
+from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, truncated_identifier, sufficient_rights, get_dynacl_clauses
 
-@commentable()
-@annotatable('column', dict(
-    schema_name=('text', lambda self: unicode(self.table.schema.name)),
-    table_name=('text', lambda self: unicode(self.table.name)),
-    column_name=('text', lambda self: unicode(self.name))
-    )
+@commentable
+@annotatable
+@hasdynacls(
+    { "owner", "update", "delete", "select" }
+)
+@hasacls(
+    {"enumerate", "write", "insert", "update", "select"},
+    {"insert", "update", "select", "delete"},
+    lambda self: self.table
+)
+@keying(
+   'column',
+    {
+        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
+        "table_name": ('text', lambda self: unicode(self.table.name)),
+        "column_name": ('text', lambda self: unicode(self.name))
+    }
 )
 class Column (object):
     """Represents a table column.
@@ -43,7 +55,7 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}):
+    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}, acls={}, dynacls={}):
         self.table = None
         self.name = name
         self.position = position
@@ -51,12 +63,16 @@ class Column (object):
         self.default_value = default_value
         self.nullok = nullok if nullok is not None else True
         self.comment = comment
-        self.annotations = dict()
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on column %s' % (k, self)))
         self.annotations.update(annotations)
-    
+        self.acls = AclDict(self)
+        self.acls.update(acls)
+        self.dynacls = AltDict(lambda k: exception.NotFound(u"dynamic ACL binding %s on column %s." % (k, self)))
+        self.dynacls.update(dynacls)
+
     @staticmethod
-    def introspect_annotation(model=None, schema_name=None, table_name=None, column_name=None, annotation_uri=None, annotation_value=None):
-        model.schemas[schema_name].tables[table_name].columns[column_name].annotations[annotation_uri] = annotation_value
+    def keyed_resource(model=None, schema_name=None, table_name=None, column_name=None):
+        return model.schemas[schema_name].tables[table_name].columns[column_name]
 
     def sql_comment_resource(self):
         return "COLUMN %s.%s.%s" % (
@@ -67,10 +83,15 @@ class Column (object):
         
     def __str__(self):
         return ':%s:%s:%s' % (
-            urllib.quote(self.table.schema.name),
-            urllib.quote(self.table.name),
-            urllib.quote(self.name)
+            urllib.quote(unicode(self.table.schema.name).encode('utf8')),
+            urllib.quote(unicode(self.table.name).encode('utf8')),
+            urllib.quote(unicode(self.name).encode('utf8'))
             )
+
+    def has_right(self, aclname, roles=None):
+        if self.table.has_right(aclname, roles) is False:
+            return False
+        return self._has_right(aclname, roles)
 
     def __repr__(self):
         return '<ermrest.model.Column %s>' % str(self)
@@ -103,7 +124,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
 """ % dict(schema=sql_identifier(self.table.schema.name),
            table=sql_identifier(self.table.name),
            column=sql_identifier(self.name),
-           index=sql_identifier("%s_%s_idx" % (self.table.name, self.name))
+           index=sql_identifier(truncated_identifier([self.table.name, '_', self.name, '_idx']))
        )
         else:
             return None
@@ -122,32 +143,11 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
 """ % dict(schema=sql_identifier(self.table.schema.name),
            table=sql_identifier(self.table.name),
            index_val=self.sql_name_astext_with_talias(None),
-           index=sql_identifier("%s_%s_pgtrgm_idx" % (self.table.name, self.name))
+           index=sql_identifier(truncated_identifier([self.table.name, '_', self.name, '_pgt', 'rgm_', 'idx']))
        )
         else:
             return None
 
-    def ermrest_value_map_sql(self):
-        """Return SQL to construct reversed value map rows or None if not necessary.
-
-           A reverse map is not necessary if the column type doesn't have text values.
-        """
-        if self.istext():
-            colref = sql_identifier(self.name)
-            if self.type.is_array:
-                colref = 'unnest(%s)' % colref
-
-            return 'SELECT %s::text, %s::text, %s::text, %s::text FROM %s.%s' % (
-                sql_literal(self.table.schema.name),
-                sql_literal(self.table.name),
-                sql_literal(self.name),
-                colref,
-                sql_identifier(self.table.schema.name),
-                sql_identifier(self.table.name)
-                )
-        else:
-            return None
-        
     def sql_def(self):
         """Render SQL column clause for managed table DDL."""
         parts = [
@@ -174,6 +174,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
     def pre_delete(self, conn, cur):
         """Do any maintenance before column is deleted from table."""
         self.delete_annotation(conn, cur, None)
+        self.delete_acl(cur, None, purging=True)
         
     @staticmethod
     def fromjson_single(columndoc, position, ermrest_config):
@@ -181,6 +182,8 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         comment = columndoc.get('comment', None)
         annotations = columndoc.get('annotations', {})
         nullok = columndoc.get('nullok', True)
+        acls = columndoc.get('acls', {})
+        dynacls = columndoc.get('acl_bindings', {})
         try:
             return Column(
                 columndoc['name'],
@@ -189,7 +192,9 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
                 columndoc.get('default'),
                 nullok,
                 comment,
-                annotations
+                annotations,
+                acls,
+                dynacls
             )
         except KeyError, te:
             raise exception.BadData('Table document missing required field "%s"' % te)
@@ -202,14 +207,19 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         return columns
 
     def prejson(self):
-        return dict(
-            name=self.name, 
+        doc = dict(
+            name=self.name,
+            rights=self.rights(),
             type=self.type.prejson(),
             default=self.default_value,
             nullok=self.nullok,
             comment=self.comment,
             annotations=self.annotations
             )
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+            doc['acl_bindings'] = self.dynacls
+        return doc
 
     def prejson_ref(self):
         return dict(
@@ -217,6 +227,57 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             table_name=self.table.name,
             column_name=self.name
             )
+
+    def dynauthz_restricted(self, access_type='select'):
+        """Return True if the policy check for column involves dynacls more restrictive than table."""
+        if self.has_right(access_type):
+            # column statically allows so is not restrictive
+            return False
+        if self.table.has_right(access_type):
+            # column has dynacls while table does not
+            return True
+        for aclname in self.table.dynacls:
+            if aclname in self.dynacls:
+                # column overrides a table-level dynacl
+                return True
+        # column inherits all table-level dynacls so is equal or more permissive
+        return False
+
+    def sql_name_dynauthz(self, talias, dynauthz, access_type='select'):
+        """Generate SQL representing this column for use as a SELECT clause.
+
+           dynauthz: dynamic authorization mode to compile
+               True: compile positive ACL... column value or NULL if unauthorized
+               False: compile negative ACL... True if unauthorized, else False
+
+           access_type: the access type to be enforced for dynauthz
+
+           The result is a select clause for dynauthz=True, scalar for dynauthz=False.
+        """
+        csql = sql_identifier(self.name)
+
+        # effective dynacls is inherited table dynacls overridden by local dynacls
+        dynacls = dict(self.table.dynacls)
+        dynacls.update(self.dynacls)
+        clauses = get_dynacl_clauses(self, access_type, talias, dynacls)
+
+        if self.has_right(access_type) is None:
+            if dynauthz:
+                if self.dynauthz_restricted(access_type):
+                    # need to enforce more restrictive column policy
+                    return "CASE WHEN %s THEN %s ELSE NULL::%s END AS %s" % (
+                        ' OR '.join(["(%s)" % clause for clause in clauses ]),
+                        csql,
+                        self.type.sql(basic_storage=True),
+                        sql_identifier(self.name)
+                    )
+                else:
+                    # optimization: row-level access has been checked
+                    pass
+            else:
+                return '(%s)' % ' AND '.join("COALESCE(NOT (%s), True)" % clause for clause in clauses)
+
+        return '%s AS %s' % (csql, sql_identifier(self.name))
 
     def sql_name(self, alias=None):
         if alias:
@@ -265,16 +326,16 @@ class FreetextColumn (Column):
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 """ % dict(
-            schema=sql_identifier(self.table.schema.name),
-            index=sql_identifier("%s__tsvector_idx" % self.table.name),
-           )
+    schema=sql_identifier(self.table.schema.name),
+    index=sql_identifier(truncated_identifier([self.table.name, '__ts', 'vect', 'or', 'idx']))
+)
 
     def pg_trgm_index_sql(self):
         # drop legacy index
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 """ % dict(
-            schema=sql_identifier(self.table.schema.name),
-            index=sql_identifier("%s__pgtrgm_idx" % self.table.name),
-           )
+    schema=sql_identifier(self.table.schema.name),
+    index=sql_identifier(truncated_identifier([self.table.name, '__pg', 'trgm', '_idx'])),
+)
 

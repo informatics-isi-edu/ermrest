@@ -29,6 +29,7 @@ import web
 import urllib
 
 from ..exception import *
+from ..model import predicate
 
 from lex import make_lexer, tokens, keywords
 import ast
@@ -45,6 +46,12 @@ def p_apis(p):
     """api   : catalog
              | catalogslash
              | comment
+             | acls
+             | aclsslash
+             | acl
+             | dynacls
+             | dynaclsslash
+             | dynacl
              | annotations
              | annotationsslash
              | annotation
@@ -134,27 +141,12 @@ def p_pagelist_grow(p):
     p[0].append( p[3] )
     
 def p_meta_key(p):
-    """meta : catalogslash META '/' string slashopt """
+    """meta : catalogslash META '/' string """
     p[0] = p[1].meta(p[4])
-
-def p_meta_key_value(p):
-    """meta : catalogslash META '/' string '/' string slashopt """
-    p[0] = p[1].meta(p[4], p[6])
 
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """
-    p[0] = p[1].textfacet(
-        ast.data.predicatecls('ciregexp')(
-            ast.Name().with_suffix('value'),
-            ast.Value(p[4])
-        ),
-        ast.NameList([
-            ast.Name().with_suffix('schema'),
-            ast.Name().with_suffix('table'),
-            ast.Name().with_suffix('column')
-        ]),
-        ast.NameList()
-    )
+    p[0] = p[1].textfacet(predicate.Value(p[4]))
     
 def p_entity(p):
     """entity : catalogslash ENTITY '/' entityelem1 """
@@ -296,15 +288,15 @@ def p_sortitem_descending(p):
 
 def p_pageitem(p):
     """pageitem : string"""
-    p[0] = ast.Value(p[1])
+    p[0] = predicate.Value(p[1])
 
 def p_pageitem_null(p):
     """pageitem : OPMARK NULL OPMARK"""
-    p[0] = ast.Value(None)
+    p[0] = predicate.Value(None)
 
 def p_pageitem_empty(p):
     """pageitem : """
-    p[0] = ast.Value('')
+    p[0] = predicate.Value('')
 
 def p_bname_grow(p):
     """bname : bname ':' string"""
@@ -409,11 +401,11 @@ def p_filter(p):
 
 def p_predicate2(p):
     """predicate : sname op expr """
-    p[0] = ast.data.predicatecls(p[2])(p[1], p[3])
+    p[0] = predicate.predicatecls(p[2])(p[1], p[3])
 
 def p_predicate1(p):
     """predicate : sname opnull """
-    p[0] = ast.data.predicatecls(p[2])(p[1])
+    p[0] = predicate.predicatecls(p[2])(p[1])
 
 def p_neg_predicate1(p):
     """npredicate : predicate """
@@ -421,7 +413,7 @@ def p_neg_predicate1(p):
 
 def p_neg_predicate2(p):
     """npredicate : '!' predicate """
-    p[0] = ast.data.predicate.Negation( p[2] )
+    p[0] = predicate.Negation( p[2] )
 
 def p_paren_predicate(p):
     """predicate : '(' filter ')' """
@@ -429,7 +421,7 @@ def p_paren_predicate(p):
 
 def p_conjunction_base(p):
     """conjunction : npredicate """
-    p[0] = ast.data.predicate.Conjunction([p[1]])
+    p[0] = predicate.Conjunction([p[1]])
 
 def p_conjunction_grow(p):
     """conjunction : conjunction '&' npredicate"""
@@ -438,7 +430,7 @@ def p_conjunction_grow(p):
 
 def p_disjunction_base(p):
     """disjunction : conjunction ';' conjunction"""
-    p[0] = ast.data.predicate.Disjunction([p[1], p[3]])
+    p[0] = predicate.Disjunction([p[1], p[3]])
 
 def p_disjunction_grow(p):
     """disjunction : disjunction ';' conjunction"""
@@ -447,7 +439,7 @@ def p_disjunction_grow(p):
 
 def p_expr_const(p):
     """expr : string """
-    p[0] = ast.Value(p[1])
+    p[0] = predicate.Value(p[1])
 
 def p_expr_name(p):
     """expr : name """
@@ -455,7 +447,7 @@ def p_expr_name(p):
 
 def p_expr_empty(p):
     """expr : """
-    p[0] = ast.Value('')
+    p[0] = predicate.Value('')
     
 def p_op(p):
     """op : '='"""
@@ -504,8 +496,47 @@ def p_comment(p):
     """comment : commentable COMMENT"""
     p[0] = p[1].comment()
 
+def p_aclable(p):
+    """aclable : catalogslash
+               | schemaslash
+               | tableslash
+               | columnslash
+               | foreignkeyrefslash"""
+    p[0] = p[1]
+
+def p_acls(p):
+    """acls : aclable ACL"""
+    p[0] = p[1].acls()
+
+def p_aclsslash(p):
+    """aclsslash : acls '/' """
+    p[0] = p[1]
+
+def p_acl(p):
+    """acl : aclsslash string"""
+    p[0] = p[1].acl(p[2])
+
+def p_dynaclable(p):
+    """dynaclable : tableslash
+                  | columnslash
+                  | foreignkeyrefslash"""
+    p[0] = p[1]
+
+def p_dynacls(p):
+    """dynacls : dynaclable ACL_BINDING"""
+    p[0] = p[1].dynacls()
+
+def p_dynaclsslash(p):
+    """dynaclsslash : dynacls '/' """
+    p[0] = p[1]
+
+def p_dynacl(p):
+    """dynacl : dynaclsslash string"""
+    p[0] = p[1].dynacl(p[2])
+
 def p_annotatable(p):
-    """annotatable : schemaslash
+    """annotatable : catalogslash
+                   | schemaslash
                    | tableslash
                    | columnslash
                    | keyslash
