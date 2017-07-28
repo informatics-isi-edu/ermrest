@@ -1994,8 +1994,8 @@ class TextFacet (AnyPath):
     def get_data_version(self, cur):
         """Get data version txid considering all tables in catalog."""
         cur.execute("""SELECT COALESCE(max(snap_txid), 0) AS snap_txid FROM _ermrest.data_version""")
-        version = next(cur)
-        return version
+        version = next(cur)[0]
+        return max(version, self._model.version)
 
     def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         queries = [
