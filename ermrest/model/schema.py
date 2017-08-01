@@ -53,13 +53,15 @@ class Model (object):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
-        doc = dict(
-            annotations=self.annotations,
-            rights=self.rights(),
-            schemas=dict([ 
-                (sname, schema.prejson()) for sname, schema in self.schemas.items() if schema.has_right('enumerate')
-            ])
-        )
+        doc = {
+            "annotations": self.annotations,
+            "rights": self.rights(),
+            "schemas": {
+                sname: schema.prejson()
+                for sname, schema in self.schemas.items()
+                if schema.has_right('enumerate')
+            }
+        }
         if self.has_right('owner'):
             doc['acls'] = self.acls
         return doc
@@ -191,15 +193,17 @@ class Schema (object):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
-        doc = dict(
-            schema_name=self.name,
-            comment=self.comment,
-            rights=self.rights(),
-            annotations=self.annotations,
-            tables=dict([
-                    (tname, table.prejson()) for tname, table in self.tables.items() if table.has_right('enumerate')
-                    ])
-            )
+        doc = {
+            "schema_name": self.name,
+            "comment": self.comment,
+            "rights": self.rights(),
+            "annotations": self.annotations,
+            "tables": {
+                tname: table.prejson()
+                for tname, table in self.tables.items()
+                if table.has_right('enumerate')
+            }
+        }
         if self.has_right('owner'):
             doc['acls'] = self.acls
         return doc

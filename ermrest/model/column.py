@@ -207,15 +207,15 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         return columns
 
     def prejson(self):
-        doc = dict(
-            name=self.name,
-            rights=self.rights(),
-            type=self.type.prejson(),
-            default=self.default_value,
-            nullok=self.nullok,
-            comment=self.comment,
-            annotations=self.annotations
-            )
+        doc = {
+            "name": self.name,
+            "rights": self.rights(),
+            "type": self.type.prejson(),
+            "default": self.default_value,
+            "nullok": self.nullok,
+            "comment": self.comment,
+            "annotations": self.annotations
+        }
         if self.has_right('owner'):
             doc['acls'] = self.acls
             doc['acl_bindings'] = self.dynacls

@@ -346,28 +346,28 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             yield fkr
 
     def prejson(self):
-        doc = dict(
-            schema_name=self.schema.name,
-            table_name=self.name,
-            rights=self.rights(),
-            column_definitions=[
+        doc = {
+            "schema_name": self.schema.name,
+            "table_name": self.name,
+            "rights": self.rights(),
+            "column_definitions": [
                 c.prejson() for c in self.columns_in_order()
-                ],
-            keys=[
+            ],
+            "keys": [
                 u.prejson() for u in self.uniques.values() if u.has_right('enumerate')
-                ],
-            foreign_keys=[
+            ],
+            "foreign_keys": [
                 fkr.prejson()
                 for fk in self.fkeys.values() for fkr in fk.references.values() if fkr.has_right('enumerate')
-                ],
-            kind={
+            ],
+            "kind": {
                 'r':'table', 
                 'f':'foreign_table',
                 'v':'view'
-                }.get(self.kind, 'unknown'),
-            comment=self.comment,
-            annotations=self.annotations
-            )
+            }.get(self.kind, 'unknown'),
+            "comment": self.comment,
+            "annotations": self.annotations
+        }
         if self.has_right('owner'):
             doc['acls'] = self.acls
             doc['acl_bindings'] = self.dynacls
