@@ -136,6 +136,11 @@ class JoinedProjections (common.ErmrestTest):
         r = self.session.get(path)
         self.assertHttp(r, 200, 'application/json')
         self.assertEqual(r.json()[0]['c'], expected)
-    
+
+class MultiKeyReference (common.ErmrestTest):
+    def test_implicit_multi(self):
+        # regression test for ermrest#160, internal server error with MultiKeyReference
+        self.assertHttp(self.session.get('entity/%(T1)s/%(T2b)s' % {'T1': _T1, 'T2b': _T2b}), 200)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

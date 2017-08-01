@@ -87,7 +87,7 @@ class MultiKeyReference (object):
         self.unique = _Endpoint(rtable)
 
     def _visible_links(self):
-        return [ l for l in self.links if l.has_right('enumerate') ]
+        return [ l for l in self.links if l[0].has_right('enumerate') ]
 
     def join_str(self, refop, lname='..', rname='.'):
         """Build a simplified representation of the join condition."""
@@ -106,7 +106,7 @@ class MultiKeyReference (object):
 
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
-        return self._visible_links()
+        return self._visible_links() is not []
 
 class ExplicitJoinReference (object):
 
