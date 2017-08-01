@@ -16,7 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
+from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, commentable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
 from .name import _keyref_join_str, _keyref_join_sql
 
 import web
@@ -192,6 +192,7 @@ SELECT _ermrest.model_change_event();
             names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
             )
 
+    @cache_rights
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.columns:
@@ -324,6 +325,7 @@ SELECT _ermrest.model_change_event();
         if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
             raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
 
+    @cache_rights
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.columns:
@@ -382,6 +384,7 @@ class ForeignKey (object):
                 return False
         return True
 
+    @cache_rights
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         if not self.columns_have_right(aclname, roles):
@@ -492,7 +495,7 @@ class KeyReference (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
-        self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
+        self.dynacls = DynaclDict(self)
         self.dynacls.update(dynacls)
         self.comment = comment
 
@@ -684,6 +687,7 @@ SELECT _ermrest.model_change_event();
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
+    @cache_rights
     def has_right(self, aclname, roles=None):
         return _keyref_has_right(self, aclname, roles)
 
@@ -730,7 +734,7 @@ class PseudoKeyReference (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
-        self.dynacls = AltDict(lambda k: exception.NotFound(u'dynamic ACL binding %s on foreign key %s' % (k, unicode(self.constraint_name))))
+        self.dynacls = DynaclDict(self)
         self.dynacls.update(dynacls)
         self.comment = comment
 
@@ -819,6 +823,7 @@ SELECT _ermrest.model_change_event();
             if fkr != self:
                 fkr.delete(conn, cur)
 
+    @cache_rights
     def has_right(self, aclname, roles=None):
         return _keyref_has_right(self, aclname, roles)
 

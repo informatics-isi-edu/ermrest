@@ -26,7 +26,7 @@ needed by other modules of the ermrest project.
 
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode
-from .misc import AltDict, AclDict, keying, annotatable, commentable, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
+from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, commentable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -84,7 +84,7 @@ class Table (object):
         self.annotations.update(annotations)
         self.acls = AclDict(self)
         self.acls.update(acls)
-        self.dynacls = AltDict(lambda k: exception.NotFound(u"dynamic ACL binding %s on table %s." % (k, self)))
+        self.dynacls = DynaclDict(self)
         self.dynacls.update(dynacls)
 
         for c in columns:
@@ -107,6 +107,7 @@ class Table (object):
     def __repr__(self):
         return '<ermrest.model.Table %s>' % str(self)
 
+    @cache_rights
     def has_right(self, aclname, roles=None):
         if aclname in {'enumerate',}:
             # we need parent enumeration too

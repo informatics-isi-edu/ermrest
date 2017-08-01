@@ -111,6 +111,24 @@ class AclDict (dict):
     def __init__(self, subject):
         dict.__init__(self)
         self._subject = subject
+        self._acls = None
+        self._digest()
+
+    def _digest(self):
+        web.ctx.ermrest_model_rights_cache.clear()
+        self._acls = dict()
+        for aclname, members in self.items():
+            if members is None:
+                continue
+            members = set(members)
+            if aclname not in self._acls:
+                self._acls[aclname] = set()
+            self._acls[aclname].update(members)
+            for aclname2, sufficient in sufficient_rights.items():
+                if aclname in sufficient:
+                    if aclname2 not in self._acls:
+                        self._acls[aclname2] = set()
+                    self._acls[aclname2].update(members)
 
     def __getitem__(self, k):
         if k not in self._subject._acls_supported:
@@ -119,6 +137,62 @@ class AclDict (dict):
             return dict.__getitem__(self, k)
         except KeyError, e:
             return None
+
+    def __setitem__(self, k, v):
+        dict.__setitem__(self, k, v)
+        self._digest()
+
+    def __delitem__(self, k):
+        dict.__delitem__(self, k)
+        self._digest()
+
+    """
+    def update(self, d):
+        dict.update(self, d)
+        self._digest()
+
+    def clear(self):
+        dict.clear(self)
+        self._digest()
+    """
+
+    def intersects(self, aclname, roles):
+        return not self._acls.get(aclname, set()).isdisjoint(roles)
+
+class DynaclDict (dict):
+    """Alternative dict specialized for dynamic acl bindings."""
+    def __init__(self, subject):
+        dict.__init__(self)
+        self._subject = subject
+        self._binding_types = None
+        self._digest()
+
+    def _digest(self):
+        web.ctx.ermrest_model_rights_cache.clear()
+        self._binding_types = set()
+        for binding in self.values():
+            if binding:
+                self._binding_types.update(set(binding['types']))
+
+    def __getitem__(self, k):
+        try:
+            if type(k) is str:
+                k = k.decode('utf8')
+            result = dict.__getitem__(self, k)
+            return result
+        except KeyError:
+            raise exception.NotFound(u"dynamic ACL binding %s on %s" % (k, self.subject))
+
+    def __setitem__(self, k, v):
+        dict.__setitem__(self, k, v)
+        self._digest()
+
+    def __delitem__(self, k):
+        dict.__delitem__(self, k)
+        self._digest()
+
+    def sufficient(self, aclname):
+        return not self._binding_types.isdisjoint(sufficient_rights[aclname].union({aclname}))
 
 class AclBinding (AltDict):
     """Represents one acl binding."""
@@ -383,6 +457,17 @@ SELECT %(cols)s FROM _ermrest.%(tname)s;
             # TODO: prune orphaned auxilliary storage?
             pass
 
+def cache_rights(orig_method):
+    def helper(self, aclname, roles=None):
+        key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None)
+        if key in web.ctx.ermrest_model_rights_cache:
+            result = web.ctx.ermrest_model_rights_cache[key]
+        else:
+            result = orig_method(self, aclname, roles)
+            web.ctx.ermrest_model_rights_cache[key] = result
+        return result
+    return helper
+
 def annotatable(orig_class):
     """Decorator to add annotation storage access interface to model classes.
 
@@ -611,6 +696,7 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
     )
         )
 
+    @cache_rights
     def has_right(self, aclname, roles=None):
         """Return access decision True, False, None.
 
@@ -620,45 +706,30 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
 
         """
         if roles is None:
-            roles = set([
-                r['id'] if type(r) is dict else r
-                for r in web.ctx.webauthn2_context.attributes
-            ])
-            roles.add('*')
+            roles = web.ctx.ermrest_client_roles
+
+        if self.acls.intersects(aclname, roles):
+            # have right explicitly due to ACL intersection
+            # on named acl or another acl sufficient for named acl
+            return True
 
         if getparent is not None:
             parentres = getparent(self)
         else:
             parentres = None
 
-        if aclname in self.acls:
-            acl = self.acls[aclname]
-        else:
-            acl = None
-
         if parentres is not None:
             if parentres.has_right('owner', roles):
                 # have right implicitly due to parent resource ownership rule
                 return True
-            elif acl is None and parentres.has_right(aclname, roles):
+            elif aclname not in self.acls and parentres.has_right(aclname, roles):
                 # have right due to inherited parent ACL
                 return True
 
-        for aclname2 in sufficient_rights[aclname]:
-            if self.has_right(aclname2, roles):
-                # have right implicitly due to another sufficient right
-                return True
-
-        if acl is not None:
-            if not set(acl).isdisjoint(roles):
-                # have right explicitly due to ACL intersection
-                return True
-
         if hasattr(self, 'dynacls'):
-            for binding in self.dynacls.values():
-                if not set(binding['types'] if binding else []).isdisjoint(sufficient_rights[aclname].union({aclname})):
-                    # dynamic rights are possible on this resource...
-                    return None
+            if self.dynacls.sufficient(aclname):
+                # dynamic rights are possible on this resource...
+                return None
 
         if parentres is not None:
             if parentres.has_right(aclname, roles) is None:

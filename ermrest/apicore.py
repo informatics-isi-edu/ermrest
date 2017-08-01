@@ -201,6 +201,7 @@ def request_init():
     web.ctx.ermrest_config = global_env
     web.ctx.ermrest_catalog_pc = None
     web.ctx.ermrest_change_notify = amqp_notifier.notify if amqp_notifier else lambda : None
+    web.ctx.ermrest_model_rights_cache = dict()
 
     try:
         # get client authentication context
@@ -223,6 +224,10 @@ def request_init():
     except (webauthn2.exc.AuthnFailed):
         raise rest.Forbidden('Authentication failed')
 
+    web.ctx.ermrest_client_roles = set([
+        r['id'] if type(r) is dict else r
+        for r in web.ctx.webauthn2_context.attributes
+    ]).union({'*'})
 
 def request_final():
     """Log final request handler state to finalize a request's audit trail."""
