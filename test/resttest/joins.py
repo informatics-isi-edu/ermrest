@@ -140,7 +140,7 @@ class JoinedProjections (common.ErmrestTest):
 class MultiKeyReference (common.ErmrestTest):
     def test_implicit_multi(self):
         # regression test for ermrest#160, internal server error with MultiKeyReference
-        self.assertHttp(self.session.get('entity/%(T1)s/%(T2b)s' % {'T1': _T1, 'T2b': _T2b}), 200)
+        self.assertHttp(self.session.get('entity/%(S)s:%(T1)s/%(S)s:%(T2b)s' % {'T1': _T1, 'T2b': _T2b, 'S': _S}), 200)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
