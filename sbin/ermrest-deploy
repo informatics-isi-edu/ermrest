@@ -29,11 +29,9 @@ then
 fi
 
 # paths set for installation
-VARLIBDIR=/var/lib/ermrest
-LIBEXECDIR=/usr/libexec/ermrest
-SHAREDIR=/usr/share/ermrest
 BINDIR=/usr/bin
 HTTPCONFDIR=${HTTPCONFDIR:-/etc/httpd/conf.d}
+HTTPDGRP=${HTTPDGRP:-apache}
 SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
@@ -66,7 +64,7 @@ EOF
 
 id ${DAEMONUSER} || useradd -m -r ${DAEMONUSER} || error could not create daemon user ${DAEMONUSER}
 
-usermod -a -G apache ${DAEMONUSER} || error could not add user ${DAEMONUSER} to apache group
+usermod -a -G ${HTTPDGRP} ${DAEMONUSER} || error could not add user ${DAEMONUSER} to ${HTTPDGRP} group
 
 chmod og+rx /home/${DAEMONUSER} || error could not set ownership of /home/${DAEMONUSER}
 

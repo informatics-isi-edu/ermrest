@@ -7,19 +7,9 @@ PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig
 SU=runuser
 
 BINDIR=/usr/bin
-LIBEXECDIR=/usr/libexec/ermrest
-SHAREDIR=/usr/share/ermrest
-VARLIBDIR=/var/lib/ermrest
 
-CRONDAILYDIR=/etc/cron.daily
 HTTPCONFDIR=/etc/httpd/conf.d
-HTMLDIR=/var/www/html/ermrest
-WSGISOCKETPREFIX=/var/run/httpd/wsgi
-
-LOGFACILITY=LOCAL2
-LOGDIR=/var/log
-SYSLOGCONF=/etc/rsyslog.conf
-LOGROTATECONFDIR=/etc/logrotate.d
+HTTPDGRP=apache
 
 SEMANAGE_HTTPD_SYS_CONTENT_T=httpd_sys_content_t
 

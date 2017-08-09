@@ -3,11 +3,6 @@ PLATFORM=centos7
 
 PGADMIN=postgres
 DAEMONUSER=ermrest
-USERADD=true
-USERDEL=false
-CREATEUSER=true
-DROPUSER=false
-DROPDB=true
 
 # get platform-specific variable bindings
 include config/make-vars-$(PLATFORM)
@@ -25,7 +20,7 @@ install:
 include config/make-rules-$(PLATFORM)
 
 deploy: force install
-	$(BINDIR)/ermrest-deploy HTTPCONFDIR=$(HTTPCONFDIR)
+	$(BINDIR)/ermrest-deploy HTTPCONFDIR=$(HTTPCONFDIR) HTTPDGRP=$(HTTPDGRP)
 
 restart: force install
 	make httpd_restart

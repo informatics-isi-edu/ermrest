@@ -7,17 +7,7 @@ PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig
 SU=su
 
 BINDIR=/usr/local/bin
-LIBEXECDIR=/usr/lib/ermrest
-SHAREDIR=/usr/share/ermrest
-VARLIBDIR=/var/lib/ermrest
-
-CRONDAILYDIR=/etc/cron.daily
 HTTPCONFDIR=/etc/apache2/conf.d
-WSGISOCKETPREFIX=/var/run/apache2/wsgi
-
-LOGFACILITY=LOCAL2
-LOGDIR=/var/log
-SYSLOGCONF=/etc/rsyslog.conf
-LOGROTATECONFDIR=/etc/logrotate.d
+HTTPDGRP=www-data
 
 AUTHDIRECTIVES=AuthType webauthn \n    Require webauthn-optional
