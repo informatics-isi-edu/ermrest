@@ -1,3 +1,4 @@
+
 # 
 # Copyright 2013-2017 University of Southern California
 # 
@@ -26,10 +27,12 @@ This module provides catalog management features including:
 import web
 import psycopg2
 import sanepg2
+import pkgutil
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model import introspect, current_model_version
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
+from . import sql
 
 __all__ = ['get_catalog_factory']
 
@@ -264,15 +267,11 @@ SELECT txid_current();
            When 'owner' is None, it initializes the catalog permissions with 
            the anonymous ('*') role, including the ownership.
         """
+        cur.execute(pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'))
+
         if type(owner) is dict:
             owner = owner['id']
 
-        # create schema, if it doesn't exist
-        if not schema_exists(cur, '_ermrest'):
-            cur.execute("""
-CREATE SCHEMA _ermrest;
-"""
-            )
             
         # create annotation storage tables
         for klass in annotatable_classes:
@@ -286,210 +285,6 @@ CREATE SCHEMA _ermrest;
         for klass in hasdynacls_classes:
             klass.create_dynacl_storage_table(cur)
 
-        if not table_exists(cur, '_ermrest', 'model_pseudo_key'):
-            cur.execute("""
-CREATE TABLE _ermrest.model_pseudo_key (
-  id serial PRIMARY KEY,
-  name text UNIQUE,
-  schema_name text NOT NULL,
-  table_name text NOT NULL,
-  column_names text[] NOT NULL,
-  comment text,
-  UNIQUE(schema_name, table_name, column_names)
-);
-""")
-            
-        if not table_exists(cur, '_ermrest', 'model_pseudo_notnull'):
-            cur.execute("""
-CREATE TABLE _ermrest.model_pseudo_notnull (
-  id serial PRIMARY KEY,
-  schema_name text NOT NULL,
-  table_name text NOT NULL,
-  column_name text NOT NULL,
-  UNIQUE(schema_name, table_name, column_name)
-);
-""")
-
-        if not table_exists(cur, '_ermrest', 'model_pseudo_keyref'):
-            cur.execute("""
-CREATE TABLE _ermrest.model_pseudo_keyref (
-  id serial PRIMARY KEY,
-  name text UNIQUE,
-  from_schema_name text NOT NULL,
-  from_table_name text NOT NULL,
-  from_column_names text[] NOT NULL,
-  to_schema_name text NOT NULL,
-  to_table_name text NOT NULL,
-  to_column_names text[] NOT NULL,
-  comment text,
-  UNIQUE(from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names)
-);
-""")
-            
-        if not table_exists(cur, '_ermrest', self._MODEL_VERSION_TABLE_NAME):
-            cur.execute("""
-CREATE TABLE _ermrest.%(table)s (
-    snap_txid bigint PRIMARY KEY
-);
-
-CREATE DOMAIN longtext text;
-CREATE DOMAIN markdown text;
-CREATE DOMAIN gene_sequence text;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS $$
-  SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(timestamp) RETURNS text IMMUTABLE AS $$
-  SELECT to_char($1, 'YYYY-MM-DD"T"HH24:MI:SS');
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(timetz) RETURNS text IMMUTABLE AS $$
-  SELECT to_char(date_part('hour', $1 AT TIME ZONE 'UTC'), '09') 
-     || ':' || to_char(date_part('minute', $1 AT TIME ZONE 'UTC'), '09') 
-     || ':' || to_char(date_part('second', $1 AT TIME ZONE 'UTC'), '09');
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(time) RETURNS text IMMUTABLE AS $$
-  SELECT to_char(date_part('hour', $1), '09') 
-     || ':' || to_char(date_part('minute', $1), '09') 
-     || ':' || to_char(date_part('second', $1), '09');
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(date) RETURNS text IMMUTABLE AS $$
-  SELECT to_char($1, 'YYYY-MM-DD');
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(anyarray) RETURNS text IMMUTABLE AS $$
-  SELECT array_agg(_ermrest.astext(v))::text FROM unnest($1) s(v);
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE AS $$
-  SELECT $1::text;
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS $$
-BEGIN
-  RETURN current_setting('webauthn2.client');
-EXCEPTION WHEN OTHERS THEN
-  RETURN NULL::text;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.current_client_obj() RETURNS json STABLE AS $$
-BEGIN
-  RETURN current_setting('webauthn2.client_json')::json;
-EXCEPTION WHEN OTHERS THEN
-  RETURN NULL::json;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE AS $$
-BEGIN
-  RETURN current_setting('webauthn2.attributes_array')::text[];
-EXCEPTION WHEN OTHERS THEN
-  RETURN NULL::text[];
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.model_change_event() RETURNS void AS $$
-DECLARE
-
-  resultbool boolean;
-  trigger_txid bigint;
-
-BEGIN
-
-  SELECT txid_current() INTO trigger_txid;
-
-  SELECT EXISTS (SELECT snap_txid
-                 FROM _ermrest.%(table)s
-                 WHERE snap_txid = trigger_txid)
-  INTO resultbool ;
-
-  IF NOT resultbool THEN
-
-    INSERT INTO _ermrest.%(table)s (snap_txid)
-      SELECT trigger_txid ;
-
-  END IF;
-
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.model_change_trigger() RETURNS event_trigger AS $$
-BEGIN
-  PERFORM _ermrest.model_change_event();
-END;
-$$ LANGUAGE plpgsql;
-
-SELECT _ermrest.model_change_event() ;
-
--- NEED TO BE POSTGRES SUPERUSER TO REGISTER AN EVENT TRIGGER!
--- This will also fire on every REST data PUT because we use temporary tables
--- Without the trigger, we only bump model version on REST schema changes but not 
--- out-of-band schema changes on server.
-
--- CREATE EVENT TRIGGER trigger_for_model_changes ON ddl_command_end
--- WHEN TAG IN (
---   'ALTER SCHEMA', 'ALTER TABLE', 'CREATE INDEX', 'CREATE SCHEMA', 'CREATE TABLE', 'CREATE TABLE AS', 'DROP SCHEMA', 'DROP TABLE', 'DROP INDEX'
--- )
--- EXECUTE PROCEDURE model_change_trigger() ;
-
-""" % dict(table=self._MODEL_VERSION_TABLE_NAME)
-            )
-            
-        if not table_exists(cur, '_ermrest', self._DATA_VERSION_TABLE_NAME):
-            cur.execute("""
-CREATE TABLE _ermrest.%(table)s (
-    "schema" text,
-    "table" text,
-    snap_txid bigint,
-    PRIMARY KEY ("schema", "table", "snap_txid")
-);
-
-CREATE OR REPLACE FUNCTION _ermrest.data_change_event(sname text, tname text) RETURNS void AS $$
-DECLARE
-
-  resultbool boolean;
-  trigger_txid bigint;
-
-BEGIN
-
-  SELECT txid_current() INTO trigger_txid;
-
-  SELECT EXISTS (SELECT snap_txid
-                 FROM _ermrest.%(table)s
-                 WHERE "schema" = sname
-                   AND "table" = tname
-                   AND snap_txid = trigger_txid) 
-  INTO resultbool ;
-
-  IF NOT resultbool THEN
-
-    INSERT INTO _ermrest.%(table)s ("schema", "table", snap_txid)
-      SELECT sname, tname, trigger_txid ;
-
-  END IF;
-
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.data_change_trigger() RETURNS trigger AS $$
-BEGIN
-  PERFORM _ermrest.data_change_event( TG_TABLE_SCHEMA::text, TG_TABLE_NAME::text );
-END;
-$$ LANGUAGE plpgsql;
-
--- Apply this trigger to each table to get automatic data-change detection
-
--- CREATE TRIGGER data_changes_on_sname_tname 
---   AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE 
---   ON sname.tname FOR EACH STATEMENT
---   EXECUTE PROCEDURE _ermrest.data_change_trigger() ;
-
-""" % dict(table=self._DATA_VERSION_TABLE_NAME)
-            )
 
         ## initial policy
         model = self.get_model(cur, self._config)

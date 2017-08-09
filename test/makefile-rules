@@ -1,5 +1,0 @@
-
-$(SHAREDIR)/test/%: test/%
-	$(INSTALL_SCRIPT) -o root -g root -m a+rx -R -D $< $@
-
-

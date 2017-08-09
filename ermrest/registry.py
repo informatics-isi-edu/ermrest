@@ -1,5 +1,5 @@
 #
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2017 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -136,33 +136,6 @@ class SimpleRegistry(Registry):
         finally:
             if pc is not None:
                 pc.final()
-
-    def deploy(self):
-        """Deploy the SimpleRegistry.
-
-        Creates the database schema for the SimpleRegistry implementation.
-        """
-        def body(conn, cur):
-            # create registry schema, if it doesn't exist
-            cur.execute("""
-CREATE SCHEMA IF NOT EXISTS ermrest;
-""")
-
-            # create registry table, if it doesn't exist
-            if not table_exists(cur, "ermrest", "simple_registry"):
-                cur.execute("""
-CREATE TABLE ermrest.simple_registry (
-    id bigserial PRIMARY KEY,
-    descriptor text,
-    deleted_on timestamp with time zone DEFAULT NULL,
-    created_on timestamp with time zone DEFAULT (now())
-);
-CREATE INDEX ON ermrest.simple_registry (deleted_on);
-CREATE INDEX ON ermrest.simple_registry (id, deleted_on);
-CREATE INDEX ON ermrest.simple_registry (created_on);
-""")
-            return None
-        return self.pooled_perform(body)
 
     def lookup(self, id=None):
         """See Registry.lookup()"""

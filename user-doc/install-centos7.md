@@ -1,14 +1,16 @@
 # ERMrest Installation (CentOS 7)
 
-This guide provides instructions for installing ERMrest on the CentOS 7.x Linux
-distribution.
+This guide provides instructions for installing ERMrest on the CentOS
+7.x Linux distribution. The steps are very similar for a contemporary
+Fedora release, just skipping the EPEL repository and using the
+appropriate Fedora-specific RPMs for PostgreSQL.
 
 ## Prerequisites
 
 ERMrest depends on the following prerequisites:
 - CentOS 7.x
 - EPEL 7 repository
-- PostgreSQL 9.4 or above (note: we recommend latest stable version)
+- PostgreSQL 9.5 or above (9.6 recommended)
 - WebAuthn
 
 This guide assumes only that you have installed the CentOS 7.x Linux
@@ -27,11 +29,11 @@ Run the following commands to install the EPEL repository.
 # dnf install epel-release*.rpm
 ```
 
-### PostgreSQL 9.4 or above
+### PostgreSQL 9.5 or above
 
 PostgreSQL must be installed and configured to operate within the
 [SE-Linux] access control mechanism.  We recommend using the latest
-stable release, i.e. Postgres 9.5 at time of writing.
+stable release, i.e. Postgres 9.6 at time of writing.
 
 1. Install the PostgreSQL 9.x repository.
 
@@ -41,12 +43,12 @@ stable release, i.e. Postgres 9.5 at time of writing.
    For CentOS 7, use:
 
    ```
-   # dnf install https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-2.noarch.rpm
+   # dnf install https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm
    ```
-   For Fedora 23, use:
+   For Fedora 25, use:
    
    ```
-   # dnf install https://download.postgresql.org/pub/repos/yum/9.5/fedora/fedora-23-x86_64/pgdg-fedora95-9.5-3.noarch.rpm
+   # dnf install https://download.postgresql.org/pub/repos/yum/9.6/fedora/fedora-25-x86_64/pgdg-fedora96-9.6-3.noarch.rpm
    ```
 
 2. Install the required packages. You may first want to uninstall any
@@ -56,7 +58,7 @@ stable release, i.e. Postgres 9.5 at time of writing.
    ```
    # dnf install policycoreutils-python
    # dnf remove postgresql{,-server}
-   # dnf install postgresql95{,-server,-docs,-contrib}
+   # dnf install postgresql96{,-server,-docs,-contrib}
    ```
 
 3. Add local labeling rules to [SE-Linux] since the files are not where CentOS
@@ -74,9 +76,9 @@ stable release, i.e. Postgres 9.5 at time of writing.
 4. Initialize and enable the `postgresql` service.
 
    ```
-   # /usr/pgsql-9.5/bin/postgresql95-setup initdb
-   # systemctl enable postgresql-9.5.service
-   # systemctl start postgresql-9.5.service
+   # /usr/pgsql-9.6/bin/postgresql96-setup initdb
+   # systemctl enable postgresql-9.6.service
+   # systemctl start postgresql-9.6.service
    ```
 
 5. Verify that postmaster is running under the right SE-Linux context
@@ -156,9 +158,10 @@ After installing the prerequisite, you are ready to install ERMrest.
 
    The install script:
    - installs the ERMrest Python module under
-     `/usr/lib/python2*/site-packages/ermrest/`
-   - installs command-line interface (CLI) tools under `/usr/sbin`.
+     `/usr/lib/python2*/site-packages`
+   - installs command-line interface (CLI) tools under `/usr/bin`.
 
+   Note, the Makefile install target just invokes `python ./setup.py install`
 
 3. From the same directory, run the deployment script.
 
@@ -170,7 +173,8 @@ After installing the prerequisite, you are ready to install ERMrest.
    - runs install target
    - prepares service environment (makes ERMrest daemon user, creates directories)
    - creates and initializes ERMrest-specific database, owned by daemon user
-   - creates default service config as `/etc/httpd/conf.d/wsgi_ermrest.conf`.
+   - creates default Apache httpd integration as `/etc/httpd/conf.d/wsgi_ermrest.conf`.
+   - creates default service config as `/home/ermrest/ermrest_config.json`
 
    CentOS notes:
    - you may need to uninstall mod_python to use mod_wsgi
@@ -272,13 +276,7 @@ any local user.
    $ curl -k -b cookie -H "Accept: application/json" \
    > https://$(hostname)/ermrest/catalog/1
    {
-     "meta": [
-       {"k": "owner", "v": "testuser"},
-       {"k": "write_user", "v": "testuser"},
-       {"k": "read_user", "v": "testuser"},
-       {"k": "schema_write_user", "v": "testuser"},
-       {"k": "content_read_user", "v": "testuser"},
-       {"k": "content_write_user", "v": "testuser"}],
+     "acls": {"owner": ["testuser"]},
      "id": "1"
    }
    ```

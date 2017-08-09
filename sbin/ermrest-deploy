@@ -32,7 +32,7 @@ fi
 VARLIBDIR=/var/lib/ermrest
 LIBEXECDIR=/usr/libexec/ermrest
 SHAREDIR=/usr/share/ermrest
-SBINDIR=/usr/sbin
+BINDIR=/usr/bin
 HTTPCONFDIR=${HTTPCONFDIR:-/etc/httpd/conf.d}
 SU=su
 
@@ -56,11 +56,19 @@ cleanup()
 
 trap cleanup 0
 
-id ${DAEMONUSER} || useradd -m -r ${DAEMONUSER}
+error()
+{
+    cat >&2 <<EOF
+error: $*
+EOF
+    exit 1
+}
 
-usermod -a -G apache ${DAEMONUSER}
+id ${DAEMONUSER} || useradd -m -r ${DAEMONUSER} || error could not create daemon user ${DAEMONUSER}
 
-chmod og+rx /home/${DAEMONUSER}
+usermod -a -G apache ${DAEMONUSER} || error could not add user ${DAEMONUSER} to apache group
+
+chmod og+rx /home/${DAEMONUSER} || error could not set ownership of /home/${DAEMONUSER}
 
 pgid()
 {
@@ -77,8 +85,8 @@ pgcreateuser()
     $SU -c "createuser $*" - ${PGADMIN}
 }
 
-pgid ${DAEMONUSER} || pgcreateuser -d -R -S ${DAEMONUSER}
-$SU -c "psql -c 'grant webauthn to ermrest'" - ${PGADMIN}
+pgid ${DAEMONUSER} || pgcreateuser -d -R -S ${DAEMONUSER} || error could not create postgres role ${DAEMONUSER}
+$SU -c "psql -c 'grant webauthn to ermrest'" - ${PGADMIN} || error could not grant webauthn role to ermrest role
 
 if [[ -r /etc/redhat-release ]]
 then
@@ -90,11 +98,12 @@ then
     setsebool -P httpd_enable_homedirs on
 fi
 
-if [[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]] || grep -q ermrestddl ${HTTPCONFDIR}/wsgi_ermrest.conf
+if [[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]]
 then
     # install default config
-    # or override conflicting legacy ermrestddl split config
-    cp ${SHAREDIR}/wsgi_ermrest.conf ${HTTPCONFDIR}/.
+    $SU -c "python -c 'import ermrest as m; m.sample_httpd_config();'" - ${DAEMONUSER} \
+	> ${HTTPCONFDIR}/wsgi_ermrest.conf \
+	|| error could not create ${HTTPCONFDIR}/wsgi_ermrest.conf
 fi
 
 pgdbid()
@@ -107,335 +116,46 @@ pgdbid()
     return 0
 }
 
-pg_upgrade_catalog_sql()
+pg_redeploy_registry_sql()
 {
-    cat <<EOF
-BEGIN;
-ALTER DATABASE "$1" OWNER TO ${DAEMONUSER};
-EOF
-
-    $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('pg_toast', 'pg_catalog', 'information_schema') AND NOT pg_is_other_temp_schema(oid)\" '$1'" - ${PGADMIN} | {
-	while read schema
-	do
-	    cat <<EOF
-ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER};
-EOF
-	    
-	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema' AND table_type = 'BASE TABLE'\" '$1'" - ${PGADMIN} | {
-		while read table
-		do
-		    cat <<EOF
-ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER}, FORCE ROW LEVEL SECURITY;
-EOF
-		done
-	    }
-	    
-	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema' AND table_type = 'VIEW'\" '$1'" - ${PGADMIN} | {
-		while read table
-		do
-		    cat <<EOF
-ALTER VIEW "$schema"."$table" OWNER TO ${DAEMONUSER};
-EOF
-		done
-	    }
-	    
-	    $SU -c "psql -q -t -A -c \"select sequence_name from information_schema.sequences where sequence_schema = '$schema'\" '$1'" - ${PGADMIN} | {
-		while read sequence
-		do
-	            cat <<EOF
-ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER};
-EOF
-		done
-	    }
-	done
-    }
-
-    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'model_catalog_annotation'\" '$1'" - ${PGADMIN} < /dev/null)
-    if [[ -z "$tablename" ]]
-    then
-	cat <<EOF
-CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_annotation (
-  annotation_uri text PRIMARY KEY,
-  annotation_value json
-);
-ALTER TABLE _ermrest.model_catalog_annotation OWNER TO ${DAEMONUSER};
-EOF
-    fi
-
-    # try to fix up a mistake in earlier dev versions of acls-everywhere branch...
-    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'model_model_acl'\" '$1'" - ${PGADMIN} < /dev/null)
-    if [[ -n "$tablename" ]]
-    then
-	cat <<EOF
-ALTER TABLE _ermrest.model_model_acl RENAME TO model_catalog_acl;
-EOF
-    fi
-
-    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'meta'\" '$1'" - ${PGADMIN} < /dev/null)
-    if [[ -n "$tablename" ]]
-    then
-	cat <<EOF
-CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_acl (
-  acl text PRIMARY KEY,
-  members text[]
-);
-ALTER TABLE _ermrest.model_catalog_acl OWNER TO ${DAEMONUSER};
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_schema_acl (
-  schema_name text,
-  acl text,
-  members text[],
-  PRIMARY KEY (schema_name, acl)
-);
-ALTER TABLE _ermrest.model_schema_acl OWNER TO ${DAEMONUSER};
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_table_acl (
-  schema_name text,
-  table_name text,
-  acl text,
-  members text[],
-  PRIMARY KEY (schema_name, table_name, acl)
-);
-ALTER TABLE _ermrest.model_table_acl OWNER TO ${DAEMONUSER};
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_column_acl (
-  schema_name text,
-  table_name text,
-  column_name text,
-  acl text,
-  members text[],
-  PRIMARY KEY (schema_name, table_name, column_name, acl)
-);
-ALTER TABLE _ermrest.model_column_acl OWNER TO ${DAEMONUSER};
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_acl (
-  from_schema_name text,
-  from_table_name text,
-  from_column_names text[],
-  to_schema_name text,
-  to_table_name text,
-  to_column_names text[],
-  acl text,
-  members text[],
-  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, acl)
-);
-ALTER TABLE _ermrest.model_keyref_acl OWNER TO ${DAEMONUSER};
-
-INSERT INTO _ermrest.model_catalog_acl (acl, members)
-SELECT
-  CASE
-    WHEN key = 'owner' THEN 'owner'
-    WHEN key = 'read_user' THEN 'enumerate'
-    WHEN key = 'content_read_user' THEN 'select'
-    WHEN key = 'content_write_user' THEN 'write'
-    WHEN key = 'schema_write_user' THEN 'create'
-  END AS key,
-  array_agg(value) AS members
-FROM _ermrest.meta
-WHERE key IN ('owner', 'read_user', 'content_read_user', 'content_write_user', 'schema_write_user')
-GROUP BY key
-;
-
-DROP TABLE _ermrest.meta;
-
-EOF
-    fi
-
-    tablename=$($SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '_ermrest' AND table_name = 'model_table_dynacl'\" '$1'" - ${PGADMIN} < /dev/null)
-    if [[ -z "$tablename" ]]
-    then
-	cat <<EOF
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_table_dynacl (
-  schema_name text,
-  table_name text,
-  binding_name text,
-  binding jsonb NOT NULL,
-  PRIMARY KEY (schema_name, table_name, binding_name)
-);
-ALTER TABLE _ermrest.model_table_dynacl OWNER TO ${DAEMONUSER};
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_column_dynacl (
-  schema_name text,
-  table_name text,
-  column_name text,
-  binding_name text,
-  binding jsonb NOT NULL,
-  PRIMARY KEY (schema_name, table_name, column_name, binding_name)
-);
-ALTER TABLE _ermrest.model_column_dynacl OWNER TO ${DAEMONUSER};
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_dynacl (
-  from_schema_name text,
-  from_table_name text,
-  from_column_names text[],
-  to_schema_name text,
-  to_table_name text,
-  to_column_names text[],
-  binding_name text,
-  binding jsonb NOT NULL,
-  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, binding_name)
-);
-ALTER TABLE _ermrest.model_keyref_dynacl OWNER TO ${DAEMONUSER};
-
-EOF
-    fi
-    
-    cat <<EOF
-
-ALTER SCHEMA _ermrest OWNER TO ${DAEMONUSER};
-
-CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS \$\$
-BEGIN
-  RETURN current_setting('webauthn2.client');
-EXCEPTION WHEN OTHERS THEN
-  RETURN NULL::text;
-END;
-\$\$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.current_client_obj() RETURNS json STABLE AS \$\$
-BEGIN
-  RETURN current_setting('webauthn2.client_json')::json;
-EXCEPTION WHEN OTHERS THEN
-  RETURN NULL::json;
-END;
-\$\$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE AS \$\$
-  SELECT current_setting('webauthn2.attributes_array')::text[];
-\$\$ LANGUAGE SQL;
-
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anynonarray) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anyarray) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(date) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timestamptz) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timestamp) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timetz) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(time) CASCADE;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS \$\$
-  SELECT to_char(\$1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
-\$\$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(timestamp) RETURNS text IMMUTABLE AS \$\$
-  SELECT to_char(\$1, 'YYYY-MM-DD"T"HH24:MI:SS');
-\$\$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(timetz) RETURNS text IMMUTABLE AS \$\$
-  SELECT to_char(date_part('hour', \$1 AT TIME ZONE 'UTC'), '09') 
-     || ':' || to_char(date_part('minute', \$1 AT TIME ZONE 'UTC'), '09') 
-     || ':' || to_char(date_part('second', \$1 AT TIME ZONE 'UTC'), '09');
-\$\$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(time) RETURNS text IMMUTABLE AS \$\$
-  SELECT to_char(date_part('hour', \$1), '09') 
-     || ':' || to_char(date_part('minute', \$1), '09') 
-     || ':' || to_char(date_part('second', \$1), '09');
-\$\$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(date) RETURNS text IMMUTABLE AS \$\$
-  SELECT to_char(\$1, 'YYYY-MM-DD');
-\$\$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(anyarray) RETURNS text IMMUTABLE AS \$\$
-  SELECT array_agg(_ermrest.astext(v))::text FROM unnest(\$1) s(v);
-\$\$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE AS \$\$
-  SELECT \$1::text;
-\$\$ LANGUAGE SQL;
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_pseudo_notnull (
-  id serial PRIMARY KEY,
-  schema_name text NOT NULL,
-  table_name text NOT NULL,
-  column_name text NOT NULL,
-  UNIQUE(schema_name, table_name, column_name)
-);
-ALTER TABLE _ermrest.model_pseudo_notnull OWNER TO ermrest;
-
-COMMIT;
-
-BEGIN;
-SELECT _ermrest.model_change_event();
-COMMIT;
-
-EOF
+    $SU -c "python -c 'import ermrest.sql.util as m; m.print_redeploy_registry_sql();'" - ${DAEMONUSER} \
+	|| error could not generate registry redeployment SQL
 }
 
-pg_upgrade_registry_sql()
+pg_redeploy_catalogs_sql()
 {
-    cat <<EOF
-BEGIN;
-ALTER ROLE ${DAEMONUSER} CREATEDB;
-ALTER DATABASE ermrest OWNER TO ${DAEMONUSER};
-CREATE SCHEMA IF NOT EXISTS ermrest;
-ALTER SCHEMA ermrest OWNER TO ${DAEMONUSER};
-EOF
+    $SU -c "python -c 'import ermrest.sql.util as m; m.print_redeploy_catalogs_sql();'" - ${DAEMONUSER} \
+	|| error could not generate catalog redeployment SQL
+}
 
-    $SU -c "psql -q -t -A -c \"SELECT nspname FROM pg_namespace WHERE nspname ~ '^webauthn' AND NOT pg_is_other_temp_schema(oid)\" ermrest" - ${PGADMIN} | {
-	while read schema
-	do
-	    cat <<EOF
-ALTER SCHEMA "$schema" OWNER TO ${DAEMONUSER};
-EOF
-	    
-	    $SU -c "psql -q -t -A -c \"select table_name from information_schema.tables where table_schema = '$schema'\" ermrest" - ${PGADMIN} | {
-		while read table
-		do
-		    cat <<EOF
-ALTER TABLE "$schema"."$table" OWNER TO ${DAEMONUSER};
-EOF
-		done
-	    }
-	    
-	    $SU -c "psql -q -t -A -c \"select sequence_name from information_schema.sequences where sequence_schema = '$schema'\" ermrest" - ${PGADMIN} | {
-		while read sequence
-		do
-	            cat <<EOF
-ALTER SEQUENCE "$schema"."$sequence" OWNER TO ${DAEMONUSER};
-EOF
-		done
-	    }
-	done
-    }
-
-    cat <<EOF
-COMMIT;
-EOF
-
+pg_extupgrade_sql()
+{
+    $SU -c "python -c 'import ermrest.sql.util as m; m.print_extupgrade_sql(\"$1\")'" - ${DAEMONUSER} \
+	|| error could not generate extension upgrade SQL for database "$1"
 }
 
 # prevent overwrites
-[[ -r /home/${DAEMONUSER}/ermrest_config.json ]] || $SU -c "cp -a ${SHAREDIR}/ermrest_config.json ." - "${DAEMONUSER}"
+[[ -r /home/${DAEMONUSER}/ermrest_config.json ]] \
+    || $SU -c "python -c 'import ermrest as m; m.sample_config()' > ermrest_config.json" - "${DAEMONUSER}" \
+    || error could not create /home/${DAEMONUSER}/ermrest_config.json
 
-if pgdbid 'ermrest'
+# idempotent deploy tasks
+pg_extupgrade_sql template1 > ${TMP_SQL}
+$SU -c "psql --echo-errors -d template1" - ${PGADMIN} < ${TMP_SQL} || error could not upgrade database template1
+
+if ! pgdbid 'ermrest'
 then
-    # idempotently fill in missing parts and update role assignments
-    pg_upgrade_registry_sql > ${TMP_SQL}
-    $SU -c "psql -e ermrest" - ${PGADMIN} < ${TMP_SQL}
-
-    $SU -c "psql -q -t -A -c \"select descriptor::json->>'dbname' from ermrest.simple_registry\" ermrest" - ${PGADMIN} | {
-	catalogs=()
-	while read line
-	do
-	    catalogs+=("$line")
-	done
-	< /dev/null
-
-	for catalog in "${catalogs[@]}"
-	do
-	    pg_upgrade_catalog_sql "$catalog" > ${TMP_SQL}
-	    $SU -c "psql -e '$catalog'" - ${PGADMIN} < ${TMP_SQL}
-	done
-    }
-else
-    $SU -c "createdb -O \"$DAEMONUSER\" ermrest" - ${PGADMIN}
+    $SU -c "createdb -O \"$DAEMONUSER\" ermrest" - ${PGADMIN} || error could not create database ermrest
 fi
 
+pg_redeploy_registry_sql > ${TMP_SQL}
+$SU -c "psql --echo-errors ermrest" - ${PGADMIN} < ${TMP_SQL} || error could not deploy registry database
 
-# these are supposed to be idempotent too...
-$SU -c "createlang -d ermrest plpgsql" - "${PGADMIN}"
-$SU -c "psql -d template1 -c \"CREATE EXTENSION pg_trgm;\"" - ${PGADMIN}
-$SU -c "${SBINDIR}/ermrest-registry-deploy" - "${DAEMONUSER}"
+pg_redeploy_catalogs_sql > ${TMP_SQL}
+$SU -c "psql --echo-errors" - ${PGADMIN} < ${TMP_SQL} || error could not re-deploy existing catalog databases
 
+cat >&2 <<EOF
+ermrest deployment successful.
+EOF
+
+exit 0

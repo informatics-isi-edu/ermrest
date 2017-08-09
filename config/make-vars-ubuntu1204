@@ -6,7 +6,7 @@ PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig
 
 SU=su
 
-SBINDIR=/usr/bin
+BINDIR=/usr/bin
 LIBEXECDIR=/usr/lib/ermrest
 SHAREDIR=/usr/share/ermrest
 VARLIBDIR=/var/lib/ermrest
