@@ -4,6 +4,8 @@ language: python
 sudo: required
 dist: trusty
 
+python: '2.7_with_system_site_packages'
+
 addons:
   postgresq: "9.5"
 
