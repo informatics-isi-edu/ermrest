@@ -18,6 +18,8 @@ env:
     - PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 before_install:
+  - which python
+  - sudo which python
   - sudo apt-get -y update
   - sudo service postgresql stop
   - sudo apt-get -y purge postgresql-9.1 postgresql-9.2 postgresql-9.3 postgresql-9.4 postgresql-9.5
@@ -40,6 +42,7 @@ before_install:
   - sudo make deploy
   - sudo a2enmod webauthn
   - sudo bash ./test/ubuntu-travis-setup.sh
+  - sudo su -c "which python" - webauthn
   - cd ../ermrest
 
 install:
