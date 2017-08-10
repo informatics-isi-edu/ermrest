@@ -63,7 +63,7 @@ script:
   - python ./test/resttest
 
 after_failure:
-  - /usr/bin/python -c "import ermrest as m; print m.__path__;"
+  - /usr/bin/python -c "import ermrest as m; print m.__file__;"
   - sudo ls -lR /etc/apache2
   - sudo ls -lR /var/run/apache2
   - cat ${TEST_COOKIES1}
