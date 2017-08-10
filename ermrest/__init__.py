@@ -17,6 +17,7 @@
 
 import pkgutil
 import sys
+import distutils.sysconfig
 
 def sample_config():
     """Emit sample ermrest_config.json to standard output."""
@@ -24,10 +25,14 @@ def sample_config():
 
 def sample_httpd_config():
     """Emit sample wsgi_ermrest.conf to standard output."""
-    
+    path = __path__[0]
+    if path[0] != '/':
+        path = '%s/%s' % (
+            distutils.sysconfig.get_python_lib()
+        )
     sys.stdout.write(
         pkgutil.get_data(__name__, 'wsgi_ermrest.conf').replace(
             '/usr/lib/python2.7/site-packages/ermrest',
-            __path__[0]
+            path
         )
     )
