@@ -99,7 +99,7 @@ fi
 if [[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]]
 then
     # install default config
-    python -c 'import ermrest as m; m.sample_httpd_config();' \
+    /usr/bin/python -c 'import ermrest as m; m.sample_httpd_config();' \
 	> ${HTTPCONFDIR}/wsgi_ermrest.conf \
 	|| error could not create ${HTTPCONFDIR}/wsgi_ermrest.conf
 fi
@@ -134,7 +134,7 @@ pg_extupgrade_sql()
 
 # prevent overwrites
 [[ -r /home/${DAEMONUSER}/ermrest_config.json ]] \
-    || python -c 'import ermrest as m; m.sample_config();' > /home/${DAEMONUSER}/ermrest_config.json \
+    || /usr/bin/python -c 'import ermrest as m; m.sample_config();' > /home/${DAEMONUSER}/ermrest_config.json \
     || error could not create /home/${DAEMONUSER}/ermrest_config.json
 
 chown ${DAEMONUSER} /home/${DAEMONUSER}/ermrest_config.json
