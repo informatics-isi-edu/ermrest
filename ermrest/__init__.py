@@ -29,7 +29,7 @@ def sample_httpd_config():
     if path[0] != '/':
         loader = pkgutil.get_loader('ermrest')
         path = '%s/%s' % (
-            os.path.dirname(loader.get_filename('ermrest'),
+            os.path.dirname(loader.get_filename('ermrest')),
             path
         )
     sys.stdout.write(
