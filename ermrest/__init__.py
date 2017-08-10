@@ -17,7 +17,7 @@
 
 import pkgutil
 import sys
-import distutils.sysconfig
+import os.path
 
 def sample_config():
     """Emit sample ermrest_config.json to standard output."""
@@ -27,8 +27,9 @@ def sample_httpd_config():
     """Emit sample wsgi_ermrest.conf to standard output."""
     path = __path__[0]
     if path[0] != '/':
+        loader = pkgutil.get_loader('ermrest')
         path = '%s/%s' % (
-            distutils.sysconfig.get_python_lib(),
+            os.path.dirname(loader.get_filename('ermrest'),
             path
         )
     sys.stdout.write(
