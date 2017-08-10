@@ -4,3 +4,7 @@
 **/.DS_Store
 **/*.swp
 **/*.pyc
+build
+dist
+ermrest.egg-info
+install-record.txt
