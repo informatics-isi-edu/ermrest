@@ -28,7 +28,8 @@ def sample_httpd_config():
     path = __path__[0]
     if path[0] != '/':
         path = '%s/%s' % (
-            distutils.sysconfig.get_python_lib()
+            distutils.sysconfig.get_python_lib(),
+            path
         )
     sys.stdout.write(
         pkgutil.get_data(__name__, 'wsgi_ermrest.conf').replace(
