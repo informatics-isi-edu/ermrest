@@ -62,6 +62,9 @@ EOF
     exit 1
 }
 
+# make sure we're not in the source tree since we want to use installed ermrest package in Python calls below...
+cd /
+
 id ${DAEMONUSER} || useradd -m -r ${DAEMONUSER} || error could not create daemon user ${DAEMONUSER}
 
 usermod -a -G ${HTTPDGRP} ${DAEMONUSER} || error could not add user ${DAEMONUSER} to ${HTTPDGRP} group
