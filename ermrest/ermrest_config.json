@@ -43,6 +43,7 @@
     },
     
     "column_types_readonly": {
+	"oid": null,
         "json": null,
         "numeric": null,
         "text": {

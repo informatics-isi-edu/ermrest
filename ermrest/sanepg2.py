@@ -137,7 +137,7 @@ class PooledConnection (object):
     def __init__(self, dsn):
         self.used_pool = pools[dsn]
         self.conn = self.used_pool.getconn()
-        self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
+        self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
         self.cur = self.conn.cursor()
 
     def perform(self, bodyfunc, finalfunc=lambda x: x, verbose=False):

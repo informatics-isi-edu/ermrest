@@ -110,7 +110,7 @@ class CatalogFactory (object):
                 raise RuntimeError(msg)
             finally:
                 # just in case caller didn't use sanepg2 which resets this already...
-                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
+                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
 
         def post_commit(ignored):
             # create catalog
@@ -164,7 +164,7 @@ WHERE datname = %(dbname)s
             if cur:
                 cur.close()
             # just in case caller didn't use sanepg2 which resets this already...
-            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
+            self._dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
     
     
 class Catalog (object):
@@ -173,8 +173,6 @@ class Catalog (object):
     
     _POSTGRES_REGISTRY = "postgres"
     _SUPPORTED_REGISTRY_TYPES = (_POSTGRES_REGISTRY)
-    _MODEL_VERSION_TABLE_NAME = 'model_version'
-    _DATA_VERSION_TABLE_NAME = 'data_version'
 
     # key cache by (str(descriptor), version)
     MODEL_CACHE = dict()
@@ -212,10 +210,8 @@ class Catalog (object):
             raise KeyError("Catalog descriptor type not supported: %(type)s" % descriptor)
 
     def get_model_update_version(self, cur):
-        cur.execute("""
-SELECT txid_current(); 
-""" % dict(table=self._MODEL_VERSION_TABLE_NAME))
-        return cur.next()[0] 
+        cur.execute("SELECT now();")
+        return cur.next()[0]
 
     def get_model(self, cur=None, config=None, private=False):
         if cur is None:

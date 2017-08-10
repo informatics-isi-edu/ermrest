@@ -17,6 +17,10 @@
 
 -- help transition a legacy catalog to current schema
 
+-- clean up legacy tables
+DROP TABLE IF EXISTS _ermrest.model_version;
+DROP TABLE IF EXISTS _ermrest.data_version;
+
 -- clean up legacy functions we used to define
 DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anynonarray) CASCADE;
 DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anyarray) CASCADE;
@@ -50,3 +54,8 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- heal any newly created data version tracking
+INSERT INTO _ermrest.table_last_modified (oid, ts)
+SELECT t.oid, now() FROM _ermrest.introspect_tables t WHERE t.table_kind = 'r'
+ON CONFLICT (oid) DO NOTHING;

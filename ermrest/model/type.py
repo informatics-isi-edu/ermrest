@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2016 University of Southern California
+# Copyright 2013-2017 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ _default_config = {
         },
     
     "column_types_readonly": {
+        "oid": None,
         "json": None,
         "tsvector": None,
         "text": {

@@ -37,7 +37,7 @@ from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyRefere
 
 def current_model_version(cur):
     cur.execute("""
-SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
+SELECT COALESCE((SELECT mlm.ts FROM _ermrest.model_last_modified mlm ORDER BY mlm.ts DESC LIMIT 1), now());
 """)
     return cur.next()[0]
 
@@ -86,15 +86,6 @@ WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
 GROUP BY nc.nspname, c.relname, c.relkind, c.oid
     '''
 
-    HEAL_DATA_VERSIONS = '''
-INSERT INTO _ermrest.data_version ("schema", "table", "snap_txid")
-SELECT t.table_schema, t.table_name, txid_current()
-FROM (
-  SELECT DISTINCT t.table_schema, t.table_name FROM (%s) t
-  EXCEPT SELECT "schema", "table" FROM _ermrest.data_version
-) t
-''' % SELECT_TABLES
-    
     SELECT_COLUMNS = '''
 SELECT
   current_database() AS table_catalog,
@@ -266,11 +257,7 @@ FROM _ermrest.model_pseudo_keyref ;
     fkeys    = dict()
     fkeyrefs = dict()
 
-    cur.execute("""
-SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid_snapshot_xmin(txid_current_snapshot()) ;
-"""
-    )
-    version = cur.next()[0]
+    version = current_model_version(cur)
     
     model = Model(version)
 
@@ -286,8 +273,6 @@ SELECT max(snap_txid) AS txid FROM _ermrest.model_version WHERE snap_txid < txid
         web.debug('NOTICE: adding _ermrest.model_psuedo_key.name column during model introspection')
         cur.execute('ALTER TABLE _ermrest.model_pseudo_key ADD COLUMN "name" text UNIQUE;')
 
-    cur.execute(HEAL_DATA_VERSIONS);
-    
     #
     # Introspect schemas, tables, columns
     #

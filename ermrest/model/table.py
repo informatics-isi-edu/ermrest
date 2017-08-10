@@ -178,7 +178,7 @@ class Table (object):
         clauses = []
         for column in columns:
             clauses.append(column.sql_def())
-            
+
         cur.execute("""
 CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
@@ -248,9 +248,9 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         self.enforce_right('owner')
         self.pre_delete(conn, cur)
         cur.execute("""
+SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 DROP %(kind)s %(sname)s.%(tname)s ;
 SELECT _ermrest.model_change_event();
-SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 """ % dict(
     kind={'r': 'TABLE', 'v': 'VIEW', 'f': 'FOREIGN TABLE'}[self.kind],
     sname=sql_identifier(self.schema.name), 
