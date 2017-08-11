@@ -96,6 +96,101 @@ CREATE TABLE IF NOT EXISTS _ermrest.table_last_modified (
 );
 CREATE INDEX IF NOT EXISTS tlm_ts_oid ON _ermrest.table_last_modified (ts, oid);
 
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_schemas (
+  oid oid PRIMARY KEY,
+  schema_name text UNIQUE NOT NULL,
+  "comment" text
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_types (
+  oid oid PRIMARY KEY,
+  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
+  type_name text NOT NULL,
+  array_element_type_oid oid REFERENCES _ermrest.known_types(oid),
+  domain_element_type_oid oid REFERENCES _ermrest.known_types(oid),
+  domain_notnull boolean,
+  domain_default text,
+  "comment" text,
+  UNIQUE(schema_oid, type_name),
+  CHECK(array_element_type_oid IS NULL OR domain_element_type_oid IS NULL)
+);
+CREATE INDEX IF NOT EXISTS known_types_basetype_idx
+ ON _ermrest.known_types (array_element_type_oid NULLS FIRST, domain_element_type_oid NULLS FIRST);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_tables (
+  oid oid PRIMARY KEY,
+  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
+  table_name text NOT NULL,
+  table_kind text NOT NULL,
+  "comment" text,
+  UNIQUE(schema_oid, table_name)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_columns (
+  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  column_num int,
+  column_name text NOT NULL,
+  type_oid oid NOT NULL REFERENCES _ermrest.known_types(oid) ON DELETE CASCADE,
+  not_null boolean NOT NULL,
+  column_default text,
+  "comment" text,
+  PRIMARY KEY(table_oid, column_num),
+  UNIQUE(table_oid, column_name)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_psuedo_notnulls (
+  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  column_num int,
+  PRIMARY KEY(table_oid, column_num),
+  FOREIGN KEY(table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_keys (
+  oid oid PRIMARY KEY,
+  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
+  constraint_name text NOT NULL,
+  table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  column_nums int[] NOT NULL,
+  "comment" text,
+  UNIQUE(schema_oid, constraint_name)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_keys (
+  id serial PRIMARY KEY,
+  constraint_name text UNIQUE,
+  table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  column_nums int[] NOT NULL,
+  "comment" text
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_fkeys (
+  oid oid PRIMARY KEY,
+  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
+  constraint_name text NOT NULL,
+  fk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  fk_column_nums int[] NOT NULL,
+  pk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  pk_column_nums int[] NOT NULL,
+  delete_rule text NOT NULL,
+  update_rule text NOT NULL,
+  "comment" text,
+  UNIQUE(schema_oid, constraint_name),
+  CHECK(array_length(fk_column_nums, 1) = array_length(pk_column_nums, 1))
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_psuedo_fkeys (
+  id serial PRIMARY KEY,
+  constraint_name text UNIQUE,
+  fk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  fk_column_nums int[] NOT NULL,
+  pk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
+  pk_column_nums int[] NOT NULL,
+  "comment" text,
+  CHECK(array_length(fk_column_nums, 1) = array_length(pk_column_nums, 1))
+);
+
+
 CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS
   SELECT
     nc.oid,
@@ -104,6 +199,61 @@ CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS
   FROM pg_catalog.pg_namespace nc
   WHERE nc.nspname NOT IN ('information_schema', 'pg_toast')
     AND NOT pg_is_other_temp_schema(nc.oid)
+;
+
+CREATE OR REPLACE VIEW _ermrest.introspect_types AS
+  -- base types
+  SELECT
+    t.oid as "oid",
+    t.typnamespace as "schema_oid",
+    pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
+    NULL::oid AS "array_element_type_oid",
+    NULL::oid AS "domain_element_type_oid",
+    NULL::boolean AS "domain_notnull",
+    NULL::text AS domain_default,
+    pg_catalog.obj_description(t.oid, 'pg_type')::text as "comment"
+  FROM pg_catalog.pg_type t
+  WHERE t.typtype != 'd'::char
+    AND t.typelem = 0::oid
+    AND t.typrelid = 0
+    AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_type el WHERE el.typarray = t.oid)
+    AND pg_catalog.pg_type_is_visible(t.oid)
+
+  UNION
+
+  -- array types
+  SELECT
+    t.oid as "oid",
+    t.typnamespace as "schema_oid",
+    pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
+    et.oid as "array_element_type_oid",
+    NULL::oid AS "domain_element_type_oid",
+    NULL::boolean AS "domain_notnull",
+    NULL::text AS domain_default,
+    NULL::text AS "comment"
+  FROM pg_catalog.pg_type t
+  JOIN pg_catalog.pg_type et ON (et.typarray = t.oid)
+  WHERE t.typtype != 'd'::char
+    AND et.typelem = 0::oid
+    AND et.typrelid = 0
+    AND pg_catalog.pg_type_is_visible(t.oid)
+
+  UNION
+
+  -- domains
+  SELECT
+    t.oid as "oid",
+    t.typnamespace as "schema_oid",
+    pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
+    NULL::oid AS array_element_type_oid,
+    t.typbasetype as "domain_element_type_oid",
+    t.typnotnull AS "domain_notnull",
+    t.typdefault::text AS "domain_value",
+    d.description::text as "comment"
+  FROM pg_catalog.pg_type t
+  LEFT JOIN pg_catalog.pg_description d ON (d.classoid = t.tableoid AND d.objoid = t.oid AND d.objsubid = 0)
+  WHERE t.typtype = 'd'
+    AND pg_catalog.pg_type_is_visible(t.oid)
 ;
 
 CREATE OR REPLACE VIEW _ermrest.introspect_tables AS
@@ -120,6 +270,331 @@ CREATE OR REPLACE VIEW _ermrest.introspect_tables AS
     AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'm'::"char"]))
 ;
 
+CREATE OR REPLACE VIEW _ermrest.introspect_columns AS
+  SELECT
+    c.oid AS table_oid,
+    a.attnum AS column_num,
+    a.attname::text AS column_name,
+    a.atttypid AS type_oid,
+    a.attnotnull AS not_null,
+    pg_get_expr(ad.adbin, ad.adrelid)::text AS column_default,
+    col_description(c.oid, a.attnum)::text AS comment
+  FROM pg_catalog.pg_attribute a
+  JOIN pg_catalog.pg_class c ON (a.attrelid = c.oid)
+  JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
+  LEFT JOIN pg_catalog.pg_attrdef ad ON (a.attrelid = ad.adrelid AND a.attnum = ad.adnum)
+  WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+    AND NOT pg_is_other_temp_schema(nc.oid) 
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+    AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'm'::"char"]))
+;
+
+CREATE OR REPLACE VIEW _ermrest.introspect_keys AS
+  SELECT
+    con.oid AS "oid",
+    ncon.oid AS "schema_oid",
+    con.conname::information_schema.sql_identifier::text AS constraint_name,
+    pkcl.oid AS "table_oid",
+    (SELECT array_agg(pka.attnum::int ORDER BY i.i)
+     FROM generate_subscripts(con.conkey, 1) i
+     JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid AND con.conkey[i.i] = pka.attnum
+    ) AS column_nums,
+    obj_description(con.oid)::text AS comment
+  FROM pg_namespace ncon
+  JOIN pg_constraint con ON (ncon.oid = con.connamespace)
+  JOIN pg_class pkcl ON (con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"]))
+  JOIN pg_namespace npk ON (pkcl.relnamespace = npk.oid)
+  WHERE has_table_privilege(pkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text)
+     OR has_any_column_privilege(pkcl.oid, 'INSERT, UPDATE, REFERENCES'::text)
+;
+
+CREATE OR REPLACE VIEW _ermrest.introspect_fkeys AS
+  SELECT
+    con.oid AS "oid",
+    ncon.oid AS schema_oid,
+    con.conname::information_schema.sql_identifier::text AS constraint_name,
+    fkcl.oid AS fk_table_oid,
+    (SELECT array_agg(fka.attnum::int ORDER BY i.i)
+     FROM generate_subscripts(con.conkey, 1) i
+     JOIN pg_catalog.pg_attribute fka ON con.conrelid = fka.attrelid AND con.conkey[i.i] = fka.attnum
+    ) AS fk_column_nums,
+    kcl.oid AS pk_table_oid,
+    (SELECT array_agg(ka.attnum::int ORDER BY i.i)
+     FROM generate_subscripts(con.confkey, 1) i
+     JOIN pg_catalog.pg_attribute ka ON con.confrelid = ka.attrelid AND con.confkey[i.i] = ka.attnum
+    ) AS pk_column_nums,
+    CASE con.confdeltype
+       WHEN 'c'::"char" THEN 'CASCADE'::text
+       WHEN 'n'::"char" THEN 'SET NULL'::text
+       WHEN 'd'::"char" THEN 'SET DEFAULT'::text
+       WHEN 'r'::"char" THEN 'RESTRICT'::text
+       WHEN 'a'::"char" THEN 'NO ACTION'::text
+       ELSE NULL::text
+    END AS delete_rule,
+    CASE con.confupdtype
+       WHEN 'c'::"char" THEN 'CASCADE'::text
+       WHEN 'n'::"char" THEN 'SET NULL'::text
+       WHEN 'd'::"char" THEN 'SET DEFAULT'::text
+       WHEN 'r'::"char" THEN 'RESTRICT'::text
+       WHEN 'a'::"char" THEN 'NO ACTION'::text
+       ELSE NULL::text
+    END AS update_rule,
+    obj_description(con.oid)::text AS comment
+  FROM pg_namespace ncon
+  JOIN pg_constraint con ON (ncon.oid = con.connamespace)
+  JOIN pg_class fkcl ON (con.conrelid = fkcl.oid AND con.contype = 'f'::"char")
+  JOIN pg_class kcl ON (con.confrelid = kcl.oid AND con.contype = 'f'::"char")
+  JOIN pg_namespace nfk ON (fkcl.relnamespace = nfk.oid)
+  JOIN pg_namespace nk ON (kcl.relnamespace = nk.oid)
+  WHERE (   pg_has_role(kcl.relowner, 'USAGE'::text) 
+         OR has_table_privilege(kcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text)
+         OR has_any_column_privilege(kcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+    AND (   pg_has_role(fkcl.relowner, 'USAGE'::text) 
+         OR has_table_privilege(fkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text)
+         OR has_any_column_privilege(fkcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+;
+
+CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect() RETURNS boolean AS $$
+DECLARE
+  model_changed boolean;
+  had_changes int;
+BEGIN
+  model_changed := False;
+
+  -- sync up known with currently visible schemas
+  WITH visible AS (
+    SELECT * FROM _ermrest.introspect_schemas
+  ), inserted AS (
+    INSERT INTO _ermrest.known_schemas
+    SELECT v.*
+    FROM visible v
+    LEFT OUTER JOIN _ermrest.known_schemas k ON (v.oid = k.oid)
+    WHERE k.oid IS NULL
+    RETURNING oid
+  ), updated AS (
+    UPDATE _ermrest.known_schemas k
+    SET schema_name = v.schema_name, "comment" = v."comment"
+    FROM visible v
+    WHERE k.oid = v.oid
+      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
+    RETURNING k.oid
+  ), deleted AS (
+    DELETE FROM _ermrest.known_schemas k
+    USING (
+      SELECT oid FROM _ermrest.known_schemas
+      EXCEPT SELECT oid FROM visible
+    ) d
+    WHERE k.oid = d.oid
+    RETURNING k.oid
+  )
+  SELECT
+    (SELECT count(*) FROM inserted)
+    + (SELECT count(*) FROM updated)
+    + (SELECT count(*) FROM deleted)
+  INTO had_changes;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible types
+  WITH visible AS (
+    SELECT * FROM _ermrest.introspect_types
+  ), inserted AS (
+    INSERT INTO _ermrest.known_types
+    SELECT v.*
+    FROM visible v
+    LEFT OUTER JOIN _ermrest.known_types k ON (v.oid = k.oid)
+    WHERE k.oid IS NULL
+    RETURNING oid
+  ), updated AS (
+    UPDATE _ermrest.known_types k
+    SET
+      schema_oid = v.schema_oid,
+      type_name = v.type_name,
+      array_element_type_oid = v.array_element_type_oid,
+      domain_element_type_oid = v.domain_element_type_oid,
+      domain_notnull = v.domain_notnull,
+      domain_default = v.domain_default,
+      "comment" = v."comment"
+    FROM visible v
+    WHERE k.oid = v.oid
+      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
+    RETURNING k.oid
+  ), deleted AS (
+    DELETE FROM _ermrest.known_types k
+    USING (
+      SELECT oid FROM _ermrest.known_types
+      EXCEPT SELECT oid FROM visible
+    ) d
+    WHERE k.oid = d.oid
+    RETURNING k.oid
+  )
+  SELECT
+    (SELECT count(*) FROM inserted)
+    + (SELECT count(*) FROM updated)
+    + (SELECT count(*) FROM deleted)
+  INTO had_changes;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible tables
+  WITH visible AS (
+    SELECT * FROM _ermrest.introspect_tables
+  ), inserted AS (
+    INSERT INTO _ermrest.known_tables
+    SELECT v.*
+    FROM visible v
+    LEFT OUTER JOIN _ermrest.known_tables k ON (v.oid = k.oid)
+    WHERE k.oid IS NULL
+    RETURNING oid
+  ), updated AS (
+    UPDATE _ermrest.known_tables k
+    SET
+      schema_oid = v.schema_oid,
+      table_name = v.table_name,
+      table_kind = v.table_kind,
+      "comment" = v."comment"
+    FROM visible v
+    WHERE k.oid = v.oid
+      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
+    RETURNING k.oid
+  ), deleted AS (
+    DELETE FROM _ermrest.known_tables k
+    USING (
+      SELECT oid FROM _ermrest.known_tables
+      EXCEPT SELECT oid FROM visible
+    ) d
+    WHERE k.oid = d.oid
+    RETURNING k.oid
+  )
+  SELECT
+    (SELECT count(*) FROM inserted)
+    + (SELECT count(*) FROM updated)
+    + (SELECT count(*) FROM deleted)
+  INTO had_changes;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible columns
+  WITH visible AS (
+    SELECT * FROM _ermrest.introspect_columns
+  ), inserted AS (
+    INSERT INTO _ermrest.known_columns
+    SELECT v.*
+    FROM visible v
+    LEFT OUTER JOIN _ermrest.known_columns k ON (v.table_oid = k.table_oid AND v.column_num = k.column_num)
+    WHERE k.table_oid IS NULL
+    RETURNING table_oid, column_num
+  ), updated AS (
+    UPDATE _ermrest.known_columns k
+    SET
+      column_name = v.column_name,
+      type_oid = v.type_oid,
+      not_null = v.not_null,
+      column_default = v.column_default,
+      "comment" = v."comment"
+    FROM visible v
+    WHERE k.table_oid = v.table_oid AND k.column_num = v.column_num
+      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
+    RETURNING k.table_oid, k.column_num
+  ), deleted AS (
+    DELETE FROM _ermrest.known_columns k
+    USING (
+      SELECT table_oid, column_num FROM _ermrest.known_columns
+      EXCEPT SELECT table_oid, column_num FROM visible
+    ) d
+    WHERE k.table_oid = d.table_oid AND k.column_num = d.column_num
+    RETURNING k.table_oid, k.column_num
+  )
+  SELECT
+    (SELECT count(*) FROM inserted)
+    + (SELECT count(*) FROM updated)
+    + (SELECT count(*) FROM deleted)
+  INTO had_changes;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible keys
+  WITH visible AS (
+    SELECT * FROM _ermrest.introspect_keys
+  ), inserted AS (
+    INSERT INTO _ermrest.known_keys
+    SELECT v.*
+    FROM visible v
+    LEFT OUTER JOIN _ermrest.known_keys k ON (v.oid = k.oid)
+    WHERE k.oid IS NULL
+    RETURNING oid
+  ), updated AS (
+    UPDATE _ermrest.known_keys k
+    SET
+      schema_oid = v.schema_oid,
+      constraint_name = v.constraint_name,
+      table_oid = v.table_oid,
+      column_nums = v.column_nums,
+      "comment" = v."comment"
+    FROM visible v
+    WHERE k.oid = v.oid
+      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
+    RETURNING k.oid
+  ), deleted AS (
+    DELETE FROM _ermrest.known_keys k
+    USING (
+      SELECT oid FROM _ermrest.known_keys
+      EXCEPT SELECT oid FROM visible
+    ) d
+    WHERE k.oid = d.oid
+    RETURNING k.oid
+  )
+  SELECT
+    (SELECT count(*) FROM inserted)
+    + (SELECT count(*) FROM updated)
+    + (SELECT count(*) FROM deleted)
+  INTO had_changes;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible foreign keys
+  WITH visible AS (
+    SELECT * FROM _ermrest.introspect_fkeys
+  ), inserted AS (
+    INSERT INTO _ermrest.known_fkeys
+    SELECT v.*
+    FROM visible v
+    LEFT OUTER JOIN _ermrest.known_fkeys k ON (v.oid = k.oid)
+    WHERE k.oid IS NULL
+    RETURNING oid
+  ), updated AS (
+    UPDATE _ermrest.known_fkeys k
+    SET
+      schema_oid = v.schema_oid,
+      constraint_name = v.constraint_name,
+      fk_table_oid = v.fk_table_oid,
+      fk_column_nums = v.fk_column_nums,
+      pk_table_oid = v.pk_table_oid,
+      pk_column_nums = v.pk_column_nums,
+      delete_rule = v.delete_rule,
+      update_rule = v.update_rule,
+      "comment" = v."comment"
+    FROM visible v
+    WHERE k.oid = v.oid
+      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
+    RETURNING k.oid
+  ), deleted AS (
+    DELETE FROM _ermrest.known_fkeys k
+    USING (
+      SELECT oid FROM _ermrest.known_fkeys
+      EXCEPT SELECT oid FROM visible
+    ) d
+    WHERE k.oid = d.oid
+    RETURNING k.oid
+  )
+  SELECT
+    (SELECT count(*) FROM inserted)
+    + (SELECT count(*) FROM updated)
+    + (SELECT count(*) FROM deleted)
+  INTO had_changes;
+  model_changed := model_changed OR had_changes > 0;
+
+  RETURN model_changed;
+END;
+$$ LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE FUNCTION _ermrest.table_oid(sname text, tname text) RETURNS oid STABLE AS $$
   SELECT t.oid
   FROM _ermrest.introspect_tables t
@@ -127,21 +602,35 @@ CREATE OR REPLACE FUNCTION _ermrest.table_oid(sname text, tname text) RETURNS oi
   WHERE s.schema_name = $1 AND t.table_name = $2;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.column_num(toid oid, cname text) RETURNS int STABLE AS $$
+  SELECT c.column_num
+  FROM _ermrest.introspect_columns c
+  WHERE c.table_oid = $1 AND c.column_name = $2;
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION _ermrest.model_change_event() RETURNS void AS $$
+DECLARE
+  model_changed boolean;
+  last_ts timestamptz;
 BEGIN
-  IF (SELECT ts
-      FROM _ermrest.model_last_modified
-      ORDER BY ts DESC
-      LIMIT 1) > now() THEN
+  SELECT _ermrest.rescan_introspect() INTO model_changed;
+  
+  SELECT ts INTO last_ts
+  FROM _ermrest.model_last_modified
+  ORDER BY ts DESC
+  LIMIT 1;
+
+  IF last_ts > now() THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest model version clock reversal!';
+  ELSIF last_ts IS NULL OR model_changed THEN
+    -- don't bump model version unless it actually changed or prev version is absent
+    DELETE FROM _ermrest.model_last_modified WHERE ts != now();
+
+    INSERT INTO _ermrest.model_last_modified (ts)
+      VALUES (now())
+      ON CONFLICT (ts) DO NOTHING;
   END IF;
-
-  DELETE FROM _ermrest.model_last_modified WHERE ts != now();
-
-  INSERT INTO _ermrest.model_last_modified (ts)
-    VALUES (now())
-    ON CONFLICT (ts) DO NOTHING;
 END;
 $$ LANGUAGE plpgsql;
 

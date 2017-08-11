@@ -59,3 +59,88 @@ $$ LANGUAGE plpgsql;
 INSERT INTO _ermrest.table_last_modified (oid, ts)
 SELECT t.oid, now() FROM _ermrest.introspect_tables t WHERE t.table_kind = 'r'
 ON CONFLICT (oid) DO NOTHING;
+
+-- port legacy psuedo keys
+DO $$
+BEGIN
+  IF (SELECT True
+      FROM information_schema.tables
+      WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_key') THEN
+
+    INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_oid, column_nums, "comment")
+    SELECT
+      pkc.constraint_name,
+      _ermrest.table_oid(pkc.schema_name, pkc.table_name),
+      array_agg(
+        _ermrest.column_num(_ermrest.table_oid(pkc.schema_name, pkc.table_name), c.column_name)
+	ORDER BY c.column_num
+      ),
+      pkc."comment"
+    FROM (
+      SELECT
+        pk."name" as constraint_name,
+	_ermrest.table_oid(schema_name, table_name) AS table_oid,
+	unnest(column_names) AS column_name,
+	"comment"
+      FROM _ermrest.model_pseudo_key pk
+    ) pkc
+    GROUP BY _ermrest.table_oid(schema_name, table_name), constraint_name
+    ;
+
+    DROP TABLE _ermrest.model_pseudo_key;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- port legacy psuedo foreign keys
+DO $$
+BEGIN
+  IF (SELECT True
+      FROM information_schema.tables
+      WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_keyref') THEN
+
+    INSERT INTO _ermrest.known_pseudo_fkeys (constraint_name, fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, "comment")
+    SELECT
+      fkr."name",
+      from_oid,
+      array_agg(
+        c1.column_num
+	ORDER BY colmap.from_index
+      ),
+      to_oid,
+      array_agg(
+        c2.column_num
+	ORDER BY colmap.from_index
+      ),
+      fkr."comment"
+    FROM (
+      SELECT
+        fkr.*,
+	t1.oid AS from_oid,
+	t2.oid AS to_oid
+      FROM _ermrest.model_pseudo_keyref fkr
+      JOIN _ermrest.introspect_schemas s1 ON (s1.schema_name = fkr.from_schema_name)
+      JOIN _ermrest.introspect_schemas s2 ON (s2.schema_name = fkr.to_schema_name)
+      JOIN _ermrest.introspect_tables  t1 ON (s1.oid = t1.schema_oid AND t1.table_name = fkr.from_table_name)
+      JOIN _ermrest.introspect_tables  t2 ON (s2.oid = t2.schema_oid AND t2.table_name = fkr.to_table_name)
+    ) fkr
+    JOIN (
+      SELECT
+        fkr.id,
+	fcol.n AS from_name,
+	tcol.n AS to_name,
+	fcol.i AS from_index
+      FROM _ermrest.model_pseudo_keyref fkr,
+      LATERAL unnest(fkr.from_column_names) WITH ORDINALITY AS fcol(n, i)
+      LATERAL unnest(fkr.from_column_names) WITH ORDINALITY AS tcol(n, i)
+      WHERE fcol.i = tcol.i
+    ) colmap ON (fkr.id = colmap.id)
+    JOIN _ermrest.introspect_columns c1 ON (t1.oid = c1.table_oid AND c1.column_name = colmap.from_name)
+    JOIN _ermrest.introspect_columns c2 ON (t2.oid = c2.table_oid AND c2.column_name = colmap.to_name)
+    GROUP BY fkr."name", from_oid, to_oid, fkr."comment"
+    ;
+
+    DROP TABLE _ermrest.model_pseudo_keyref;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
