@@ -60,7 +60,23 @@ INSERT INTO _ermrest.table_last_modified (oid, ts)
 SELECT t.oid, now() FROM _ermrest.introspect_tables t WHERE t.table_kind = 'r'
 ON CONFLICT (oid) DO NOTHING;
 
--- port legacy psuedo keys
+-- port legacy pseudo not-nulls
+DO $$
+BEGIN
+  IF (SELECT True
+      FROM information_schema.tables
+      WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_notnull') THEN
+    INSERT INTO _ermrest.known_pseudo_notnulls (table_oid, column_num)
+    SELECT
+      _ermrest.table_oid(schema_name, table_name),
+      _ermrest.column_num(_ermrest.table_oid(schema_name, table_name), column_name)
+    FROM _ermrest.model_pseudo_notnull;
+    DROP TABLE _ermrest.model_pseudo_notnull;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- port legacy pseudo keys
 DO $$
 BEGIN
   IF (SELECT True
@@ -70,9 +86,9 @@ BEGIN
     INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_oid, column_nums, "comment")
     SELECT
       pkc.constraint_name,
-      _ermrest.table_oid(pkc.schema_name, pkc.table_name),
+      pkc.table_oid,
       array_agg(
-        _ermrest.column_num(_ermrest.table_oid(pkc.schema_name, pkc.table_name), c.column_name)
+        _ermrest.column_num(pkc.table_oid, pkc.column_name)
 	ORDER BY c.column_num
       ),
       pkc."comment"
@@ -84,7 +100,8 @@ BEGIN
 	"comment"
       FROM _ermrest.model_pseudo_key pk
     ) pkc
-    GROUP BY _ermrest.table_oid(schema_name, table_name), constraint_name
+    JOIN _ermrest.known_columns c ON (pkc.table_oid = c.table_oid AND pkc.column_name = c.column_name)
+    GROUP BY pkc.table_oid, constraint_name, pkc."comment"
     ;
 
     DROP TABLE _ermrest.model_pseudo_key;
@@ -92,7 +109,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- port legacy psuedo foreign keys
+-- port legacy pseudo foreign keys
 DO $$
 BEGIN
   IF (SELECT True
@@ -119,10 +136,10 @@ BEGIN
 	t1.oid AS from_oid,
 	t2.oid AS to_oid
       FROM _ermrest.model_pseudo_keyref fkr
-      JOIN _ermrest.introspect_schemas s1 ON (s1.schema_name = fkr.from_schema_name)
-      JOIN _ermrest.introspect_schemas s2 ON (s2.schema_name = fkr.to_schema_name)
-      JOIN _ermrest.introspect_tables  t1 ON (s1.oid = t1.schema_oid AND t1.table_name = fkr.from_table_name)
-      JOIN _ermrest.introspect_tables  t2 ON (s2.oid = t2.schema_oid AND t2.table_name = fkr.to_table_name)
+      JOIN _ermrest.known_schemas s1 ON (s1.schema_name = fkr.from_schema_name)
+      JOIN _ermrest.known_schemas s2 ON (s2.schema_name = fkr.to_schema_name)
+      JOIN _ermrest.known_tables  t1 ON (s1.oid = t1.schema_oid AND t1.table_name = fkr.from_table_name)
+      JOIN _ermrest.known_tables  t2 ON (s2.oid = t2.schema_oid AND t2.table_name = fkr.to_table_name)
     ) fkr
     JOIN (
       SELECT
@@ -130,13 +147,13 @@ BEGIN
 	fcol.n AS from_name,
 	tcol.n AS to_name,
 	fcol.i AS from_index
-      FROM _ermrest.model_pseudo_keyref fkr,
-      LATERAL unnest(fkr.from_column_names) WITH ORDINALITY AS fcol(n, i)
+      FROM _ermrest.model_pseudo_keyref AS fkr,
+      LATERAL unnest(fkr.from_column_names) WITH ORDINALITY AS fcol(n, i),
       LATERAL unnest(fkr.from_column_names) WITH ORDINALITY AS tcol(n, i)
       WHERE fcol.i = tcol.i
     ) colmap ON (fkr.id = colmap.id)
-    JOIN _ermrest.introspect_columns c1 ON (t1.oid = c1.table_oid AND c1.column_name = colmap.from_name)
-    JOIN _ermrest.introspect_columns c2 ON (t2.oid = c2.table_oid AND c2.column_name = colmap.to_name)
+    JOIN _ermrest.known_columns c1 ON (fkr.from_oid = c1.table_oid AND c1.column_name = colmap.from_name)
+    JOIN _ermrest.known_columns c2 ON (fkr.to_oid = c2.table_oid AND c2.column_name = colmap.to_name)
     GROUP BY fkr."name", from_oid, to_oid, fkr."comment"
     ;
 

@@ -53,22 +53,69 @@ _default_config = {
 
 _pg_serial_default_pattern = r"nextval[(]'[^']+'::regclass[)]$"
 
-def build_type(doc, defaultval=None, config=None, readonly=False):
+class TypesEngine (object):
+    """Stateful engine to help interpret catalog types and policy.
+
+    """
+    # TODO: track more type metadata that is currently discarded...?
+    def __init__(self, config=None):
+        self.config = config
+        self.by_oid = dict()
+        self.disallowed_by_oid = dict()
+        self.by_name = dict()
+
+    def add_base_type(self, oid, type_name, comment):
+        try:
+            type_name = canonicalize_column_type(type_name, None, self.config, readonly=True)
+            if type_name not in self.by_name:
+                self.by_name[type_name] = Type(typename=type_name)
+            self.by_oid[oid] = self.by_name[type_name]
+        except exception.ConflictData:
+            self.disallowed_by_oid[oid] = Type(typename=type_name)
+
+    def add_array_type(self, oid, type_name, element_type_oid, comment):
+        if element_type_oid not in self.by_oid:
+            self.disallowed_by_oid[oid] = ArrayType(base_type=self.disallowed_by_oid[element_type_oid])
+        else:
+            self.by_oid[oid] = ArrayType(base_type=self.by_oid[element_type_oid])
+
+    def add_domain_type(self, oid, type_name, element_type_oid, default, notnull, comment):
+        if element_type_oid not in self.by_oid:
+            self.disallowed_by_oid[oid] = DomainType(typename=type_name, base_type=self.disallowed_by_oid[element_type_oid])
+        else:
+            self.by_oid[oid] = DomainType(typename=type_name, base_type=self.by_oid[element_type_oid])
+
+    def lookup(self, oid, default=None, readonly=False):
+        if oid in self.by_oid:
+            typ = self.by_oid[oid]
+            if typ.is_array or typ.is_domain:
+                return typ
+            # now check again using column-level default
+            type_name = canonicalize_column_type(typ.name, default, self.config, readonly)
+            if type_name in self.by_name:
+                return self.by_name[type_name]
+            else:
+                # with current canonicalization rule, this only happens for serial?
+                return mock_type({'typename': type_name})
+        else:
+            raise ValueError('Disallowed type "%s" requested.' % self.disallowed_by_oid)
+
+def mock_type(doc, defaultval=None, config=None, readonly=False):
     if defaultval is None:
         defaultval = doc.get('default')
 
     if doc.get('is_array', False):
-        doc['base_type'] = build_type(doc['base_type'], config=config, readonly=readonly)
+        doc['base_type'] = mock_type(doc['base_type'], config=config, readonly=readonly)
         return ArrayType(**doc)
 
     doc['typename'] = canonicalize_column_type(doc['typename'], defaultval, config, readonly)
     
     if doc.get('is_domain', False):
-        doc['base_type'] = build_type(doc['base_type'], config=config, readonly=readonly)
+        doc['base_type'] = mock_type(doc['base_type'], config=config, readonly=readonly)
         return DomainType(**doc)
     else:
         return Type(**doc)
-        
+
 def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
     """Return preferred notation for typestr or raise ValueError.
 
@@ -224,7 +271,7 @@ class Type (object):
 
     @staticmethod
     def fromjson(typedoc, ermrest_config):
-        return build_type(typedoc, config=ermrest_config)
+        return mock_type(typedoc, config=ermrest_config)
 
 class ArrayType(Type):
     """Represents an array type."""
@@ -276,5 +323,5 @@ class DomainType(Type):
             return self.base_type.default_value(raw)
 
 
-text_type = build_type({'typename': 'text', 'length': -1}, readonly=True)
-tsvector_type = build_type({'typename': 'tsvector', 'length': -1}, readonly=True)
+text_type = mock_type({'typename': 'text', 'length': -1}, readonly=True)
+tsvector_type = mock_type({'typename': 'tsvector', 'length': -1}, readonly=True)

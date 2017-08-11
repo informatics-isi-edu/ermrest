@@ -371,7 +371,7 @@ def commentable(orig_class):
         for resource in resources:
             cur.execute("""
 COMMENT ON %s IS %s;
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 """ % (resource, sql_literal(comment))
             )
             self.comment = comment
@@ -524,7 +524,7 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES %s;
             for k, v in interp.items()
         ])
         cur.execute("""
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 UPDATE _ermrest.model_%(restype)s_annotation new
 SET annotation_value = %(newval)s
 FROM _ermrest.model_%(restype)s_annotation old
@@ -544,7 +544,7 @@ RETURNING old.annotation_value;
         columns = ', '.join([sql_identifier(k) for k in interp.keys()] + ['annotation_value'])
         values = ', '.join([interp[k] for k in interp.keys()] + [sql_literal(json.dumps(value))])
         cur.execute("""
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
 """ % (orig_class._model_restype, columns, values)
         )
@@ -562,7 +562,7 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
             for k in keys
         ])
         cur.execute("""
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 DELETE FROM _ermrest.model_%s_annotation %s;
 """ % (orig_class._model_restype, ('WHERE %s' % where) if where else '')
         )
@@ -639,7 +639,7 @@ def hasacls(acls_supported, rights_supported, getparent):
             for k in keys
         ])
         cur.execute("""
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 UPDATE _ermrest.model_%(restype)s_acl new
 SET members = %(members)s::text[]
 FROM _ermrest.model_%(restype)s_acl old
@@ -688,7 +688,7 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
             for k in keys
         ])
         cur.execute("""
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
 """ % dict(
     restype=self._model_restype,
@@ -823,7 +823,7 @@ def hasdynacls(dynacl_types_supported):
             for k in keys
         ])
         cur.execute("""
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 UPDATE _ermrest.model_%(restype)s_dynacl new
 SET binding = %(binding)s::jsonb
 FROM _ermrest.model_%(restype)s_dynacl old
@@ -866,7 +866,7 @@ INSERT INTO _ermrest.model_%(restype)s_dynacl (%(columns)s, binding) VALUES (%(v
             for k in keys
         ])
         cur.execute("""
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 DELETE FROM _ermrest.model_%(restype)s_dynacl WHERE %(where)s;
 """ % dict(
     restype=self._model_restype,

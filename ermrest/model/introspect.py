@@ -30,7 +30,7 @@ from .. import exception
 from ..util import table_exists, view_exists, column_exists
 from .misc import frozendict, annotatable_classes, hasacls_classes, hasdynacls_classes
 from .schema import Model, Schema
-from .type import build_type, text_type
+from .type import TypesEngine
 from .column import Column
 from .table import Table
 from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyReference
@@ -51,10 +51,9 @@ def introspect(cur, config=None):
     
     Returns the introspected Model instance.
     """
-
-    # Dicts for quick lookup
+    # Dicts to re-use singleton objects
     schemas  = dict()
-    types    = dict()
+    typesengine = TypesEngine(config)
     tables   = dict()
     columns  = dict()
     pkeys    = dict()
@@ -62,7 +61,6 @@ def introspect(cur, config=None):
     fkeyrefs = dict()
 
     version = current_model_version(cur)
-    
     model = Model(version)
 
     #
@@ -72,19 +70,18 @@ def introspect(cur, config=None):
     # get schemas (including empty ones)
     cur.execute("SELECT * FROM _ermrest.known_schemas;")
     for oid, schema_name, comment in cur:
-        schemas[oid] = Schema(model, sname, scomment)
+        schemas[oid] = Schema(model, schema_name, comment)
 
     # get possible column types (including unused ones)
     cur.execute("SELECT * FROM _ermrest.known_types ORDER BY array_element_type_oid NULLS FIRST, domain_element_type_oid NULLS FIRST;")
     for oid, schema_oid, type_name, array_element_type_oid, domain_element_type_oid, domain_notnull, domain_default, comment in cur:
         # TODO: track schema and comments?
         if domain_element_type_oid is not None:
-            # TODO: track extra domain properties?
-            types[oid] = DomainType(base_type=types[domain_element_type_oid], typename=type_name)
+            typesengine.add_domain_type(oid, type_name, domain_element_type_oid, domain_default, domain_notnull, comment)
         elif array_element_type_oid is not None:
-            types[oid] = ArrayType(base_type=types[array_element_type_oid])
+            typesengine.add_array_type(oid, type_name, array_element_type_oid, comment)
         else:
-            types[oid] = Type(typename=type_name)
+            typesengine.add_base_type(oid, type_name, comment)
 
     # get tables, views, etc. (including empty zero-column ones)
     cur.execute("""
@@ -103,19 +100,19 @@ GROUP BY table_oid
         tcols = []
         for i in range(len(coldocs)):
             cdoc = coldocs[i]
-            ctype = types[cdoc['type_oid']]
+            ctype = typesengine.lookup(int(cdoc['type_oid']), cdoc['column_default'], True) # to_json turns OID type into string...
             try:
                 default = ctype.default_value(cdoc['column_default'])
             except ValueError:
                 default = None
-            col = Column(cdoc['column_name'].decode('utf8'), i, ctype, default, not cdoc['not_null'], cdoc['comment'])
+            col = Column(cdoc['column_name'], i, ctype, default, not cdoc['not_null'], cdoc['comment'])
             tcols.append(col)
             columns[(oid, cdoc['column_num'])] = col
 
         tables[oid] = Table(schemas[schema_oid], table_name, tcols, table_kind, comment)
 
-    # Introspect psuedo not-null constraints
-    cur.execute("SELECT * FROM _ermrest.known_psuedo_notnulls")
+    # Introspect pseudo not-null constraints
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_notnulls")
     for table_oid, column_num in cur:
         columns[(table_oid, column_num)].nullok = False
 
@@ -150,11 +147,11 @@ GROUP BY table_oid
             lambda pk_colset: Unique(pk_colset, (schemas[schema_oid].name, constraint_name), comment)
         )
 
-    cur.execute("SELECT * FROM _ermrest.known_psuedo_keys")
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_keys")
     for pk_id, constraint_name, table_oid, column_nums, comment in cur:
         _introspect_pkey(
             table_oid, column_nums, comment,
-            lambda pk_colset: PsuedoUnique(pk_colset, pk_id, ("", (constraint_name if constraint_name is not None else pk_id)), comment)
+            lambda pk_colset: PseudoUnique(pk_colset, pk_id, ("", (constraint_name if constraint_name is not None else pk_id)), comment)
         )
 
     #
@@ -195,14 +192,14 @@ GROUP BY table_oid
     for oid, schema_oid, constraint_name, fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, delete_rule, update_rule, comment in cur:
         _introspect_fkr(
             fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, comment,
-            lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, on_delete, on_update, (schemas[schema_oid].name, constraint_name), comment=comment)
+            lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, (schemas[schema_oid].name, constraint_name), comment=comment)
         )
 
     cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys")
     for fk_id, constraint_name, fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, comment in cur:
         _introspect_fkr(
             fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, comment,
-            lambda fk, pk, fk_ref_map: PsuedoKeyReference(fk, pk, fk_ref_map, ("", (constraint_name if constraint_name is not None else fk_id)), comment=comment)
+            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, ("", (constraint_name if constraint_name is not None else fk_id)), comment=comment)
         )
 
     #
