@@ -15,8 +15,8 @@
 #
 
 from .. import exception
-from ..util import sql_identifier, view_exists, udecode
-from .misc import AltDict, AclDict, keying, commentable, annotatable, hasacls, enforce_63byte_id
+from ..util import sql_identifier, sql_literal, view_exists, udecode
+from .misc import AltDict, AclDict, keying, annotatable, hasacls, enforce_63byte_id
 from .table import Table
 
 import json
@@ -97,8 +97,10 @@ class Model (object):
         self.enforce_right('create')
         cur.execute("""
 CREATE SCHEMA %(schema)s ;
-SELECT _ermrest.model_change_event();
-""" % dict(schema=sql_identifier(sname)))
+INSERT INTO _ermrest.known_schemas
+SELECT * FROM _ermrest.introspect_schemas WHERE schema_name = %(schema_str)s;
+SELECT _ermrest.model_version_bump();
+""" % dict(schema=sql_identifier(sname), schema_str=sql_literal(sname)))
         newschema = Schema(self, sname)
         if not self.has_right('owner'):
             newschema.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
@@ -112,12 +114,12 @@ SELECT _ermrest.model_change_event();
         self.schemas[sname].delete_annotation(conn, cur, None)
         self.schemas[sname].delete_acl(cur, None, purging=True)
         cur.execute("""
-DROP SCHEMA %s ;
-SELECT _ermrest.model_change_event();
-""" % sql_identifier(sname))
+DROP SCHEMA %(schema)s ;
+DELETE FROM _ermrest.known_schemas WHERE schema_name = %(schema_str)s;
+SELECT _ermrest.model_version_bump();
+""" % dict(schema=sql_identifier(sname), schema_str=sql_literal(sname)))
         del self.schemas[sname]
 
-@commentable
 @annotatable
 @hasacls(
     { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
@@ -186,9 +188,21 @@ class Schema (object):
     def __unicode__(self):
         return u"%s" % self.name
 
-    def sql_comment_resource(self):
-        return u'SCHEMA %s' % sql_identifier(unicode(self.name))
-    
+    def set_comment(self, conn, cur, comment):
+        """Set SQL comment."""
+        self.enforce_right('owner')
+        cur.execute("""
+COMMENT ON SCHEMA %(sname)s IS %(comment)s;
+UPDATE _ermrest.known_schemas SET "comment" = %(comment)s WHERE schema_name = %(snamestr)s;
+SELECT _ermrest.model_version_bump();
+""" % dict(
+    sname=sql_identifier(self.name),
+    snamestr=sql_literal(self.name),
+    comment=sql_literal(comment)
+)
+        )
+        self.comment = comment
+
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 

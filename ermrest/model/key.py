@@ -16,7 +16,7 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, commentable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
+from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
 from .name import _keyref_join_str, _keyref_join_sql
 
 import web
@@ -66,13 +66,20 @@ class Unique (object):
         if self.constraint_name:
             pk_schema, pk_name = self.constraint_name
             cur.execute("""
-COMMENT ON CONSTRAINT %s ON %s.%s IS %s;
-SELECT _ermrest.model_change_event();
-""" % (
-    sql_identifier(unicode(pk_name)),
-    sql_identifier(unicode(self.table.schema.name)),
-    sql_identifier(unicode(self.table.name)),
-    sql_literal(comment)
+COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
+UPDATE _ermrest.known_keys
+SET "comment" = %(comment)s
+WHERE table_oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s)
+  AND constraint_name = %(constraint_name_str)s;
+SELECT _ermrest.model_version_bump();
+""" % dict(
+    constraint_name=sql_identifier(unicode(pk_name)),
+    constraint_name_str=sql_literal(unicode(pk_name)),
+    sname=sql_identifier(unicode(self.table.schema.name)),
+    tname=sql_identifier(unicode(self.table.name)),
+    snamestr=sql_literal(unicode(self.table.schema.name)),
+    tnamestr=sql_literal(unicode(self.table.name)),
+    comment=sql_literal(comment),
 )
         )
         # also update other constraints sharing same key colset
@@ -167,7 +174,15 @@ SELECT _ermrest.model_change_event();
                     break
                 n += 1
             self.constraint_name = (self.table.schema.name, name)
-        self.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+        self.table.alter_table(
+            conn, cur,
+            'ADD %s' % self.sql_def(),
+            """
+INSERT INTO _ermrest.known_keys
+SELECT * FROM _ermrest.introspect_keys
+WHERE table_oid = t_oid AND constraint_name = %s;
+""" % sql_literal(self.constraint_name[1])
+        )
         self.set_comment(conn, cur, self.comment)
         for k, v in self.annotations.items():
             self.set_annotation(conn, cur, k, v)
@@ -176,14 +191,21 @@ SELECT _ermrest.model_change_event();
         self.pre_delete(conn, cur)
         if self.constraint_name:
             pk_schema, pk_name = self.constraint_name
-            self.table.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(pk_name))
+            self.table.alter_table(
+                conn, cur,
+                'DROP CONSTRAINT %s' % sql_identifier(pk_name),
+                """
+DELETE FROM _ermrest.known_keys
+WHERE table_oid = t_oid AND constraint_name = %s;
+""" % sql_literal(pk_name)
+            )
         for pk in self.constraints:
             if pk != self:
                 pk.delete(conn, cur)
         del self.table.uniques[self.columns]
         if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
             raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
-        
+
     def prejson(self):
         return dict(
             comment=self.comment,
@@ -242,10 +264,10 @@ class PseudoUnique (object):
         # comment this particular constraint
         if self.id:
             cur.execute("""
-UPDATE _ermrest.model_pseudo_key
+UPDATE _ermrest.known_pseudo_keys
 SET comment = %s
 WHERE id = %s ;
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 """ % (
     sql_literal(comment),
     sql_literal(self.id)
@@ -288,17 +310,23 @@ SELECT _ermrest.model_change_event();
     def add(self, conn, cur):
         self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         cur.execute("""
-SELECT _ermrest.model_change_event();
-INSERT INTO _ermrest.model_pseudo_key 
-  (schema_name, table_name, column_names, comment, name)
-  VALUES (%s, %s, ARRAY[%s], %s, %s) 
-  RETURNING id;
-""" % (
-    sql_literal(unicode(self.table.schema.name)),
-    sql_literal(unicode(self.table.name)),
-    ','.join([ sql_literal(unicode(c.name)) for c in self.columns ]),
-    sql_literal(self.comment),
-    sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL'
+SELECT _ermrest.model_version_bump();
+INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_oid, column_nums, comment)
+SELECT
+  %(constraint_name)s,
+  c.table_oid,
+  array_agg(c.column_num ORDER BY c.column_num),
+  %(comment)s
+FROM _ermrest.known_columns c
+WHERE c.table_oid = _ermrest.table_oid(%(sname)s, %(tname)s)
+  AND c.column_name IN (ARRAY[%(column_names)s])
+RETURNING id;
+""" % dict(
+    constraint_name=sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL',
+    sname=sql_literal(unicode(self.table.schema.name)),
+    tname=sql_literal(unicode(self.table.name)),
+    column_names=','.join([ sql_literal(unicode(c.name)) for c in self.columns ]),
+    comment=sql_literal(self.comment),
 )
         )
         self.id = cur.fetchone()[0]
@@ -314,8 +342,8 @@ INSERT INTO _ermrest.model_pseudo_key
         self.pre_delete(conn, cur)
         if self.id:
             cur.execute("""
-DELETE FROM _ermrest.model_pseudo_key WHERE id = %s;
-SELECT _ermrest.model_change_event();
+DELETE FROM _ermrest.known_pseudo_keys WHERE id = %s;
+SELECT _ermrest.model_version_bump();
 """ % sql_literal(self.id)
             )
         for pk in self.constraints:
@@ -513,20 +541,27 @@ class KeyReference (object):
         if self.constraint_name:
             fkr_schema, fkr_name = self.constraint_name
             cur.execute("""
-COMMENT ON CONSTRAINT %s ON %s.%s IS %s;
-SELECT _ermrest.model_change_event();
-""" % (
-    sql_identifier(unicode(fkr_name)),
-    sql_identifier(unicode(self.foreign_key.table.schema.name)),
-    sql_identifier(unicode(self.foreign_key.table.name)),
-    sql_literal(comment)
+COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
+UPDATE _ermrest.known_fkeys
+SET "comment" = %(comment)s
+WHERE fk_table_oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s)
+  AND constraint_name = %(constraint_name_str)s;
+SELECT _ermrest.model_version_bump();
+""" % dict(
+    constraint_name=sql_identifier(unicode(fkr_name)),
+    constraint_name_str=sql_literal(unicode(fkr_name)),
+    sname=sql_identifier(unicode(self.foreign_key.table.schema.name)),
+    tname=sql_identifier(unicode(self.foreign_key.table.name)),
+    snamestr=sql_literal(unicode(self.foreign_key.table.schema.name)),
+    tnamestr=sql_literal(unicode(self.foreign_key.table.name)),
+    comment=sql_literal(comment)
 )
             )
         # also update other constraints sharing same mapping
         for fkr in self.constraints:
             if fkr != self:
                 fkr.set_comment(conn, cur, comment)
-        
+
     def join_str(self, refop, lname, rname):
         return _keyref_join_str(self, refop, lname, rname)
 
@@ -567,7 +602,15 @@ SELECT _ermrest.model_change_event();
                     break
                 n += 1
             self.constraint_name = (self.foreign_key.table.schema.name, name)
-        self.foreign_key.table.alter_table(conn, cur, 'ADD %s' % self.sql_def())
+        self.foreign_key.table.alter_table(
+            conn, cur,
+            'ADD %s' % self.sql_def(),
+            """
+INSERT INTO _ermrest.known_fkeys
+SELECT * FROM _ermrest.introspect_fkeys
+WHERE fk_table_oid = t_oid AND constraint_name = %s;
+""" % sql_literal(self.constraint_name[1])
+        )
         self.set_comment(conn, cur, self.comment)
         for k, v in self.annotations.items():
             self.set_annotation(conn, cur, k, v)
@@ -576,7 +619,14 @@ SELECT _ermrest.model_change_event();
         self.pre_delete(conn, cur)
         if self.constraint_name:
             fkr_schema, fkr_name = self.constraint_name
-            self.foreign_key.table.alter_table(conn, cur, 'DROP CONSTRAINT %s' % sql_identifier(fkr_name))
+            self.foreign_key.table.alter_table(
+                conn, cur,
+                'DROP CONSTRAINT %s' % sql_identifier(fkr_name),
+                """
+DELETE FROM _ermrest.known_fkeys
+WHERE fk_table_oid = t_oid AND constraint_name = %s;
+""" % sql_literal(fkr_name)
+            )
         for fkr in self.constraints:
             if fkr != self:
                 fkr.delete(conn, cur)
@@ -741,10 +791,10 @@ class PseudoKeyReference (object):
     def set_comment(self, conn, cur, comment):
         if self.id:
             cur.execute("""
-UPDATE _ermrest.model_pseudo_keyref
+UPDATE _ermrest.known_pseudo_fkeys
 SET comment = %s
 WHERE id = %s
-SELECT _ermrest.model_change_event();
+SELECT _ermrest.model_version_bump();
 """ % (
     sql_literal(comment),
     sql_literal(self.id)
@@ -786,20 +836,45 @@ SELECT _ermrest.model_change_event();
         self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
         fk_cols = list(self.foreign_key.columns)
         cur.execute("""
-SELECT _ermrest.model_change_event();
-INSERT INTO _ermrest.model_pseudo_keyref
-  (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, comment, name)
-  VALUES (%s, %s, ARRAY[%s], %s, %s, ARRAY[%s], %s, %s)
-  RETURNING id
-""" % (
-    sql_literal(unicode(self.foreign_key.table.schema.name)),
-    sql_literal(unicode(self.foreign_key.table.name)),
-    ', '.join([ sql_literal(unicode(fk_cols[i].name)) for i in range(len(fk_cols)) ]),
-    sql_literal(unicode(self.unique.table.schema.name)),
-    sql_literal(unicode(self.unique.table.name)),
-    ', '.join([ sql_literal(unicode(self.reference_map[fk_cols[i]].name)) for i in range(len(fk_cols)) ]),
-    sql_literal(self.comment),
-    sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL'
+SELECT _ermrest.model_version_bump();
+INSERT INTO _ermrest.known_pseudo_fkeys
+SELECT
+  %(constraint_name)s,
+  fc.table_oid,
+  array_agg(fc.column_num ORDER BY fc.fkindex),
+  tc.table_oid,
+  array_agg(tc.column_num ORDER BY tc.fkindex),
+  %(comment)s
+FROM (
+  SELECT
+    fc.table_oid,
+    fc.column_num,
+    fcol.i AS fkindex
+  FROM _ermrest.known_columns fc,
+  LATERAL unnest(ARRAY[%(fkcolumns)]) WITH ORDINALITY AS fcol(n, i)
+  WHERE fc.table_oid = _ermrest.table_oid(%(fksname)s, %(fktname)s)
+    AND fc.column_name = fcol.n
+) fc
+JOIN (
+  SELECT
+    tc.table_oid,
+    tc.column_num,
+    tcol.i AS fkindex
+  FROM _ermrest.known_columns tc,
+  LATERAL unnest(ARRAY[%(pkcolumns)]) WITH ORDINALITY AS tcol(n, i)
+  WHERE tc.table_oid = _ermrest.table_oid(%(pksname)s, %(pktname)s)
+    AND tc.column_name = tcol.n
+) tc ON (fc.fkindex = tc.fkindex)
+RETURNING id
+""" % dict(
+    fksname=sql_literal(unicode(self.foreign_key.table.schema.name)),
+    fktname=sql_literal(unicode(self.foreign_key.table.name)),
+    fkcolumns=', '.join([ sql_literal(unicode(fk_cols[i].name)) for i in range(len(fk_cols)) ]),
+    pksname=sql_literal(unicode(self.unique.table.schema.name)),
+    pktname=sql_literal(unicode(self.unique.table.name)),
+    pkcolumns=', '.join([ sql_literal(unicode(self.reference_map[fk_cols[i]].name)) for i in range(len(fk_cols)) ]),
+    comment=sql_literal(self.comment),
+    constraint_name=sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL'
 )
         )
         self.id = cur.fetchone()[0]
@@ -815,8 +890,8 @@ INSERT INTO _ermrest.model_pseudo_keyref
         self.pre_delete(conn, cur)
         if self.id:
             cur.execute("""
-DELETE FROM _ermrest.model_pseudo_keyref WHERE id = %s;
-SELECT _ermrest.model_change_event();
+DELETE FROM _ermrest.known_pseudo_fkeys WHERE id = %s;
+SELECT _ermrest.model_version_bump();
 """ % sql_literal(self.id)
             )
         for fkr in self.constraints:

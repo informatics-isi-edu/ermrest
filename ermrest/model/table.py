@@ -26,7 +26,7 @@ needed by other modules of the ermrest project.
 
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode
-from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, commentable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
+from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -34,7 +34,6 @@ import urllib
 import json
 import web
 
-@commentable
 @annotatable
 @hasdynacls(
     { "owner", "update", "delete", "select" }
@@ -184,16 +183,33 @@ CREATE TABLE %(sname)s.%(tname)s (
    %(clauses)s
 );
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
-SELECT _ermrest.model_change_event();
-SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
-""" % dict(sname=sql_identifier(sname),
-           tname=sql_identifier(tname),
-           snamestr=sql_literal(sname),
-           tnamestr=sql_literal(tname),
-           clauses=',\n'.join(clauses),
-           comment=sql_literal(comment),
-           )
-                    )
+
+DO $$
+DECLARE
+  s_oid oid;
+  t_oid oid;
+BEGIN
+  SELECT oid INTO s_oid FROM _ermrest.known_schemas WHERE schema_name = %(snamestr)s;
+  SELECT oid INTO t_oid FROM _ermrest.introspect_tables WHERE schema_oid = s_oid AND table_name = %(tnamestr)s;
+
+  INSERT INTO _ermrest.known_tables  SELECT * FROM _ermrest.introspect_tables  WHERE oid = t_oid;
+  INSERT INTO _ermrest.known_columns SELECT * FROM _ermrest.introspect_columns WHERE table_oid = t_oid;
+  INSERT INTO _ermrest.known_keys    SELECT * FROM _ermrest.introspect_keys    WHERE table_oid = t_oid;
+  INSERT INTO _ermrest.known_fkeys   SELECT * FROM _ermrest.introspect_fkeys   WHERE fk_table_oid = t_oid;
+
+  PERFORM _ermrest.model_version_bump();
+  PERFORM _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
+END;
+$$ LANGUAGE plpgsql;
+""" % dict(
+    sname=sql_identifier(sname),
+    tname=sql_identifier(tname),
+    snamestr=sql_literal(sname),
+    tnamestr=sql_literal(tname),
+    clauses=',\n'.join(clauses),
+    comment=sql_literal(comment),
+)
+        )
 
         for keydoc in tabledoc.get('keys', []):
             for key in table.add_unique(conn, cur, keydoc):
@@ -248,9 +264,20 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         self.enforce_right('owner')
         self.pre_delete(conn, cur)
         cur.execute("""
-SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 DROP %(kind)s %(sname)s.%(tname)s ;
-SELECT _ermrest.model_change_event();
+
+DO $$
+DECLARE
+  s_oid oid;
+  t_oid oid;
+BEGIN
+  SELECT oid INTO s_oid FROM _ermrest.known_schemas WHERE schema_name = %(snamestr)s;
+  SELECT oid INTO t_oid FROM _ermrest.known_tables WHERE schema_oid = s_oid AND table_name = %(tnamestr)s;
+
+  DELETE FROM _ermrest.known_tables WHERE oid = t_oid;
+  PERFORM _ermrest.model_version_bump();
+END;
+$$ LANGUAGE plpgsql;
 """ % dict(
     kind={'r': 'TABLE', 'v': 'VIEW', 'f': 'FOREIGN TABLE'}[self.kind],
     sname=sql_identifier(self.schema.name), 
@@ -271,26 +298,51 @@ SELECT _ermrest.model_change_event();
         self.delete_annotation(conn, cur, None)
         self.delete_acl(cur, None, purging=True)
 
-    def alter_table(self, conn, cur, alterclause):
+    def alter_table(self, conn, cur, alterclause, altermodelstmts):
         """Generic ALTER TABLE ... wrapper"""
         self.enforce_right('owner')
         cur.execute("""
 ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
-SELECT _ermrest.model_change_event();
-SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
+
+DO $$
+DECLARE
+  s_oid oid;
+  t_oid oid;
+BEGIN
+  SELECT oid INTO s_oid FROM _ermrest.known_schemas WHERE schema_name = %(snamestr)s;
+  SELECT oid INTO t_oid FROM _ermrest.known_tables WHERE schema_oid = s_oid AND table_name = %(tnamestr)s;
+  %(alter_known_model)s
+  PERFORM _ermrest.model_version_bump();
+  PERFORM _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
+END;
+$$ LANGUAGE plpgsql;
 """ % dict(sname=sql_identifier(self.schema.name), 
            tname=sql_identifier(self.name),
            snamestr=sql_literal(self.schema.name), 
            tnamestr=sql_literal(self.name),
-           alter=alterclause
+           alter=alterclause,
+           alter_known_model=altermodelstmts,
        )
                     )
 
-    def sql_comment_resource(self):
-        return "TABLE %s.%s" % (
-            sql_identifier(unicode(self.schema.name)),
-            sql_identifier(unicode(self.name))
+    def set_comment(self, conn, cur, comment):
+        """Set SQL comment."""
+        self.enforce_right('owner')
+        cur.execute("""
+COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
+UPDATE _ermrest.known_tables t
+SET "comment" = %(comment)s
+WHERE t.oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s);
+SELECT _ermrest.model_version_bump();
+""" % dict(
+    sname=sql_identifier(self.schema.name),
+    snamestr=sql_literal(self.schema.name),
+    tname=sql_identifier(self.name),
+    tnamestr=sql_literal(self.name),
+    comment=sql_literal(comment)
+)
         )
+        self.comment = comment
 
     def add_column(self, conn, cur, columndoc, ermrest_config):
         """Add column to table."""
@@ -301,7 +353,15 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
         if column.name in self.columns:
             raise exception.ConflictModel('Column %s already exists in table %s:%s.' % (column.name, self.schema.name, self.name))
         column.table = self
-        self.alter_table(conn, cur, 'ADD COLUMN %s' % column.sql_def())
+        self.alter_table(
+            conn, cur,
+            'ADD COLUMN %s' % column.sql_def(),
+            """
+INSERT INTO _ermrest.known_columns 
+SELECT * FROM _ermrest.introspect_columns 
+WHERE table_oid = t_oid AND column_name = %s;
+""" % sql_literal(column.name)
+        )
         column.set_comment(conn, cur, column.comment)
         self.columns[column.name] = column
         column.table = self
@@ -322,7 +382,14 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             if column in fkey.columns:
                 fkey.pre_delete(conn, cur)
         column.pre_delete(conn, cur)
-        self.alter_table(conn, cur, 'DROP COLUMN %s' % sql_identifier(cname))
+        self.alter_table(
+            conn, cur,
+            'DROP COLUMN %s' % sql_identifier(cname),
+            """
+DELETE FROM _ermrest.known_columns
+WHERE table_oid = t_oid AND column_name = %s;
+""" % sql_literal(cname)
+        )
         del self.columns[cname]
                     
     def add_unique(self, conn, cur, udoc):

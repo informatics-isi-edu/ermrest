@@ -22,9 +22,8 @@ import web
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, commentable, cache_rights, hasacls, hasdynacls, truncated_identifier, sufficient_rights, get_dynacl_clauses
+from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, truncated_identifier, sufficient_rights, get_dynacl_clauses
 
-@commentable
 @annotatable
 @hasdynacls(
     { "owner", "update", "delete", "select" }
@@ -74,13 +73,28 @@ class Column (object):
     def keyed_resource(model=None, schema_name=None, table_name=None, column_name=None):
         return model.schemas[schema_name].tables[table_name].columns[column_name]
 
-    def sql_comment_resource(self):
-        return "COLUMN %s.%s.%s" % (
-            sql_identifier(unicode(self.table.schema.name)),
-            sql_identifier(unicode(self.table.name)),
-            sql_identifier(unicode(self.name))
+    def set_comment(self, conn, cur, comment):
+        """Set SQL comment."""
+        self.enforce_right('owner')
+        cur.execute("""
+COMMENT ON COLUMN %(sname)s.%(tname)s.%(cname)s IS %(comment)s;
+UPDATE _ermrest.known_columns c
+SET "comment" = %(comment)s
+WHERE table_oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s)
+  AND c.column_name = %(cnamestr)s;
+SELECT _ermrest.model_version_bump();
+""" % dict(
+    sname=sql_identifier(self.table.schema.name),
+    snamestr=sql_literal(self.table.schema.name),
+    tname=sql_identifier(self.table.name),
+    tnamestr=sql_literal(self.table.name),
+    cname=sql_identifier(self.name),
+    cnamestr=sql_literal(self.name),
+    comment=sql_literal(comment)
+)
         )
-        
+        self.comment = comment
+
     def __str__(self):
         return ':%s:%s:%s' % (
             urllib.quote(unicode(self.table.schema.name).encode('utf8')),

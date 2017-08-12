@@ -357,27 +357,6 @@ class AclBinding (AltDict):
             ))
 
         return (aclpath, col, ctype)
-
-def commentable(orig_class):
-    """Decorator to add comment storage access interface to model classes.
-    """
-    def set_comment(self, conn, cur, comment):
-        """Set SQL comment."""
-        self.enforce_right('owner')
-        resources = self.sql_comment_resource()
-        if not isinstance(resources, set):
-            # backwards compatibility
-            resources = set([resources])
-        for resource in resources:
-            cur.execute("""
-COMMENT ON %s IS %s;
-SELECT _ermrest.model_version_bump();
-""" % (resource, sql_literal(comment))
-            )
-            self.comment = comment
-
-    setattr(orig_class, 'set_comment', set_comment)
-    return orig_class
         
 annotatable_classes = []
 
