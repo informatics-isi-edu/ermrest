@@ -656,38 +656,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_pseudo_key (
-  id serial PRIMARY KEY,
-  name text UNIQUE,
-  schema_name text NOT NULL,
-  table_name text NOT NULL,
-  column_names text[] NOT NULL,
-  comment text,
-  UNIQUE(schema_name, table_name, column_names)
-);
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_pseudo_keyref (
-  id serial PRIMARY KEY,
-  name text UNIQUE,
-  from_schema_name text NOT NULL,
-  from_table_name text NOT NULL,
-  from_column_names text[] NOT NULL,
-  to_schema_name text NOT NULL,
-  to_table_name text NOT NULL,
-  to_column_names text[] NOT NULL,
-  comment text,
-  UNIQUE(from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names)
-);
-
-CREATE TABLE IF NOT EXISTS _ermrest.model_pseudo_notnull (
-  id serial PRIMARY KEY,
-  schema_name text NOT NULL,
-  table_name text NOT NULL,
-  column_name text NOT NULL,
-  UNIQUE(schema_name, table_name, column_name)
-);
-
-
 CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_acl (
   acl text PRIMARY KEY,
   members text[]
