@@ -267,21 +267,7 @@ class Catalog (object):
 
         if type(owner) is dict:
             owner = owner['id']
-
             
-        # create annotation storage tables
-        for klass in annotatable_classes:
-            klass.create_storage_table(cur)
-
-        # create ACL storage tables
-        for klass in hasacls_classes:
-            klass.create_acl_storage_table(cur)
-
-        # create dynamic ACL binding storage tables
-        for klass in hasdynacls_classes:
-            klass.create_dynacl_storage_table(cur)
-
-
         ## initial policy
         model = self.get_model(cur, self._config)
         owner = owner if owner else '*'

@@ -376,32 +376,6 @@ def keying(restype, keying):
         return orig_class
     return helper
 
-def _create_storage_table(orig_class, cur, suffix, extra_keys, extra_cols):
-    tname = 'model_%s_%s' % (orig_class._model_restype, suffix)
-    if table_exists(cur, '_ermrest', tname):
-        return
-    cur.execute("""
-CREATE TABLE _ermrest.%(tname)s (%(cols)s);
-""" % dict(
-    tname=tname,
-    cols=', '.join(
-        [
-            '%s %s NOT NULL' % (sql_identifier(colname), coltype)
-            for colname, coltype in [
-                (k, v[0]) for k, v in orig_class._model_keying.items()
-            ]
-            + extra_keys.items()
-            + extra_cols.items()
-        ] + [
-            'UNIQUE(%s)' % ', '.join([
-                sql_identifier(k)
-                for k in (orig_class._model_keying.keys() + extra_keys.keys())
-            ])
-        ]
-    )
-)
-    )
-
 def _introspect_helper(orig_class, cur, model, suffix, extra_keys, extra_cols, func):
     tname = 'model_%s_%s' % (orig_class._model_restype, suffix)
     cols = orig_class._model_keying.keys() + extra_keys.keys() + extra_cols.keys()
@@ -547,10 +521,6 @@ DELETE FROM _ermrest.model_%s_annotation %s;
         )
 
     @classmethod
-    def create_storage_table(orig_class, cur):
-        _create_storage_table(orig_class, cur, 'annotation', {'annotation_uri': 'text'}, {'annotation_value': 'json'})
-
-    @classmethod
     def introspect_helper(orig_class, cur, model):
         def helper(resource=None, annotation_uri=None, annotation_value=None):
             resource.annotations[annotation_uri] = annotation_value
@@ -562,7 +532,6 @@ DELETE FROM _ermrest.model_%s_annotation %s;
     setattr(orig_class, 'delete_annotation', delete_annotation)
     if hasattr(orig_class, 'keyed_resource'):
         setattr(orig_class, 'introspect_helper', introspect_helper)
-    setattr(orig_class, 'create_storage_table', create_storage_table)
     annotatable_classes.append(orig_class)
     return orig_class
 
@@ -586,10 +555,6 @@ def hasacls(acls_supported, rights_supported, getparent):
         }
         interp['acl'] = sql_literal(aclname)
         return interp
-
-    @classmethod
-    def create_acl_storage_table(orig_class, cur):
-        _create_storage_table(orig_class, cur, 'acl', {'acl': 'text'}, {'members': 'text[]'})
 
     @classmethod
     def introspect_acl_helper(orig_class, cur, model):
@@ -749,7 +714,6 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         setattr(orig_class, 'delete_acl', delete_acl)
         if hasattr(orig_class, 'keyed_resource'):
             setattr(orig_class, 'introspect_acl_helper', introspect_acl_helper)
-        setattr(orig_class, 'create_acl_storage_table', create_acl_storage_table)
         hasacls_classes.append(orig_class)
         return orig_class
 
@@ -762,10 +726,6 @@ def hasdynacls(dynacl_types_supported):
 
        The keying() decorator MUST be applied first.
     """
-    @classmethod
-    def create_dynacl_storage_table(orig_class, cur):
-        _create_storage_table(orig_class, cur, 'dynacl', {'binding_name': 'text'}, {'binding': 'jsonb'})
-
     @classmethod
     def introspect_dynacl_helper(orig_class, cur, model):
         def helper(resource=None, binding_name=None, binding=None):
@@ -860,7 +820,6 @@ DELETE FROM _ermrest.model_%(restype)s_dynacl WHERE %(where)s;
         setattr(orig_class, 'dynacl_types_supported', dynacl_types_supported)
         if hasattr(orig_class, 'keyed_resource'):
             setattr(orig_class, 'introspect_dynacl_helper', introspect_dynacl_helper)
-        setattr(orig_class, 'create_dynacl_storage_table', create_dynacl_storage_table)
         hasdynacls_classes.append(orig_class)
         return orig_class
 

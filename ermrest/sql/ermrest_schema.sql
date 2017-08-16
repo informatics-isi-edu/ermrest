@@ -731,5 +731,49 @@ CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_annotation (
   annotation_value json
 );
 
+CREATE TABLE IF NOT EXISTS _ermrest.model_schema_annotation (
+  schema_name text,
+  annotation_uri text,
+  annotation_value json,
+  PRIMARY KEY (schema_name, annotation_uri)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_table_annotation (
+  schema_name text,
+  table_name text,
+  annotation_uri text,
+  annotation_value json,
+  PRIMARY KEY (schema_name, table_name, annotation_uri)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_column_annotation (
+  schema_name text,
+  table_name text,
+  column_name text,
+  annotation_uri text,
+  annotation_value json,
+  PRIMARY KEY (schema_name, table_name, column_name, annotation_uri)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_key_annotation (
+  schema_name text,
+  table_name text,
+  column_names text[],
+  annotation_uri text,
+  annotation_value json,
+  PRIMARY KEY (schema_name, table_name, column_names, annotation_uri)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_annotation (
+  from_schema_name text,
+  from_table_name text,
+  from_column_names text[],
+  to_schema_name text,
+  to_table_name text,
+  to_column_names text[],
+  annotation_uri text,
+  annotation_value json,
+  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, annotation_uri)
+);
 
 SELECT _ermrest.model_change_event();
