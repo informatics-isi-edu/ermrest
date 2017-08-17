@@ -146,7 +146,6 @@ class AclDict (dict):
         dict.__delitem__(self, k)
         self._digest()
 
-    """
     def update(self, d):
         dict.update(self, d)
         self._digest()
@@ -154,7 +153,6 @@ class AclDict (dict):
     def clear(self):
         dict.clear(self)
         self._digest()
-    """
 
     def intersects(self, aclname, roles):
         return not self._acls.get(aclname, set()).isdisjoint(roles)
@@ -189,6 +187,14 @@ class DynaclDict (dict):
 
     def __delitem__(self, k):
         dict.__delitem__(self, k)
+        self._digest()
+
+    def update(self, d):
+        dict.update(self, d)
+        self._digest()
+
+    def clear(self):
+        dict.clear(self)
         self._digest()
 
     def sufficient(self, aclname):
@@ -376,40 +382,6 @@ def keying(restype, keying):
         return orig_class
     return helper
 
-def _introspect_helper(orig_class, cur, model, suffix, extra_keys, extra_cols, func):
-    tname = 'model_%s_%s' % (orig_class._model_restype, suffix)
-    cols = orig_class._model_keying.keys() + extra_keys.keys() + extra_cols.keys()
-    cur.execute("""
-SELECT %(cols)s FROM _ermrest.%(tname)s;
-""" % dict(
-    tname=tname,
-    cols=', '.join([sql_identifier(c) for c in cols])
-)
-    )
-    for row in cur:
-        kwargs0 = {
-            cols[i]: row[i]
-            for i in range(
-                    len(orig_class._model_keying.keys())
-            )
-        }
-        kwargs0['model'] = model
-
-        kwargs1 = {
-            cols[i]: row[i]
-            for i in range(
-                    len(orig_class._model_keying.keys()),
-                    len(orig_class._model_keying.keys()) + len(extra_keys.keys()) + len(extra_cols.keys())
-            )
-        }
-
-        try:
-            kwargs1['resource'] = orig_class.keyed_resource(**kwargs0)
-            func(**kwargs1)
-        except exception.ConflictModel:
-            # TODO: prune orphaned auxilliary storage?
-            pass
-
 def cache_rights(orig_method):
     def helper(self, aclname, roles=None):
         key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None)
@@ -460,7 +432,7 @@ def annotatable(orig_class):
 
         if values:
             cur.execute("""
-INSERT INTO _ermrest.model_%s_annotation (%s) VALUES %s;
+INSERT INTO _ermrest.known_%s_annotations (%s) VALUES %s;
 """ % (orig_class._model_restype, columns, values)
 
             )
@@ -478,9 +450,9 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES %s;
         ])
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-UPDATE _ermrest.model_%(restype)s_annotation new
+UPDATE _ermrest.known_%(restype)s_annotations new
 SET annotation_value = %(newval)s
-FROM _ermrest.model_%(restype)s_annotation old
+FROM _ermrest.known_%(restype)s_annotations old
 WHERE %(where)s
 RETURNING old.annotation_value;
 """ % dict(
@@ -498,7 +470,7 @@ RETURNING old.annotation_value;
         values = ', '.join([interp[k] for k in interp.keys()] + [sql_literal(json.dumps(value))])
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
+INSERT INTO _ermrest.known_%s_annotations (%s) VALUES (%s);
 """ % (orig_class._model_restype, columns, values)
         )
         return None
@@ -516,22 +488,14 @@ INSERT INTO _ermrest.model_%s_annotation (%s) VALUES (%s);
         ])
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.model_%s_annotation %s;
+DELETE FROM _ermrest.known_%s_annotations %s;
 """ % (orig_class._model_restype, ('WHERE %s' % where) if where else '')
         )
-
-    @classmethod
-    def introspect_helper(orig_class, cur, model):
-        def helper(resource=None, annotation_uri=None, annotation_value=None):
-            resource.annotations[annotation_uri] = annotation_value
-        _introspect_helper(orig_class, cur, model, 'annotation', {'annotation_uri': 'text'}, {'annotation_value': 'json'}, helper)
 
     setattr(orig_class, '_interp_annotation', _interp_annotation)
     setattr(orig_class, 'set_annotation', set_annotation)
     setattr(orig_class, 'set_annotations', set_annotations)
     setattr(orig_class, 'delete_annotation', delete_annotation)
-    if hasattr(orig_class, 'keyed_resource'):
-        setattr(orig_class, 'introspect_helper', introspect_helper)
     annotatable_classes.append(orig_class)
     return orig_class
 
@@ -556,12 +520,6 @@ def hasacls(acls_supported, rights_supported, getparent):
         interp['acl'] = sql_literal(aclname)
         return interp
 
-    @classmethod
-    def introspect_acl_helper(orig_class, cur, model):
-        def helper(resource=None, acl=None, members=None):
-            resource.acls[acl] = members
-        _introspect_helper(orig_class, cur, model, 'acl', {'acl': 'text'}, {'members': 'text[]'}, helper)
-
     def set_acl(self, cur, aclname, members):
         """Set annotation on %s, returning previous value for updates or None.""" % self._model_restype
         assert aclname is not None
@@ -584,9 +542,9 @@ def hasacls(acls_supported, rights_supported, getparent):
         ])
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-UPDATE _ermrest.model_%(restype)s_acl new
+UPDATE _ermrest.known_%(restype)s_acls new
 SET members = %(members)s::text[]
-FROM _ermrest.model_%(restype)s_acl old
+FROM _ermrest.known_%(restype)s_acls old
 WHERE %(where)s
 RETURNING old.members;
 """ % dict(
@@ -599,7 +557,7 @@ RETURNING old.members;
             return oldvalue
 
         cur.execute("""
-INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(values)s, %(members)s::text[]);
+INSERT INTO _ermrest.known_%(restype)s_acls (%(columns)s, members) VALUES (%(values)s, %(members)s::text[]);
 """ % dict(
     restype=self._model_restype,
     columns=', '.join([sql_identifier(k) for k in keys]),
@@ -633,7 +591,7 @@ INSERT INTO _ermrest.model_%(restype)s_acl (%(columns)s, members) VALUES (%(valu
         ])
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
+DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
 """ % dict(
     restype=self._model_restype,
     where=where
@@ -712,8 +670,6 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
             setattr(orig_class, '_enforce_right', enforce_right)
         setattr(orig_class, 'set_acl', set_acl)
         setattr(orig_class, 'delete_acl', delete_acl)
-        if hasattr(orig_class, 'keyed_resource'):
-            setattr(orig_class, 'introspect_acl_helper', introspect_acl_helper)
         hasacls_classes.append(orig_class)
         return orig_class
 
@@ -726,15 +682,6 @@ def hasdynacls(dynacl_types_supported):
 
        The keying() decorator MUST be applied first.
     """
-    @classmethod
-    def introspect_dynacl_helper(orig_class, cur, model):
-        def helper(resource=None, binding_name=None, binding=None):
-            if binding is False:
-                resource.dynacls[binding_name] = False
-            else:
-                resource.dynacls[binding_name] = AclBinding(model, resource, binding_name, binding)
-        _introspect_helper(orig_class, cur, model, 'dynacl', {'binding_name': 'text'}, {'binding': 'jsonb'}, helper)
-
     def _interp_dynacl(self, name):
         interp = {
             k: sql_literal(v[1](self))
@@ -763,9 +710,9 @@ def hasdynacls(dynacl_types_supported):
         ])
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-UPDATE _ermrest.model_%(restype)s_dynacl new
+UPDATE _ermrest.known_%(restype)s_dynacls new
 SET binding = %(binding)s::jsonb
-FROM _ermrest.model_%(restype)s_dynacl old
+FROM _ermrest.known_%(restype)s_dynacls old
 WHERE %(where)s
 RETURNING old.binding;
 """ % dict(
@@ -778,7 +725,7 @@ RETURNING old.binding;
             return oldvalue
 
         cur.execute("""
-INSERT INTO _ermrest.model_%(restype)s_dynacl (%(columns)s, binding) VALUES (%(values)s, %(binding)s::jsonb);
+INSERT INTO _ermrest.known_%(restype)s_dynacls (%(columns)s, binding) VALUES (%(values)s, %(binding)s::jsonb);
 """ % dict(
     restype=self._model_restype,
     columns=', '.join([sql_identifier(k) for k in keys]),
@@ -806,7 +753,7 @@ INSERT INTO _ermrest.model_%(restype)s_dynacl (%(columns)s, binding) VALUES (%(v
         ])
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.model_%(restype)s_dynacl WHERE %(where)s;
+DELETE FROM _ermrest.known_%(restype)s_dynacls WHERE %(where)s;
 """ % dict(
     restype=self._model_restype,
     where=where
@@ -818,8 +765,6 @@ DELETE FROM _ermrest.model_%(restype)s_dynacl WHERE %(where)s;
         setattr(orig_class, 'set_dynacl', set_dynacl)
         setattr(orig_class, 'delete_dynacl', delete_dynacl)
         setattr(orig_class, 'dynacl_types_supported', dynacl_types_supported)
-        if hasattr(orig_class, 'keyed_resource'):
-            setattr(orig_class, 'introspect_dynacl_helper', introspect_dynacl_helper)
         hasdynacls_classes.append(orig_class)
         return orig_class
 

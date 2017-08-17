@@ -500,7 +500,6 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
-
   -- sync up known with currently visible keys
   WITH deleted AS (
     DELETE FROM _ermrest.known_keys k
@@ -535,7 +534,6 @@ BEGIN
     RETURNING oid
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
-
 
   -- sync up known with currently visible foreign keys
   WITH deleted AS (
@@ -576,11 +574,16 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
-
   RETURN model_changed;
 END;
 $$ LANGUAGE plpgsql;
 
+
+CREATE OR REPLACE FUNCTION _ermrest.schema_oid(sname text) RETURNS oid STABLE AS $$
+  SELECT s.oid
+  FROM _ermrest.introspect_schemas s
+  WHERE s.schema_name = $1;
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.table_oid(sname text, tname text) RETURNS oid STABLE AS $$
   SELECT t.oid
@@ -593,6 +596,18 @@ CREATE OR REPLACE FUNCTION _ermrest.column_num(toid oid, cname text) RETURNS int
   SELECT c.column_num
   FROM _ermrest.introspect_columns c
   WHERE c.table_oid = $1 AND c.column_name = $2;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.key_oid(toid oid, cname text) RETURNS oid STABLE AS $$
+  SELECT k.oid
+  FROM _ermrest.introspect_keys k
+  WHERE k.table_oid = $1 AND k.constraint_name = $2;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.fkey_oid(toid oid, cname text) RETURNS oid STABLE AS $$
+  SELECT k.oid
+  FROM _ermrest.introspect_fkeys k
+  WHERE k.fk_table_oid = $1 AND k.constraint_name = $2;
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.model_version_bump() RETURNS void AS $$
@@ -656,124 +671,132 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_acl (
+CREATE TABLE IF NOT EXISTS _ermrest.known_catalog_acls (
   acl text PRIMARY KEY,
   members text[]
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_schema_acl (
-  schema_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_schema_acls (
+  schema_oid oid REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
   acl text,
   members text[],
-  PRIMARY KEY (schema_name, acl)
+  PRIMARY KEY (schema_oid, acl)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_table_acl (
-  schema_name text,
-  table_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_table_acls (
+  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
   acl text,
   members text[],
-  PRIMARY KEY (schema_name, table_name, acl)
+  PRIMARY KEY (table_oid, acl)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_column_acl (
-  schema_name text,
-  table_name text,
-  column_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_column_acls (
+  table_oid oid,
+  column_num int,
   acl text,
   members text[],
-  PRIMARY KEY (schema_name, table_name, column_name, acl)
+  PRIMARY KEY (table_oid, column_num, acl),
+  FOREIGN KEY (table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_acl (
-  from_schema_name text,
-  from_table_name text,
-  from_column_names text[],
-  to_schema_name text,
-  to_table_name text,
-  to_column_names text[],
+CREATE TABLE IF NOT EXISTS _ermrest.known_fkey_acls (
+  fkey_oid oid REFERENCES _ermrest.known_fkeys(oid) ON DELETE CASCADE,
   acl text,
   members text[],
-  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, acl)
+  PRIMARY KEY (fkey_oid, acl)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_table_dynacl (
-  schema_name text,
-  table_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_fkey_acls (
+  pfkey_id int REFERENCES _ermrest.known_pseudo_fkeys(id) ON DELETE CASCADE,
+  acl text,
+  members text[],
+  PRIMARY KEY (pfkey_id, acl)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_table_dynacls (
+  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
   binding_name text,
   binding jsonb NOT NULL,
-  PRIMARY KEY (schema_name, table_name, binding_name)
+  PRIMARY KEY (table_oid, binding_name)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_column_dynacl (
-  schema_name text,
-  table_name text,
-  column_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_column_dynacls (
+  table_oid oid,
+  column_num int,
   binding_name text,
   binding jsonb NOT NULL,
-  PRIMARY KEY (schema_name, table_name, column_name, binding_name)
+  PRIMARY KEY (table_oid, column_num, binding_name),
+  FOREIGN KEY (table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_dynacl (
-  from_schema_name text,
-  from_table_name text,
-  from_column_names text[],
-  to_schema_name text,
-  to_table_name text,
-  to_column_names text[],
+CREATE TABLE IF NOT EXISTS _ermrest.known_fkey_dynacls (
+  fkey_oid oid REFERENCES _ermrest.known_fkeys(oid) ON DELETE CASCADE,
   binding_name text,
   binding jsonb NOT NULL,
-  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, binding_name)
+  PRIMARY KEY (fkey_oid, binding_name)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_catalog_annotation (
+CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_fkey_dynacls (
+  pfkey_id int REFERENCES _ermrest.known_pseudo_fkeys(id) ON DELETE CASCADE,
+  binding_name text,
+  binding jsonb NOT NULL,
+  PRIMARY KEY (pfkey_id, binding_name)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_catalog_annotations (
   annotation_uri text PRIMARY KEY,
   annotation_value json
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_schema_annotation (
-  schema_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_schema_annotations (
+  schema_oid oid REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
   annotation_uri text,
   annotation_value json,
-  PRIMARY KEY (schema_name, annotation_uri)
+  PRIMARY KEY (schema_oid, annotation_uri)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_table_annotation (
-  schema_name text,
-  table_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_table_annotations (
+  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
   annotation_uri text,
   annotation_value json,
-  PRIMARY KEY (schema_name, table_name, annotation_uri)
+  PRIMARY KEY (table_oid, annotation_uri)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_column_annotation (
-  schema_name text,
-  table_name text,
-  column_name text,
+CREATE TABLE IF NOT EXISTS _ermrest.known_column_annotations (
+  table_oid oid,
+  column_num int,
   annotation_uri text,
   annotation_value json,
-  PRIMARY KEY (schema_name, table_name, column_name, annotation_uri)
+  PRIMARY KEY (table_oid, column_num, annotation_uri),
+  FOREIGN KEY (table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_key_annotation (
-  schema_name text,
-  table_name text,
-  column_names text[],
+CREATE TABLE IF NOT EXISTS _ermrest.known_key_annotations (
+  key_oid oid REFERENCES _ermrest.known_keys(oid) ON DELETE CASCADE,
   annotation_uri text,
   annotation_value json,
-  PRIMARY KEY (schema_name, table_name, column_names, annotation_uri)
+  PRIMARY KEY (key_oid, annotation_uri)
 );
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_keyref_annotation (
-  from_schema_name text,
-  from_table_name text,
-  from_column_names text[],
-  to_schema_name text,
-  to_table_name text,
-  to_column_names text[],
+CREATE TABLE IF NOT EXISTS _ermrest.known_fkey_annotations (
+  fkey_oid oid REFERENCES _ermrest.known_fkeys(oid) ON DELETE CASCADE,
   annotation_uri text,
   annotation_value json,
-  PRIMARY KEY (from_schema_name, from_table_name, from_column_names, to_schema_name, to_table_name, to_column_names, annotation_uri)
+  PRIMARY KEY (fkey_oid, annotation_uri)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_key_annotations (
+  pkey_id int REFERENCES _ermrest.known_pseudo_keys(id) ON DELETE CASCADE,
+  annotation_uri text,
+  annotation_value json,
+  PRIMARY KEY (pkey_id, annotation_uri)
+);
+
+CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_fkey_annotations (
+  pfkey_id int REFERENCES _ermrest.known_pseudo_fkeys(id) ON DELETE CASCADE,
+  annotation_uri text,
+  annotation_value json,
+  PRIMARY KEY (pfkey_id, annotation_uri)
 );
 
 SELECT _ermrest.model_change_event();

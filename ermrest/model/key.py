@@ -26,19 +26,18 @@ import json
 @keying(
     'key',
     {
-        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
-        "table_name": ('text', lambda self: unicode(self.table.name)),
-        "column_names": ('text[]', lambda self: self._column_names())
+        "key_oid": ('oid', lambda self: self.oid)
     }
 )
 class Unique (object):
     """A unique constraint."""
     
-    def __init__(self, cols, constraint_name=None, comment=None, annotations={}):
+    def __init__(self, cols, constraint_name=None, comment=None, annotations={}, oid=None):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
+        self.oid = oid
         self.table_references = dict()
         if constraint_name is not None:
             enforce_63byte_id(constraint_name[1], 'Uniqueness constraint')
@@ -50,12 +49,6 @@ class Unique (object):
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
-        
-    @staticmethod
-    def keyed_resource(model=None, schema_name=None, table_name=None, column_names=None):
-        table = model.schemas[schema_name].tables[table_name]
-        columns = [ table.columns[cname] for cname in column_names ]
-        return table.uniques[frozenset(columns)]
 
     def enforce_right(self, aclname):
         """Proxy enforce_right to self.table for interface consistency."""
@@ -69,7 +62,7 @@ class Unique (object):
 COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
 UPDATE _ermrest.known_keys
 SET "comment" = %(comment)s
-WHERE table_oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s)
+WHERE table_oid = %(table_oid)s::oid
   AND constraint_name = %(constraint_name_str)s;
 SELECT _ermrest.model_version_bump();
 """ % dict(
@@ -77,8 +70,7 @@ SELECT _ermrest.model_version_bump();
     constraint_name_str=sql_literal(unicode(pk_name)),
     sname=sql_identifier(unicode(self.table.schema.name)),
     tname=sql_identifier(unicode(self.table.name)),
-    snamestr=sql_literal(unicode(self.table.schema.name)),
-    tnamestr=sql_literal(unicode(self.table.name)),
+    table_oid=sql_literal(self.table.oid),
     comment=sql_literal(comment),
 )
         )
@@ -183,6 +175,8 @@ SELECT * FROM _ermrest.introspect_keys
 WHERE table_oid = t_oid AND constraint_name = %s;
 """ % sql_literal(self.constraint_name[1])
         )
+        cur.execute("SELECT _ermrest.key_oid(%s,%s);" % (sql_literal(self.table.oid), sql_literal(self.constraint_name[1])))
+        self.oid = cur.next()[0]
         self.set_comment(conn, cur, self.comment)
         for k, v in self.annotations.items():
             self.set_annotation(conn, cur, k, v)
@@ -224,11 +218,9 @@ WHERE table_oid = t_oid AND constraint_name = %s;
 
 @annotatable
 @keying(
-    'key',
+    'pseudo_key',
     {
-        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
-        "table_name": ('text', lambda self: unicode(self.table.name)),
-        "column_names": ('text[]', lambda self: self._column_names())
+        "pkey_id": ('int', lambda self: self.id)
     }
 )
 class PseudoUnique (object):
@@ -318,13 +310,12 @@ SELECT
   array_agg(c.column_num ORDER BY c.column_num),
   %(comment)s
 FROM _ermrest.known_columns c
-WHERE c.table_oid = _ermrest.table_oid(%(sname)s, %(tname)s)
+WHERE c.table_oid = %(table_oid)s::oid
   AND c.column_name IN (ARRAY[%(column_names)s])
 RETURNING id;
 """ % dict(
     constraint_name=sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL',
-    sname=sql_literal(unicode(self.table.schema.name)),
-    tname=sql_literal(unicode(self.table.name)),
+    table_oid=sql_literal(self.table.oid),
     column_names=','.join([ sql_literal(unicode(c.name)) for c in self.columns ]),
     comment=sql_literal(self.comment),
 )
@@ -487,22 +478,18 @@ def _keyref_has_right(self, aclname, roles=None):
     lambda self: self.foreign_key.table
 )
 @keying(
-    'keyref',
+    'fkey',
     {
-        "from_schema_name": ('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-        "from_table_name": ('text', lambda self: unicode(self.foreign_key.table.name)),
-        "from_column_names": ('text[]', lambda self: self._from_column_names()),
-        "to_schema_name": ('text', lambda self: unicode(self.unique.table.schema.name)),
-        "to_table_name": ('text', lambda self: unicode(self.unique.table.name)),
-        "to_column_names": ('text[]', lambda self: self._to_column_names())
+        "fkey_oid": ('oid', lambda self: self.oid)
     }
 )
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}, oid=None):
         self.foreign_key = foreign_key
         self.unique = unique
+        self.oid = oid
         self.reference_map_frozen = fk_ref_map
         self.reference_map = dict(fk_ref_map)
         self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
@@ -527,16 +514,6 @@ class KeyReference (object):
         self.dynacls.update(dynacls)
         self.comment = comment
 
-    @staticmethod
-    def keyed_resource(model=None, from_schema_name=None, from_table_name=None, from_column_names=None, to_schema_name=None, to_table_name=None, to_column_names=None):
-        from_table = model.schemas[from_schema_name].tables[from_table_name]
-        to_table = model.schemas[to_schema_name].tables[to_table_name]
-        refmap = dict([
-            (from_table.columns[from_cname], to_table.columns[to_cname])
-            for from_cname, to_cname in zip(from_column_names, to_column_names)
-        ])
-        return from_table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)]
-
     def set_comment(self, conn, cur, comment):
         if self.constraint_name:
             fkr_schema, fkr_name = self.constraint_name
@@ -544,7 +521,7 @@ class KeyReference (object):
 COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
 UPDATE _ermrest.known_fkeys
 SET "comment" = %(comment)s
-WHERE fk_table_oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s)
+WHERE fk_table_oid = %(table_oid)s::oid
   AND constraint_name = %(constraint_name_str)s;
 SELECT _ermrest.model_version_bump();
 """ % dict(
@@ -552,8 +529,7 @@ SELECT _ermrest.model_version_bump();
     constraint_name_str=sql_literal(unicode(fkr_name)),
     sname=sql_identifier(unicode(self.foreign_key.table.schema.name)),
     tname=sql_identifier(unicode(self.foreign_key.table.name)),
-    snamestr=sql_literal(unicode(self.foreign_key.table.schema.name)),
-    tnamestr=sql_literal(unicode(self.foreign_key.table.name)),
+    table_oid=sql_literal(self.foreign_key.table.oid),
     comment=sql_literal(comment)
 )
             )
@@ -611,6 +587,8 @@ SELECT * FROM _ermrest.introspect_fkeys
 WHERE fk_table_oid = t_oid AND constraint_name = %s;
 """ % sql_literal(self.constraint_name[1])
         )
+        cur.execute("SELECT _ermrest.fkey_oid(%s,%s);" % (sql_literal(self.foreign_key.table.oid), sql_literal(self.constraint_name[1])))
+        self.oid = cur.next()[0]
         self.set_comment(conn, cur, self.comment)
         for k, v in self.annotations.items():
             self.set_annotation(conn, cur, k, v)
@@ -751,14 +729,9 @@ WHERE fk_table_oid = t_oid AND constraint_name = %s;
     lambda self: self.foreign_key.table
 )
 @keying(
-    'keyref',
+    'pseudo_fkey',
     {
-        "from_schema_name": ('text', lambda self: unicode(self.foreign_key.table.schema.name)),
-        "from_table_name": ('text', lambda self: unicode(self.foreign_key.table.name)),
-        "from_column_names": ('text[]', lambda self: self._from_column_names()),
-        "to_schema_name": ('text', lambda self: unicode(self.unique.table.schema.name)),
-        "to_table_name": ('text', lambda self: unicode(self.unique.table.name)),
-        "to_column_names": ('text[]', lambda self: self._to_column_names())
+        "pfkey_id": ('int', lambda self: self.id)
     }
 )
 class PseudoKeyReference (object):
@@ -852,7 +825,7 @@ FROM (
     fcol.i AS fkindex
   FROM _ermrest.known_columns fc,
   LATERAL unnest(ARRAY[%(fkcolumns)]) WITH ORDINALITY AS fcol(n, i)
-  WHERE fc.table_oid = _ermrest.table_oid(%(fksname)s, %(fktname)s)
+  WHERE fc.table_oid = %(fk_table_oid)s::oid
     AND fc.column_name = fcol.n
 ) fc
 JOIN (
@@ -862,16 +835,14 @@ JOIN (
     tcol.i AS fkindex
   FROM _ermrest.known_columns tc,
   LATERAL unnest(ARRAY[%(pkcolumns)]) WITH ORDINALITY AS tcol(n, i)
-  WHERE tc.table_oid = _ermrest.table_oid(%(pksname)s, %(pktname)s)
+  WHERE tc.table_oid = %(pk_table_oid)s::oid
     AND tc.column_name = tcol.n
 ) tc ON (fc.fkindex = tc.fkindex)
 RETURNING id
 """ % dict(
-    fksname=sql_literal(unicode(self.foreign_key.table.schema.name)),
-    fktname=sql_literal(unicode(self.foreign_key.table.name)),
+    fk_table_oid=sql_literal(self.foreign_key.table.oid),
     fkcolumns=', '.join([ sql_literal(unicode(fk_cols[i].name)) for i in range(len(fk_cols)) ]),
-    pksname=sql_literal(unicode(self.unique.table.schema.name)),
-    pktname=sql_literal(unicode(self.unique.table.name)),
+    pk_table_oid=sql_literal(self.unique.table.oid),
     pkcolumns=', '.join([ sql_literal(unicode(self.reference_map[fk_cols[i]].name)) for i in range(len(fk_cols)) ]),
     comment=sql_literal(self.comment),
     constraint_name=sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL'

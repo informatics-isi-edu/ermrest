@@ -1093,10 +1093,7 @@ class EntityPath (AnyPath):
         preds = [
             elem.table.kind == 'r'
             and
-            '(tlm.oid = _ermrest.table_oid(%s, %s))' % (
-                sql_literal(elem.table.schema.name), 
-                sql_literal(elem.table.name)
-            )
+            '(tlm.oid = %s::oid)' % sql_literal(elem.table.oid)
             or
             'True'
             for elem in self._path

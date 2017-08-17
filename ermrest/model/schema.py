@@ -35,19 +35,16 @@ class Model (object):
     At present, this amounts to a collection of 'schemas' in the conventional
     database sense of the term.
     """
-    
-    def __init__(self, version):
+    def __init__(self, version, annotations={}, acls={}):
         self.version = version
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
             lambda k, v: enforce_63byte_id(k, "Schema")
         )
         self.acls = AclDict(self)
+        self.acls.update(acls)
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s"' % (k,)))
-
-    @staticmethod
-    def keyed_resource(model=None):
-        return model
+        self.annotations.update(annotations)
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
@@ -90,6 +87,7 @@ class Model (object):
     
     def create_schema(self, conn, cur, sname):
         """Add a schema to the model."""
+        enforce_63byte_id(sname)
         if sname == '_ermrest':
             raise exception.ConflictModel('Requested schema %s is a reserved schema name.' % sname)
         if sname in self.schemas:
@@ -101,7 +99,9 @@ INSERT INTO _ermrest.known_schemas
 SELECT * FROM _ermrest.introspect_schemas WHERE schema_name = %(schema_str)s;
 SELECT _ermrest.model_version_bump();
 """ % dict(schema=sql_identifier(sname), schema_str=sql_literal(sname)))
-        newschema = Schema(self, sname)
+        cur.execute("SELECT oid FROM _ermrest.known_schemas WHERE schema_name = %s;" % sql_literal(sname))
+        soid = cur.next()[0]
+        newschema = Schema(self, sname, oid=soid)
         if not self.has_right('owner'):
             newschema.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
             newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
@@ -115,9 +115,9 @@ SELECT _ermrest.model_version_bump();
         self.schemas[sname].delete_acl(cur, None, purging=True)
         cur.execute("""
 DROP SCHEMA %(schema)s ;
-DELETE FROM _ermrest.known_schemas WHERE schema_name = %(schema_str)s;
+DELETE FROM _ermrest.known_schemas WHERE oid = %(oid)s::oid;
 SELECT _ermrest.model_version_bump();
-""" % dict(schema=sql_identifier(sname), schema_str=sql_literal(sname)))
+""" % dict(schema=sql_identifier(sname), oid=sql_literal(schema.oid)))
         del self.schemas[sname]
 
 @annotatable
@@ -128,7 +128,7 @@ SELECT _ermrest.model_version_bump();
 )
 @keying(
     'schema',
-    { "schema_name": ('text', lambda self: unicode(self.name)) },
+    { "schema_oid": ('oid', lambda self: self.oid) },
 )
 class Schema (object):
     """Represents a database schema.
@@ -137,8 +137,9 @@ class Schema (object):
     also has a reference to its 'model'.
     """
     
-    def __init__(self, model, name, comment=None, annotations={}, acls={}):
+    def __init__(self, model, name, comment=None, annotations={}, acls={}, oid=None):
         self.model = model
+        self.oid = oid
         self.name = name
         self.comment = comment
         self.tables = AltDict(
@@ -153,10 +154,6 @@ class Schema (object):
         
         if name not in self.model.schemas:
             self.model.schemas[name] = self
-
-    @staticmethod
-    def keyed_resource(model=None, schema_name=None):
-        return model.schemas[schema_name]
 
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):
@@ -193,11 +190,11 @@ class Schema (object):
         self.enforce_right('owner')
         cur.execute("""
 COMMENT ON SCHEMA %(sname)s IS %(comment)s;
-UPDATE _ermrest.known_schemas SET "comment" = %(comment)s WHERE schema_name = %(snamestr)s;
+UPDATE _ermrest.known_schemas SET "comment" = %(comment)s WHERE oid = %(oid)s::oid;
 SELECT _ermrest.model_version_bump();
 """ % dict(
     sname=sql_identifier(self.name),
-    snamestr=sql_literal(self.name),
+    oid=sql_literal(self.oid),
     comment=sql_literal(comment)
 )
         )

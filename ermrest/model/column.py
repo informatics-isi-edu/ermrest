@@ -36,9 +36,8 @@ from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_right
 @keying(
    'column',
     {
-        "schema_name": ('text', lambda self: unicode(self.table.schema.name)),
-        "table_name": ('text', lambda self: unicode(self.table.name)),
-        "column_name": ('text', lambda self: unicode(self.name))
+        "table_oid": ('oid', lambda self: self.table.oid),
+        "column_num": ('int', lambda self: self.column_num)
     }
 )
 class Column (object):
@@ -54,10 +53,11 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value, nullok=None, comment=None, annotations={}, acls={}, dynacls={}):
+    def __init__(self, name, position, type, default_value, nullok=None, comment=None, column_num=None, annotations={}, acls={}, dynacls={}):
         self.table = None
         self.name = name
         self.position = position
+        self.column_num = column_num # postgres column_num
         self.type = type
         self.default_value = default_value
         self.nullok = nullok if nullok is not None else True
@@ -69,10 +69,6 @@ class Column (object):
         self.dynacls = DynaclDict(self)
         self.dynacls.update(dynacls)
 
-    @staticmethod
-    def keyed_resource(model=None, schema_name=None, table_name=None, column_name=None):
-        return model.schemas[schema_name].tables[table_name].columns[column_name]
-
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
         self.enforce_right('owner')
@@ -80,14 +76,13 @@ class Column (object):
 COMMENT ON COLUMN %(sname)s.%(tname)s.%(cname)s IS %(comment)s;
 UPDATE _ermrest.known_columns c
 SET "comment" = %(comment)s
-WHERE table_oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s)
+WHERE table_oid = %(table_oid)s::oid
   AND c.column_name = %(cnamestr)s;
 SELECT _ermrest.model_version_bump();
 """ % dict(
     sname=sql_identifier(self.table.schema.name),
-    snamestr=sql_literal(self.table.schema.name),
     tname=sql_identifier(self.table.name),
-    tnamestr=sql_literal(self.table.name),
+    table_oid=sql_literal(self.table.oid),
     cname=sql_identifier(self.name),
     cnamestr=sql_literal(self.name),
     comment=sql_literal(comment)
@@ -207,6 +202,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
                 columndoc.get('default'),
                 nullok,
                 comment,
+                None, # column_num
                 annotations,
                 acls,
                 dynacls

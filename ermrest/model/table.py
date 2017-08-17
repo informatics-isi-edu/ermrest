@@ -46,8 +46,7 @@ import web
 @keying(
     'table',
     {
-        "schema_name": ('text', lambda self: unicode(self.schema.name)),
-        "table_name": ('text', lambda self: unicode(self.name))
+        "table_oid": ('oid', lambda self: self.oid)
     }
 )
 class Table (object):
@@ -57,9 +56,10 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}):
+    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, oid=None):
         self.schema = schema
         self.name = name
+        self.oid = oid
         self.kind = kind
         self.comment = comment
         self.columns = AltDict(
@@ -92,10 +92,6 @@ class Table (object):
 
         if name not in self.schema.tables:
             self.schema.tables[name] = self
-
-    @staticmethod
-    def keyed_resource(model=None, schema_name=None, table_name=None):
-        return model.schemas[schema_name].tables[table_name]
 
     def __str__(self):
         return ':%s:%s' % (
@@ -189,7 +185,7 @@ DECLARE
   s_oid oid;
   t_oid oid;
 BEGIN
-  SELECT oid INTO s_oid FROM _ermrest.known_schemas WHERE schema_name = %(snamestr)s;
+  s_oid := %(schema_oid)s;
   SELECT oid INTO t_oid FROM _ermrest.introspect_tables WHERE schema_oid = s_oid AND table_name = %(tnamestr)s;
 
   INSERT INTO _ermrest.known_tables  SELECT * FROM _ermrest.introspect_tables  WHERE oid = t_oid;
@@ -202,6 +198,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 """ % dict(
+    schema_oid=sql_literal(schema.oid),
     sname=sql_identifier(sname),
     tname=sql_identifier(tname),
     snamestr=sql_literal(sname),
@@ -211,19 +208,8 @@ $$ LANGUAGE plpgsql;
 )
         )
 
-        for keydoc in tabledoc.get('keys', []):
-            for key in table.add_unique(conn, cur, keydoc):
-                # need to drain this generating function
-                pass
-        
-        for fkeydoc in tabledoc.get('foreign_keys', []):
-            for fkr in table.add_fkeyref(conn, cur, fkeydoc):
-                # need to drain this generating function
-                pass
-
-        if ermrest_config.get('require_primary_keys', True):
-            if not table.has_primary_key():
-                raise exception.BadData('Table definitions require at least one not-null key constraint.')
+        cur.execute("SELECT oid FROM _ermrest.known_tables WHERE schema_oid = %s::oid AND table_name = %s;" % (sql_literal(schema.oid), sql_literal(tname)))
+        table.oid = cur.next()[0]
 
         for k, v in annotations.items():
             table.set_annotation(conn, cur, k, v)
@@ -243,6 +229,8 @@ $$ LANGUAGE plpgsql;
                     raise
 
         for column in columns:
+            cur.execute("SELECT column_num FROM _ermrest.known_columns WHERE table_oid = %s::oid AND column_name = %s;" % (sql_literal(table.oid), sql_literal(unicode(column.name))))
+            column.column_num = cur.next()[0]
             if column.comment is not None:
                 column.set_comment(conn, cur, column.comment)
             for k, v in column.annotations.items():
@@ -257,7 +245,21 @@ $$ LANGUAGE plpgsql;
             except Exception, e:
                 web.debug(table, column, e)
                 raise
-                
+
+        for keydoc in tabledoc.get('keys', []):
+            for key in table.add_unique(conn, cur, keydoc):
+                # need to drain this generating function
+                pass
+
+        for fkeydoc in tabledoc.get('foreign_keys', []):
+            for fkr in table.add_fkeyref(conn, cur, fkeydoc):
+                # need to drain this generating function
+                pass
+
+        if ermrest_config.get('require_primary_keys', True):
+            if not table.has_primary_key():
+                raise exception.BadData('Table definitions require at least one not-null key constraint.')
+
         return table
 
     def delete(self, conn, cur):
@@ -267,14 +269,8 @@ $$ LANGUAGE plpgsql;
 DROP %(kind)s %(sname)s.%(tname)s ;
 
 DO $$
-DECLARE
-  s_oid oid;
-  t_oid oid;
 BEGIN
-  SELECT oid INTO s_oid FROM _ermrest.known_schemas WHERE schema_name = %(snamestr)s;
-  SELECT oid INTO t_oid FROM _ermrest.known_tables WHERE schema_oid = s_oid AND table_name = %(tnamestr)s;
-
-  DELETE FROM _ermrest.known_tables WHERE oid = t_oid;
+  DELETE FROM _ermrest.known_tables WHERE oid = %(table_oid)s::oid;
   PERFORM _ermrest.model_version_bump();
 END;
 $$ LANGUAGE plpgsql;
@@ -282,8 +278,7 @@ $$ LANGUAGE plpgsql;
     kind={'r': 'TABLE', 'v': 'VIEW', 'f': 'FOREIGN TABLE'}[self.kind],
     sname=sql_identifier(self.schema.name), 
     tname=sql_identifier(self.name),
-    snamestr=sql_literal(self.schema.name), 
-    tnamestr=sql_literal(self.name)
+    table_oid=sql_literal(self.oid),
 )
         )
 
@@ -306,24 +301,21 @@ ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
 
 DO $$
 DECLARE
-  s_oid oid;
   t_oid oid;
 BEGIN
-  SELECT oid INTO s_oid FROM _ermrest.known_schemas WHERE schema_name = %(snamestr)s;
-  SELECT oid INTO t_oid FROM _ermrest.known_tables WHERE schema_oid = s_oid AND table_name = %(tnamestr)s;
+  t_oid := %(table_oid)s;
   %(alter_known_model)s
   PERFORM _ermrest.model_version_bump();
-  PERFORM _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
 END;
 $$ LANGUAGE plpgsql;
-""" % dict(sname=sql_identifier(self.schema.name), 
-           tname=sql_identifier(self.name),
-           snamestr=sql_literal(self.schema.name), 
-           tnamestr=sql_literal(self.name),
-           alter=alterclause,
-           alter_known_model=altermodelstmts,
-       )
-                    )
+""" % dict(
+    sname=sql_identifier(self.schema.name), 
+    tname=sql_identifier(self.name),
+    table_oid=sql_literal(self.oid),
+    alter=alterclause,
+    alter_known_model=altermodelstmts,
+)
+        )
 
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
@@ -332,13 +324,12 @@ $$ LANGUAGE plpgsql;
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
 UPDATE _ermrest.known_tables t
 SET "comment" = %(comment)s
-WHERE t.oid = _ermrest.table_oid(%(snamestr)s, %(tnamestr)s);
+WHERE t.oid = %(table_oid)s::oid;
 SELECT _ermrest.model_version_bump();
 """ % dict(
     sname=sql_identifier(self.schema.name),
-    snamestr=sql_literal(self.schema.name),
     tname=sql_identifier(self.name),
-    tnamestr=sql_literal(self.name),
+    table_oid=sql_literal(self.oid),
     comment=sql_literal(comment)
 )
         )
@@ -362,6 +353,8 @@ SELECT * FROM _ermrest.introspect_columns
 WHERE table_oid = t_oid AND column_name = %s;
 """ % sql_literal(column.name)
         )
+        cur.execute("SELECT _ermrest.column_num(%s,%s);" % (sql_literal(self.oid), sql_literal(column.name)))
+        column.column_num = cur.next()[0]
         column.set_comment(conn, cur, column.comment)
         self.columns[column.name] = column
         column.table = self
