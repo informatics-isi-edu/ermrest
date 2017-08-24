@@ -24,6 +24,11 @@ _default_config = {
     "column_types": {
         "boolean": { "aliases": [ "bool" ] },
         "date": None,
+        "ermrest_rid": None,
+        "ermrest_rcb": None,
+        "ermrest_rmb": None,
+        "ermrest_rct": None,
+        "ermrest_rmt": None,
         "float4": { "aliases": [ "real" ] },
         "float8": { "aliases": [ "double precision" ] },
         "int2": { "aliases": [ "smallint" ] },
@@ -60,34 +65,34 @@ class TypesEngine (object):
     # TODO: track more type metadata that is currently discarded...?
     def __init__(self, config=None):
         self.config = config
-        self.by_oid = dict()
-        self.disallowed_by_oid = dict()
+        self.by_rid = dict()
+        self.disallowed_by_rid = dict()
         self.by_name = dict()
 
-    def add_base_type(self, oid, type_name, comment):
+    def add_base_type(self, rid, type_name, comment):
         try:
             type_name = canonicalize_column_type(type_name, None, self.config, readonly=True)
             if type_name not in self.by_name:
                 self.by_name[type_name] = Type(typename=type_name)
-            self.by_oid[oid] = self.by_name[type_name]
+            self.by_rid[rid] = self.by_name[type_name]
         except exception.ConflictData:
-            self.disallowed_by_oid[oid] = Type(typename=type_name)
+            self.disallowed_by_rid[rid] = Type(typename=type_name)
 
-    def add_array_type(self, oid, type_name, element_type_oid, comment):
-        if element_type_oid not in self.by_oid:
-            self.disallowed_by_oid[oid] = ArrayType(base_type=self.disallowed_by_oid[element_type_oid])
+    def add_array_type(self, rid, type_name, element_type_rid, comment):
+        if element_type_rid not in self.by_rid:
+            self.disallowed_by_rid[rid] = ArrayType(base_type=self.disallowed_by_rid[element_type_rid])
         else:
-            self.by_oid[oid] = ArrayType(base_type=self.by_oid[element_type_oid])
+            self.by_rid[rid] = ArrayType(base_type=self.by_rid[element_type_rid])
 
-    def add_domain_type(self, oid, type_name, element_type_oid, default, notnull, comment):
-        if element_type_oid not in self.by_oid:
-            self.disallowed_by_oid[oid] = DomainType(typename=type_name, base_type=self.disallowed_by_oid[element_type_oid])
+    def add_domain_type(self, rid, type_name, element_type_rid, default, notnull, comment):
+        if element_type_rid not in self.by_rid:
+            self.disallowed_by_rid[rid] = DomainType(typename=type_name, base_type=self.disallowed_by_rid[element_type_rid])
         else:
-            self.by_oid[oid] = DomainType(typename=type_name, base_type=self.by_oid[element_type_oid])
+            self.by_rid[rid] = DomainType(typename=type_name, base_type=self.by_rid[element_type_rid])
 
-    def lookup(self, oid, default=None, readonly=False):
-        if oid in self.by_oid:
-            typ = self.by_oid[oid]
+    def lookup(self, rid, default=None, readonly=False):
+        if rid in self.by_rid:
+            typ = self.by_rid[rid]
             if typ.is_array or typ.is_domain:
                 return typ
             # now check again using column-level default
@@ -98,7 +103,7 @@ class TypesEngine (object):
                 # with current canonicalization rule, this only happens for serial?
                 return mock_type({'typename': type_name})
         else:
-            raise ValueError('Disallowed type "%s" requested.' % self.disallowed_by_oid)
+            raise ValueError('Disallowed type "%s" requested.' % self.disallowed_by_rid[rid])
 
 def mock_type(doc, defaultval=None, config=None, readonly=False):
     if defaultval is None:

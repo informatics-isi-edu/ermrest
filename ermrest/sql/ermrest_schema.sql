@@ -17,7 +17,15 @@
 
 -- The following SQL idempotently creates per-catalog _ermrest schema.
 
-CREATE SCHEMA IF NOT EXISTS _ermrest;
+DO $ermrest_schema$
+<< ermrest_schema >>
+BEGIN
+-- NOTE, we don't indent this block so editing below is easier...
+-- We use a lot of conditionals rather than idempotent DDL to make successful operation quieter...
+
+IF (SELECT True FROM information_schema.schemata WHERE schema_name = '_ermrest') IS NULL THEN
+  CREATE SCHEMA _ermrest;
+END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.create_domain_if_not_exists(domain_schema text, domain_name text, basetype text) RETURNS boolean AS $$
 BEGIN
@@ -82,114 +90,252 @@ CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE A
   SELECT current_setting('webauthn2.attributes_array')::text[];
 $$ LANGUAGE SQL;
 
-SELECT _ermrest.create_domain_if_not_exists('public', 'longtext', 'text');
-SELECT _ermrest.create_domain_if_not_exists('public', 'markdown', 'text');
--- SELECT _ermrest.create_domain_if_not_exists('public', 'gene_sequence', 'text');
+IF (SELECT True FROM information_schema.sequences WHERE sequence_schema = '_ermrest' AND sequence_name = 'rid_seq') IS NULL THEN
+  -- MAXVALUE 2**53 - 1 for Javsascript
+  CREATE SEQUENCE _ermrest.rid_seq MAXVALUE 9007199254740991 NO CYCLE;
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.model_last_modified (
+PERFORM _ermrest.create_domain_if_not_exists('public', 'longtext', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'markdown', 'text');
+-- PERFORM _ermrest.create_domain_if_not_exists('public', 'gene_sequence', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rid', 'int8');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rcb', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmb', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rct', 'timestamptz');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmt', 'timestamptz');
+
+-- use as a BEFORE INSERT UPDATE PER ROW trigger...
+CREATE OR REPLACE FUNCTION _ermrest.maintain_row() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW."RID" := nextval('_ermrest.rid_seq');
+    NEW."RCB" := _ermrest.current_client();
+    NEW."RCT" := now();
+    NEW."RMB" := _ermrest.current_client();
+    NEW."RMT" := now();
+  ELSEIF TG_OP = 'UPDATE' THEN
+    -- do not allow values to change... is this too strict?
+    NEW."RID" := OLD."RID";
+    NEW."RCB" := OLD."RCB";
+    NEW."RCT" := OLD."RCT";
+
+    NEW."RMB" := _ermrest.current_client();
+    NEW."RMT" := now();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_last_modified') IS NULL THEN
+  CREATE TABLE _ermrest.model_last_modified (
     ts timestamptz PRIMARY KEY
-);
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.table_last_modified (
-    "oid" oid PRIMARY KEY,
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_schemas') IS NULL THEN
+  CREATE TABLE _ermrest.known_schemas (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    oid oid UNIQUE NOT NULL,
+    schema_name text UNIQUE NOT NULL,
+    "comment" text
+  );
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_types') IS NULL THEN
+  CREATE TABLE _ermrest.known_types (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    oid oid UNIQUE NOT NULL,
+    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    type_name text NOT NULL,
+    array_element_type_rid int8 REFERENCES _ermrest.known_types("RID"),
+    domain_element_type_rid int8 REFERENCES _ermrest.known_types("RID"),
+    domain_notnull boolean,
+    domain_default text,
+    "comment" text,
+    UNIQUE(schema_rid, type_name),
+    CHECK(array_element_type_rid IS NULL OR domain_element_type_rid IS NULL)
+  );
+  CREATE INDEX known_types_basetype_idx
+  ON _ermrest.known_types (array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST);
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_tables') IS NULL THEN
+  CREATE TABLE _ermrest.known_tables (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    oid oid UNIQUE NOT NULL,
+    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    table_name text NOT NULL,
+    table_kind text NOT NULL,
+    "comment" text,
+    UNIQUE(schema_rid, table_name)
+  );
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'table_last_modified') IS NULL THEN
+  CREATE TABLE _ermrest.table_last_modified (
+    table_rid int8 PRIMARY KEY REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     ts timestamptz
-);
-CREATE INDEX IF NOT EXISTS tlm_ts_oid ON _ermrest.table_last_modified (ts, oid);
+  );
+  CREATE INDEX tlm_ts_rid ON _ermrest.table_last_modified (ts, table_rid);
+END IF;
 
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_columns') IS NULL THEN
+  CREATE TABLE _ermrest.known_columns (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    column_num int NOT NULL,
+    column_name text NOT NULL,
+    type_rid int8 NOT NULL REFERENCES _ermrest.known_types("RID") ON DELETE CASCADE,
+    not_null boolean NOT NULL,
+    column_default text,
+    "comment" text,
+    UNIQUE(table_rid, column_num),
+    UNIQUE(table_rid, column_name)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_schemas (
-  oid oid PRIMARY KEY,
-  schema_name text UNIQUE NOT NULL,
-  "comment" text
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_notnulls') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_notnulls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    column_rid int8 NOT NULL UNIQUE REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_types (
-  oid oid PRIMARY KEY,
-  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
-  type_name text NOT NULL,
-  array_element_type_oid oid REFERENCES _ermrest.known_types(oid),
-  domain_element_type_oid oid REFERENCES _ermrest.known_types(oid),
-  domain_notnull boolean,
-  domain_default text,
-  "comment" text,
-  UNIQUE(schema_oid, type_name),
-  CHECK(array_element_type_oid IS NULL OR domain_element_type_oid IS NULL)
-);
-CREATE INDEX IF NOT EXISTS known_types_basetype_idx
- ON _ermrest.known_types (array_element_type_oid NULLS FIRST, domain_element_type_oid NULLS FIRST);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_keys') IS NULL THEN
+  CREATE TABLE _ermrest.known_keys (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    oid oid UNIQUE NOT NULL,
+    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    constraint_name text NOT NULL,
+    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    "comment" text,
+    UNIQUE(schema_rid, constraint_name)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_tables (
-  oid oid PRIMARY KEY,
-  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
-  table_name text NOT NULL,
-  table_kind text NOT NULL,
-  "comment" text,
-  UNIQUE(schema_oid, table_name)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_key_columns') IS NULL THEN
+  CREATE TABLE _ermrest.known_key_columns (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    key_rid int8 NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
+    column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    UNIQUE(key_rid, column_rid)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_columns (
-  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  column_num int,
-  column_name text NOT NULL,
-  type_oid oid NOT NULL REFERENCES _ermrest.known_types(oid) ON DELETE CASCADE,
-  not_null boolean NOT NULL,
-  column_default text,
-  "comment" text,
-  PRIMARY KEY(table_oid, column_num),
-  UNIQUE(table_oid, column_name)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_keys') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_keys (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    constraint_name text UNIQUE,
+    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    "comment" text
+  );
+END IF;
 
-DROP TABLE IF EXISTS _ermrest.known_psuedo_notnulls;
-CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_notnulls (
-  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  column_num int,
-  PRIMARY KEY(table_oid, column_num),
-  FOREIGN KEY(table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num) ON DELETE CASCADE
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_key_columns') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_key_columns (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    key_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
+    column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    UNIQUE(key_rid, column_rid)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_keys (
-  oid oid PRIMARY KEY,
-  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
-  constraint_name text NOT NULL,
-  table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  column_nums int[] NOT NULL,
-  "comment" text,
-  UNIQUE(schema_oid, constraint_name)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkeys') IS NULL THEN
+  CREATE TABLE _ermrest.known_fkeys (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    oid oid UNIQUE NOT NULL,
+    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    constraint_name text NOT NULL,
+    fk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    pk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    delete_rule text NOT NULL,
+    update_rule text NOT NULL,
+    "comment" text,
+    UNIQUE(schema_rid, constraint_name)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_keys (
-  id serial PRIMARY KEY,
-  constraint_name text UNIQUE,
-  table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  column_nums int[] NOT NULL,
-  "comment" text
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkey_columns') IS NULL THEN
+  CREATE TABLE _ermrest.known_fkey_columns (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
+    fk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    pk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    UNIQUE(fkey_rid, fk_column_rid)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_fkeys (
-  oid oid PRIMARY KEY,
-  schema_oid oid NOT NULL REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
-  constraint_name text NOT NULL,
-  fk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  fk_column_nums int[] NOT NULL,
-  pk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  pk_column_nums int[] NOT NULL,
-  delete_rule text NOT NULL,
-  update_rule text NOT NULL,
-  "comment" text,
-  UNIQUE(schema_oid, constraint_name),
-  CHECK(array_length(fk_column_nums, 1) = array_length(pk_column_nums, 1))
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkeys') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_fkeys (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    constraint_name text NOT NULL UNIQUE,
+    fk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    pk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    "comment" text
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_fkeys (
-  id serial PRIMARY KEY,
-  constraint_name text UNIQUE,
-  fk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  fk_column_nums int[] NOT NULL,
-  pk_table_oid oid NOT NULL REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  pk_column_nums int[] NOT NULL,
-  "comment" text,
-  CHECK(array_length(fk_column_nums, 1) = array_length(pk_column_nums, 1))
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkey_columns') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_fkey_columns (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
+    fk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    pk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    UNIQUE(fkey_rid, fk_column_rid)
+  );
+END IF;
 
 CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS
   SELECT
@@ -205,14 +351,15 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
   -- base types
   SELECT
     t.oid as "oid",
-    t.typnamespace as "schema_oid",
+    s."RID" as "schema_rid",
     pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
-    NULL::oid AS "array_element_type_oid",
-    NULL::oid AS "domain_element_type_oid",
+    NULL::int8 AS "array_element_type_rid",
+    NULL::int8 AS "domain_element_type_rid",
     NULL::boolean AS "domain_notnull",
     NULL::text AS domain_default,
     pg_catalog.obj_description(t.oid, 'pg_type')::text as "comment"
   FROM pg_catalog.pg_type t
+  JOIN _ermrest.known_schemas s ON (t.typnamespace = s.oid)
   WHERE t.typtype != 'd'::char
     AND t.typelem = 0::oid
     AND t.typrelid = 0
@@ -224,15 +371,17 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
   -- array types
   SELECT
     t.oid as "oid",
-    t.typnamespace as "schema_oid",
+    s."RID" as "schema_rid",
     pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
-    et.oid as "array_element_type_oid",
-    NULL::oid AS "domain_element_type_oid",
+    ekt."RID" as "array_element_type_rid",
+    NULL::int8 AS "domain_element_type_rid",
     NULL::boolean AS "domain_notnull",
     NULL::text AS domain_default,
     NULL::text AS "comment"
   FROM pg_catalog.pg_type t
+  JOIN _ermrest.known_schemas s ON (t.typnamespace = s.oid)
   JOIN pg_catalog.pg_type et ON (et.typarray = t.oid)
+  JOIN _ermrest.known_types ekt ON (et.oid = ekt.oid)
   WHERE t.typtype != 'd'::char
     AND et.typelem = 0::oid
     AND et.typrelid = 0
@@ -243,14 +392,16 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
   -- domains
   SELECT
     t.oid as "oid",
-    t.typnamespace as "schema_oid",
+    s."RID" as "schema_rid",
     pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
-    NULL::oid AS array_element_type_oid,
-    t.typbasetype as "domain_element_type_oid",
+    NULL::int8 AS array_element_type_rid,
+    ekt."RID" as "domain_element_type_rid",
     t.typnotnull AS "domain_notnull",
     t.typdefault::text AS "domain_value",
     d.description::text as "comment"
   FROM pg_catalog.pg_type t
+  JOIN _ermrest.known_schemas s ON (t.typnamespace = s.oid)
+  JOIN _ermrest.known_types ekt ON (t.typbasetype = ekt.oid)
   LEFT JOIN pg_catalog.pg_description d ON (d.classoid = t.tableoid AND d.objoid = t.oid AND d.objsubid = 0)
   WHERE t.typtype = 'd'
     AND pg_catalog.pg_type_is_visible(t.oid)
@@ -259,71 +410,69 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
 CREATE OR REPLACE VIEW _ermrest.introspect_tables AS
   SELECT
     c.oid AS oid,
-    nc.oid AS schema_oid,
+    s."RID" AS schema_rid,
     c.relname::text AS table_name,
     c.relkind::text AS table_kind,
     obj_description(c.oid)::text AS "comment"
   FROM pg_catalog.pg_class c
-  JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
-  WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-    AND NOT pg_is_other_temp_schema(nc.oid) 
-    AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'm'::"char"]))
+  JOIN _ermrest.known_schemas s ON (c.relnamespace = s.oid)
+  WHERE c.relkind IN ('r'::"char", 'v'::"char", 'f'::"char", 'm'::"char")
+    AND s.schema_name != 'pg_catalog' -- we need types but not tables from this schema...
 ;
 
 CREATE OR REPLACE VIEW _ermrest.introspect_columns AS
   SELECT
-    c.oid AS table_oid,
+    kt."RID" AS table_rid,
     a.attnum::int AS column_num,
     a.attname::text AS column_name,
-    a.atttypid AS type_oid,
+    kty."RID" AS type_rid,
     a.attnotnull AS not_null,
     pg_get_expr(ad.adbin, ad.adrelid)::text AS column_default,
-    col_description(c.oid, a.attnum)::text AS comment
+    col_description(kt.oid, a.attnum)::text AS comment
   FROM pg_catalog.pg_attribute a
-  JOIN pg_catalog.pg_class c ON (a.attrelid = c.oid)
-  JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
+  JOIN _ermrest.known_tables kt ON (a.attrelid = kt.oid)
+  JOIN _ermrest.known_types kty ON (a.atttypid = kty.oid)
   LEFT JOIN pg_catalog.pg_attrdef ad ON (a.attrelid = ad.adrelid AND a.attnum = ad.adnum)
-  WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-    AND NOT pg_is_other_temp_schema(nc.oid) 
-    AND a.attnum > 0
+  WHERE a.attnum > 0
     AND NOT a.attisdropped
-    AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'm'::"char"]))
 ;
 
 CREATE OR REPLACE VIEW _ermrest.introspect_keys AS
   SELECT
     con.oid AS "oid",
-    ncon.oid AS "schema_oid",
+    ks."RID" AS "schema_rid",
     con.conname::information_schema.sql_identifier::text AS constraint_name,
-    pkcl.oid AS "table_oid",
-    (SELECT array_agg(pka.attnum::int ORDER BY i.i)
-     FROM generate_subscripts(con.conkey, 1) i
-     JOIN pg_catalog.pg_attribute pka ON con.conrelid = pka.attrelid AND con.conkey[i.i] = pka.attnum
-    ) AS column_nums,
+    kt."RID" AS "table_rid",
     obj_description(con.oid)::text AS comment
-  FROM pg_namespace ncon
-  JOIN pg_constraint con ON (ncon.oid = con.connamespace)
+  FROM pg_constraint con
+  JOIN _ermrest.known_schemas ks ON (ks.oid = con.connamespace)
   JOIN pg_class pkcl ON (con.conrelid = pkcl.oid AND con.contype = ANY (ARRAY['u'::"char",'p'::"char"]))
-  JOIN pg_namespace npk ON (pkcl.relnamespace = npk.oid)
+  JOIN _ermrest.known_tables kt ON (pkcl.oid = kt.oid)
   WHERE has_table_privilege(pkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text)
      OR has_any_column_privilege(pkcl.oid, 'INSERT, UPDATE, REFERENCES'::text)
+;
+
+CREATE OR REPLACE VIEW _ermrest.introspect_key_columns AS
+  SELECT
+    k."RID" AS key_rid,
+    kc."RID" AS column_rid
+  FROM _ermrest.known_keys k
+  JOIN (
+    SELECT
+      con.oid,
+      unnest(con.conkey) AS attnum
+    FROM pg_catalog.pg_constraint con
+  ) ca ON (ca.oid = k.oid)
+  JOIN _ermrest.known_columns kc ON (k.table_rid = kc."table_rid" AND ca.attnum = kc.column_num)
 ;
 
 CREATE OR REPLACE VIEW _ermrest.introspect_fkeys AS
   SELECT
     con.oid AS "oid",
-    ncon.oid AS schema_oid,
+    s."RID" AS schema_rid,
     con.conname::information_schema.sql_identifier::text AS constraint_name,
-    fkcl.oid AS fk_table_oid,
-    (SELECT array_agg(fka.attnum::int ORDER BY i.i)
-     FROM generate_subscripts(con.conkey, 1) i
-     JOIN pg_catalog.pg_attribute fka ON con.conrelid = fka.attrelid AND con.conkey[i.i] = fka.attnum
-    ) AS fk_column_nums,
-    kcl.oid AS pk_table_oid,
-    (SELECT array_agg(ka.attnum::int ORDER BY i.i)
-     FROM generate_subscripts(con.confkey, 1) i
-     JOIN pg_catalog.pg_attribute ka ON con.confrelid = ka.attrelid AND con.confkey[i.i] = ka.attnum
-    ) AS pk_column_nums,
+    fk_kt."RID" AS fk_table_rid,
+    pk_kt."RID" AS pk_table_rid,
     CASE con.confdeltype
        WHEN 'c'::"char" THEN 'CASCADE'::text
        WHEN 'n'::"char" THEN 'SET NULL'::text
@@ -341,18 +490,36 @@ CREATE OR REPLACE VIEW _ermrest.introspect_fkeys AS
        ELSE NULL::text
     END AS update_rule,
     obj_description(con.oid)::text AS comment
-  FROM pg_namespace ncon
-  JOIN pg_constraint con ON (ncon.oid = con.connamespace)
-  JOIN pg_class fkcl ON (con.conrelid = fkcl.oid AND con.contype = 'f'::"char")
-  JOIN pg_class kcl ON (con.confrelid = kcl.oid AND con.contype = 'f'::"char")
-  JOIN pg_namespace nfk ON (fkcl.relnamespace = nfk.oid)
-  JOIN pg_namespace nk ON (kcl.relnamespace = nk.oid)
-  WHERE (   pg_has_role(kcl.relowner, 'USAGE'::text) 
+  FROM pg_constraint con
+  JOIN _ermrest.known_schemas s ON (s.oid = con.connamespace)
+  JOIN pg_class fkcl ON (con.conrelid = fkcl.oid)
+  JOIN pg_class kcl ON (con.confrelid = kcl.oid)
+  JOIN _ermrest.known_tables fk_kt ON (fkcl.oid = fk_kt.oid)
+  JOIN _ermrest.known_tables pk_kt ON (kcl.oid = pk_kt.oid)
+  WHERE con.contype = 'f'::"char"
+    AND (   pg_has_role(kcl.relowner, 'USAGE'::text) 
          OR has_table_privilege(kcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text)
          OR has_any_column_privilege(kcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
     AND (   pg_has_role(fkcl.relowner, 'USAGE'::text) 
          OR has_table_privilege(fkcl.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text)
          OR has_any_column_privilege(fkcl.oid, 'INSERT, UPDATE, REFERENCES'::text))
+;
+
+CREATE OR REPLACE VIEW _ermrest.introspect_fkey_columns AS
+  SELECT
+    fk."RID" AS fkey_rid,
+    fk_kc."RID" AS fk_column_rid,
+    pk_kc."RID" AS pk_column_rid
+  FROM _ermrest.known_fkeys fk
+  JOIN (
+    SELECT
+      con.oid,
+      unnest(con.conkey) AS fk_attnum,
+      unnest(con.confkey) AS pk_attnum
+    FROM pg_constraint con
+  ) ca ON (fk.oid = ca.oid)
+  JOIN _ermrest.known_columns fk_kc ON (fk.fk_table_rid = fk_kc.table_rid AND ca.fk_attnum = fk_kc.column_num)
+  JOIN _ermrest.known_columns pk_kc ON (fk.pk_table_rid = pk_kc.table_rid AND ca.pk_attnum = pk_kc.column_num)
 ;
 
 CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect() RETURNS boolean AS $$
@@ -370,7 +537,7 @@ BEGIN
       EXCEPT SELECT oid FROM _ermrest.introspect_schemas
     ) d
     WHERE k.oid = d.oid
-    RETURNING k.oid
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -378,19 +545,25 @@ BEGIN
     UPDATE _ermrest.known_schemas k
     SET
       schema_name = v.schema_name,
-      "comment" = v."comment"
+      "comment" = v."comment",
+      "RMT" = DEFAULT,
+      "RMB" = DEFAULT
     FROM _ermrest.introspect_schemas v
     WHERE k.oid = v.oid
-      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
-    RETURNING k.oid
+      AND ROW(k.schema_name, k."comment")
+          IS DISTINCT FROM
+          ROW(v.schema_name, v."comment")
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
-    INSERT INTO _ermrest.known_schemas
-    SELECT * FROM _ermrest.introspect_schemas
-    EXCEPT SELECT * FROM _ermrest.known_schemas
-    RETURNING oid
+    INSERT INTO _ermrest.known_schemas (oid, schema_name, "comment")
+    SELECT i.oid, i.schema_name, i."comment"
+    FROM _ermrest.introspect_schemas i
+    LEFT OUTER JOIN _ermrest.known_schemas k ON (i.oid = k.oid)
+    WHERE k.oid IS NULL
+    RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -402,32 +575,57 @@ BEGIN
       EXCEPT SELECT oid FROM _ermrest.introspect_types
     ) d
     WHERE k.oid = d.oid
-    RETURNING k.oid
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
   WITH updated AS (
     UPDATE _ermrest.known_types k
     SET
-      schema_oid = v.schema_oid,
+      schema_rid = v.schema_rid,
       type_name = v.type_name,
-      array_element_type_oid = v.array_element_type_oid,
-      domain_element_type_oid = v.domain_element_type_oid,
+      array_element_type_rid = v.array_element_type_rid,
+      domain_element_type_rid = v.domain_element_type_rid,
       domain_notnull = v.domain_notnull,
       domain_default = v.domain_default,
-      "comment" = v."comment"
+      "comment" = v."comment",
+      "RMT" = DEFAULT,
+      "RMB" = DEFAULT
     FROM _ermrest.introspect_types v
     WHERE k.oid = v.oid
-      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
-    RETURNING k.oid
+      AND ROW(k.schema_rid, k.type_name, k.array_element_type_rid, k.domain_element_type_rid,
+              k.domain_notnull, k.domain_default, k."comment")
+          IS DISTINCT FROM
+          ROW(v.schema_rid, v.type_name, v.array_element_type_rid, v.domain_element_type_rid,
+	      v.domain_notnull, v.domain_default, v."comment")
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
-    INSERT INTO _ermrest.known_types
-    SELECT * FROM _ermrest.introspect_types
-    EXCEPT SELECT * FROM _ermrest.known_types
-    RETURNING oid
+    INSERT INTO _ermrest.known_types (
+      oid,
+      schema_rid,
+      type_name,
+      array_element_type_rid,
+      domain_element_type_rid,
+      domain_notnull,
+      domain_default,
+      "comment"
+    )
+    SELECT
+      it.oid,
+      it.schema_rid,
+      it.type_name,
+      it.array_element_type_rid,
+      it.domain_element_type_rid,
+      it.domain_notnull,
+      it.domain_default,
+      it."comment"
+    FROM _ermrest.introspect_types it
+    LEFT OUTER JOIN _ermrest.known_types kt ON (it.oid = kt.oid)
+    WHERE kt.oid IS NULL
+    RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -439,29 +637,40 @@ BEGIN
       EXCEPT SELECT oid FROM _ermrest.introspect_tables
     ) d
     WHERE k.oid = d.oid
-    RETURNING k.oid
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
   WITH updated AS (
     UPDATE _ermrest.known_tables k
     SET
-      schema_oid = v.schema_oid,
+      schema_rid = v.schema_rid,
       table_name = v.table_name,
       table_kind = v.table_kind,
-      "comment" = v."comment"
+      "comment" = v."comment",
+      "RMT" = DEFAULT,
+      "RMB" = DEFAULT
     FROM _ermrest.introspect_tables v
     WHERE k.oid = v.oid
-      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
-    RETURNING k.oid
+      AND ROW(k.schema_rid, k.table_name, k.table_kind, k."comment")
+          IS DISTINCT FROM
+	  ROW(v.schema_rid, v.table_name, v.table_kind, v."comment")
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
-    INSERT INTO _ermrest.known_tables
-    SELECT * FROM _ermrest.introspect_tables
-    EXCEPT SELECT * FROM _ermrest.known_tables
-    RETURNING oid
+    INSERT INTO _ermrest.known_tables (oid, schema_rid, table_name, table_kind, "comment")
+    SELECT
+      it.oid,
+      it.schema_rid,
+      it.table_name,
+      it.table_kind,
+      it."comment"
+    FROM _ermrest.introspect_tables it
+    LEFT OUTER JOIN _ermrest.known_tables kt ON (it.oid = kt.oid)
+    WHERE kt.oid IS NULL
+    RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -469,11 +678,13 @@ BEGIN
   WITH deleted AS (
     DELETE FROM _ermrest.known_columns k
     USING (
-      SELECT table_oid, column_num FROM _ermrest.known_columns
-      EXCEPT SELECT table_oid, column_num FROM _ermrest.introspect_columns
+      SELECT k.table_rid, k.column_num
+      FROM _ermrest.known_columns k
+      LEFT OUTER JOIN _ermrest.introspect_columns i ON (k.table_rid = i.table_rid AND k.column_num = i.column_num)
+      WHERE k.column_num IS NULL
     ) d
-    WHERE k.table_oid = d.table_oid AND k.column_num = d.column_num
-    RETURNING k.table_oid, k.column_num
+    WHERE k.table_rid = d.table_rid AND k.column_num = d.column_num
+    RETURNING k.table_rid, k.column_num
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -481,22 +692,28 @@ BEGIN
     UPDATE _ermrest.known_columns k
     SET
       column_name = v.column_name,
-      type_oid = v.type_oid,
+      type_rid = v.type_rid,
       not_null = v.not_null,
       column_default = v.column_default,
-      "comment" = v."comment"
+      "comment" = v."comment",
+      "RMB" = DEFAULT,
+      "RMT" = DEFAULT
     FROM _ermrest.introspect_columns v
-    WHERE k.table_oid = v.table_oid AND k.column_num = v.column_num
-      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
-    RETURNING k.table_oid, k.column_num
+    WHERE k.table_rid = v.table_rid AND k.column_num = v.column_num
+      AND ROW(k.column_name, k.type_rid, k.not_null, k.column_default, k.comment)
+          IS DISTINCT FROM
+	  ROW(v.column_name, v.type_rid, v.not_null, v.column_default, v.comment)
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
-    INSERT INTO _ermrest.known_columns
-    SELECT * FROM _ermrest.introspect_columns
-    EXCEPT SELECT * FROM _ermrest.known_columns
-    RETURNING table_oid, column_num
+    INSERT INTO _ermrest.known_columns (table_rid, column_num, column_name, type_rid, not_null, column_default, comment)
+    SELECT ic.table_rid, ic.column_num, ic.column_name, ic.type_rid, ic.not_null, ic.column_default, ic.comment
+    FROM _ermrest.introspect_columns ic
+    LEFT OUTER JOIN _ermrest.known_columns kc ON (ic.table_rid = kc.table_rid AND ic.column_num = kc.column_num)
+    WHERE kc.column_num IS NULL
+    RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -508,30 +725,55 @@ BEGIN
       EXCEPT SELECT oid FROM _ermrest.introspect_keys
     ) d
     WHERE k.oid = d.oid
-    RETURNING k.oid
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
   WITH updated AS (
     UPDATE _ermrest.known_keys k
     SET
-      schema_oid = v.schema_oid,
+      schema_rid = v.schema_rid,
       constraint_name = v.constraint_name,
-      table_oid = v.table_oid,
-      column_nums = v.column_nums,
-      "comment" = v."comment"
+      table_rid = v.table_rid,
+      "comment" = v."comment",
+      "RMB" = DEFAULT,
+      "RMT" = DEFAULT
     FROM _ermrest.introspect_keys v
     WHERE k.oid = v.oid
-      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
-    RETURNING k.oid
+      AND ROW(k.schema_rid, k.constraint_name, k.table_rid, k.comment)
+          IS DISTINCT FROM
+	  ROW(v.schema_rid, v.constraint_name, v.table_rid, v.comment)
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
-    INSERT INTO _ermrest.known_keys
-    SELECT * FROM _ermrest.introspect_keys
-    EXCEPT SELECT * FROM _ermrest.known_keys
-    RETURNING oid
+    INSERT INTO _ermrest.known_keys (oid, schema_rid, constraint_name, table_rid, comment)
+    SELECT ik.oid, ik.schema_rid, ik.constraint_name, ik.table_rid, ik.comment
+    FROM _ermrest.introspect_keys ik
+    LEFT OUTER JOIN _ermrest.known_keys kk ON (ik.oid = kk.oid)
+    WHERE kk.oid IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible key columns
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_key_columns k
+    USING (
+      SELECT key_rid, column_rid FROM _ermrest.known_key_columns
+      EXCEPT SELECT key_rid, column_rid FROM _ermrest.introspect_key_columns
+    ) d
+    WHERE k.key_rid = d.key_rid AND k.column_rid = d.column_rid
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
+    SELECT key_rid, column_rid FROM _ermrest.introspect_key_columns
+    EXCEPT SELECT key_rid, column_rid FROM _ermrest.known_key_columns
+    RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -543,34 +785,60 @@ BEGIN
       EXCEPT SELECT oid FROM _ermrest.introspect_fkeys
     ) d
     WHERE k.oid = d.oid
-    RETURNING k.oid
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
   WITH updated AS (
     UPDATE _ermrest.known_fkeys k
     SET
-      schema_oid = v.schema_oid,
+      schema_rid = v.schema_rid,
       constraint_name = v.constraint_name,
-      fk_table_oid = v.fk_table_oid,
-      fk_column_nums = v.fk_column_nums,
-      pk_table_oid = v.pk_table_oid,
-      pk_column_nums = v.pk_column_nums,
+      fk_table_rid = v.fk_table_rid,
+      pk_table_rid = v.pk_table_rid,
       delete_rule = v.delete_rule,
       update_rule = v.update_rule,
-      "comment" = v."comment"
+      "comment" = v."comment",
+      "RMB" = DEFAULT,
+      "RMT" = DEFAULT
     FROM _ermrest.introspect_fkeys v
     WHERE k.oid = v.oid
-      AND ROW(k.*) IS DISTINCT FROM ROW(v.*)
-    RETURNING k.oid
+      AND ROW(k.schema_rid, k.constraint_name, k.fk_table_rid, k.pk_table_rid, k.delete_rule, k.update_rule, k.comment)
+          IS DISTINCT FROM
+	  ROW(v.schema_rid, v.constraint_name, v.fk_table_rid, v.pk_table_rid, v.delete_rule, v.update_rule, v.comment)
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
-    INSERT INTO _ermrest.known_fkeys
-    SELECT * FROM _ermrest.introspect_fkeys
-    EXCEPT SELECT * FROM _ermrest.known_fkeys
-    RETURNING oid
+    INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule, comment)
+    SELECT i.oid, i.schema_rid, i.constraint_name, i.fk_table_rid, i.pk_table_rid, i.delete_rule, i.update_rule, i.comment
+    FROM _ermrest.introspect_fkeys i
+    LEFT OUTER JOIN _ermrest.known_fkeys kfk ON (i.oid = kfk.oid)
+    WHERE kfk.oid IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible fkey columns
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_fkey_columns k
+    USING (
+      SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.known_fkey_columns
+      EXCEPT SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.introspect_fkey_columns
+    ) d
+    WHERE k.fkey_rid = d.fkey_rid
+      AND k.fk_column_rid = d.fk_column_rid
+      AND k.pk_column_rid = d.pk_column_rid
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
+    SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.introspect_fkey_columns
+    EXCEPT SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.known_fkey_columns
+    RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -578,37 +846,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
-CREATE OR REPLACE FUNCTION _ermrest.schema_oid(sname text) RETURNS oid STABLE AS $$
-  SELECT s.oid
-  FROM _ermrest.introspect_schemas s
-  WHERE s.schema_name = $1;
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.table_oid(sname text, tname text) RETURNS oid STABLE AS $$
-  SELECT t.oid
-  FROM _ermrest.introspect_tables t
-  JOIN _ermrest.introspect_schemas s ON (t.schema_oid = s.oid)
-  WHERE s.schema_name = $1 AND t.table_name = $2;
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.column_num(toid oid, cname text) RETURNS int STABLE AS $$
-  SELECT c.column_num
-  FROM _ermrest.introspect_columns c
-  WHERE c.table_oid = $1 AND c.column_name = $2;
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.key_oid(toid oid, cname text) RETURNS oid STABLE AS $$
-  SELECT k.oid
-  FROM _ermrest.introspect_keys k
-  WHERE k.table_oid = $1 AND k.constraint_name = $2;
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.fkey_oid(toid oid, cname text) RETURNS oid STABLE AS $$
-  SELECT k.oid
-  FROM _ermrest.introspect_fkeys k
-  WHERE k.fk_table_oid = $1 AND k.constraint_name = $2;
-$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.model_version_bump() RETURNS void AS $$
 DECLARE
@@ -651,152 +888,519 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.data_change_event(sname text, tname text) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid int8) RETURNS void AS $$
 BEGIN
-  IF (SELECT ts
-      FROM _ermrest.table_last_modified
-      WHERE oid = _ermrest.table_oid($1, $2)
-      ORDER BY ts DESC
+  IF (SELECT l.ts
+      FROM _ermrest.table_last_modified l
+      WHERE l.table_rid = $1
+      ORDER BY l.ts DESC
       LIMIT 1) > now() THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest table version clock reversal!';
   END IF;
 
-  DELETE FROM _ermrest.table_last_modified
-  WHERE oid = _ermrest.table_oid($1, $2) AND ts != now();
+  DELETE FROM _ermrest.table_last_modified l
+  WHERE l.table_rid = $1 AND l.ts != now();
 
-  INSERT INTO _ermrest.table_last_modified (oid, ts)
-    VALUES (_ermrest.table_oid($1, $2), now())
-    ON CONFLICT (oid) DO NOTHING;
+  INSERT INTO _ermrest.table_last_modified (table_rid, ts) VALUES ($1, now())
+    ON CONFLICT (table_rid) DO NOTHING;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_catalog_acls (
-  acl text PRIMARY KEY,
-  members text[]
-);
+CREATE OR REPLACE FUNCTION _ermrest.data_change_event(sname text, tname text) RETURNS void AS $$
+  SELECT _ermrest.data_change_event((
+    SELECT t."RID"
+    FROM _ermrest.known_tables t
+    JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+    WHERE s.schema_name = $1 AND t.table_name = $2
+  ));
+$$ LANGUAGE SQL;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_schema_acls (
-  schema_oid oid REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
-  acl text,
-  members text[],
-  PRIMARY KEY (schema_oid, acl)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_catalog_acls') IS NULL THEN
+  CREATE TABLE _ermrest.known_catalog_acls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    acl text UNIQUE NOT NULL,
+    members text[] NOT NULL
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_table_acls (
-  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  acl text,
-  members text[],
-  PRIMARY KEY (table_oid, acl)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_schema_acls') IS NULL THEN
+  CREATE TABLE _ermrest.known_schema_acls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    acl text NOT NULL,
+    members text[] NOT NULL,
+    UNIQUE (schema_rid, acl)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_column_acls (
-  table_oid oid,
-  column_num int,
-  acl text,
-  members text[],
-  PRIMARY KEY (table_oid, column_num, acl),
-  FOREIGN KEY (table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_table_acls') IS NULL THEN
+  CREATE TABLE _ermrest.known_table_acls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    acl text NOT NULL,
+    members text[] NOT NULL,
+    UNIQUE (table_rid, acl)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_fkey_acls (
-  fkey_oid oid REFERENCES _ermrest.known_fkeys(oid) ON DELETE CASCADE,
-  acl text,
-  members text[],
-  PRIMARY KEY (fkey_oid, acl)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_column_acls') IS NULL THEN
+  CREATE TABLE _ermrest.known_column_acls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    acl text NOT NULL,
+    members text[] NOT NULL,
+    UNIQUE (column_rid, acl)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_fkey_acls (
-  pfkey_id int REFERENCES _ermrest.known_pseudo_fkeys(id) ON DELETE CASCADE,
-  acl text,
-  members text[],
-  PRIMARY KEY (pfkey_id, acl)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkey_acls') IS NULL THEN
+  CREATE TABLE _ermrest.known_fkey_acls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
+    acl text NOT NULL,
+    members text[] NOT NULL,
+    UNIQUE (fkey_rid, acl)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_table_dynacls (
-  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  binding_name text,
-  binding jsonb NOT NULL,
-  PRIMARY KEY (table_oid, binding_name)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkey_acls') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_fkey_acls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
+    acl text NOT NULL,
+    members text[] NOT NULL,
+    UNIQUE (fkey_rid, acl)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_column_dynacls (
-  table_oid oid,
-  column_num int,
-  binding_name text,
-  binding jsonb NOT NULL,
-  PRIMARY KEY (table_oid, column_num, binding_name),
-  FOREIGN KEY (table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_table_dynacls') IS NULL THEN
+  CREATE TABLE _ermrest.known_table_dynacls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    binding_name text NOT NULL,
+    binding jsonb NOT NULL,
+    UNIQUE (table_rid, binding_name)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_fkey_dynacls (
-  fkey_oid oid REFERENCES _ermrest.known_fkeys(oid) ON DELETE CASCADE,
-  binding_name text,
-  binding jsonb NOT NULL,
-  PRIMARY KEY (fkey_oid, binding_name)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_column_dynacls') IS NULL THEN
+  CREATE TABLE _ermrest.known_column_dynacls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    binding_name text NOT NULL,
+    binding jsonb NOT NULL,
+    UNIQUE (column_rid, binding_name)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_fkey_dynacls (
-  pfkey_id int REFERENCES _ermrest.known_pseudo_fkeys(id) ON DELETE CASCADE,
-  binding_name text,
-  binding jsonb NOT NULL,
-  PRIMARY KEY (pfkey_id, binding_name)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkey_dynacls') IS NULL THEN
+  CREATE TABLE _ermrest.known_fkey_dynacls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
+    binding_name text NOT NULL,
+    binding jsonb NOT NULL,
+    UNIQUE (fkey_rid, binding_name)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_catalog_annotations (
-  annotation_uri text PRIMARY KEY,
-  annotation_value json
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkey_dynacls') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_fkey_dynacls (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
+    binding_name text NOT NULL,
+    binding jsonb NOT NULL,
+    UNIQUE (fkey_rid, binding_name)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_schema_annotations (
-  schema_oid oid REFERENCES _ermrest.known_schemas(oid) ON DELETE CASCADE,
-  annotation_uri text,
-  annotation_value json,
-  PRIMARY KEY (schema_oid, annotation_uri)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_catalog_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_catalog_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    annotation_uri text UNIQUE NOT NULL,
+    annotation_value jsonb NOT NULL
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_table_annotations (
-  table_oid oid REFERENCES _ermrest.known_tables(oid) ON DELETE CASCADE,
-  annotation_uri text,
-  annotation_value json,
-  PRIMARY KEY (table_oid, annotation_uri)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_schema_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_schema_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    annotation_uri text NOT NULL,
+    annotation_value jsonb NOT NULL,
+    UNIQUE (schema_rid, annotation_uri)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_column_annotations (
-  table_oid oid,
-  column_num int,
-  annotation_uri text,
-  annotation_value json,
-  PRIMARY KEY (table_oid, column_num, annotation_uri),
-  FOREIGN KEY (table_oid, column_num) REFERENCES _ermrest.known_columns (table_oid, column_num)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_table_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_table_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    annotation_uri text NOT NULL,
+    annotation_value jsonb NOT NULL,
+    UNIQUE (table_rid, annotation_uri)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_key_annotations (
-  key_oid oid REFERENCES _ermrest.known_keys(oid) ON DELETE CASCADE,
-  annotation_uri text,
-  annotation_value json,
-  PRIMARY KEY (key_oid, annotation_uri)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_column_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_column_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    annotation_uri text NOT NULL,
+    annotation_value jsonb NOT NULL,
+    UNIQUE (column_rid, annotation_uri)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_fkey_annotations (
-  fkey_oid oid REFERENCES _ermrest.known_fkeys(oid) ON DELETE CASCADE,
-  annotation_uri text,
-  annotation_value json,
-  PRIMARY KEY (fkey_oid, annotation_uri)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_key_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_key_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    key_rid int8 NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
+    annotation_uri text NOT NULL,
+    annotation_value jsonb NOT NULL,
+    UNIQUE (key_rid, annotation_uri)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_key_annotations (
-  pkey_id int REFERENCES _ermrest.known_pseudo_keys(id) ON DELETE CASCADE,
-  annotation_uri text,
-  annotation_value json,
-  PRIMARY KEY (pkey_id, annotation_uri)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkey_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_fkey_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
+    annotation_uri text NOT NULL,
+    annotation_value jsonb NOT NULL,
+    UNIQUE (fkey_rid, annotation_uri)
+  );
+END IF;
 
-CREATE TABLE IF NOT EXISTS _ermrest.known_pseudo_fkey_annotations (
-  pfkey_id int REFERENCES _ermrest.known_pseudo_fkeys(id) ON DELETE CASCADE,
-  annotation_uri text,
-  annotation_value json,
-  PRIMARY KEY (pfkey_id, annotation_uri)
-);
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_key_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_key_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    key_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
+    annotation_uri text NOT NULL,
+    annotation_value jsonb NOT NULL,
+    UNIQUE (key_rid, annotation_uri)
+  );
+END IF;
 
-SELECT _ermrest.model_change_event();
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkey_annotations') IS NULL THEN
+  CREATE TABLE _ermrest.known_pseudo_fkey_annotations (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    fkey_rid int8 REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
+    annotation_uri text NOT NULL,
+    annotation_value jsonb NOT NULL,
+    UNIQUE (fkey_rid, annotation_uri)
+  );
+END IF;
+
+CREATE OR REPLACE VIEW _ermrest.known_schemas_denorm AS
+SELECT
+  s."RID",
+  s.schema_name,
+  s.comment,
+  COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
+  COALESCE(acls.acls, '{}'::jsonb) AS acls
+FROM _ermrest.known_schemas s
+LEFT OUTER JOIN (
+  SELECT
+    a.schema_rid,
+    jsonb_object_agg(a.annotation_uri, a.annotation_value) AS annotations
+  FROM _ermrest.known_schema_annotations a
+  GROUP BY a.schema_rid
+) anno ON (s."RID" = anno.schema_rid)
+LEFT OUTER JOIN (
+  SELECT
+    a.schema_rid,
+    jsonb_object_agg(a.acl, a.members) AS acls
+  FROM _ermrest.known_schema_acls a
+  GROUP BY a.schema_rid
+) acls ON (s."RID" = acls.schema_rid)
+;
+
+CREATE OR REPLACE VIEW _ermrest.known_columns_denorm AS
+SELECT
+  c."RID",
+  c.table_rid,
+  c.column_num,
+  c.column_name,
+  c.type_rid,
+  c.not_null,
+  c.column_default,
+  c."comment",
+  COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
+  COALESCE(acls.acls, '{}'::jsonb) AS acls
+FROM _ermrest.known_columns c
+LEFT OUTER JOIN (
+  SELECT
+    a.column_rid,
+    jsonb_object_agg(a.annotation_uri, a.annotation_value) AS annotations
+  FROM _ermrest.known_column_annotations a
+  GROUP BY a.column_rid
+) anno ON (c."RID" = anno.column_rid)
+LEFT OUTER JOIN (
+  SELECT
+    a.column_rid,
+    jsonb_object_agg(a.acl, a.members) AS acls
+  FROM _ermrest.known_column_acls a
+  GROUP BY a.column_rid
+) acls ON (c."RID" = acls.column_rid)
+;
+
+CREATE OR REPLACE VIEW _ermrest.known_tables_denorm AS
+SELECT
+  t."RID",
+  t.schema_rid,
+  t.table_name,
+  t.table_kind,
+  t."comment",
+  COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
+  COALESCE(acls.acls, '{}'::jsonb) AS acls,
+  COALESCE(c.columns, ARRAY[]::jsonb[]) AS columns
+FROM _ermrest.known_tables t
+LEFT OUTER JOIN (
+  SELECT
+    c.table_rid,
+    array_agg(to_jsonb(c.*) ORDER BY c.column_num)::jsonb[] AS columns
+  FROM _ermrest.known_columns_denorm c
+  GROUP BY c.table_rid
+) c ON (t."RID" = c.table_rid)
+LEFT OUTER JOIN (
+  SELECT
+    a.table_rid,
+    jsonb_object_agg(a.annotation_uri, a.annotation_value) AS annotations
+  FROM _ermrest.known_table_annotations a
+  GROUP BY a.table_rid
+) anno ON (t."RID" = anno.table_rid)
+LEFT OUTER JOIN (
+  SELECT
+    a.table_rid,
+    jsonb_object_agg(a.acl, a.members) AS acls
+  FROM _ermrest.known_table_acls a
+  GROUP BY a.table_rid
+) acls ON (t."RID" = acls.table_rid)
+;
+
+CREATE OR REPLACE FUNCTION _ermrest.record_new_table(schema_rid int8, tname text) RETURNS int8 AS $$
+DECLARE
+  t_rid int8;
+BEGIN
+  INSERT INTO _ermrest.known_tables (oid, schema_rid, table_name, table_kind, "comment")
+  SELECT t.oid, t.schema_rid, t.table_name, t.table_kind, t."comment"
+  FROM _ermrest.introspect_tables t
+  WHERE t.schema_rid = $1 AND t.table_name = $2
+  RETURNING "RID" INTO t_rid;
+
+  INSERT INTO _ermrest.known_columns (table_rid, column_num, column_name, type_rid, not_null, column_default, "comment")
+  SELECT c.table_rid, c.column_num, c.column_name, c.type_rid, c.not_null, c.column_default, c."comment"
+  FROM _ermrest.introspect_columns c
+  WHERE c.table_rid = t_rid;
+
+  PERFORM _ermrest.model_version_bump();
+  PERFORM _ermrest.data_change_event(t_rid);
+
+  RETURN t_rid;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE VIEW _ermrest.known_keys_denorm AS
+SELECT
+  k."RID",
+  k.schema_rid,
+  k.constraint_name,
+  k.table_rid,
+  kc.column_rids,
+  k."comment",
+  COALESCE(anno.annotations, '{}'::jsonb) AS annotations
+FROM _ermrest.known_keys k
+JOIN (
+  SELECT
+    kc.key_rid,
+    array_agg(kc.column_rid ORDER BY kc.column_rid)::int8[] AS column_rids
+  FROM _ermrest.known_key_columns kc
+  GROUP BY kc.key_rid
+) kc ON (k."RID" = kc.key_rid)
+LEFT OUTER JOIN (
+  SELECT
+    key_rid,
+    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
+  FROM _ermrest.known_key_annotations
+  GROUP BY key_rid
+) anno ON (k."RID" = anno.key_rid)
+;
+
+CREATE OR REPLACE VIEW _ermrest.known_pseudo_keys_denorm AS
+SELECT
+  k."RID",
+  k.constraint_name,
+  k.table_rid,
+  kc.column_rids,
+  k."comment",
+  COALESCE(anno.annotations, '{}'::jsonb) AS annotations
+FROM _ermrest.known_pseudo_keys k
+JOIN (
+  SELECT
+    kc.key_rid,
+    array_agg(kc.column_rid ORDER BY kc.column_rid)::int8[] AS column_rids
+  FROM _ermrest.known_pseudo_key_columns kc
+  GROUP BY kc.key_rid
+) kc ON (k."RID" = kc.key_rid)
+LEFT OUTER JOIN (
+  SELECT
+    key_rid,
+    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
+  FROM _ermrest.known_pseudo_key_annotations
+  GROUP BY key_rid
+) anno ON (k."RID" = anno.key_rid)
+;
+
+CREATE OR REPLACE VIEW _ermrest.known_fkeys_denorm AS
+SELECT
+  fk."RID",
+  fk.schema_rid,
+  fk.constraint_name,
+  fk.fk_table_rid,
+  fkcp.fk_column_rids,
+  fk.pk_table_rid,
+  fkcp.pk_column_rids,
+  fk.delete_rule,
+  fk.update_rule,
+  fk."comment",
+  COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
+  COALESCE(acl.acls, '{}'::jsonb) AS acls
+FROM _ermrest.known_fkeys fk
+JOIN (
+  SELECT
+    fkey_rid,
+    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS fk_column_rids,
+    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS pk_column_rids
+  FROM _ermrest.known_fkey_columns fkcp
+  GROUP BY fkcp.fkey_rid
+) fkcp ON (fk."RID" = fkcp.fkey_rid)
+LEFT OUTER JOIN (
+  SELECT
+    fkey_rid,
+    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
+  FROM _ermrest.known_fkey_annotations
+  GROUP BY fkey_rid
+) anno ON (fk."RID" = anno.fkey_rid)
+LEFT OUTER JOIN (
+  SELECT
+    fkey_rid,
+    jsonb_object_agg(acl, members) AS acls
+  FROM _ermrest.known_fkey_acls
+  GROUP BY fkey_rid
+) acl ON (fk."RID" = acl.fkey_rid)
+;
+
+CREATE OR REPLACE VIEW _ermrest.known_pseudo_fkeys_denorm AS
+SELECT
+  fk."RID",
+  fk.constraint_name,
+  fk.fk_table_rid,
+  fkcp.fk_column_rids,
+  fk.pk_table_rid,
+  fkcp.pk_column_rids,
+  fk."comment",
+  COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
+  COALESCE(acl.acls, '{}'::jsonb) AS acls
+FROM _ermrest.known_pseudo_fkeys fk
+LEFT OUTER JOIN (
+  SELECT
+    fkey_rid,
+    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS fk_column_rids,
+    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS pk_column_rids
+  FROM _ermrest.known_pseudo_fkey_columns fkcp
+  GROUP BY fkcp.fkey_rid
+) fkcp ON (fk."RID" = fkcp.fkey_rid)
+LEFT OUTER JOIN (
+  SELECT
+    fkey_rid,
+    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
+  FROM _ermrest.known_pseudo_fkey_annotations
+  GROUP BY fkey_rid
+) anno ON (fk."RID" = anno.fkey_rid)
+LEFT OUTER JOIN (
+  SELECT
+    fkey_rid,
+    jsonb_object_agg(acl, members) AS acls
+  FROM _ermrest.known_pseudo_fkey_acls
+  GROUP BY fkey_rid
+) acl ON (fk."RID" = acl.fkey_rid)
+;
+
+RAISE NOTICE 'Completed idempotent creation of standard ERMrest schema.';
+
+END ermrest_schema;
+$ermrest_schema$ LANGUAGE plpgsql;
+

@@ -95,13 +95,14 @@ class Model (object):
         self.enforce_right('create')
         cur.execute("""
 CREATE SCHEMA %(schema)s ;
-INSERT INTO _ermrest.known_schemas
-SELECT * FROM _ermrest.introspect_schemas WHERE schema_name = %(schema_str)s;
 SELECT _ermrest.model_version_bump();
+INSERT INTO _ermrest.known_schemas (oid, schema_name, "comment")
+SELECT oid, schema_name, "comment"
+ FROM _ermrest.introspect_schemas WHERE schema_name = %(schema_str)s
+RETURNING "RID";
 """ % dict(schema=sql_identifier(sname), schema_str=sql_literal(sname)))
-        cur.execute("SELECT oid FROM _ermrest.known_schemas WHERE schema_name = %s;" % sql_literal(sname))
-        soid = cur.next()[0]
-        newschema = Schema(self, sname, oid=soid)
+        srid = cur.next()[0]
+        newschema = Schema(self, sname, rid=srid)
         if not self.has_right('owner'):
             newschema.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
             newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
@@ -115,9 +116,9 @@ SELECT _ermrest.model_version_bump();
         self.schemas[sname].delete_acl(cur, None, purging=True)
         cur.execute("""
 DROP SCHEMA %(schema)s ;
-DELETE FROM _ermrest.known_schemas WHERE oid = %(oid)s::oid;
+DELETE FROM _ermrest.known_schemas WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
-""" % dict(schema=sql_identifier(sname), oid=sql_literal(schema.oid)))
+""" % dict(schema=sql_identifier(sname), rid=sql_literal(schema.rid)))
         del self.schemas[sname]
 
 @annotatable
@@ -128,7 +129,7 @@ SELECT _ermrest.model_version_bump();
 )
 @keying(
     'schema',
-    { "schema_oid": ('oid', lambda self: self.oid) },
+    { "schema_rid": ('int8', lambda self: self.rid) },
 )
 class Schema (object):
     """Represents a database schema.
@@ -137,9 +138,9 @@ class Schema (object):
     also has a reference to its 'model'.
     """
     
-    def __init__(self, model, name, comment=None, annotations={}, acls={}, oid=None):
+    def __init__(self, model, name, comment=None, annotations={}, acls={}, rid=None):
         self.model = model
-        self.oid = oid
+        self.rid = rid
         self.name = name
         self.comment = comment
         self.tables = AltDict(
@@ -166,12 +167,8 @@ class Schema (object):
         schema = model.create_schema(conn, cur, sname)
         
         schema.set_comment(conn, cur, comment)
-        
-        for k, v in annotations.items():
-            schema.set_annotation(conn, cur, k, v)
-
-        for k, v in acls.items():
-            schema.set_acl(cur, k, v)
+        schema.set_annotations(conn, cur, annotations)
+        schema.set_acls(cur, acls)
             
         for k, tabledoc in tables.items():
             tname = tabledoc.get('table_name', k)
@@ -190,11 +187,11 @@ class Schema (object):
         self.enforce_right('owner')
         cur.execute("""
 COMMENT ON SCHEMA %(sname)s IS %(comment)s;
-UPDATE _ermrest.known_schemas SET "comment" = %(comment)s WHERE oid = %(oid)s::oid;
+UPDATE _ermrest.known_schemas SET "comment" = %(comment)s WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
 """ % dict(
     sname=sql_identifier(self.name),
-    oid=sql_literal(self.oid),
+    rid=sql_literal(self.rid),
     comment=sql_literal(comment)
 )
         )

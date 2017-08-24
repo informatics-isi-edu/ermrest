@@ -20,6 +20,11 @@
     "column_types": {
         "boolean": { "aliases": [ "bool" ] },
         "date": null,
+        "ermrest_rid": null,
+        "ermrest_rcb": null,
+        "ermrest_rmb": null,
+        "ermrest_rct": null,
+        "ermrest_rmt": null,
         "float4": { "aliases": [ "real" ] },
         "float8": { "aliases": [ "double precision" ] },
         "int2": { "aliases": [ "smallint" ] },

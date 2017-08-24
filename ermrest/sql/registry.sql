@@ -15,18 +15,24 @@
 -- limitations under the License.
 --
 
-CREATE SCHEMA IF NOT EXISTS ermrest;
+DO $$
+BEGIN
 
-CREATE TABLE IF NOT EXISTS ermrest.simple_registry (
+IF (SELECT True FROM information_schema.schemata WHERE schema_name = 'ermrest') IS NULL THEN
+  CREATE SCHEMA ermrest;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'ermrest' AND table_name = 'simple_registry') IS NULL THEN
+  CREATE TABLE ermrest.simple_registry (
     id bigserial PRIMARY KEY,
     descriptor text,
     deleted_on timestamp with time zone DEFAULT NULL,
     created_on timestamp with time zone DEFAULT (now())
-);
-CREATE INDEX IF NOT EXISTS simple_registry_deleted_on_idx
-  ON ermrest.simple_registry (deleted_on);
-CREATE INDEX IF NOT EXISTS simple_registry_id_notdeleted_idx
-  ON ermrest.simple_registry (id)
-  WHERE deleted_on IS NULL;
-CREATE INDEX IF NOT EXISTS simple_registry_created_on_idx
-  ON ermrest.simple_registry (created_on);
+  );
+  CREATE INDEX IF NOT EXISTS simple_registry_deleted_on_idx    ON ermrest.simple_registry (deleted_on);
+  CREATE INDEX IF NOT EXISTS simple_registry_id_notdeleted_idx ON ermrest.simple_registry (id) WHERE deleted_on IS NULL;
+  CREATE INDEX IF NOT EXISTS simple_registry_created_on_idx    ON ermrest.simple_registry (created_on);
+END IF;
+
+END;
+$$ LANGUAGE plpgsql;

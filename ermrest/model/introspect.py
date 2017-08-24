@@ -76,133 +76,75 @@ SELECT
     #
     
     # get schemas (including empty ones)
-    cur.execute("""
-SELECT
-  s.oid,
-  s.schema_name,
-  s.comment,
-  COALESCE(anno.annotations, '{}'::jsonb),
-  COALESCE(acls.acls, '{}'::jsonb)
-FROM _ermrest.known_schemas s
-LEFT OUTER JOIN (
-  SELECT
-    schema_oid AS oid,
-    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
-  FROM _ermrest.known_schema_annotations
-  GROUP BY schema_oid
-) anno ON (s.oid = anno.oid)
-LEFT OUTER JOIN (
-  SELECT
-    schema_oid AS oid,
-    jsonb_object_agg(acl, members) AS acls
-  FROM _ermrest.known_schema_acls
-  GROUP BY schema_oid
-) acls ON (s.oid = acls.oid)
-;
-"""
-    )
-    for oid, schema_name, comment, annotations, acls in cur:
-        schemas[oid] = Schema(model, schema_name, comment, annotations, acls, oid)
+    cur.execute("SELECT * FROM _ermrest.known_schemas_denorm")
+    for rid, schema_name, comment, annotations, acls in cur:
+        schemas[rid] = Schema(model, schema_name, comment, annotations, acls, rid)
 
     # get possible column types (including unused ones)
-    cur.execute("SELECT * FROM _ermrest.known_types ORDER BY array_element_type_oid NULLS FIRST, domain_element_type_oid NULLS FIRST;")
-    for oid, schema_oid, type_name, array_element_type_oid, domain_element_type_oid, domain_notnull, domain_default, comment in cur:
-        # TODO: track schema and comments?
-        if domain_element_type_oid is not None:
-            typesengine.add_domain_type(oid, type_name, domain_element_type_oid, domain_default, domain_notnull, comment)
-        elif array_element_type_oid is not None:
-            typesengine.add_array_type(oid, type_name, array_element_type_oid, comment)
-        else:
-            typesengine.add_base_type(oid, type_name, comment)
-
-    # get tables, views, etc. (including empty zero-column ones)
     cur.execute("""
 SELECT
-  t.oid,
-  t.schema_oid,
-  t.table_name,
-  t.table_kind,
-  t."comment",
-  COALESCE(anno.annotations, '{}'::jsonb),
-  COALESCE(acls.acls, '{}'::jsonb),
-  COALESCE(c.columns, ARRAY[]::jsonb[])
-FROM _ermrest.known_tables t
-LEFT OUTER JOIN (
-  SELECT
-    a.table_oid AS oid,
-    jsonb_object_agg(a.annotation_uri, a.annotation_value) AS annotations
-  FROM _ermrest.known_table_annotations a
-  GROUP BY a.table_oid
-) anno ON (t.oid = anno.oid)
-LEFT OUTER JOIN (
-  SELECT
-    a.table_oid AS oid,
-    jsonb_object_agg(a.acl, a.members) AS acls
-  FROM _ermrest.known_table_acls a
-  GROUP BY a.table_oid
-) acls ON (t.oid = acls.oid)
-LEFT OUTER JOIN (
-  SELECT
-    c.table_oid,
-    array_agg(to_jsonb(c.*) ORDER BY column_num) AS columns
-  FROM (
-    SELECT
-      c.*, 
-      COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
-      COALESCE(acls.acls, '{}'::jsonb) AS acls
-    FROM _ermrest.known_columns c
-    LEFT OUTER JOIN (
-      SELECT
-        a.table_oid,
-        a.column_num,
-        jsonb_object_agg(a.annotation_uri, a.annotation_value) AS annotations
-      FROM _ermrest.known_column_annotations a
-      GROUP BY a.table_oid, a.column_num
-    ) anno ON (c.table_oid = anno.table_oid AND c.column_num = anno.column_num)
-    LEFT OUTER JOIN (
-      SELECT
-        a.table_oid,
-        a.column_num,
-        jsonb_object_agg(a.acl, a.members) AS acls
-      FROM _ermrest.known_column_acls a
-      GROUP BY a.table_oid, a.column_num
-    ) acls ON (c.table_oid = acls.table_oid AND c.column_num = acls.column_num)
-  ) c
-  GROUP BY c.table_oid
-) c ON (t.oid = c.table_oid)
-;
+    "RID",
+    schema_rid,
+    type_name,
+    array_element_type_rid,
+    domain_element_type_rid,
+    domain_notnull,
+    domain_default,
+    "comment"
+FROM _ermrest.known_types
+ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST;
 """)
-    for oid, schema_oid, table_name, table_kind, comment, annotations, acls, coldocs in cur:
+    for rid, schema_rid, type_name, array_element_type_rid, domain_element_type_rid, domain_notnull, domain_default, comment in cur:
+        # TODO: track schema and comments?
+        if domain_element_type_rid is not None:
+            typesengine.add_domain_type(rid, type_name, domain_element_type_rid, domain_default, domain_notnull, comment)
+        elif array_element_type_rid is not None:
+            typesengine.add_array_type(rid, type_name, array_element_type_rid, comment)
+        else:
+            typesengine.add_base_type(rid, type_name, comment)
+
+    # get tables, views, etc. (including empty zero-column ones)
+    cur.execute("SELECT * FROM _ermrest.known_tables_denorm")
+    for rid, schema_rid, table_name, table_kind, comment, annotations, acls, coldocs in cur:
         tcols = []
         for i in range(len(coldocs)):
             cdoc = coldocs[i]
-            ctype = typesengine.lookup(int(cdoc['type_oid']), cdoc['column_default'], True) # to_json turns OID type into string...
+            try:
+                ctype = typesengine.lookup(cdoc['type_rid'], cdoc['column_default'], True)
+            except ValueError:
+                raise ValueError('Disallowed type "%s" requested for column "%s"."%s"."%s"' % (
+                    typesengine.disallowed_by_rid[cdoc['type_rid']],
+                    schemas[schema_rid].name,
+                    table_name,
+                    cdoc['column_name'],
+                ))
             try:
                 default = ctype.default_value(cdoc['column_default'])
             except ValueError:
                 default = None
+            crid = cdoc['RID']
             cnum = cdoc['column_num']
             canno = cdoc['annotations']
             cacl = cdoc['acls']
-            col = Column(cdoc['column_name'], i, ctype, default, not cdoc['not_null'], cdoc['comment'], cnum, canno, cacl)
+            col = Column(cdoc['column_name'], i, ctype, default, not cdoc['not_null'], cdoc['comment'], cnum, canno, cacl, rid=crid)
             tcols.append(col)
-            columns[(oid, cnum)] = col
+            columns[crid] = col
 
-        tables[oid] = Table(schemas[schema_oid], table_name, tcols, table_kind, comment, annotations, acls, oid=oid)
+        tables[rid] = Table(schemas[schema_rid], table_name, tcols, table_kind, comment, annotations, acls, rid=rid)
 
     # Introspect pseudo not-null constraints
-    cur.execute("SELECT * FROM _ermrest.known_pseudo_notnulls")
-    for table_oid, column_num in cur:
-        columns[(table_oid, column_num)].nullok = False
+    cur.execute("SELECT column_rid FROM _ermrest.known_pseudo_notnulls;")
+    for column_rid, in cur:
+        columns[column_rid].nullok = False
 
     #
     # Introspect uniques / primary key references, aggregated by constraint
     #
-    def _introspect_pkey(table_oid, pk_column_nums, pk_comment, pk_factory):
+    def _introspect_pkey(table_rid, pk_column_rids, pk_comment, pk_factory):
         try:
             pk_cols = [
-                columns[(table_oid, pk_column_num)]
-                for pk_column_num in pk_column_nums
+                columns[pk_column_rid]
+                for pk_column_rid in pk_column_rids
             ]
         except KeyError:
             return
@@ -219,73 +161,41 @@ LEFT OUTER JOIN (
                 # save at least one comment in case multiple constraints have same key columns
                 pkeys[pk_colset].comment = pk_comment
 
-    cur.execute("""
-SELECT
-  k.oid,
-  k.schema_oid,
-  k.constraint_name,
-  k.table_oid,
-  k.column_nums,
-  k."comment",
-  COALESCE(anno.annotations, '{}'::jsonb)
-FROM _ermrest.known_keys k
-LEFT OUTER JOIN (
-  SELECT
-    key_oid AS oid,
-    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
-  FROM _ermrest.known_key_annotations
-  GROUP BY key_oid
-) anno ON (k.oid = anno.oid)
-;
-""")
-    for oid, schema_oid, constraint_name, table_oid, column_nums, comment, annotations in cur:
-        name_pair = (schemas[schema_oid].name, constraint_name)
+    cur.execute("SELECT * FROM _ermrest.known_keys_denorm;")
+    for rid, schema_rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
+        name_pair = (schemas[schema_rid].name, constraint_name)
         _introspect_pkey(
-            table_oid, column_nums, comment,
-            lambda pk_colset: Unique(pk_colset, name_pair, comment, annotations, oid)
+            table_rid, column_rids, comment,
+            lambda pk_colset: Unique(pk_colset, name_pair, comment, annotations, rid)
         )
 
-    cur.execute("""
-SELECT
-  k.id,
-  k.constraint_name,
-  k.table_oid,
-  k.column_nums,
-  k."comment",
-  COALESCE(anno.annotations, '{}'::jsonb)
-FROM _ermrest.known_pseudo_keys k
-LEFT OUTER JOIN (
-  SELECT
-    pkey_id AS id,
-    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
-  FROM _ermrest.known_pseudo_key_annotations
-  GROUP BY pkey_id
-) anno ON (k.id = anno.id)
-;
-""")
-    for pk_id, constraint_name, table_oid, column_nums, comment, annotations in cur:
-        name_pair = ("", (constraint_name if constraint_name is not None else pk_id))
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm;")
+    for rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
+        name_pair = ("", (constraint_name if constraint_name is not None else rid))
         _introspect_pkey(
-            table_oid, column_nums, comment,
-            lambda pk_colset: PseudoUnique(pk_colset, pk_id, name_pair, comment, annotations)
+            table_rid, column_rids, comment,
+            lambda pk_colset: PseudoUnique(pk_colset, rid, name_pair, comment, annotations)
         )
 
     #
     # Introspect foreign keys references, aggregated by reference constraint
     #
     def _introspect_fkr(
-            fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, fk_comment,
+            fk_table_rid, fk_column_rids, pk_table_rid, pk_column_rids, fk_comment,
             fkr_factory
     ):
         try:
-            fk_cols = [ columns[(fk_table_oid, fk_column_nums[i])] for i in range(len(fk_column_nums)) ]
-            pk_cols = [ columns[(pk_table_oid, pk_column_nums[i])] for i in range(len(pk_column_nums)) ]
+            fk_cols = [ columns[fk_column_rids[i]] for i in range(len(fk_column_rids)) ]
+            pk_cols = [ columns[pk_column_rids[i]] for i in range(len(pk_column_rids)) ]
         except KeyError:
             return
 
         fk_colset = frozenset(fk_cols)
         pk_colset = frozenset(pk_cols)
-        fk_ref_map = frozendict(dict([ (fk_cols[i], pk_cols[i]) for i in range(len(fk_cols)) ]))
+        fk_ref_map = frozendict({
+            fk_col: pk_col
+            for fk_col, pk_col in zip(fk_cols, pk_cols)
+        })
 
         # each reference constraint implies a foreign key but might be duplicate
         if fk_colset not in fkeys:
@@ -306,92 +216,34 @@ LEFT OUTER JOIN (
 
         return fkr
 
-    cur.execute("""
-SELECT
-  fk.oid,
-  fk.schema_oid,
-  fk.constraint_name,
-  fk.fk_table_oid,
-  fk.fk_column_nums,
-  fk.pk_table_oid,
-  fk.pk_column_nums,
-  fk.delete_rule,
-  fk.update_rule,
-  fk."comment",
-  COALESCE(anno.annotations, '{}'::jsonb),
-  COALESCE(acl.acls, '{}'::jsonb)
-FROM _ermrest.known_fkeys fk
-LEFT OUTER JOIN (
-  SELECT
-    fkey_oid AS oid,
-    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
-  FROM _ermrest.known_fkey_annotations
-  GROUP BY fkey_oid
-) anno ON (fk.oid = anno.oid)
-LEFT OUTER JOIN (
-  SELECT
-    fkey_oid AS oid,
-    jsonb_object_agg(acl, members) AS acls
-  FROM _ermrest.known_fkey_acls
-  GROUP BY fkey_oid
-) acl ON (fk.oid = acl.oid);
-""")
-    for oid, schema_oid, constraint_name, \
-        fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, delete_rule, update_rule, comment, \
-        annotations, acls in cur:
-        name_pair = (schemas[schema_oid].name, constraint_name)
-        fkeyrefs[oid] = _introspect_fkr(
-            fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, comment,
-            lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, name_pair, annotations, comment, acls, oid=oid)
+    cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm;")
+    for rid, schema_rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
+        delete_rule, update_rule, comment, annotations, acls in cur:
+        name_pair = (schemas[schema_rid].name, constraint_name)
+        fkeyrefs[rid] = _introspect_fkr(
+            fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
+            lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, name_pair, annotations, comment, acls, rid=rid)
         )
 
-    cur.execute("""
-SELECT
-  fk.id,
-  fk.constraint_name,
-  fk.fk_table_oid,
-  fk.fk_column_nums,
-  fk.pk_table_oid,
-  fk.pk_column_nums,
-  fk."comment",
-  COALESCE(anno.annotations, '{}'::jsonb),
-  COALESCE(acl.acls, '{}'::jsonb)
-FROM _ermrest.known_pseudo_fkeys fk
-LEFT OUTER JOIN (
-  SELECT
-    pfkey_id AS id,
-    jsonb_object_agg(annotation_uri, annotation_value) AS annotations
-  FROM _ermrest.known_pseudo_fkey_annotations
-  GROUP BY pfkey_id
-) anno ON (fk.id = anno.id)
-LEFT OUTER JOIN (
-  SELECT
-    pfkey_id AS id,
-    jsonb_object_agg(acl, members) AS acls
-  FROM _ermrest.known_pseudo_fkey_acls
-  GROUP BY pfkey_id
-) acl ON (fk.id = acl.id)
-;
-""")
-    for fk_id, constraint_name, \
-        fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, comment, \
-        annotations, acls in cur:
-        name_pair = ("", (constraint_name if constraint_name is not None else fk_id))
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm;")
+    for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
+        comment, annotations, acls in cur:
+        name_pair = ("", (constraint_name if constraint_name is not None else rid))
         _introspect_fkr(
-            fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, comment,
-            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, fk_id, name_pair, annotations, comment, acls)
+            fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
+            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, rid, name_pair, annotations, comment, acls)
         )
 
     # AclBinding constructor needs whole model to validate binding projections...
     cur.execute("""
 SELECT
-  a.table_oid AS oid,
+  a.table_rid,
   jsonb_object_agg(a.binding_name, a.binding) AS dynacls
 FROM _ermrest.known_table_dynacls a
-GROUP BY a.table_oid;
+GROUP BY a.table_rid;
 """)
-    for oid, dynacls in cur:
-        table = tables[oid]
+    for rid, dynacls in cur:
+        table = tables[rid]
         table.dynacls.update({
             binding_name: AclBinding(model, table, binding_name, binding_doc) if binding_doc else binding_doc
             for binding_name, binding_doc in dynacls.items()
@@ -399,14 +251,13 @@ GROUP BY a.table_oid;
 
     cur.execute("""
 SELECT
-  a.table_oid,
-  a.column_num,
+  a.column_rid,
   jsonb_object_agg(a.binding_name, a.binding) AS dynacls
 FROM _ermrest.known_column_dynacls a
-GROUP BY a.table_oid, a.column_num;
+GROUP BY a.column_rid;
 """)
-    for table_oid, column_num, dynacls in cur:
-        column = columns[(table_oid, column_num)]
+    for column_rid, dynacls in cur:
+        column = columns[column_rid]
         column.dynacls.update({
             binding_name: AclBinding(model, column, binding_name, binding_doc) if binding_doc else binding_doc
             for binding_name, binding_doc in dynacls.items()
@@ -414,13 +265,13 @@ GROUP BY a.table_oid, a.column_num;
 
     cur.execute("""
 SELECT
-  fkey_oid AS oid,
+  fkey_rid,
   jsonb_object_agg(binding_name, binding) AS dynacls
 FROM _ermrest.known_fkey_dynacls
-GROUP BY fkey_oid;
+GROUP BY fkey_rid;
 """)
-    for oid, dynacls in cur:
-        fkr = fkeyrefs[oid]
+    for rid, dynacls in cur:
+        fkr = fkeyrefs[rid]
         fkr.dynacls.update({
             binding_name: AclBinding(model, fkr, binding_name, binding_doc) if binding_doc else binding_doc
             for binding_name, binding_doc in dynacls.items()
@@ -428,13 +279,13 @@ GROUP BY fkey_oid;
 
     cur.execute("""
 SELECT
-  pfkey_id AS id,
+  fkey_rid,
   jsonb_object_agg(binding_name, binding) AS dynacls
 FROM _ermrest.known_pseudo_fkey_dynacls
-GROUP BY pfkey_id;
+GROUP BY fkey_rid;
 """)
-    for id, dynacls in cur:
-        fkr = pfkeyrefs[id]
+    for rid, dynacls in cur:
+        fkr = pfkeyrefs[rid]
         fkr.dynacls.update({
             binding_name: AclBinding(model, fkr, binding_name, binding_doc) if binding_doc else binding_doc
             for binding_name, binding_doc in dynacls.items()
@@ -442,7 +293,9 @@ GROUP BY pfkey_id;
 
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
+    model.pg_catalog_schema = model.schemas['pg_catalog']
     del model.schemas['_ermrest']
+    del model.schemas['pg_catalog']
 
     model.check_primary_keys(web.ctx.ermrest_config.get('require_primary_keys', True))
 

@@ -23,21 +23,16 @@ import web
 import json
 
 @annotatable
-@keying(
-    'key',
-    {
-        "key_oid": ('oid', lambda self: self.oid)
-    }
-)
+@keying('key', {"key_rid": ('int8', lambda self: self.rid)})
 class Unique (object):
     """A unique constraint."""
     
-    def __init__(self, cols, constraint_name=None, comment=None, annotations={}, oid=None):
+    def __init__(self, cols, constraint_name=None, comment=None, annotations={}, rid=None):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
-        self.oid = oid
+        self.rid = rid
         self.table_references = dict()
         if constraint_name is not None:
             enforce_63byte_id(constraint_name[1], 'Uniqueness constraint')
@@ -60,20 +55,15 @@ class Unique (object):
             pk_schema, pk_name = self.constraint_name
             cur.execute("""
 COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
-UPDATE _ermrest.known_keys
-SET "comment" = %(comment)s
-WHERE table_oid = %(table_oid)s::oid
-  AND constraint_name = %(constraint_name_str)s;
+UPDATE _ermrest.known_keys SET "comment" = %(comment)s WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
-""" % dict(
-    constraint_name=sql_identifier(unicode(pk_name)),
-    constraint_name_str=sql_literal(unicode(pk_name)),
-    sname=sql_identifier(unicode(self.table.schema.name)),
-    tname=sql_identifier(unicode(self.table.name)),
-    table_oid=sql_literal(self.table.oid),
-    comment=sql_literal(comment),
-)
-        )
+""" % {
+    'constraint_name': sql_identifier(unicode(pk_name)),
+    'sname': sql_identifier(unicode(self.table.schema.name)),
+    'tname': sql_identifier(unicode(self.table.name)),
+    'rid': sql_literal(self.rid),
+    'comment': sql_literal(comment),
+})
         # also update other constraints sharing same key colset
         for pk in self.constraints:
             if pk != self:
@@ -170,16 +160,26 @@ SELECT _ermrest.model_version_bump();
             conn, cur,
             'ADD %s' % self.sql_def(),
             """
-INSERT INTO _ermrest.known_keys
-SELECT * FROM _ermrest.introspect_keys
-WHERE table_oid = t_oid AND constraint_name = %s;
-""" % sql_literal(self.constraint_name[1])
-        )
-        cur.execute("SELECT _ermrest.key_oid(%s,%s);" % (sql_literal(self.table.oid), sql_literal(self.constraint_name[1])))
-        self.oid = cur.next()[0]
+INSERT INTO _ermrest.known_keys (oid, schema_rid, constraint_name, table_rid, "comment")
+SELECT oid, schema_rid, constraint_name, table_rid, "comment"
+FROM _ermrest.introspect_keys
+WHERE table_rid = %(t_rid)s AND constraint_name = %(c_name)s;
+
+INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
+SELECT key_rid, column_rid
+FROM _ermrest.introspect_key_columns
+WHERE key_rid = (
+  SELECT "RID" 
+  FROM _ermrest.known_keys k
+  WHERE table_rid = %(t_rid)s AND constraint_name = %(c_name)s
+)
+RETURNING key_rid;
+""" % {
+    't_rid': sql_literal(self.table.rid),
+    'c_name': sql_literal(self.constraint_name[1])
+})
+        self.rid = cur.next()[0]
         self.set_comment(conn, cur, self.comment)
-        for k, v in self.annotations.items():
-            self.set_annotation(conn, cur, k, v)
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -188,10 +188,7 @@ WHERE table_oid = t_oid AND constraint_name = %s;
             self.table.alter_table(
                 conn, cur,
                 'DROP CONSTRAINT %s' % sql_identifier(pk_name),
-                """
-DELETE FROM _ermrest.known_keys
-WHERE table_oid = t_oid AND constraint_name = %s;
-""" % sql_literal(pk_name)
+                'DELETE FROM _ermrest.known_keys WHERE "RID" = %s;' % sql_literal(self.rid),
             )
         for pk in self.constraints:
             if pk != self:
@@ -201,12 +198,12 @@ WHERE table_oid = t_oid AND constraint_name = %s;
             raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
 
     def prejson(self):
-        return dict(
-            comment=self.comment,
-            annotations=self.annotations,
-            unique_columns=[ c.name for c in self.columns ],
-            names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
-            )
+        return {
+            'comment': self.comment,
+            'annotations': self.annotations,
+            'unique_columns': [ c.name for c in self.columns ],
+            'names': [ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
+        }
 
     @cache_rights
     def has_right(self, aclname, roles=None):
@@ -217,22 +214,17 @@ WHERE table_oid = t_oid AND constraint_name = %s;
         return True
 
 @annotatable
-@keying(
-    'pseudo_key',
-    {
-        "pkey_id": ('int', lambda self: self.id)
-    }
-)
+@keying('pseudo_key', {"pkey_rid": ('int8', lambda self: self.rid)})
 class PseudoUnique (object):
     """A pseudo-uniqueness constraint."""
 
-    def __init__(self, cols, id=None, constraint_name=None, comment=None, annotations={}):
+    def __init__(self, cols, rid=None, constraint_name=None, comment=None, annotations={}):
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
         self.columns = cols
         self.table_references = dict()
-        self.id = id
+        self.rid = rid
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.comment = comment
@@ -254,22 +246,19 @@ class PseudoUnique (object):
 
     def set_comment(self, conn, cur, comment):
         # comment this particular constraint
-        if self.id:
+        if self.rid:
             cur.execute("""
-UPDATE _ermrest.known_pseudo_keys
-SET comment = %s
-WHERE id = %s ;
+UPDATE _ermrest.known_pseudo_keys SET comment = %(comment)s WHERE "RID" = %(rid)s ;
 SELECT _ermrest.model_version_bump();
-""" % (
-    sql_literal(comment),
-    sql_literal(self.id)
-)
-        )
+""" % {
+    'comment': sql_literal(comment),
+    'rid': sql_literal(self.rid),
+})
         # also update other constraints sharing same key colset
         for pk in self.constraints:
             if pk != self:
                 pk.set_comment(conn, cur, comment)
- 
+
     def is_primary_key(self):
         if not self.columns:
             return False
@@ -285,12 +274,12 @@ SELECT _ermrest.model_version_bump();
         return cnames
         
     def prejson(self):
-        return dict(
-            comment=self.comment,
-            annotations=self.annotations,
-            unique_columns=[ c.name for c in self.columns ],
-            names=[ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ]
-            )
+        return {
+            'comment': self.comment,
+            'annotations': self.annotations,
+            'unique_columns': [ c.name for c in self.columns ],
+            'names': [ [ c.constraint_name[0], c.constraint_name[1] ] for c in self.constraints ],
+        }
 
     def pre_delete(self, conn, cur):
         """Do any maintenance before table is deleted."""
@@ -303,40 +292,38 @@ SELECT _ermrest.model_version_bump();
         self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_oid, column_nums, comment)
-SELECT
-  %(constraint_name)s,
-  c.table_oid,
-  array_agg(c.column_num ORDER BY c.column_num),
-  %(comment)s
-FROM _ermrest.known_columns c
-WHERE c.table_oid = %(table_oid)s::oid
-  AND c.column_name IN (ARRAY[%(column_names)s])
-RETURNING id;
-""" % dict(
-    constraint_name=sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL',
-    table_oid=sql_literal(self.table.oid),
-    column_names=','.join([ sql_literal(unicode(c.name)) for c in self.columns ]),
-    comment=sql_literal(self.comment),
-)
-        )
-        self.id = cur.fetchone()[0]
+INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_rid, comment)
+VALUES (%(constraint_name)s, %(table_rid)s, %(comment)s)
+RETURNING "RID";
+""" % {
+    'constraint_name': sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL',
+    'table_rid': sql_literal(self.table.rid),
+    'comment': sql_literal(self.comment),
+})
+        self.rid = cur.fetchone()[0]
+
+        cur.execute("""
+INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
+SELECT %(rid)s, c.rid FROM unnest(%(col_rids)s) c(rid);
+""" % {
+    'rid': sql_literal(self.rid),
+    'col_rids': 'ARRAY[%s]::int8[]' % (','.join([ sql_literal(c.rid) for c in self.columns ])),
+})
         self.constraint_name = [
             "",
             self.constraint_name[1] if self.constraint_name else self.id
         ]
-        for k, v in self.annotations.items():
-            self.set_annotation(conn, cur, k, v)
 
     def delete(self, conn, cur):
         self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         self.pre_delete(conn, cur)
-        if self.id:
+        if self.rid:
             cur.execute("""
-DELETE FROM _ermrest.known_pseudo_keys WHERE id = %s;
+DELETE FROM _ermrest.known_pseudo_keys WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
-""" % sql_literal(self.id)
-            )
+""" % {
+    'rid': sql_literal(self.rid),
+})
         for pk in self.constraints:
             if pk != self:
                 pk.delete(conn, cur)
@@ -383,11 +370,9 @@ class ForeignKey (object):
     @staticmethod
     def fromjson(table, refsdoc):
         fkeys = []
-
         for refdoc in refsdoc:
             # callee will append newly created fkeys to our list as out-variable
             fkrs = list(KeyReference.fromjson(table.schema.model, refdoc, None, table, None, None, fkeys))
-
         return fkeys
 
     def prejson(self):
@@ -445,14 +430,14 @@ def _keyref_prejson(self):
     for fc in self.reference_map.keys():
         fcs.append( fc.prejson_ref() )
         pcs.append( self.reference_map[fc].prejson_ref() )
-    doc = dict(
-        foreign_key_columns=fcs,
-        referenced_columns=pcs,
-        rights=self.rights(),
-        comment=self.comment,
-        annotations=self.annotations,
-        names=[ constraint_name_prejson(c) for c in self.constraints ]
-    )
+    doc = {
+        'foreign_key_columns': fcs,
+        'referenced_columns': pcs,
+        'rights': self.rights(),
+        'comment': self.comment,
+        'annotations': self.annotations,
+        'names': [ constraint_name_prejson(c) for c in self.constraints ],
+    }
     if self.has_right('owner'):
         doc['acls'] = self.acls
         doc['acl_bindings'] = self.dynacls
@@ -469,27 +454,20 @@ def _keyref_has_right(self, aclname, roles=None):
     return self._has_right(aclname, roles)
 
 @annotatable
-@hasdynacls(
-    { "owner", "insert", "update" }
-)
+@hasdynacls({ "owner", "insert", "update" })
 @hasacls(
     {"write", "insert", "update", "enumerate"},
     {"insert", "update"},
     lambda self: self.foreign_key.table
 )
-@keying(
-    'fkey',
-    {
-        "fkey_oid": ('oid', lambda self: self.oid)
-    }
-)
+@keying('fkey', {"fkey_rid": ('int8', lambda self: self.rid)})
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}, oid=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}, rid=None):
         self.foreign_key = foreign_key
         self.unique = unique
-        self.oid = oid
+        self.rid = rid
         self.reference_map_frozen = fk_ref_map
         self.reference_map = dict(fk_ref_map)
         self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
@@ -519,20 +497,15 @@ class KeyReference (object):
             fkr_schema, fkr_name = self.constraint_name
             cur.execute("""
 COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
-UPDATE _ermrest.known_fkeys
-SET "comment" = %(comment)s
-WHERE fk_table_oid = %(table_oid)s::oid
-  AND constraint_name = %(constraint_name_str)s;
+UPDATE _ermrest.known_fkeys SET "comment" = %(comment)s WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
-""" % dict(
-    constraint_name=sql_identifier(unicode(fkr_name)),
-    constraint_name_str=sql_literal(unicode(fkr_name)),
-    sname=sql_identifier(unicode(self.foreign_key.table.schema.name)),
-    tname=sql_identifier(unicode(self.foreign_key.table.name)),
-    table_oid=sql_literal(self.foreign_key.table.oid),
-    comment=sql_literal(comment)
-)
-            )
+""" % {
+    'constraint_name': sql_identifier(unicode(fkr_name)),
+    'sname': sql_identifier(unicode(self.foreign_key.table.schema.name)),
+    'tname': sql_identifier(unicode(self.foreign_key.table.name)),
+    'rid': sql_literal(self.rid),
+    'comment': sql_literal(comment),
+})
         # also update other constraints sharing same mapping
         for fkr in self.constraints:
             if fkr != self:
@@ -582,16 +555,28 @@ SELECT _ermrest.model_version_bump();
             conn, cur,
             'ADD %s' % self.sql_def(),
             """
-INSERT INTO _ermrest.known_fkeys
-SELECT * FROM _ermrest.introspect_fkeys
-WHERE fk_table_oid = t_oid AND constraint_name = %s;
-""" % sql_literal(self.constraint_name[1])
-        )
-        cur.execute("SELECT _ermrest.fkey_oid(%s,%s);" % (sql_literal(self.foreign_key.table.oid), sql_literal(self.constraint_name[1])))
-        self.oid = cur.next()[0]
+INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule)
+SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule
+FROM _ermrest.introspect_fkeys
+WHERE fk_table_rid = %(table_rid)s
+  AND constraint_name = %(constraint_name)s;
+
+INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
+SELECT fkey_rid, fk_column_rid, pk_column_rid
+FROM _ermrest.introspect_fkey_columns fkc
+WHERE fkey_rid = (
+  SELECT "RID"
+  FROM _ermrest.known_fkeys
+  WHERE fk_table_rid = %(table_rid)s
+    AND constraint_name = %(constraint_name)s
+)
+RETURNING fkey_rid;
+""" % {
+    'table_rid': sql_literal(self.foreign_key.table.rid),
+    'constraint_name': sql_literal(self.constraint_name[1]),
+})
+        self.rid = cur.next()[0]
         self.set_comment(conn, cur, self.comment)
-        for k, v in self.annotations.items():
-            self.set_annotation(conn, cur, k, v)
                 
     def delete(self, conn, cur):
         self.pre_delete(conn, cur)
@@ -600,10 +585,7 @@ WHERE fk_table_oid = t_oid AND constraint_name = %s;
             self.foreign_key.table.alter_table(
                 conn, cur,
                 'DROP CONSTRAINT %s' % sql_identifier(fkr_name),
-                """
-DELETE FROM _ermrest.known_fkeys
-WHERE fk_table_oid = t_oid AND constraint_name = %s;
-""" % sql_literal(fkr_name)
+                'DELETE FROM _ermrest.known_fkeys WHERE "RID" = %s;' % sql_literal(self.rid),
             )
         for fkr in self.constraints:
             if fkr != self:
@@ -698,7 +680,6 @@ WHERE fk_table_oid = t_oid AND constraint_name = %s;
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
-
         fk_name = fk_names[0] if fk_names else None
             
         if fk_ref_map not in fkey.references:
@@ -720,24 +701,17 @@ WHERE fk_table_oid = t_oid AND constraint_name = %s;
         return _keyref_has_right(self, aclname, roles)
 
 @annotatable
-@hasdynacls(
-    { "owner", "insert", "update" }
-)
+@hasdynacls({ "owner", "insert", "update" })
 @hasacls(
     {"write", "insert", "update", "enumerate"},
     {"insert", "update"},
     lambda self: self.foreign_key.table
 )
-@keying(
-    'pseudo_fkey',
-    {
-        "pfkey_id": ('int', lambda self: self.id)
-    }
-)
+@keying('pseudo_fkey', {"fkey_rid": ('int8', lambda self: self.id)})
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, id=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}):
+    def __init__(self, foreign_key, unique, fk_ref_map, rid=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -750,7 +724,7 @@ class PseudoKeyReference (object):
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         _guarded_add(unique.table_references[foreign_key.table], self)
-        self.id = id
+        self.rid = rid
         self.constraint_name = constraint_name
         self.constraints = set([self])
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
@@ -764,15 +738,12 @@ class PseudoKeyReference (object):
     def set_comment(self, conn, cur, comment):
         if self.id:
             cur.execute("""
-UPDATE _ermrest.known_pseudo_fkeys
-SET comment = %s
-WHERE id = %s
+UPDATE _ermrest.known_pseudo_fkeys SET comment = %(comment)s WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
-""" % (
-    sql_literal(comment),
-    sql_literal(self.id)
-)
-            )
+""" % {
+    'comment': sql_literal(comment),
+    'rid': sql_literal(self.rid),
+})
         # also update other constraints sharing same mapping
         for fkr in self.constraints:
             if fkr != self:
@@ -810,61 +781,41 @@ SELECT _ermrest.model_version_bump();
         fk_cols = list(self.foreign_key.columns)
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_pseudo_fkeys
-SELECT
-  %(constraint_name)s,
-  fc.table_oid,
-  array_agg(fc.column_num ORDER BY fc.fkindex),
-  tc.table_oid,
-  array_agg(tc.column_num ORDER BY tc.fkindex),
-  %(comment)s
-FROM (
-  SELECT
-    fc.table_oid,
-    fc.column_num,
-    fcol.i AS fkindex
-  FROM _ermrest.known_columns fc,
-  LATERAL unnest(ARRAY[%(fkcolumns)]) WITH ORDINALITY AS fcol(n, i)
-  WHERE fc.table_oid = %(fk_table_oid)s::oid
-    AND fc.column_name = fcol.n
-) fc
-JOIN (
-  SELECT
-    tc.table_oid,
-    tc.column_num,
-    tcol.i AS fkindex
-  FROM _ermrest.known_columns tc,
-  LATERAL unnest(ARRAY[%(pkcolumns)]) WITH ORDINALITY AS tcol(n, i)
-  WHERE tc.table_oid = %(pk_table_oid)s::oid
-    AND tc.column_name = tcol.n
-) tc ON (fc.fkindex = tc.fkindex)
-RETURNING id
-""" % dict(
-    fk_table_oid=sql_literal(self.foreign_key.table.oid),
-    fkcolumns=', '.join([ sql_literal(unicode(fk_cols[i].name)) for i in range(len(fk_cols)) ]),
-    pk_table_oid=sql_literal(self.unique.table.oid),
-    pkcolumns=', '.join([ sql_literal(unicode(self.reference_map[fk_cols[i]].name)) for i in range(len(fk_cols)) ]),
-    comment=sql_literal(self.comment),
-    constraint_name=sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL'
-)
+INSERT INTO _ermrest.known_pseudo_fkeys (constraint_name, fk_table_rid, pk_table_rid)
+VALUES (%(constraint_name)s, %(fk_table_rid)s, %(pk_table_rid)s)
+RETURNING "RID";
+""" % {
+    'fk_table_rid': sql_literal(self.foreign_key.table.rid),
+    'pk_table_rid': sql_literal(self.unique.table.rid),
+    'comment': sql_literal(self.comment),
+    'constraint_name': sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL',
+})
+        self.rid = cur.fetchone()[0]
+
+        cur.execute("""
+INSERT INTO _ermrest.known_pseudo_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid) VALUES %(values)s;
+""" % {
+    'values': ','.join([
+        '(%s, %s, %s)' % (
+            sql_literal(self.rid),
+            sql_literal(fk_cols[i].rid),
+            sql_literal(self.reference_map[fk_cols[i]].rid),
         )
-        self.id = cur.fetchone()[0]
-        self.constraint_name = [
-            "",
-            self.constraint_name[1] if self.constraint_name else self.id
-        ]
-        for k, v in self.annotations.items():
-            self.set_annotation(conn, cur, k, v)
-        
+        for i in range(len(fk_cols))
+    ]),
+})
+        self.constraint_name = ["", self.constraint_name[1] if self.constraint_name else self.rid]
+
     def delete(self, conn, cur):
         self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
         self.pre_delete(conn, cur)
         if self.id:
             cur.execute("""
-DELETE FROM _ermrest.known_pseudo_fkeys WHERE id = %s;
+DELETE FROM _ermrest.known_pseudo_fkeys WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
-""" % sql_literal(self.id)
-            )
+""" % {
+    'rid': sql_literal(self.rid),
+})
         for fkr in self.constraints:
             if fkr != self:
                 fkr.delete(conn, cur)

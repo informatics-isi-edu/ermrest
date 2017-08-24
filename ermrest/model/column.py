@@ -36,8 +36,7 @@ from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_right
 @keying(
    'column',
     {
-        "table_oid": ('oid', lambda self: self.table.oid),
-        "column_num": ('int', lambda self: self.column_num)
+        "column_rid": ('int8', lambda self: self.rid)
     }
 )
 class Column (object):
@@ -53,11 +52,12 @@ class Column (object):
     It also has a reference to its 'table'.
     """
     
-    def __init__(self, name, position, type, default_value, nullok=None, comment=None, column_num=None, annotations={}, acls={}, dynacls={}):
+    def __init__(self, name, position, type, default_value, nullok=None, comment=None, column_num=None, annotations={}, acls={}, dynacls={}, rid=None):
         self.table = None
         self.name = name
         self.position = position
         self.column_num = column_num # postgres column_num
+        self.rid = rid
         self.type = type
         self.default_value = default_value
         self.nullok = nullok if nullok is not None else True
@@ -76,15 +76,13 @@ class Column (object):
 COMMENT ON COLUMN %(sname)s.%(tname)s.%(cname)s IS %(comment)s;
 UPDATE _ermrest.known_columns c
 SET "comment" = %(comment)s
-WHERE table_oid = %(table_oid)s::oid
-  AND c.column_name = %(cnamestr)s;
+WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
 """ % dict(
     sname=sql_identifier(self.table.schema.name),
     tname=sql_identifier(self.table.name),
-    table_oid=sql_literal(self.table.oid),
+    rid=sql_literal(self.rid),
     cname=sql_identifier(self.name),
-    cnamestr=sql_literal(self.name),
     comment=sql_literal(comment)
 )
         )

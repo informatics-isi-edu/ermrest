@@ -46,7 +46,7 @@ import web
 @keying(
     'table',
     {
-        "table_oid": ('oid', lambda self: self.oid)
+        "table_rid": ('int8', lambda self: self.rid)
     }
 )
 class Table (object):
@@ -56,10 +56,10 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     
-    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, oid=None):
+    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None):
         self.schema = schema
         self.name = name
-        self.oid = oid
+        self.rid = rid
         self.kind = kind
         self.comment = comment
         self.columns = AltDict(
@@ -180,25 +180,9 @@ CREATE TABLE %(sname)s.%(tname)s (
 );
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
 
-DO $$
-DECLARE
-  s_oid oid;
-  t_oid oid;
-BEGIN
-  s_oid := %(schema_oid)s;
-  SELECT oid INTO t_oid FROM _ermrest.introspect_tables WHERE schema_oid = s_oid AND table_name = %(tnamestr)s;
-
-  INSERT INTO _ermrest.known_tables  SELECT * FROM _ermrest.introspect_tables  WHERE oid = t_oid;
-  INSERT INTO _ermrest.known_columns SELECT * FROM _ermrest.introspect_columns WHERE table_oid = t_oid;
-  INSERT INTO _ermrest.known_keys    SELECT * FROM _ermrest.introspect_keys    WHERE table_oid = t_oid;
-  INSERT INTO _ermrest.known_fkeys   SELECT * FROM _ermrest.introspect_fkeys   WHERE fk_table_oid = t_oid;
-
-  PERFORM _ermrest.model_version_bump();
-  PERFORM _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
-END;
-$$ LANGUAGE plpgsql;
+SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
 """ % dict(
-    schema_oid=sql_literal(schema.oid),
+    schema_rid=sql_literal(schema.rid),
     sname=sql_identifier(sname),
     tname=sql_identifier(tname),
     snamestr=sql_literal(sname),
@@ -207,18 +191,11 @@ $$ LANGUAGE plpgsql;
     comment=sql_literal(comment),
 )
         )
+        table.rid = cur.next()[0]
 
-        cur.execute("SELECT oid FROM _ermrest.known_tables WHERE schema_oid = %s::oid AND table_name = %s;" % (sql_literal(schema.oid), sql_literal(tname)))
-        table.oid = cur.next()[0]
-
-        for k, v in annotations.items():
-            table.set_annotation(conn, cur, k, v)
-
-        for k, v in acls.items():
-            table.set_acl(cur, k, v)
-
-        for k, v in dynacls.items():
-            table.set_dynacl(cur, k, v)
+        table.set_annotations(conn, cur, annotations)
+        table.set_acls(cur, acls)
+        table.set_dynacls(cur, dynacls)
 
         def execute_if(sql):
             if sql:
@@ -228,17 +205,23 @@ $$ LANGUAGE plpgsql;
                     web.debug('Got error executing SQL: %s' % sql)
                     raise
 
-        for column in columns:
-            cur.execute("SELECT column_num FROM _ermrest.known_columns WHERE table_oid = %s::oid AND column_name = %s;" % (sql_literal(table.oid), sql_literal(unicode(column.name))))
-            column.column_num = cur.next()[0]
+        cur.execute("""
+SELECT
+  "RID",
+  column_num, 
+  column_name
+FROM _ermrest.known_columns
+WHERE table_rid = %s
+ORDER BY column_num;
+""" % sql_literal(table.rid))
+        for row, column in zip(cur, columns):
+            assert row[2] == column.name
+            column.rid, column.column_num = row[0:2]
             if column.comment is not None:
                 column.set_comment(conn, cur, column.comment)
-            for k, v in column.annotations.items():
-                column.set_annotation(conn, cur, k, v)
-            for k, v in column.acls.items():
-                column.set_acl(cur, k, v)
-            for k, v in column.dynacls.items():
-                column.set_dynacl(cur, k, v)
+            column.set_annotations(conn, cur, column.annotations)
+            column.set_acls(cur, column.acls)
+            column.set_dynacls(cur, column.dynacls)
             try:
                 execute_if(column.btree_index_sql())
                 execute_if(column.pg_trgm_index_sql())
@@ -267,18 +250,13 @@ $$ LANGUAGE plpgsql;
         self.pre_delete(conn, cur)
         cur.execute("""
 DROP %(kind)s %(sname)s.%(tname)s ;
-
-DO $$
-BEGIN
-  DELETE FROM _ermrest.known_tables WHERE oid = %(table_oid)s::oid;
-  PERFORM _ermrest.model_version_bump();
-END;
-$$ LANGUAGE plpgsql;
+DELETE FROM _ermrest.known_tables WHERE "RID" = %(table_rid)s;
+SELECT _ermrest.model_version_bump();
 """ % dict(
     kind={'r': 'TABLE', 'v': 'VIEW', 'f': 'FOREIGN TABLE'}[self.kind],
     sname=sql_identifier(self.schema.name), 
     tname=sql_identifier(self.name),
-    table_oid=sql_literal(self.oid),
+    table_rid=sql_literal(self.rid),
 )
         )
 
@@ -297,21 +275,12 @@ $$ LANGUAGE plpgsql;
         """Generic ALTER TABLE ... wrapper"""
         self.enforce_right('owner')
         cur.execute("""
+SELECT _ermrest.model_version_bump();
 ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
-
-DO $$
-DECLARE
-  t_oid oid;
-BEGIN
-  t_oid := %(table_oid)s;
-  %(alter_known_model)s
-  PERFORM _ermrest.model_version_bump();
-END;
-$$ LANGUAGE plpgsql;
+%(alter_known_model)s
 """ % dict(
     sname=sql_identifier(self.schema.name), 
     tname=sql_identifier(self.name),
-    table_oid=sql_literal(self.oid),
     alter=alterclause,
     alter_known_model=altermodelstmts,
 )
@@ -324,12 +293,12 @@ $$ LANGUAGE plpgsql;
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
 UPDATE _ermrest.known_tables t
 SET "comment" = %(comment)s
-WHERE t.oid = %(table_oid)s::oid;
+WHERE t."RID" = %(table_rid)s;
 SELECT _ermrest.model_version_bump();
 """ % dict(
     sname=sql_identifier(self.schema.name),
     tname=sql_identifier(self.name),
-    table_oid=sql_literal(self.oid),
+    table_rid=sql_literal(self.rid),
     comment=sql_literal(comment)
 )
         )
@@ -348,13 +317,14 @@ SELECT _ermrest.model_version_bump();
             conn, cur,
             'ADD COLUMN %s' % column.sql_def(),
             """
-INSERT INTO _ermrest.known_columns 
-SELECT * FROM _ermrest.introspect_columns 
-WHERE table_oid = t_oid AND column_name = %s;
-""" % sql_literal(column.name)
+INSERT INTO _ermrest.known_columns (table_rid, column_num, column_name, type_rid, not_null, column_default, "comment")
+SELECT table_rid, column_num, column_name, type_rid, not_null, column_default, "comment"
+FROM _ermrest.introspect_columns c
+WHERE table_rid = %s AND column_name = %s
+RETURNING "RID", column_num;
+""" % (sql_literal(self.rid), sql_literal(column.name))
         )
-        cur.execute("SELECT _ermrest.column_num(%s,%s);" % (sql_literal(self.oid), sql_literal(column.name)))
-        column.column_num = cur.next()[0]
+        column.rid, column.column_num = cur.next()
         column.set_comment(conn, cur, column.comment)
         self.columns[column.name] = column
         column.table = self
@@ -380,8 +350,8 @@ WHERE table_oid = t_oid AND column_name = %s;
             'DROP COLUMN %s' % sql_identifier(cname),
             """
 DELETE FROM _ermrest.known_columns
-WHERE table_oid = t_oid AND column_name = %s;
-""" % sql_literal(cname)
+WHERE "RID" = %s;
+""" % sql_literal(column.rid)
         )
         del self.columns[cname]
                     
@@ -398,12 +368,9 @@ WHERE table_oid = t_oid AND column_name = %s;
         for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
             # new foreign key constraint must be added to table
             fkr.add(conn, cur)
-            for k, v in fkr.annotations.items():
-                fkr.set_annotation(conn, cur, k, v)
-            for k, v in fkr.acls.items():
-                fkr.set_acl(cur, k, v)
-            for k, v in fkr.dynacls.items():
-                fkr.set_dynacl(cur, k, v)
+            fkr.set_annotations(conn, cur, fkr.annotations)
+            fkr.set_acls(cur, fkr.acls)
+            fkr.set_dynacls(cur, fkr.dynacls)
             yield fkr
 
     def prejson(self):

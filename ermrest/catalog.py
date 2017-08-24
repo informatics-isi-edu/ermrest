@@ -264,6 +264,8 @@ class Catalog (object):
            the anonymous ('*') role, including the ownership.
         """
         cur.execute(pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'))
+        cur.execute('SELECT _ermrest.model_change_event();')
+        cur.execute('ANALYZE;')
 
         if type(owner) is dict:
             owner = owner['id']

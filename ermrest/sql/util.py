@@ -88,6 +88,7 @@ ALTER DATABASE ermrest OWNER TO ermrest;
 %(upgrade_sql)s
 %(change_owners_sql)s
 COMMIT;
+ANALYZE;
 """ % {
     "template1_extupgrade": extupgrade_sql('template1'),
     "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql'),
@@ -108,9 +109,11 @@ def print_redeploy_catalogs_sql():
 BEGIN;
 ALTER DATABASE %(dbname)s OWNER TO ermrest;
 %(ermrest_sql)s
+SELECT _ermrest.model_change_event();
 %(upgrade_sql)s
 %(change_owners_sql)s
 COMMIT;
+ANALYZE;
 """ % {
     "catalog_extupgrade": extupgrade_sql(catalog.descriptor['dbname']),
     "dbname": sql_identifier(catalog.descriptor['dbname']),

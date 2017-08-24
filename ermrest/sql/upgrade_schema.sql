@@ -16,148 +16,382 @@
 --
 
 -- help transition a legacy catalog to current schema
+DO $upgrade$
+<< upgrade_schema >>
+DECLARE
+  proc record;
 
--- clean up legacy tables
-DROP TABLE IF EXISTS _ermrest.model_version;
-DROP TABLE IF EXISTS _ermrest.data_version;
-
--- clean up legacy functions we used to define
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anynonarray) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(anyarray) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(date) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timestamptz) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timestamp) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(timetz) CASCADE;
-DROP FUNCTION IF EXISTS _ermrest.ts_iso8601(time) CASCADE;
-
--- convert legacy catalog policy to catalog ACLs
-DO $$
+  pkey record;
+  pk_rid int8;
+  t_rid int8;
+  
+  pfkey record;
+  ridmatch record;
+  fk1_rid int8;
+  fk2_rid int8;
+  t1_rid int8;
+  t2_rid int8;
 BEGIN
-  IF (SELECT True
-      FROM information_schema.tables
-      WHERE table_schema = '_ermrest' AND table_name = 'meta') THEN
-    INSERT INTO _ermrest.model_catalog_acl (acl, members)
-    SELECT
-      CASE
-        WHEN key = 'owner' THEN 'owner'
-        WHEN key = 'read_user' THEN 'enumerate'
-        WHEN key = 'content_read_user' THEN 'select'
-        WHEN key = 'content_write_user' THEN 'write'
-        WHEN key = 'schema_write_user' THEN 'create'
-      END AS key,
-      array_agg(value) AS members
-    FROM _ermrest.meta
-    WHERE key IN ('owner', 'read_user', 'content_read_user', 'content_write_user', 'schema_write_user')
-    GROUP BY key;
+-- NOTE, we don't indent this block so editing below is easier...
 
-    DROP TABLE _ermrest.meta;
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_version') THEN
+  DROP TABLE _ermrest.model_version;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'data_version') THEN
+  DROP TABLE _ermrest.data_version;
+END IF;
 
 -- heal any newly created data version tracking
-INSERT INTO _ermrest.table_last_modified (oid, ts)
-SELECT t.oid, now() FROM _ermrest.introspect_tables t WHERE t.table_kind = 'r'
-ON CONFLICT (oid) DO NOTHING;
+INSERT INTO _ermrest.table_last_modified (table_rid, ts)
+SELECT t."RID", now() FROM _ermrest.known_tables t WHERE t.table_kind = 'r'
+ON CONFLICT (table_rid) DO NOTHING;
+
+-- helpers for converting old model decorations
+CREATE OR REPLACE FUNCTION _ermrest.find_schema_rid(sname text) RETURNS int8 AS $$
+  SELECT s."RID" FROM _ermrest.known_schemas s
+  WHERE schema_name = $1;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_table_rid(sname text, tname text) RETURNS int8 AS $$
+  SELECT t."RID"
+  FROM _ermrest.known_schemas s
+  JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
+  WHERE s.schema_name = $1 AND t.table_name = $2;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_column_rid(sname text, tname text, cname text) RETURNS int8 AS $$
+  SELECT c."RID"
+  FROM _ermrest.known_schemas s
+  JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
+  JOIN _ermrest.known_columns c ON (t."RID" = c.table_rid)
+  WHERE s.schema_name = $1 AND t.table_name = $2 AND c.column_name = $3;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_key_rid(sname text, tname text, cnames text[], OUT rid int8, OUT is_physical boolean) AS $$
+DECLARE
+  t_rid int8;
+  c_rids int8[];
+BEGIN
+  t_rid := _ermrest.find_table_rid($1, $2);
+
+  SELECT array_agg(c."RID"::int8 ORDER BY c."RID") INTO c_rids
+  FROM (SELECT unnest($3)) a (column_name)
+  JOIN _ermrest.known_columns c ON (c.column_name = a.column_name AND c.table_rid = t_rid);
+
+  SELECT k.key_rid INTO rid
+  FROM (
+    SELECT
+      kc.key_rid,
+      array_agg(kc.column_rid::int8 ORDER BY kc.column_rid) AS column_rids
+    FROM _ermrest.known_key_columns kc JOIN _ermrest.known_keys k ON (kc.key_rid = k."RID")
+    WHERE k.table_rid = t_rid
+    GROUP BY kc.key_rid
+  ) k
+  WHERE k.column_rids = c_rids;
+  IF rid IS NOT NULL THEN
+    is_physical := True;
+    RETURN;
+  END IF;
+
+  SELECT k.key_rid INTO rid
+  FROM (
+    SELECT
+      kc.key_rid,
+      array_agg(kc.column_rid::int8 ORDER BY kc.column_rid) AS column_rids
+    FROM _ermrest.known_pseudo_key_columns kc JOIN _ermrest.known_pseudo_keys k ON (kc.key_rid = k."RID")
+    WHERE k.table_rid = t_rid
+    GROUP BY kc.key_rid
+  ) k
+  WHERE k.column_rids = c_rids;
+  IF rid IS NOT NULL THEN
+    is_physical := False;
+    RETURN;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_fkey_rid(fk_sname text, fk_tname text, fk_cnames text[], pk_sname text, pk_tname text, pk_cnames text[], OUT rid int8, OUT is_physical boolean) AS $$
+DECLARE
+  fkt_rid int8;
+  pkt_rid int8;
+  fkc_rids int8[];
+  pkc_rids int8[];
+BEGIN
+  fkt_rid := _ermrest.find_table_rid($1, $2);
+  pkt_rid := _ermrest.find_table_rid($4, $5);
+
+  SELECT array_agg(c."RID"::int8 ORDER BY c."RID") INTO fkc_rids
+  FROM (SELECT unnest($3)) a (column_name)
+  JOIN _ermrest.known_columns c ON (c.column_name = a.column_name AND c.table_rid = fkt_rid);
+
+  SELECT array_agg(c."RID"::int8 ORDER BY c."RID") INTO pkc_rids
+  FROM (SELECT unnest($6)) a (column_name)
+  JOIN _ermrest.known_columns c ON (c.column_name = a.column_name AND c.table_rid = pkt_rid);
+
+  SELECT fk.fkey_rid INTO rid
+  FROM (
+    SELECT
+      fkc.fkey_rid,
+      array_agg(fkc.fk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS fk_column_rids,
+      array_agg(fkc.pk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS pk_column_rids
+    FROM _ermrest.known_fkey_columns fkc
+    JOIN _ermrest.known_fkeys fk ON (fkc.fkey_rid = fk."RID")
+    WHERE fk.fk_table_rid = fkt_rid
+      AND fk.pk_table_rid = pkt_rid
+    GROUP BY fkc.fkey_rid
+  ) fk
+  WHERE fk.fk_column_rids = fkc_rids AND fk.pk_column_rids = pkc_rids;
+  IF rid IS NOT NULL THEN
+    is_physical := True;
+    RETURN;
+  END IF;
+
+  SELECT fk.fkey_rid INTO rid
+  FROM (
+    SELECT
+      fkc.fkey_rid,
+      array_agg(fkc.fk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS fk_column_rids,
+      array_agg(fkc.pk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS pk_column_rids
+    FROM _ermrest.known_pseudo_fkey_columns fkc
+    JOIN _ermrest.known_pseudo_fkeys fk ON (fkc.fkey_rid = fk."RID")
+    WHERE fk.fk_table_rid = fkt_rid
+      AND fk.pk_table_rid = pkt_rid
+    GROUP BY fkc.fkey_rid
+  ) fk
+  WHERE fk.fk_column_rids = fkc_rids AND fk.pk_column_rids = pkc_rids;
+  IF rid IS NOT NULL THEN
+    is_physical := False;
+    RETURN;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- convert legacy catalog "meta" policy to catalog ACLs
+IF (SELECT True
+    FROM information_schema.tables
+    WHERE table_schema = '_ermrest' AND table_name = 'meta') THEN
+  INSERT INTO _ermrest.known_catalog_acl (acl, members)
+  SELECT
+    CASE
+      WHEN key = 'owner' THEN 'owner'
+      WHEN key = 'read_user' THEN 'enumerate'
+      WHEN key = 'content_read_user' THEN 'select'
+      WHEN key = 'content_write_user' THEN 'write'
+      WHEN key = 'schema_write_user' THEN 'create'
+    END AS key,
+    array_agg(value) AS members
+  FROM _ermrest.meta
+  WHERE key IN ('owner', 'read_user', 'content_read_user', 'content_write_user', 'schema_write_user')
+  GROUP BY key;
+  DROP TABLE _ermrest.meta;
+END IF;
 
 -- port legacy pseudo not-nulls
-DO $$
-BEGIN
-  IF (SELECT True
-      FROM information_schema.tables
-      WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_notnull') THEN
-    INSERT INTO _ermrest.known_pseudo_notnulls (table_oid, column_num)
-    SELECT
-      _ermrest.table_oid(schema_name, table_name),
-      _ermrest.column_num(_ermrest.table_oid(schema_name, table_name), column_name)
-    FROM _ermrest.model_pseudo_notnull;
-    DROP TABLE _ermrest.model_pseudo_notnull;
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
+IF (SELECT True
+    FROM information_schema.tables
+    WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_notnull') THEN
+  INSERT INTO _ermrest.known_pseudo_notnulls (column_rid)
+  SELECT c."RID"
+  FROM _ermrest.model_pseudo_notnull o
+  JOIN _ermrest.known_schemas s ON (o.schema_name = s.schema_name)
+  JOIN _ermrest.known_tables t  ON (o.table_name = t.table_name AND t.schema_rid = s."RID")
+  JOIN _ermrest.known_columns c ON (o.column_name = c.column_name AND c.table_rid = t."RID");
+  DROP TABLE _ermrest.model_pseudo_notnull;
+END IF;
 
 -- port legacy pseudo keys
-DO $$
-BEGIN
-  IF (SELECT True
-      FROM information_schema.tables
-      WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_key') THEN
+IF (SELECT True
+    FROM information_schema.tables
+    WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_key') THEN
+  FOR pkey IN SELECT * FROM _ermrest.model_pseudo_key LOOP
+    t_rid := _ermrest.find_table_rid(pkey.schema_name, pkey.table_name);
 
-    INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_oid, column_nums, "comment")
-    SELECT
-      pkc.constraint_name,
-      pkc.table_oid,
-      array_agg(
-        _ermrest.column_num(pkc.table_oid, pkc.column_name)
-	ORDER BY c.column_num
-      ),
-      pkc."comment"
-    FROM (
-      SELECT
-        pk."name" as constraint_name,
-	_ermrest.table_oid(schema_name, table_name) AS table_oid,
-	unnest(column_names) AS column_name,
-	"comment"
-      FROM _ermrest.model_pseudo_key pk
-    ) pkc
-    JOIN _ermrest.known_columns c ON (pkc.table_oid = c.table_oid AND pkc.column_name = c.column_name)
-    GROUP BY pkc.table_oid, constraint_name, pkc."comment"
-    ;
-
-    DROP TABLE _ermrest.model_pseudo_key;
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
+    INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_rid, "comment")
+    VALUES (pkey.name, t_rid, pkey.comment)
+    RETURNING "RID" INTO pk_rid;
+	
+    INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
+    SELECT pk_rid, c."RID"
+    FROM (SELECT unnest(pkey.column_names)) kc (column_name)
+    JOIN _ermrest.known_columns c ON (kc.column_name = c.column_name)
+    WHERE c.table_rid = t_rid;
+  END LOOP;
+  DROP TABLE _ermrest.model_pseudo_key;
+END IF;
 
 -- port legacy pseudo foreign keys
-DO $$
-BEGIN
-  IF (SELECT True
-      FROM information_schema.tables
-      WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_keyref') THEN
+IF (SELECT True
+    FROM information_schema.tables
+    WHERE table_schema = '_ermrest' AND table_name = 'model_pseudo_keyref') THEN
 
-    INSERT INTO _ermrest.known_pseudo_fkeys (constraint_name, fk_table_oid, fk_column_nums, pk_table_oid, pk_column_nums, "comment")
-    SELECT
-      fkr."name",
-      from_oid,
-      array_agg(
-        c1.column_num
-	ORDER BY colmap.from_index
-      ),
-      to_oid,
-      array_agg(
-        c2.column_num
-	ORDER BY colmap.from_index
-      ),
-      fkr."comment"
+  FOR pfkey IN SELECT * FROM _ermrest.model_pseudo_keyref LOOP
+
+    t1_rid := _ermrest.find_table_rid(pfkey.from_schema_name, pfkey.from_table_name);
+    t2_rid := _ermrest.find_table_rid(pfkey.to_schema_name, pfkey.to_table_name);
+
+    INSERT INTO _ermrest.known_pseudo_fkeys (constraint_name, fk_table_rid, pk_table_rid, "comment")
+    VALUES (pfkey.name, t1_rid, t2_rid, pfkey.comment)
+    RETURNING "RID" INTO fk1_rid;
+	
+    INSERT INTO _ermrest.known_pseudo_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
+    SELECT fk1_rid, c1."RID", c2."RID"
     FROM (
-      SELECT
-        fkr.*,
-	t1.oid AS from_oid,
-	t2.oid AS to_oid
-      FROM _ermrest.model_pseudo_keyref fkr
-      JOIN _ermrest.known_schemas s1 ON (s1.schema_name = fkr.from_schema_name)
-      JOIN _ermrest.known_schemas s2 ON (s2.schema_name = fkr.to_schema_name)
-      JOIN _ermrest.known_tables  t1 ON (s1.oid = t1.schema_oid AND t1.table_name = fkr.from_table_name)
-      JOIN _ermrest.known_tables  t2 ON (s2.oid = t2.schema_oid AND t2.table_name = fkr.to_table_name)
-    ) fkr
-    JOIN (
-      SELECT
-        fkr.id,
-	fcol.n AS from_name,
-	tcol.n AS to_name,
-	fcol.i AS from_index
-      FROM _ermrest.model_pseudo_keyref AS fkr,
-      LATERAL unnest(fkr.from_column_names) WITH ORDINALITY AS fcol(n, i),
-      LATERAL unnest(fkr.from_column_names) WITH ORDINALITY AS tcol(n, i)
-      WHERE fcol.i = tcol.i
-    ) colmap ON (fkr.id = colmap.id)
-    JOIN _ermrest.known_columns c1 ON (fkr.from_oid = c1.table_oid AND c1.column_name = colmap.from_name)
-    JOIN _ermrest.known_columns c2 ON (fkr.to_oid = c2.table_oid AND c2.column_name = colmap.to_name)
-    GROUP BY fkr."name", from_oid, to_oid, fkr."comment"
-    ;
+      SELECT unnest(pfkey.from_column_names), unnest(pfkey.to_column_names)
+    ) fkc (from_column_name, to_column_name)
+    JOIN _ermrest.known_columns c1 ON (fkc.from_column_name = c1.column_name)
+    JOIN _ermrest.known_columns c2 ON (fkc.to_column_name = c2.column_name)
+    WHERE c1.table_rid = t1_rid
+      AND c2.table_rid = t2_rid;
 
-    DROP TABLE _ermrest.model_pseudo_keyref;
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
+  END LOOP;
+  DROP TABLE _ermrest.model_pseudo_keyref;
+END IF;
+
+-- now port legacy model decorations
+
+-- catalog-level
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_catalog_acl') THEN
+  INSERT INTO _ermrest.known_catalog_acls (acl, members)
+  SELECT acl, members
+  FROM _ermrest.model_catalog_acl
+  WHERE members IS NOT NULL;
+  DROP TABLE _ermrest.model_catalog_acl;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_catalog_annotation') THEN
+  INSERT INTO _ermrest.known_catalog_annotations (annotation_uri, annotation_value)
+  SELECT annotation_uri, annotation_value
+  FROM _ermrest.model_catalog_annotation;
+  DROP TABLE _ermrest.model_catalog_annotation;
+END IF;
+
+-- schema-level
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_schema_acl') THEN
+  INSERT INTO _ermrest.known_schema_acls (schema_rid, acl, members)
+  SELECT _ermrest.find_schema_rid(a.schema_name), a.acl, a.members
+  FROM _ermrest.model_schema_acl a WHERE a.members IS NOT NULL;
+  DROP TABLE _ermrest.model_schema_acl;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_schema_annotation') THEN
+  INSERT INTO _ermrest.known_schema_annotations (schema_rid, annotation_uri, annotation_value)
+  SELECT _ermrest.find_schema_rid(a.schema_name), a.annotation_uri, a.annotation_value
+  FROM _ermrest.model_schema_annotation a;
+  DROP TABLE _ermrest.model_schema_annotation;
+END IF;
+
+-- table-level
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_table_acl') THEN
+  INSERT INTO _ermrest.known_table_acls (table_rid, acl, members)
+  SELECT _ermrest.find_table_rid(a.schema_name, a.table_name), a.acl, a.members
+  FROM _ermrest.model_table_acl a WHERE a.members IS NOT NULL;
+  DROP TABLE _ermrest.model_table_acl;
+END IF;
+  
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_table_dynacl') THEN
+  INSERT INTO _ermrest.known_table_dynacls (table_rid, binding_name, binding)
+  SELECT _ermrest.find_table_rid(a.schema_name, a.table_name), a.binding_name, a.binding
+  FROM _ermrest.model_table_dynacl a;
+  DROP TABLE _ermrest.model_table_dynacl;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_table_annotation') THEN
+  INSERT INTO _ermrest.known_table_annotations (table_rid, annotation_uri, annotation_value)
+  SELECT _ermrest.find_table_rid(a.schema_name, a.table_name), a.annotation_uri, a.annotation_value
+  FROM _ermrest.model_table_annotation a;
+  DROP TABLE _ermrest.model_table_annotation;
+END IF;
+  
+-- column-level
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_column_acl') THEN
+  INSERT INTO _ermrest.known_column_acls (column_rid, acl, members)
+  SELECT _ermrest.find_column_rid(a.schema_name, a.table_name, a.column_name), a.acl, a.members
+  FROM _ermrest.model_column_acl a WHERE a.members IS NOT NULL;
+  DROP TABLE _ermrest.model_column_acl;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_column_dynacl') THEN
+  INSERT INTO _ermrest.known_column_dynacls (column_rid, binding_name, binding)
+  SELECT _ermrest.find_column_rid(a.schema_name, a.table_name, a.column_name), a.binding_name, a.binding
+  FROM _ermrest.model_column_dynacl a;
+  DROP TABLE _ermrest.model_column_dynacl;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_column_annotation') THEN
+  INSERT INTO _ermrest.known_column_annotations (column_rid, annotation_uri, annotation_value)
+  SELECT _ermrest.find_column_rid(a.schema_name, a.table_name, a.column_name), a.annotation_uri, a.annotation_value
+  FROM _ermrest.model_column_annotation a;
+  DROP TABLE _ermrest.model_column_annotation;
+END IF;
+
+-- key-level
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_key_annotation') THEN
+  FOR pfkey IN SELECT * FROM _ermrest.model_key_annotation LOOP
+    ridmatch := _ermrest.find_key_rid(pfkey.schema_name, pfkey.table_name, pfkey.column_names);
+    IF ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_key_annotations (key_rid, annotation_uri, annotation_value)
+      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+    ELSIF NOT ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_pseudo_key_annotations (key_rid, annotation_uri, annotation_value)
+      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+    ELSE
+      RAISE EXCEPTION 'Could not match key annotation %', pfkey;
+    END IF;
+  END LOOP;
+  DROP TABLE _ermrest.model_key_annotation;
+END IF;
+  
+-- fkey-level
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_keyref_acl') THEN
+  FOR pfkey IN SELECT * FROM _ermrest.model_keyref_acl LOOP
+      ridmatch := _ermrest.find_fkey_rid(pfkey.from_schema_name, pfkey.from_table_name, pfkey.from_column_names, pfkey.to_schema_name, pfkey.to_table_name, pfkey.to_column_names);
+    IF ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_fkey_acls (fkey_rid, acl, members) VALUES (ridmatch.rid, pfkey.acl, pfkey.members);
+    ELSIF NOT ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_pseudo_fkey_acls (fkey_rid, acl, members) VALUES (ridmatch.rid, pfkey.acl, pfkey.members);
+    ELSE
+      RAISE EXCEPTION 'Could not match fkey ACL %', pfkey;
+    END IF;
+  END LOOP;
+  DROP TABLE _ermrest.model_keyref_acl;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_keyref_dynacl') THEN
+  FOR pfkey IN SELECT * FROM _ermrest.model_keyref_dynacl LOOP
+    ridmatch := _ermrest.find_fkey_rid(pfkey.from_schema_name, pfkey.from_table_name, pfkey.from_column_names, pfkey.to_schema_name, pfkey.to_table_name, pfkey.to_column_names);
+    IF ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_fkey_dynacls (fkey_rid, binding_name, binding)
+      VALUES (ridmatch.rid, pfkey.binding_name, pfkey.binding);
+    ELSIF NOT ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_pseudo_fkey_dynacls (fkey_rid, binding_name, binding)
+      VALUES (ridmatch.rid, pfkey.binding_name, pfkey.binding);
+    ELSE
+      RAISE EXCEPTION 'Could not match fkey ACL binding %', pfkey;
+    END IF;
+  END LOOP;
+  DROP TABLE _ermrest.model_keyref_dynacl;
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_keyref_annotation') THEN
+  FOR pfkey IN SELECT * FROM _ermrest.model_keyref_annotation LOOP
+    ridmatch := _ermrest.find_fkey_rid(pfkey.from_schema_name, pfkey.from_table_name, pfkey.from_column_names, pfkey.to_schema_name, pfkey.to_table_name, pfkey.to_column_names);
+
+    IF ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_fkey_annotations (fkey_rid, annotation_uri, annotation_value)
+      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+    ELSIF NOT ridmatch.is_physical THEN
+      INSERT INTO _ermrest.known_pseudo_fkey_annotations (fkey_rid, annotation_uri, annotation_value)
+      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+    ELSE
+      RAISE EXCEPTION 'Could not match fkey annotation %', pfkey;
+    END IF;
+  END LOOP;
+  DROP TABLE _ermrest.model_keyref_annotation;
+END IF;
+
+RAISE NOTICE 'Completed translating any legacy schema to current ERMrest schema.';
+
+END upgrade_schema;
+$upgrade$ LANGUAGE plpgsql;
+
