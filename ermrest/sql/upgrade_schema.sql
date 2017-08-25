@@ -48,25 +48,6 @@ SELECT t."RID", now() FROM _ermrest.known_tables t WHERE t.table_kind = 'r'
 ON CONFLICT (table_rid) DO NOTHING;
 
 -- helpers for converting old model decorations
-CREATE OR REPLACE FUNCTION _ermrest.find_schema_rid(sname text) RETURNS int8 AS $$
-  SELECT s."RID" FROM _ermrest.known_schemas s
-  WHERE schema_name = $1;
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.find_table_rid(sname text, tname text) RETURNS int8 AS $$
-  SELECT t."RID"
-  FROM _ermrest.known_schemas s
-  JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
-  WHERE s.schema_name = $1 AND t.table_name = $2;
-$$ LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION _ermrest.find_column_rid(sname text, tname text, cname text) RETURNS int8 AS $$
-  SELECT c."RID"
-  FROM _ermrest.known_schemas s
-  JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
-  JOIN _ermrest.known_columns c ON (t."RID" = c.table_rid)
-  WHERE s.schema_name = $1 AND t.table_name = $2 AND c.column_name = $3;
-$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.find_key_rid(sname text, tname text, cnames text[], OUT rid int8, OUT is_physical boolean) AS $$
 DECLARE

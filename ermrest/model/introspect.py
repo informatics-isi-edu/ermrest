@@ -109,6 +109,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         tcols = []
         for i in range(len(coldocs)):
             cdoc = coldocs[i]
+            cname = cdoc['column_name']
             try:
                 ctype = typesengine.lookup(cdoc['type_rid'], cdoc['column_default'], True)
             except ValueError:
@@ -116,26 +117,37 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
                     typesengine.disallowed_by_rid[cdoc['type_rid']],
                     schemas[schema_rid].name,
                     table_name,
-                    cdoc['column_name'],
+                    cname,
                 ))
             try:
                 default = ctype.default_value(cdoc['column_default'])
             except ValueError:
                 default = None
-            crid = cdoc['RID']
-            cnum = cdoc['column_num']
-            canno = cdoc['annotations']
-            cacl = cdoc['acls']
-            col = Column(cdoc['column_name'], i, ctype, default, not cdoc['not_null'], cdoc['comment'], cnum, canno, cacl, rid=crid)
+            try:
+                col = Column.fromjson_single(
+                    {
+                        'name': cdoc['column_name'],
+                        'comment': cdoc['comment'],
+                        'annotations': cdoc['annotations'],
+                        'acls': cdoc['acls'],
+                        # dynacls are handled later during introspection
+                        'nullok': not cdoc['not_null'],
+                        'default': default,
+                        'type': ctype
+                    },
+                    i,
+                    config
+                )
+            except Exception as te:
+                raise ValueError('Introspection of column "%s"."%s"."%s" failed.\n%s' % (
+                    schemas[schema_rid].name, table_name, cname, te
+                ))
+            col.rid = cdoc['RID']
+            col.column_num = cdoc['column_num']
             tcols.append(col)
-            columns[crid] = col
+            columns[col.rid] = col
 
         tables[rid] = Table(schemas[schema_rid], table_name, tcols, table_kind, comment, annotations, acls, rid=rid)
-
-    # Introspect pseudo not-null constraints
-    cur.execute("SELECT column_rid FROM _ermrest.known_pseudo_notnulls;")
-    for column_rid, in cur:
-        columns[column_rid].nullok = False
 
     #
     # Introspect uniques / primary key references, aggregated by constraint

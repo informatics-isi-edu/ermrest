@@ -138,7 +138,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
     schema_name text UNIQUE NOT NULL,
     "comment" text
@@ -151,7 +151,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
     schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     type_name text NOT NULL,
@@ -173,7 +173,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
     schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     table_name text NOT NULL,
@@ -197,7 +197,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     column_num int NOT NULL,
     column_name text NOT NULL,
@@ -216,7 +216,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     column_rid int8 NOT NULL UNIQUE REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE
   );
 END IF;
@@ -227,7 +227,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
     schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
@@ -243,7 +243,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     key_rid int8 NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
     column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(key_rid, column_rid)
@@ -256,7 +256,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     constraint_name text UNIQUE,
     table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     "comment" text
@@ -269,7 +269,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     key_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
     column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(key_rid, column_rid)
@@ -282,7 +282,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
     schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
@@ -301,7 +301,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
     fk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     pk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
@@ -315,7 +315,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     constraint_name text NOT NULL UNIQUE,
     fk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     pk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
@@ -329,13 +329,33 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
     fk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     pk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(fkey_rid, fk_column_rid)
   );
 END IF;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_schema_rid(sname text) RETURNS int8 AS $$
+  SELECT s."RID" FROM _ermrest.known_schemas s
+  WHERE schema_name = $1;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_table_rid(sname text, tname text) RETURNS int8 AS $$
+  SELECT t."RID"
+  FROM _ermrest.known_schemas s
+  JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
+  WHERE s.schema_name = $1 AND t.table_name = $2;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_column_rid(sname text, tname text, cname text) RETURNS int8 AS $$
+  SELECT c."RID"
+  FROM _ermrest.known_schemas s
+  JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
+  JOIN _ermrest.known_columns c ON (t."RID" = c.table_rid)
+  WHERE s.schema_name = $1 AND t.table_name = $2 AND c.column_name = $3;
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS
   SELECT
@@ -922,7 +942,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     acl text UNIQUE NOT NULL,
     members text[] NOT NULL
   );
@@ -934,7 +954,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     acl text NOT NULL,
     members text[] NOT NULL,
@@ -948,7 +968,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     acl text NOT NULL,
     members text[] NOT NULL,
@@ -962,7 +982,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     acl text NOT NULL,
     members text[] NOT NULL,
@@ -976,7 +996,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
     acl text NOT NULL,
     members text[] NOT NULL,
@@ -990,7 +1010,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
     acl text NOT NULL,
     members text[] NOT NULL,
@@ -1004,7 +1024,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     binding_name text NOT NULL,
     binding jsonb NOT NULL,
@@ -1018,7 +1038,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     binding_name text NOT NULL,
     binding jsonb NOT NULL,
@@ -1032,7 +1052,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
     binding_name text NOT NULL,
     binding jsonb NOT NULL,
@@ -1046,7 +1066,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
     binding_name text NOT NULL,
     binding jsonb NOT NULL,
@@ -1060,7 +1080,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     annotation_uri text UNIQUE NOT NULL,
     annotation_value jsonb NOT NULL
   );
@@ -1072,7 +1092,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     annotation_uri text NOT NULL,
     annotation_value jsonb NOT NULL,
@@ -1086,7 +1106,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     annotation_uri text NOT NULL,
     annotation_value jsonb NOT NULL,
@@ -1100,7 +1120,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     annotation_uri text NOT NULL,
     annotation_value jsonb NOT NULL,
@@ -1114,7 +1134,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     key_rid int8 NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
     annotation_uri text NOT NULL,
     annotation_value jsonb NOT NULL,
@@ -1128,7 +1148,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
     annotation_uri text NOT NULL,
     annotation_value jsonb NOT NULL,
@@ -1142,7 +1162,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     key_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
     annotation_uri text NOT NULL,
     annotation_value jsonb NOT NULL,
@@ -1156,7 +1176,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    "RMB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     fkey_rid int8 REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
     annotation_uri text NOT NULL,
     annotation_value jsonb NOT NULL,
@@ -1195,12 +1215,13 @@ SELECT
   c.column_num,
   c.column_name,
   c.type_rid,
-  c.not_null,
+  n.column_rid IS NOT NULL OR c.not_null AS not_null,
   c.column_default,
   c."comment",
   COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
   COALESCE(acls.acls, '{}'::jsonb) AS acls
 FROM _ermrest.known_columns c
+LEFT OUTER JOIN _ermrest.known_pseudo_notnulls n ON (n.column_rid = c."RID")
 LEFT OUTER JOIN (
   SELECT
     a.column_rid,
@@ -1321,8 +1342,7 @@ LEFT OUTER JOIN (
     jsonb_object_agg(annotation_uri, annotation_value) AS annotations
   FROM _ermrest.known_pseudo_key_annotations
   GROUP BY key_rid
-) anno ON (k."RID" = anno.key_rid)
-;
+) anno ON (k."RID" = anno.key_rid);
 
 CREATE OR REPLACE VIEW _ermrest.known_fkeys_denorm AS
 SELECT
@@ -1398,6 +1418,46 @@ LEFT OUTER JOIN (
   GROUP BY fkey_rid
 ) acl ON (fk."RID" = acl.fkey_rid)
 ;
+
+PERFORM _ermrest.model_change_event();
+
+INSERT INTO _ermrest.known_pseudo_notnulls (column_rid)
+VALUES
+  (_ermrest.find_column_rid('_ermrest', 'known_schemas_denorm',      'RID')),
+  (_ermrest.find_column_rid('_ermrest', 'known_columns_denorm',      'RID')),
+  (_ermrest.find_column_rid('_ermrest', 'known_tables_denorm',       'RID')),
+  (_ermrest.find_column_rid('_ermrest', 'known_keys_denorm',         'RID')),
+  (_ermrest.find_column_rid('_ermrest', 'known_pseudo_keys_denorm',  'RID')),
+  (_ermrest.find_column_rid('_ermrest', 'known_fkeys_denorm',        'RID')),
+  (_ermrest.find_column_rid('_ermrest', 'known_pseudo_fkeys_denorm', 'RID'))
+ON CONFLICT (column_rid) DO NOTHING;
+
+INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_rid)
+VALUES
+  ('known_schemas_denorm_key',      _ermrest.find_table_rid('_ermrest', 'known_schemas_denorm')),
+  ('known_columns_denorm_key',      _ermrest.find_table_rid('_ermrest', 'known_columns_denorm')),
+  ('known_tables_denorm_key',       _ermrest.find_table_rid('_ermrest', 'known_tables_denorm')),
+  ('known_keys_denorm_key',         _ermrest.find_table_rid('_ermrest', 'known_keys_denorm')),
+  ('known_pseudo_keys_denorm_key',  _ermrest.find_table_rid('_ermrest', 'known_pseudo_keys_denorm')),
+  ('known_fkeys_denorm_key',        _ermrest.find_table_rid('_ermrest', 'known_fkeys_denorm')),
+  ('known_pseudo_fkeys_denorm_key', _ermrest.find_table_rid('_ermrest', 'known_pseudo_fkeys_denorm'))
+ON CONFLICT (constraint_name) DO NOTHING;
+
+INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
+SELECT
+  k."RID",
+  _ermrest.find_column_rid('_ermrest', t.table_name, 'RID')
+FROM _ermrest.known_pseudo_keys k
+JOIN _ermrest.known_tables t ON (k.table_rid = t."RID")
+WHERE constraint_name IN (
+  'known_schemas_denorm_key',
+  'known_columns_denorm_key',
+  'known_tables_denorm_key',
+  'known_keys_denorm_key',
+  'known_pseudo_keys_denorm_key',
+  'known_fkeys_denorm_key',
+  'known_pseudo_fkeys_denorm_key'
+);
 
 RAISE NOTICE 'Completed idempotent creation of standard ERMrest schema.';
 

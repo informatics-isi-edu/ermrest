@@ -25,20 +25,13 @@ from .type import tsvector_type, Type
 from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, truncated_identifier, sufficient_rights, get_dynacl_clauses
 
 @annotatable
-@hasdynacls(
-    { "owner", "update", "delete", "select" }
-)
+@hasdynacls({ "owner", "update", "delete", "select" })
 @hasacls(
     {"enumerate", "write", "insert", "update", "select"},
     {"insert", "update", "select", "delete"},
     lambda self: self.table
 )
-@keying(
-   'column',
-    {
-        "column_rid": ('int8', lambda self: self.rid)
-    }
-)
+@keying('column', {"column_rid": ('int8', lambda self: self.rid)})
 class Column (object):
     """Represents a table column.
     
@@ -186,24 +179,35 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         
     @staticmethod
     def fromjson_single(columndoc, position, ermrest_config):
-        ctype = Type.fromjson(columndoc['type'], ermrest_config)
-        comment = columndoc.get('comment', None)
-        annotations = columndoc.get('annotations', {})
-        nullok = columndoc.get('nullok', True)
-        acls = columndoc.get('acls', {})
-        dynacls = columndoc.get('acl_bindings', {})
         try:
-            return Column(
-                columndoc['name'],
+            cname = columndoc['name']
+            ctype = columndoc['type']
+            nullok = columndoc.get('nullok', True)
+
+            if not isinstance(ctype, Type):
+                ctype = Type.fromjson(ctype, ermrest_config)
+
+            if cname in {'RID','RCT','RMT','RCB','RMB'}:
+                constructor = SystemColumn
+                if ctype.name != ('ermrest_%s' % cname.lower()):
+                    raise exception.BadData('System column %s cannot have type %s.' % (cname, ctype.name))
+                if cname in {'RID','RCT','RMT'} and nullok:
+                    raise exception.BadData('System column %s cannot have nullok=True.' % cname)
+            else:
+                constructor = Column
+
+            return constructor(
+                cname,
                 position,
                 ctype,
                 columndoc.get('default'),
                 nullok,
-                comment,
+                columndoc.get('comment'),
                 None, # column_num
-                annotations,
-                acls,
-                dynacls
+                columndoc.get('annotations', {}),
+                columndoc.get('acls', {}),
+                columndoc.get('acl_bindings', {}),
+                None, # rid
             )
         except KeyError, te:
             raise exception.BadData('Table document missing required field "%s"' % te)
@@ -297,6 +301,32 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
     def sql_name_astext_with_talias(self, talias):
         name = '%s%s' % (talias + '.' if talias else '', self.sql_name())
         return '_ermrest.astext(%s)' % name
+
+class SystemColumn (Column):
+    """Represents system columns with special access rules.
+    """
+    def __init__(self, name, position, type, default_value, nullok=None, comment=None, column_num=None, annotations={}, acls={}, dynacls={}, rid=None):
+        Column.__init__(self, name, position, type, default_value, nullok, comment, column_num, annotations, acls, dynacls, rid)
+
+    @cache_rights
+    def has_right(self, aclname, roles=None):
+        if aclname in {'owner', 'insert', 'update'}:
+            return False
+        return Column.has_right(self, aclname, roles)
+    
+    def sql_def(self):
+        """Render SQL column clause for managed table DDL."""
+        return "%(cname)s %(ctype)s DEFAULT %(default)s" % {
+            'cname': sql_identifier(self.name),
+            'ctype': self.type.sql(),
+            'default': {
+                'RID': "nextval('_ermrest.rid_seq')",
+                'RCT': "now()",
+                'RMT': "now()",
+                'RCB': "_ermrest.current_client()",
+                'RMB': "_ermrest.current_client()",
+            }[self.name]
+        }
 
 class FreetextColumn (Column):
     """Represents virtual table column for free text search.
