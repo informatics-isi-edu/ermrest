@@ -382,8 +382,8 @@ class EntityElem (object):
             for unique in self.table.uniques:
                 for c in unique:
                     mkcols.add(c)
-            nmkcols = [ c for c in inputcols if c not in mkcols ]
-            mkcols = [ c for c in inputcols if c in mkcols ]
+            nmkcols = [ c for c in inputcols if c not in mkcols and c.name not in {'RID','RCT','RMT','RCB','RMB'} ]
+            mkcols = [ c for c in inputcols if c in mkcols and c.name not in {'RID','RCT','RMT','RCB','RMB'} ]
             mkcol_aliases = dict()
             nmkcol_aliases = dict()
 
@@ -396,6 +396,11 @@ class EntityElem (object):
             use_defaults = set([
                 self.table.columns.get_enumerable(cname).name
                 for cname in use_defaults
+            ] + [
+                # system columns aren't writable so don't make client ask for their defaults explicitly
+                self.table.columns[cname]
+                for cname in {'RID','RCT','RMT','RCB','RMB'}
+                if cname in self.table.columns
             ])
 
             if use_defaults.intersection( set([ c.name for c in mkcols ]) ):
@@ -577,16 +582,6 @@ FROM (
             for sql in correlating_sql
         ])
 
-        if allow_existing is False and not skip_key_tests:
-            cur.execute("%s INTERSECT ALL %s" % correlating_sql)
-            for row in cur:
-                raise ConflictData('Input row key (%s) collides with existing entity.' % unicode(row))
-
-        if allow_missing is False:
-            cur.execute("%s EXCEPT ALL %s" % correlating_sql)
-            for row in cur:
-                raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
-
         def jsonfix1(sql, c):
             return '%s::jsonb' % sql if c.type.name == 'json' else sql
         
@@ -597,7 +592,15 @@ FROM (
         parts = dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
-            assigns = u','.join([ u"%s = i.%s " % ( c.sql_name(), jsonfix2(c.sql_name(nmkcol_aliases.get(c)), c) ) for c in nmkcols ]),
+            assigns = u','.join([
+                u"%s = i.%s " % ( c.sql_name(), jsonfix2(c.sql_name(nmkcol_aliases.get(c)), c) )
+                for c in nmkcols
+            ] + [
+                # add these metadata maintenance tasks.  if they are in nmkcols already we'll abort with Forbidden.
+                u"%s = DEFAULT " % self.table.columns[cname].sql_name()
+                for cname in {'RMT','RMB'}
+                if cname in self.table.columns
+            ]),
             keymatches = u' AND '.join([
                 u"((t.%(t)s = i.%(i)s) OR (t.%(t)s IS NULL AND i.%(i)s IS NULL))" % dict(t=c.sql_name(), i=c.sql_name(mkcol_aliases.get(c)))
                 for c in mkcols
@@ -676,6 +679,32 @@ FROM (
 
         del nonnull_fkey_col_fkrs
 
+        # do static enforcement before we start analyzing data
+        if allow_existing and nmkcols:
+            # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
+            self.table.enforce_right('update')
+            for c in nmkcols:
+                c.enforce_data_right('update')
+            for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
+                fkr.enforce_right('update')
+        elif allow_missing:
+            # static checks for pure insert case
+            self.table.enforce_right('insert', require_true=True)
+            for c in set(mkcols).union(set(nmkcols)):
+                c.enforce_data_right('insert', require_true=True)
+            for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_fkrs.values() ]):
+                fkr.enforce_right('insert')
+
+        if allow_existing is False and not skip_key_tests:
+            cur.execute("%s INTERSECT ALL %s" % correlating_sql)
+            for row in cur:
+                raise ConflictData('Input row key (%s) collides with existing entity.' % unicode(row))
+
+        if allow_missing is False:
+            cur.execute("%s EXCEPT ALL %s" % correlating_sql)
+            for row in cur:
+                raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
+
         def preserialize(sql):
             if content_type == 'text/csv':
                 # TODO implement and use row_to_csv() stored procedure?
@@ -701,12 +730,6 @@ FROM (
             if allow_existing:
                 if nmkcols:
                     # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
-                    self.table.enforce_right('update')
-                    for c in nmkcols:
-                        c.enforce_right('update')
-                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
-                        fkr.enforce_right('update')
-
                     if self.table.has_right('update') is None:
                         # need to enforce dynamic ACLs
                         parts2 = dict(parts)
@@ -724,7 +747,7 @@ LIMIT 1""") % parts2
                             raise Forbidden(u'update access on one or more rows in table %s' % self.table)
 
                     for c in nmkcols:
-                        if c.has_right('update') is None and c.dynauthz_restricted('update'):
+                        if c.has_data_right('update') is None and c.dynauthz_restricted('update'):
                             # need to enforce dynamic ACLs
                             parts2 = dict(parts)
                             parts2['table'] = self.table.sql_name(access_type='update', alias="t", dynauthz_testcol=c)
@@ -813,7 +836,7 @@ SELECT * FROM (
                     self.table.enforce_right('insert', require_true=True)
 
                     for c in set(mkcols).union(set(nmkcols)):
-                        c.enforce_right('insert', require_true=True)
+                        c.enforce_data_right('insert', require_true=True)
 
                     for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_fkrs.values() ]):
                         fkr.enforce_right('insert')
@@ -939,7 +962,7 @@ class AnyPath (object):
         extras = []
         
         for attribute, col, base in self.attributes:
-            col.enforce_right('select')
+            col.enforce_data_right('select')
 
             sql_attr = sql_identifier(
                 attribute.alias is not None and unicode(attribute.alias) or unicode(col.name)
@@ -1200,7 +1223,7 @@ SELECT GREATEST(
             # non-enumerable columns will be omitted from entity results
             for col in context_table.columns_in_order():
                 if enforce_client:
-                    col.enforce_right('select')
+                    col.enforce_data_right('select')
             selects = ", ".join([
                 "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
                 for col in context_table.columns_in_order()
@@ -1223,7 +1246,7 @@ SELECT GREATEST(
             # check whether this meta-key is usable for client...
             for col in shortest_pkey:
                 if enforce_client:
-                    col.enforce_right('select')
+                    col.enforce_data_right('select')
 
         distinct_on_cols = [ 
             '%st%d.%s' % (prefix, context_pos, sql_identifier(c.name))
@@ -1623,8 +1646,8 @@ WHERE %(keymatches)s
         for attribute, col, base in self.attributes:
             if base == self.epath:
                 # column in final entity path element
-                col.enforce_right('update')
-                if col.has_right('update') is None and col.dynauthz_restricted('update'):
+                col.enforce_data_right('update')
+                if col.has_data_right('update') is None and col.dynauthz_restricted('update'):
                     # need to enforce dynamic ACLs
                     cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(access_type='update', dynauthz_testcol=col))
                     if cur.fetchone():
@@ -1983,7 +2006,7 @@ class TextFacet (AnyPath):
                     t_policy = get_policy(s_policy, tname)
                     if t_policy:
                         for cname, column in table.columns.items():
-                            if not column.has_right('select'):
+                            if not column.has_data_right('select'):
                                 continue
                             c_policy = get_policy(t_policy, cname)
                             if c_policy:

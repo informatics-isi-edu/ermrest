@@ -94,6 +94,14 @@ SELECT _ermrest.model_version_bump();
             return False
         return self._has_right(aclname, roles)
 
+    def has_data_right(self, aclname, roles=None):
+        return self.has_right(aclname, roles)
+
+    def enforce_data_right(self, aclname, require_true=False):
+        decision = self.has_right(aclname)
+        if decision is False or require_true and not decision:
+            raise exception.Forbidden('%s access on %s' % (aclname, self))
+
     def __repr__(self):
         return '<ermrest.model.Column %s>' % str(self)
 
@@ -308,17 +316,17 @@ class SystemColumn (Column):
     def __init__(self, name, position, type, default_value, nullok=None, comment=None, column_num=None, annotations={}, acls={}, dynacls={}, rid=None):
         Column.__init__(self, name, position, type, default_value, nullok, comment, column_num, annotations, acls, dynacls, rid)
 
-    @cache_rights
-    def has_right(self, aclname, roles=None):
+    def has_data_right(self, aclname, roles=None):
         if aclname in {'owner', 'insert', 'update'}:
             return False
-        return Column.has_right(self, aclname, roles)
+        return self.has_right(aclname, roles)
     
     def sql_def(self):
         """Render SQL column clause for managed table DDL."""
-        return "%(cname)s %(ctype)s DEFAULT %(default)s" % {
+        return "%(cname)s %(ctype)s %(notnull)s DEFAULT %(default)s" % {
             'cname': sql_identifier(self.name),
             'ctype': self.type.sql(),
+            'notnull': '' if self.nullok else 'NOT NULL',
             'default': {
                 'RID': "nextval('_ermrest.rid_seq')",
                 'RCT': "now()",

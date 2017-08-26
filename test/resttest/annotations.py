@@ -87,6 +87,5 @@ class AnnotationKey (AnnotationCatalog):
 class AnnotationFKey (AnnotationCatalog):
     uri = 'schema/%s/table/%s/foreignkey/level1_id1/reference/%s:%s/id/annotation' % (_S, _T2b, _S, _T1)
 
-
 if __name__ == '__main__':
     unittest.main(verbosity=2)

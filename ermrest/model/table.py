@@ -122,11 +122,18 @@ class Table (object):
         return False
 
     def check_primary_keys(self, require):
-        if not self.has_primary_key():
-            if require:
-                raise exception.rest.RuntimeError('Table %s lacks primary key. Contact ERMrest administrator.' % self)
+        try:
+            for cname in {'RID','RCT','RMT','RCB','RMB'}:
+                if cname not in self.columns:
+                    raise exception.ConflictModel('Table %s lacks required system column %s.' % (self, cname))
+            if frozenset([self.columns['RID']]) not in self.uniques:
+                raise exception.ConflictModel('Column "%s"."RID" lacks uniqueness constraint.' % self.name)
+        except exception.ConflictModel as te:
+            if not require:
+                # convert error to warning in log
+                web.debug('WARNING: %s' % te)
             else:
-                web.debug('WARNING: Table %s lacks primary key.' % self)
+                raise te
 
     def writable_kind(self):
         """Return true if table is writable in SQL.
@@ -239,9 +246,11 @@ ORDER BY column_num;
                 # need to drain this generating function
                 pass
 
-        if ermrest_config.get('require_primary_keys', True):
-            if not table.has_primary_key():
-                raise exception.BadData('Table definitions require at least one not-null key constraint.')
+        try:
+            table.check_primary_keys(ermrest_config.get('require_primary_keys', True))
+        except exception.ConflictModel as te:
+            # convert into BadData
+            raise exception.BadData(te)
 
         return table
 

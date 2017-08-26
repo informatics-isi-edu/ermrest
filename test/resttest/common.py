@@ -37,7 +37,113 @@ def dump_cookies(cookies, preamble):
     for c in cookies:
         sys.stderr.write('  %r\n' % c)
     sys.stderr.write('end\n')
-            
+
+# helpers to make test-models more concise
+def ModelDoc(schemas=[], annotations={}):
+    return {
+        'schemas': { s['schema_name']: s for s in schemas },
+        'annotations': annotations,
+    }
+
+def SchemaDoc(schema_name, tables=[], annotations={}, acls={}, comment=None):
+    return {
+        'schema_name': schema_name,
+        'tables': { t['table_name']: t for t in tables },
+        'annotations': annotations,
+        'acls': acls,
+        'comment': comment,
+    }
+
+def TableDoc(table_name, column_definitions=[], keys=[], foreign_keys=[], annotations={}, kind='table', acls={}, acl_bindings={}, schema_name=None):
+    doc = {
+        'table_name': table_name,
+        'kind': kind,
+        'column_definitions': column_definitions,
+        'keys': keys,
+        'foreign_keys': foreign_keys,
+        'annotations': annotations,
+        'acls': acls,
+        'acl_bindings': acl_bindings,
+    }
+    if schema_name is not None:
+        doc['schema_name'] = schema_name
+    return doc
+
+def ColumnDoc(column_name, type, annotations={}, nullok=True, acls={}, acl_bindings={}):
+    return {
+        'name': column_name,
+        'type': type,
+        'nullok': nullok,
+        'annotations': annotations,
+        'acls': acls,
+        'acl_bindings': acl_bindings,
+    }
+
+def KeyDoc(unique_columns=[], annotations={}, names=None):
+    doc = {
+        'unique_columns': unique_columns,
+        'annotations': annotations,
+    }
+    if names is not None:
+        doc['names'] = names
+    return doc
+
+def FkeyDoc(from_sname, from_tname, from_cnames, to_sname, to_tname, to_cnames, annotations={}, acl_bindings={}, names=None):
+    doc = {
+        'foreign_key_columns': [
+            {'schema_name': from_sname, 'table_name': from_tname, 'column_name': cname}
+            for cname in from_cnames
+        ],
+        'referenced_columns': [
+            {'schema_name': to_sname, 'table_name': to_tname, 'column_name': cname}
+            for cname in to_cnames
+        ],
+        'annotations': annotations,
+        'acl_bindings': acl_bindings,
+    }
+    if names is not None:
+        doc['names'] = names
+    return doc
+
+def TypeDoc(typename):
+    return { 'typename': typename }
+
+def DomainDoc(typename, base_type):
+    return {
+        'typename': typename,
+        'base_type': base_type,
+        'is_domain': True
+    }
+
+def ArrayDoc(typename, base_type):
+    return {
+        'typename': typename,
+        'base_type': base_type,
+        'is_array': True
+    }
+
+Int8 = TypeDoc('int8')
+Int4 = TypeDoc('int4')
+Serial8 = TypeDoc('serial8')
+Text = TypeDoc('text')
+Timestamptz = TypeDoc('timestamptz')
+TextArray = ArrayDoc('text[]', Text)
+Int4Array = ArrayDoc('int4[]', Int4)
+
+Ermrest_rid = DomainDoc('ermrest_rid', Int8)
+Ermrest_rct = DomainDoc('ermrest_rct', Timestamptz)
+Ermrest_rmt = DomainDoc('ermrest_rmt', Timestamptz)
+Ermrest_rcb = DomainDoc('ermrest_rcb', Text)
+Ermrest_rmb = DomainDoc('ermrest_rmb', Text)
+
+RID = ColumnDoc('RID', Ermrest_rid, nullok=False)
+RCT = ColumnDoc('RCT', Ermrest_rct, nullok=False)
+RMT = ColumnDoc('RMT', Ermrest_rmt, nullok=False)
+RCB = ColumnDoc('RCB', Ermrest_rcb)
+RMB = ColumnDoc('RMB', Ermrest_rmb)
+
+RidKey = KeyDoc(['RID'])
+
 class TestSession (requests.Session):
     """Our extended version of requests.Session for test client stubs.
 

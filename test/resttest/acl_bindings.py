@@ -10,6 +10,10 @@ _Se = "AclBindingExplicit"
 _fkey_T2_T1 = [_Sd, "fkey T2 to T1"]
 _fkey_T3_T1 = [_Se, "fkey T3 to T1"]
 
+from common import Int8, Text, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 def setUpModule():
     r = common.primary_session.get('schema/%s' % _Sd)
     if r.status_code == 404:
@@ -210,114 +214,67 @@ class AclBindingT3Fkey (AclBindingT2Fkey):
         }
     }
 
-_defs = {
-    "schemas": {
-        _Sd: {
-            "tables": {
-                "T1": {
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        }
+_defs = ModelDoc(
+    [
+        SchemaDoc(
+            _Sd,
+            [
+                TableDoc(
+                    "T1",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8, nullok=False),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
                     ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                ),
+                TableDoc(
+                    "T2",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8, nullok=False),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
+                        ColumnDoc("t1id", Int8),
+                    ],
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                    [
+                        FkeyDoc(_Sd, "T2", ["t1id"], _Sd, "T1", ["id"], names=[_fkey_T2_T1]),
                     ]
-                },
-                "T2": {
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "t1id",
-                            "type": {"typename": "int8"}
-                        }
+                )
+            ]
+        ),
+        SchemaDoc(
+            _Se,
+            [
+                TableDoc(
+                    "T3",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8, nullok=False),
+                        ColumnDoc(
+                            "name", Text, nullok=False,
+                            acl_bindings=AclBindingT3ColName.initial_dynacls,
+                        ),
+                        ColumnDoc("value", Text),
+                        ColumnDoc("t1id", Int8),
+                        ColumnDoc("owner", Text),
                     ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                    [
+                        FkeyDoc(
+                            _Se, "T3", ["t1id"], _Sd, "T1", ["id"],
+                            acl_bindings=AclBindingT3Fkey.initial_dynacls,
+                            names=[_fkey_T3_T1],
+                        ),
                     ],
-                    "foreign_keys": [
-                        {
-                            "names": [ _fkey_T2_T1 ],
-                            "foreign_key_columns": [{"schema_name": _Sd, "table_name": "T2", "column_name": "t1id"}],
-                            "referenced_columns": [{"schema_name": _Sd, "table_name": "T1", "column_name": "id"}]
-                        }
-                    ]
-                }
-            }
-        },
-        _Se: {
-            "tables": {
-                "T3": {
-                    "acl_bindings": AclBindingT3.initial_dynacls,
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
-                        },
-                        {
-                            "acl_bindings": AclBindingT3ColName.initial_dynacls,
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "t1id",
-                            "type": {"typename": "int8"}
-                        },
-                        {
-                            "name": "owner",
-                            "type": {"typename": "text"}
-                        }
-                    ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
-                    ],
-                    "foreign_keys": [
-                        {
-                            "names": [ _fkey_T3_T1 ],
-                            "acl_bindings": AclBindingT3Fkey.initial_dynacls,
-                            "foreign_key_columns": [{"schema_name": _Se, "table_name": "T3", "column_name": "t1id"}],
-                            "referenced_columns": [{"schema_name": _Sd, "table_name": "T1", "column_name": "id"}]
-                        }
-                    ]
-                }
-            }
-        }
-    }
-}
-
+                    acl_bindings=AclBindingT3.initial_dynacls,
+                )
+            ]
+        )
+    ]
+)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

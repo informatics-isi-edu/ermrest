@@ -2,25 +2,32 @@
 import unittest
 import common
 
+from common import Int4, Int8, Serial8, Text, Int4Array, TextArray, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 _S = 'paging'
 _T = 'pagedata'
-_defs = {
-    "schemas": {
-        _S: {
-            "tables": {
-                _T: {
-                    "kind": "table",
-                    "column_definitions": [ 
-                        { "type": { "typename": "serial4" }, "name": "id", "nullok": False },
-                        { "type": { "typename": "text" }, "name": "name" },
-                        { "type": { "typename": "int4" }, "name": "value" }
+_defs = ModelDoc(
+    [
+        SchemaDoc(
+            _S,
+            [
+                TableDoc(
+                    _T,
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Serial8, nullok=False),
+                        ColumnDoc("name", Text),
+                        ColumnDoc("value", Int4),
                     ],
-                    "keys": [ { "unique_columns": [ "id" ] } ]
-                }
-            }
-        }
-    }
-}
+                    [ RidKey, KeyDoc(["id"]) ],
+                )
+            ]
+        )
+    ]
+)
+
 _data = [
     {"name": "bar", "value": v}
     for v in range(5)

@@ -5,6 +5,10 @@ import authz_static
 
 _S = "AuthzDynamic"
 
+from common import Int4, Int8, Text, Int4Array, TextArray, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 def setUpModule():
     r = common.primary_session.get('schema/%s' % _S)
     if r.status_code == 404:
@@ -975,188 +979,89 @@ _data = [
     )
 ]
 
-_defs = {
-    "schemas": {
-        _S: {
-            "tables": {
-                "Data": {
+_defs = ModelDoc(
+    [
+        SchemaDoc(
+            _S,
+            [
+                TableDoc(
                     # data static ACLs get managed per test class...
-                    "column_definitions": [
-                        {
-                            "name": "id",
-                            "type": {"typename": "int"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "ACL",
-                            "type": {
-                                "is_array": True,
-                                "typename": "text[]",
-                                "base_type": {
-                                    "typename": "text"
-                                }
-                            }
-                        },
-                        {
-                            "name": "member",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "c_id",
-                            "type": {"typename": "int"}
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "int"},
-                            "acl_bindings": {
+                    "Data",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int4, nullok=False),
+                        ColumnDoc("name", Text),
+                        ColumnDoc("ACL", TextArray),
+                        ColumnDoc("member", Text),
+                        ColumnDoc("c_id", Int4),
+                        ColumnDoc(
+                            "value", Int4,
+                            acl_bindings= {
                                 "member2": {
                                     "types": ["select", "update"],
                                     "projection": "member",
                                     "projection_type": "acl"
                                 }
                             }
-                        },
-                        {
-                            "name": "values",
-                            "type": {
-                                "is_array": True,
-                                "typename": "int[]",
-                                "base_type": {
-                                    "typename": "int"
-                                }
-                            },
-                            "acl_bindings": {
+                        ),
+                        ColumnDoc(
+                            "values", Int4Array,
+                            acl_bindings={
                                 "member2": {
                                     "types": ["select", "update"],
                                     "projection": "member",
                                     "projection_type": "acl"
                                 }
                             }
-                        }
+                        )
                     ],
-                    "keys": [ {"unique_columns": ["id"]} ],
-                    "foreign_keys": [
-                        {
-                            "names": [ [_S, "fkey Data.c_id"] ],
-                            "foreign_key_columns": [
-                                {"column_name": "c_id"}
-                            ],
-                            "referenced_columns": [
-                                {"table_name": "Category", "column_name": "id"}
-                            ]
-                        }
+                    [ RidKey, KeyDoc(["id"]) ],
+                    [
+                        FkeyDoc(_S, "Data", ["c_id"], _S, "Category", ["id"], names=[[_S, "fkey Data.c_id"]]),
                     ]
-                },
-                "Extension": {
-                    "column_definitions": [
-                        {
-                            "name": "id",
-                            "type": {"typename": "int"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "ACL",
-                            "type": {
-                                "is_array": True,
-                                "typename": "text[]",
-                                "base_type": {
-                                    "typename": "text"
-                                }
-                            }
-                        },
-                        {
-                            "name": "member",
-                            "type": {"typename": "text"}
-                        }
+                ),
+                TableDoc(
+                    "Extension",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int4, nullok=False),
+                        ColumnDoc("value", Text),
+                        ColumnDoc("ACL", TextArray),
+                        ColumnDoc("member", Text),
                     ],
-                    "keys": [ {"unique_columns": ["id"]} ],
-                    "foreign_keys": [
-                        {
-                            "names": [ [_S, "fkey Extension.id"] ],
-                            "foreign_key_columns": [
-                                {"column_name": "id"}
-                            ],
-                            "referenced_columns": [
-                                {"table_name": "Data", "column_name": "id"}
-                            ]
-                        }
+                    [ RidKey, KeyDoc(["id"]) ],
+                    [
+                        FkeyDoc(_S, "Extension", ["id"], _S, "Data", ["id"], names=[[_S, "fkey Extension.id"]]),
                     ]
-                },
-                "Category": {
-                    "column_definitions": [
-                        {
-                            "name": "id",
-                            "type": {"typename": "int"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "ACL",
-                            "type": {
-                                "is_array": True,
-                                "typename": "text[]",
-                                "base_type": {
-                                    "typename": "text"
-                                }
-                            }
-                        },
-                        {
-                            "name": "member",
-                            "type": {"typename": "text"}
-                        }
+                ),
+                TableDoc(
+                    "Category",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int4, nullok=False),
+                        ColumnDoc("name", Text),
+                        ColumnDoc("ACL", TextArray),
+                        ColumnDoc("member", Text),
                     ],
-                    "keys": [ {"unique_columns": ["id"]} ]
-                },
-                "Data_Category": {
-                    "column_definitions": [
-                        {
-                            "name": "d_id",
-                            "type": {"typename": "int"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "c_id",
-                            "type": {"typename": "int"},
-                            "nullok": False
-                        }
+                    [ RidKey, KeyDoc(["id"]) ]
+                ),
+                TableDoc(
+                    "Data_Category",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("d_id", Int4, nullok=False),
+                        ColumnDoc("c_id", Int4, nullok=False),
                     ],
-                    "keys": [ {"unique_columns": ["c_id", "d_id"]} ],
-                    "foreign_keys": [
-                        {
-                            "names": [ [_S, "fkey Data_Category.c_id"] ],
-                            "foreign_key_columns": [
-                                {"column_name": "c_id"}
-                            ],
-                            "referenced_columns": [
-                                {"table_name": "Category", "column_name": "id"}
-                            ]
-                        },
-                        {
-                            "names": [ [_S, "fkey Data_Category.d_id"] ],
-                            "foreign_key_columns": [
-                                {"column_name": "d_id"}
-                            ],
-                            "referenced_columns": [
-                                {"table_name": "Data", "column_name": "id"}
-                            ]
-                        }
+                    [ RidKey, KeyDoc(["c_id", "d_id"]) ],
+                    [
+                        FkeyDoc(_S, "Data_Category", ["c_id"], _S, "Category", ["id"], names=[[_S, "fkey Data_Category.c_id"]]),
+                        FkeyDoc(_S, "Data_Category", ["d_id"], _S, "Data", ["id"], names=[[_S, "fkey Data_Category.d_id"]]),
                     ]
-                }
-            }
-        }
-    }
-}
+                )
+            ]
+        )
+    ]
+)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

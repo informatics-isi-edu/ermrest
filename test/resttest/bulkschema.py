@@ -2,102 +2,86 @@
 import unittest
 import common
 
+from common import Int4, Int8, Serial8, Text, Int4Array, TextArray, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 class CyclicFkeys (common.ErmrestTest):
-    _test_schema_doc = {
-        "schemas": {
-            "s1": {
-                "schema_name": "s1",
-                "tables": {
-                    "A": {
-                        "kind": "table",
-                        "column_definitions": [
-                            { 
-                                "type": { "typename": "serial8"}, 
-                                "name": "id", 
-                                "nullok": False, 
-                                "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" } 
-                            },
-                            { "type": { "typename": "int8"}, "name": "rid" }
+    _test_schema_doc = ModelDoc(
+        [
+            SchemaDoc(
+                "s1",
+                [
+                    TableDoc(
+                        "A",
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc("id", Serial8, nullok=False, annotations={"tag:misd.isi.edu,2015:test0": "value 0"}),
+                            ColumnDoc("rid", Int8),
                         ],
-                        "keys": [ { "unique_columns": [ "id" ], "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" } } ],
-                        "foreign_keys": [
-                            { 
-                                "foreign_key_columns": [ {"schema_name": "s1", "table_name": "A", "column_name": "rid"} ],
-                                "referenced_columns": [ {"schema_name": "s2", "table_name": "A", "column_name": "id"} ], 
-                                "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" }
-                            }
+                        [ RidKey, KeyDoc(["id"], {"tag:misd.isi.edu,2015:test0": "value 0"}) ],
+                        [
+                            FkeyDoc("s1", "A", ["rid"], "s2", "A", ["id"], {"tag:misd.isi.edu,2015:test0": "value 0"}),
                         ],
-                        "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" }
-                    }
-                },
-                "annotations": { "tag:misd.isi.edu,2015:test0": "value 0" }
-            },
-            "s2": {
-                "comment": "schema s2 of model document",
-                "tables": {
-                    "A": {
-                        "kind": "table",
-                        "column_definitions": [
-                            { "type": { "typename": "serial8"}, "name": "id", "nullok": False },
-                            { "type": { "typename": "int8"}, "name": "rid" }
+                        {"tag:misd.isi.edu,2015:test0": "value 0"}
+                    ),
+                ],
+                {"tag:misd.isi.edu,2015:test0": "value 0"}
+            ),
+            SchemaDoc(
+                "s2",
+                [
+                    TableDoc(
+                        "A",
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc("id", Serial8, nullok=False),
+                            ColumnDoc("rid", Int8),
                         ],
-                        "keys": [ { "unique_columns": [ "id" ] } ],
-                        "foreign_keys": [
-                            { 
-                                "foreign_key_columns": [ {"schema_name": "s2", "table_name": "A", "column_name": "rid"} ],
-                                "referenced_columns": [ {"schema_name": "s1", "table_name": "A", "column_name": "id"} ]
-                            }
+                        [ RidKey, KeyDoc(["id"]) ],
+                        [
+                            FkeyDoc("s2", "A", ["rid"], "s1", "A", ["id"]),
                         ]
-                    }
-                }
-            }
-        }
-    }
+                    ),
+                ],
+                comment="schema s2 of model document",
+            )
+        ]
+    )
     
     def test_1_doc(self):
         self.assertHttp(self.session.post('schema', json=self._test_schema_doc), 201)
         self.assertHttp(self.session.post('schema', json=self._test_schema_doc), 409)
 
     _test_schema_list = [
-        {
-            "schema_name": "s3"
-        },
-        {
-            "schema_name": "s1",
-            "table_name": "B",
-            "kind": "table",
-            "column_definitions": [
-                { "type": { "typename": "serial8"}, "name": "id", "nullok": False },
-                { "type": { "typename": "int8"}, "name": "rid" }
+        SchemaDoc("s3"),
+        TableDoc(
+            "B",
+            [
+                RID, RCT, RMT, RCB, RMB,
+                ColumnDoc("id", Serial8, nullok=False),
+                ColumnDoc("rid", Int8),
             ],
-            "keys": [ { "unique_columns": [ "id" ] } ],
-            "foreign_keys": [
-                { 
-                    "foreign_key_columns": [ {"schema_name": "s1", "table_name": "B", "column_name": "rid"} ],
-                    "referenced_columns": [ {"schema_name": "s4", "table_name": "B", "column_name": "id"} ]
-                }
-            ]
-        },
-        {
-            "schema_name": "s4",
-            "comment": "schema s4 of model document"
-        },
-        {
-            "kind": "table",
-            "schema_name": "s4",
-            "table_name": "B",
-            "column_definitions": [
-                { "type": { "typename": "serial8"}, "name": "id", "nullok": False },
-                { "type": { "typename": "int8"}, "name": "rid" }
+            [ RidKey, KeyDoc(["id"]) ],
+            [
+                FkeyDoc("s1", "B", ["rid"], "s4", "B", ["id"]),
             ],
-            "keys": [ { "unique_columns": [ "id" ] } ],
-            "foreign_keys": [
-                { 
-                    "foreign_key_columns": [ {"schema_name": "s4", "table_name": "B", "column_name": "rid"} ],
-                    "referenced_columns": [ {"schema_name": "s1", "table_name": "B", "column_name": "id"} ]
-                }
-            ]
-        }
+            schema_name="s1",
+        ),
+        SchemaDoc("s4", comment="schema s4 of model document"),
+        TableDoc(
+            "B",
+            [
+                RID, RCT, RMT, RCB, RMB,
+                ColumnDoc("id", Serial8, nullok=False),
+                ColumnDoc("rid", Int8),
+            ],
+            [ RidKey, KeyDoc(["id"]) ],
+            [
+                FkeyDoc("s4", "B", ["rid"], "s1", "B", ["id"]),
+            ],
+            schema_name="s4",
+        )
     ]
         
     def test_2_list(self):

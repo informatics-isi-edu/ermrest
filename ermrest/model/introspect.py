@@ -309,7 +309,10 @@ GROUP BY fkey_rid;
     del model.schemas['_ermrest']
     del model.schemas['pg_catalog']
 
-    model.check_primary_keys(web.ctx.ermrest_config.get('require_primary_keys', True))
+    try:
+        model.check_primary_keys(web.ctx.ermrest_config.get('require_primary_keys', True))
+    except exception.ConflictModel as te:
+        raise exception.rest.RuntimeError(te)
 
     return model
 

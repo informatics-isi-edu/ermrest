@@ -2,8 +2,13 @@
 import unittest
 import common
 import json
+import re
 
 _schema = 'ctypes'
+
+from common import Int4, Int8, Text, Int4Array, TextArray, Timestamptz, TypeDoc, ArrayDoc, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
 
 def setUpModule():
     url = 'schema/%s' % _schema
@@ -12,17 +17,37 @@ def setUpModule():
         # idempotent because unittest can re-enter module several times... :-(
         common.primary_session.post(url)
 
+def json_strip_system_cols(d):
+    return [
+        {
+            k: v
+            for k, v in row.items()
+            if k not in {'RID','RCT','RMT','RCB','RMB'}
+        }
+        for row in d
+    ]
+
+def csv_strip_system_cols(d):
+    inlines = d.split('\n')
+    if inlines[0].find('RID,RCT,RMT,RCB,RMB,') == 0:
+        return '\n'.join([
+            re.sub('^([^,]+,){5}', '', line)
+            for line in inlines
+        ])
+    else:
+        return d
+
 def add_etype_vk_wk_rk(klass, vk, wk, rk):
     def check_json(self):
         r = self.session.get(self._read_urls()[rk])
         self.assertHttp(r, 200, 'application/json')
-        self.assertJsonEqual(r.json(), self._data(vk))
+        self.assertJsonEqual(json_strip_system_cols(r.json()), self._data(vk))
     setattr(klass, 'test_%s_%s_json_2_read_%s' % (vk, wk, rk), check_json)
 
     def check_csv(self):
         r = self.session.get(self._read_urls()[rk], headers={"Accept": "text/csv"})
         self.assertHttp(r, 200, 'text/csv')
-        self.assertEqual(r.content, self._data_csv(vk))
+        self.assertEqual(csv_strip_system_cols(r.content), self._data_csv(vk))
     setattr(klass, 'test_%s_%s_csv_2_read_%s' % (vk, wk, rk), check_csv)
 
 def add_etype_vk_wk(klass, vk, wk):
@@ -46,7 +71,7 @@ def add_etype_vk_wk(klass, vk, wk):
         if self.etype == 'jsonb':
             r = self.session.get(self._query_url(self._values[vk]))
             self.assertHttp(r, 200, 'application/json')
-            self.assertJsonEqual(r.json(), self._data(vk))
+            self.assertJsonEqual(json_strip_system_cols(r.json()), self._data(vk))
     setattr(klass, 'test_%s_%s_pred_3' % (vk, wk), check_query)
 
 def add_etype_tests(klass):
@@ -66,17 +91,16 @@ class EtypeJson (common.ErmrestTest):
 
     @classmethod
     def _table_def(cls):
-        return {
-            "kind": "table",
-            "schema_name": _schema,
-            "table_name": cls._table_name(),
-            "column_definitions": [ 
-                { "type": { "typename": "int8" }, "name": "id", "nullok": False },
-                { "type": { "typename": "text" }, "name": "name" },
-                { "type": { "typename": cls.etype }, "name": "payload" }
+        return TableDoc(
+            cls._table_name(),
+            [
+                RID, RCT, RMT, RCB, RMB,
+                ColumnDoc("id", Int8, nullok=False),
+                ColumnDoc("name", Text),
+                ColumnDoc("payload", TypeDoc(cls.etype)),
             ],
-            "keys": [ { "unique_columns": [ "id" ] } ]
-        }
+            [ RidKey, KeyDoc(["id"]) ]
+        )
 
     @classmethod
     def setUpClass(cls):
@@ -96,7 +120,7 @@ class EtypeJson (common.ErmrestTest):
     def _read_urls(cls):
         return {
             k: v + '@sort(id)'
-            for k, v in cls._write_urls().items() + [("attribute", 'attribute/%s:%s/id,name,payload' % (_schema, cls._table_name()))]
+            for k, v in cls._write_urls().items() + [("3attribute", 'attribute/%s:%s/id,name,payload' % (_schema, cls._table_name()))]
         }
 
     _values = {
@@ -148,18 +172,17 @@ class CtypeText (common.ErmrestTest):
         )
 
     def _table_def(self):
-        return {
-            "kind": "table",
-            "schema_name": _schema,
-            "table_name": self._table_name(),
-            "column_definitions": [
-                {"type": {"typename": "serial"}, "name": "sid", "nullok": False},
-                {"type": {"typename": self.ctype}, "name": "column1"},
-                {"type": {"typename": "text"}, "name": "column2"},
-                {"type": {"typename": "%s[]" % self.ctype, "is_array": True, "base_type": {"typename": self.ctype}}, "name": "column3"}
+        return TableDoc(
+            self._table_name(),
+            [
+                RID, RCT, RMT, RCB, RMB,
+                ColumnDoc("sid", TypeDoc("serial"), nullok=False),
+                ColumnDoc("column1", TypeDoc(self.ctype)),
+                ColumnDoc("column2", Text),
+                ColumnDoc("column3", ArrayDoc("%s[]" % self.ctype, TypeDoc(self.ctype))),
             ],
-            "keys": [ {"unique_columns": ["sid"]}, {"unique_columns": ["column1"]} ]
-        }
+            [ RidKey, KeyDoc(["sid"]), KeyDoc(["column1"]) ]
+        )
     
     def _data(self):
         return [
@@ -177,7 +200,7 @@ class CtypeText (common.ErmrestTest):
         r = self.session.get('schema/%s/table/%s' % (_schema, self._table_name()))
         self.assertHttp(r, 200, 'application/json')
         doc = r.json()
-        self.assertEqual(doc['column_definitions'][1]['type']['typename'], self.ctype)
+        self.assertEqual(doc['column_definitions'][6]['type']['typename'], self.ctype)
 
     def test_04_load(self):
         self.assertHttp(
@@ -281,7 +304,7 @@ class CtypeSerial2 (CtypeInt2):
     def _table_def(self):
         """Don't make arrays of this type."""
         doc = CtypeInt2._table_def(self)
-        doc['column_definitions'][3] = {"type": {"typename": self.ctype}, "name": "column3"}
+        doc['column_definitions'][8] = {"type": {"typename": self.ctype}, "name": "column3"}
         return doc
 
     def _data(self):
@@ -325,7 +348,7 @@ class CtypeLongtext (CtypeText):
     def _table_def(self):
         """Don't make arrays of this type."""
         doc = CtypeText._table_def(self)
-        doc['column_definitions'][3] = {"type": {"typename": self.ctype}, "name": "column3"}
+        doc['column_definitions'][8] = {"type": {"typename": self.ctype}, "name": "column3"}
         return doc
 
     def _data(self):

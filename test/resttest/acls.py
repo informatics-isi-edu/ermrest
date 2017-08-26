@@ -5,6 +5,10 @@ import common
 _Sd = "AclDefault"
 _Se = "AclExplicit"
 
+from common import Int8, Text, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 def setUpModule():
     r = common.primary_session.get('schema/%s' % _Sd)
     if r.status_code == 404:
@@ -226,108 +230,63 @@ class AclsT3Col (Acls):
         "enumerate": ["bar", "*"]
     }
     
-_defs = {
-    "schemas": {
-        _Sd: {
-            "tables": {
-                "T1": {
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        }
+_defs = ModelDoc(
+    [
+        SchemaDoc(
+            _Sd,
+            [
+                TableDoc(
+                    "T1",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8, nullok=False),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
                     ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                ),
+                TableDoc(
+                    "T2",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8, nullok=False),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
+                        ColumnDoc("t1id", Int8),
+                    ],
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                    [
+                        FkeyDoc(_Sd, "T2", ["t1id"], _Sd, "T1", ["id"]),
                     ]
-                },
-                "T2": {
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "t1id",
-                            "type": {"typename": "int8"}
-                        }
+                )
+            ]
+        ),
+        SchemaDoc(
+            _Se,
+            [
+                TableDoc(
+                    "T3",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc(
+                            "id", Int8, nullok=False,
+                            acls=AclsT3Col.expected_acls,
+                        ),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
+                        ColumnDoc("t1id", Int8),
                     ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                    [
+                        FkeyDoc(_Se, "T3", ["t1id"], _Sd, "T1", ["id"]),
                     ],
-                    "foreign_keys": [
-                        {
-                            "foreign_key_columns": [{"schema_name": _Sd, "table_name": "T2", "column_name": "t1id"}],
-                            "referenced_columns": [{"schema_name": _Sd, "table_name": "T1", "column_name": "id"}]
-                        }
-                    ]
-                }
-            }
-        },
-        _Se: {
-            "acls": AclsOverrideSchema.expected_acls,
-            "tables": {
-                "T3": {
-                    "acls": AclsT3.expected_acls,
-                    "column_definitions": [
-                        {
-                            "acls": AclsT3Col.expected_acls,
-                            "name": "id", 
-                            "type": {"typename": "int8"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "t1id",
-                            "type": {"typename": "int8"}
-                        }
-                    ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
-                    ],
-                    "foreign_keys": [
-                        {
-                            "foreign_key_columns": [{"schema_name": _Se, "table_name": "T3", "column_name": "t1id"}],
-                            "referenced_columns": [{"schema_name": _Sd, "table_name": "T1", "column_name": "id"}]
-                        }
-                    ]
-                }
-            }
-        }
-    }
-}
-
+                    acls=AclsT3.expected_acls,
+                )
+            ],
+            acls=AclsOverrideSchema.expected_acls,
+        )
+    ]
+)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

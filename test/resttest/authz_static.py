@@ -5,6 +5,10 @@ import common
 _S = "AuthzStatic"
 _S2 = "AuthzStatic2"
 
+from common import Int8, Text, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 def setUpModule():
     r = common.primary_session.get('schema/%s' % _S)
     if r.status_code == 404:
@@ -172,15 +176,15 @@ class Authz (common.ErmrestTest):
         expected.update(self.rights_T1_id)
         cols = tables['T1']['column_definitions']
         if expected.get('enumerate') is False:
-            self.assertNotEqual(cols[0]['name'], 'id')
+            self.assertNotEqual(cols[5]['name'], 'id')
             return
-        self.assertEqual(cols[0]['name'], 'id')
+        self.assertEqual(cols[5]['name'], 'id')
         expected_c = {
             aclname: right
             for aclname, right in expected.items()
             if aclname in {"select", "update", "insert", "delete"}
         }
-        self.assertEqual(cols[0]['rights'], expected_c)
+        self.assertEqual(cols[5]['rights'], expected_c)
 
     def test_rights_T3_fkey(self):
         r = self.session.get('schema')
@@ -377,7 +381,7 @@ class Authz (common.ErmrestTest):
         self._json_check(self.session.put('attributegroup/%s:T1/name;value' % _S, json=_data[0][1]), self.put_data_T1_status)
 
     def test_post_data_T1(self):
-        self._json_check(self.session.put('entity/%s:T1' % _S, json=_data[0][1]), self.post_data_T1_status)
+        self._json_check(self.session.post('entity/%s:T1' % _S, json=_data[0][1]), self.post_data_T1_status)
 
     def test_delete_data_T1(self):
         self._json_check(self.session.delete('attribute/%s:T1/name,value' % _S), self.delete_data_T1_status)
@@ -830,102 +834,58 @@ _data = [
     ),
 ]
 
-_defs = {
-    "schemas": {
-        _S: {
-            "tables": {
-                "T1": {
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"}
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        }
+_defs = ModelDoc(
+    [
+        SchemaDoc(
+            _S,
+            [
+                TableDoc(
+                    "T1",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
                     ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                ),
+                TableDoc(
+                    "T2",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
+                        ColumnDoc("t1id", Int8),
+                    ],
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                    [
+                        FkeyDoc(_S, "T2", ["t1id"], _S, "T1", ["id"]),
                     ]
-                },
-                "T2": {
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"}
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "t1id",
-                            "type": {"typename": "int8"}
-                        }
+                )
+            ]
+        ),
+        SchemaDoc(
+            _S2,
+            [
+                TableDoc(
+                    "T3",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("id", Int8),
+                        ColumnDoc("name", Text, nullok=False),
+                        ColumnDoc("value", Text),
+                        ColumnDoc("t1id", Int8),
                     ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
-                    ],
-                    "foreign_keys": [
-                        {
-                            "foreign_key_columns": [{"schema_name": _S, "table_name": "T2", "column_name": "t1id"}],
-                            "referenced_columns": [{"schema_name": _S, "table_name": "T1", "column_name": "id"}]
-                        }
+                    [ RidKey, KeyDoc(["id"]), KeyDoc(["name"]) ],
+                    [
+                        FkeyDoc(_S2, "T3", ["t1id"], _S, "T1", ["id"]),
                     ]
-                }
-            }
-        },
-        _S2: {
-            "tables": {
-                "T3": {
-                    "column_definitions": [
-                        {
-                            "name": "id", 
-                            "type": {"typename": "int8"}
-                        },
-                        {
-                            "name": "name",
-                            "type": {"typename": "text"},
-                            "nullok": False
-                        },
-                        {
-                            "name": "value",
-                            "type": {"typename": "text"}
-                        },
-                        {
-                            "name": "t1id",
-                            "type": {"typename": "int8"}
-                        }
-                    ],
-                    "keys": [
-                        {"unique_columns": ["id"]},
-                        {"unique_columns": ["name"]}
-                    ],
-                    "foreign_keys": [
-                        {
-                            "foreign_key_columns": [{"schema_name": _S2, "table_name": "T3", "column_name": "t1id"}],
-                            "referenced_columns": [{"schema_name": _S, "table_name": "T1", "column_name": "id"}]
-                        }
-                    ]
-                }
-            }
-        }
-    }
-}
-
+                )
+            ]
+        )
+    ]
+)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

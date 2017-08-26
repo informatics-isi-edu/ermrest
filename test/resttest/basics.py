@@ -9,96 +9,87 @@ _T2b = 'ambiguous2'
 _Tc1 = 'composite1'
 _Tc2 = 'composite2'
 
+from common import Int8, Text, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 def defs(S):
     # these table definitions get reused in multiple test modules under different per-module schema
-    return {
-        "schemas": { S: { "tables": {
-        _T1: {
-            "kind": "table",
-            "column_definitions": [ 
-                { "type": { "typename": "int8" }, "name": "id", "nullok": False },
-                { "type": { "typename": "text" }, "name": "name" }
-            ],
-            "keys": [ { "unique_columns": [ "id" ] } ]
-        },
-        _T2:{
-            "kind": "table",
-            "column_definitions": [ 
-                { "type": { "typename": "int8" }, "name": "id", "nullok": False },
-                { "type": { "typename": "int8" }, "name": "level1_id"},
-                { "type": { "typename": "text" }, "name": "name" }
-            ],
-            "keys": [ { "unique_columns": [ "id" ] } ],
-            "foreign_keys": [
-                { 
-                    "foreign_key_columns": [{"schema_name": S, "table_name": _T2, "column_name": "level1_id"}],
-                    "referenced_columns":  [{"schema_name": S, "table_name": _T1, "column_name": "id"}]
-                }
-            ]
-        },
-        _T2b: {
-            "kind": "table",
-            "column_definitions": [
-                { "type": {"typename": "int8" }, "name": "id", "nullok": False, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}},
-                { "type": {"typename": "int8" }, "name": "level1_id1", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}},
-                { "type": {"typename": "int8" }, "name": "level1_id2", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}},
-                { "type": {"typename": "text" }, "name": "name", "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}}
-            ],
-            "keys": [ {"unique_columns": [ "id" ], "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}} ],
-            "foreign_keys": [
-                {
-                    "foreign_key_columns": [{"schema_name": S, "table_name": _T2b, "column_name": "level1_id1"}],
-                    "referenced_columns":  [{"schema_name": S, "table_name": _T1, "column_name": "id"}],
-                    "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}
-                },
-                {
-                    "foreign_key_columns": [{"schema_name": S, "table_name": _T2b, "column_name": "level1_id2"}],
-                    "referenced_columns":  [{"schema_name": S, "table_name": _T1, "column_name": "id"}],
-                    "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}
-                }
-            ],
-            "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}
-        },
-        _Tc1: {
-            "kind": "table",
-            "column_definitions": [ 
-                { "type": { "typename": "int8" }, "name": "id", "nullok": False },
-                { "type": { "typename": "timestamptz" }, "name": "last_update" },
-                { "type": { "typename": "text" }, "name": "name", "nullok": True },
-                { "type": { "typename": "int8" }, "name": "site", "nullok": False }
-            ],
-            "keys": [ 
-                { "unique_columns": [ "id", "site" ] } 
-            ]
-        },
-        _Tc2: {
-            "kind": "table",
-            "column_definitions": [ 
-                { "type": { "typename": "int8" }, "name": "id", "nullok": False },
-                { "type": { "typename": "timestamptz" }, "name": "last_update" },
-                { "type": { "typename": "text" }, "name": "name", "nullok": True },
-                { "type": { "typename": "int8" }, "name": "site", "nullok": False }
-            ],
-            "keys": [ 
-                { "unique_columns": [ "id", "site" ] } 
-            ],
-            "foreign_keys": [
-                { 
-                    "foreign_key_columns": [
-                        {"schema_name": S, "table_name": _Tc2, "column_name": "id"},
-                        {"schema_name": S, "table_name": _Tc2, "column_name": "site"}
-                        
-                    ],
-                    "referenced_columns": [
-                        {"schema_name": S, "table_name": _Tc1, "column_name": "id"},
-                        {"schema_name": S, "table_name": _Tc1, "column_name": "site"}
-                    ]
-                }
-            ]
-        }
-    }, "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"} }  },
-    "annotations": {"tag:misd.isi.edu,2015:test0": "value 0"}
-    }
+    return ModelDoc(
+        [
+            SchemaDoc(
+                S,
+                [
+                    TableDoc(
+                        _T1,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Int8, nullok=False),
+                            ColumnDoc('name', Text),
+                        ],
+                        [ RidKey, KeyDoc(['id']) ]
+                    ),
+                    TableDoc(
+                        _T2,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Int8, nullok=False),
+                            ColumnDoc('level1_id', Int8),
+                            ColumnDoc('name', Text),
+                        ],
+                        [ RidKey, KeyDoc(['id']) ],
+                        [ FkeyDoc(S, _T2, ['level1_id'], S, _T1, ['id']) ]
+                    ),
+                    TableDoc(
+                        _T2b,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Int8, {"tag:misd.isi.edu,2015:test0": "value 0"}, nullok=False),
+                            ColumnDoc('level1_id1', Int8, {"tag:misd.isi.edu,2015:test0": "value 0"}),
+                            ColumnDoc('level1_id2', Int8, {"tag:misd.isi.edu,2015:test0": "value 0"}),
+                            ColumnDoc('name', Text, {"tag:misd.isi.edu,2015:test0": "value 0"}),
+                        ],
+                        [
+                            KeyDoc(['RID'], {"tag:misd.isi.edu,2015:test0": "value 0"}),
+                            KeyDoc(['id'], {"tag:misd.isi.edu,2015:test0": "value 0"}),
+                        ],
+                        [
+                            FkeyDoc(S, _T2b, ['level1_id1'], S, _T1, ['id'], {"tag:misd.isi.edu,2015:test0": "value 0"}),
+                            FkeyDoc(S, _T2b, ['level1_id2'], S, _T1, ['id'], {"tag:misd.isi.edu,2015:test0": "value 0"}),
+                        ],
+                        {"tag:misd.isi.edu,2015:test0": "value 0"}
+                    ),
+                    TableDoc(
+                        _Tc1,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Int8, nullok=False),
+                            ColumnDoc('last_update', Timestamptz),
+                            ColumnDoc('name', Text),
+                            ColumnDoc('site', Int8, nullok=False),
+                        ],
+                        [ RidKey, KeyDoc(['id', 'site']) ],
+                    ),
+                    TableDoc(
+                        _Tc2,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Int8, nullok=False),
+                            ColumnDoc('last_update', Timestamptz),
+                            ColumnDoc('name', Text),
+                            ColumnDoc('site', Int8, nullok=False),
+                        ],
+                        [ RidKey, KeyDoc(['id', 'site']) ],
+                        [
+                            FkeyDoc(S, _Tc2, ['id', 'site'], S, _Tc1, ['id', 'site'])
+                        ]
+                    )
+                ],
+                {"tag:misd.isi.edu,2015:test0": "value 0"}
+            )
+        ],
+        {"tag:misd.isi.edu,2015:test0": "value 0"}
+    )
 
 _defs = defs(_S)
 _table_defs = _defs['schemas'][_S]['tables']
@@ -275,34 +266,29 @@ class ConstraintNameNone (common.ErmrestTest):
 
     def defs(self):
         return [
-            {
-                "schema_name": _S,
-                "table_name": self.table,
-                "column_definitions": [
-                    { "type": { "typename": "int8" }, "name": "id", "nullok": False },
-                    { "type": { "typename": "int8" }, "name": "level1_id1"},
-                    { "type": { "typename": "text" }, "name": "name" }
+            TableDoc(
+                self.table,
+                [
+                    RID, RCT, RMT, RCB, RMB,
+                    ColumnDoc('id', Int8, nullok=False),
+                    ColumnDoc('level1_id1', Int8),
+                    ColumnDoc('name', Text),
                 ],
-                "keys": [
-                    { "unique_columns": [ "id" ], "names": self.keynames }
+                [ RidKey, KeyDoc(['id'], names=self.keynames) ],
+                [
+                    FkeyDoc(_S, self.table, ['level1_id1'], _S, _T1, ['id'], names=self.fkeynames),
                 ],
-                "foreign_keys": [
-                    {
-                        "names": self.fkeynames,
-                        "foreign_key_columns": [{"schema_name": _S, "table_name": self.table, "column_name": "level1_id1"}],
-                        "referenced_columns": [{"schema_name": _S, "table_name": _T1, "column_name": "id"}]
-                    }
-                ]
-            }
+                schema_name=_S
+            )
         ]
-    
+
     def test_1_create(self):
         self.assertHttp(self.session.post('schema', json=self.defs()), self.status)
         if self.status == 201:
             r = self.session.get('schema/%s/table/%s' % (_S, self.table))
             self.assertHttp(r, 200)
             if self.keynames:
-                self.assertIn(self.keynames[0], r.json()['keys'][0]['names'])
+                self.assertIn(tuple(self.keynames[0]), [ tuple(k['names'][0]) for k in r.json()['keys'] ])
             if self.fkeynames:
                 self.assertIn(self.fkeynames[0], r.json()['foreign_keys'][0]['names'])
 

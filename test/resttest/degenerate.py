@@ -6,49 +6,37 @@ import common
 import basics
 from common import urlquote
 
+from common import Int4, Int8, Text, Int4Array, TextArray, Timestamptz, \
+    RID, RCT, RMT, RCB, RMB, RidKey, \
+    ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
+
 class LongIdentifiers (common.ErmrestTest):
     identifier = u'ǝɯɐuǝɯɐuǝɯǝɯɐuǝɯɐuǝɯɐuǝɯɐuǝɯɐuǝɯɐuɐu'
     utf8 = None
     urlcoded = None
 
     def sdef(self, sname, tname, cname, kname, fkname):
-        return {
-            "schemas": {
-                sname: {
-                    "tables": {
-                        tname: {
-                            "column_definitions": [
-                                {
-                                    "name": "id",
-                                    "type": {"typename": "text"},
-                                    "nullok": False
-                                },
-                                {
-                                    "name": cname,
-                                    "type": {"typename": "text"}
-                                }
+        return ModelDoc(
+            [
+                SchemaDoc(
+                    sname,
+                    [
+                        TableDoc(
+                            tname,
+                            [
+                                RID, RCT, RMT, RCB, RMB,
+                                ColumnDoc("id", Text, nullok=False),
+                                ColumnDoc(cname, Text),
                             ],
-                            "keys": [
-                                {
-                                    "unique_columns": [ "id" ]
-                                },
-                                {
-                                    "unique_columns": [ cname ],
-                                    "names": [ [sname, kname] ]
-                                }
-                            ],
-                            "foreign_keys": [
-                                {
-                                    "foreign_key_columns": [{"schema_name": sname, "table_name": tname, "column_name": cname}],
-                                    "referenced_columns": [{"schema_name": sname, "table_name": tname, "column_name": "id"}],
-                                    "names": [ [sname, fkname] ]
-                                }
+                            [ RidKey, KeyDoc(["id"]), KeyDoc([cname], names=[[sname, kname]]) ],
+                            [
+                                FkeyDoc(sname, tname, [cname], sname, tname, ["id"], names=[[sname, fkname]])
                             ]
-                        }
-                    }
-                }
-            }
-        }
+                        )
+                    ]
+                )
+            ]
+        )
 
     @classmethod
     def setUpClass(cls):
@@ -89,20 +77,17 @@ class KeysOnly (common.ErmrestTest):
     _table = 'keysonly_table'
     _entity_url = 'entity/%s:%s' % (_schema, _table)
     
-    _table_doc = {
-        "kind": "table",
-        "schema_name": _schema,
-        "table_name": _table,
-        "column_definitions": [
-            { "type": { "typename": "int8" }, "name": "key1", "nullok": False },
-            { "type": { "typename": "text" }, "name": "key2" }
+    _table_doc = TableDoc(
+        _table,
+        [
+            RID, RCT, RMT, RCB, RMB,
+            ColumnDoc("key1", Int8, nullok=False),
+            ColumnDoc("key2", Text),
         ],
-        "keys": [
-            { "unique_columns": [ "key1" ] },
-            { "unique_columns": [ "key2" ] }
-        ]
-    }
-        
+        [ RidKey, KeyDoc(["key1"]), KeyDoc(["key2"]) ],
+        schema_name=_schema,
+    )
+
     _test_data="""key1,key2
 1,name1
 2,name2
@@ -154,20 +139,17 @@ class Unicode (common.ErmrestTest):
     cname_url = urlquote(cname.encode('utf8'))
     
     defs = [
-        {
-            "schema_name": sname
-        },
-        {
-            "schema_name": sname,
-            "table_name": tname,
-            "column_definitions": [
-                {"type": {"typename": "int8"}, "name": "id", "nullok": False},
-                {"type": {"typename": "text"}, "name": cname}
+        SchemaDoc(sname),
+        TableDoc(
+            tname,
+            [
+                RID, RCT, RMT, RCB, RMB,
+                ColumnDoc("id", Int8, nullok=False),
+                ColumnDoc(cname, Text),
             ],
-            "keys": [
-                {"unique_columns": ["id"]}
-            ]
-        }
+            [ RidKey, KeyDoc(["id"]) ],
+            schema_name=sname
+        )
     ]
 
     def test_1_create(self):
