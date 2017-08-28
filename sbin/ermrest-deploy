@@ -119,18 +119,27 @@ pgdbid()
 
 pg_redeploy_registry_sql()
 {
+    cat <<EOF
+\set ON_ERROR_STOP on
+EOF
     $SU -c "/usr/bin/python -c 'import ermrest.sql.util as m; m.print_redeploy_registry_sql();'" - ${DAEMONUSER} \
 	|| error could not generate registry redeployment SQL
 }
 
 pg_redeploy_catalogs_sql()
 {
+    cat <<EOF
+\set ON_ERROR_STOP on
+EOF
     $SU -c "/usr/bin/python -c 'import ermrest.sql.util as m; m.print_redeploy_catalogs_sql();'" - ${DAEMONUSER} \
 	|| error could not generate catalog redeployment SQL
 }
 
 pg_extupgrade_sql()
 {
+    cat <<EOF
+\set ON_ERROR_STOP on
+EOF
     $SU -c "/usr/bin/python -c 'import ermrest.sql.util as m; m.print_extupgrade_sql(\"$1\")'" - ${DAEMONUSER} \
 	|| error could not generate extension upgrade SQL for database "$1"
 }
