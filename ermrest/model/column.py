@@ -180,11 +180,6 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             self.type.sql(basic_storage=True)
             )
     
-    def pre_delete(self, conn, cur):
-        """Do any maintenance before column is deleted from table."""
-        self.delete_annotation(conn, cur, None)
-        self.delete_acl(cur, None, purging=True)
-        
     @staticmethod
     def fromjson_single(columndoc, position, ermrest_config):
         try:
@@ -223,6 +218,8 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
     @staticmethod
     def fromjson(columnsdoc, ermrest_config):
         columns = []
+        if not isinstance(columnsdoc, list):
+            raise exception.BadData('Table column_definitions document must be an array.')
         for i in range(0, len(columnsdoc)):
             columns.append(Column.fromjson_single(columnsdoc[i], i, ermrest_config))
         return columns

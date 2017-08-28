@@ -152,7 +152,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
     #
     # Introspect uniques / primary key references, aggregated by constraint
     #
-    def _introspect_pkey(table_rid, pk_column_rids, pk_comment, pk_factory):
+    def _introspect_pkey(constraint_name, table_rid, pk_column_rids, pk_comment, pk_factory):
         try:
             pk_cols = [
                 columns[pk_column_rid]
@@ -165,18 +165,18 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
 
         # each constraint implies a pkey but might be duplicate
         pk = pk_factory(pk_colset)
-        if pk_colset not in pkeys:
-            pkeys[pk_colset] = pk
-        else:
-            pkeys[pk_colset].constraints.add(pk)
-            if pk_comment:
-                # save at least one comment in case multiple constraints have same key columns
-                pkeys[pk_colset].comment = pk_comment
+        if pk_colset in pkeys:
+            raise ValueError('Duplicate constraint %s collides with %s.' % (
+                constraint_name,
+                pkeys[pk_colset].names,
+            ))
+        pkeys[pk_colset] = pk
 
     cur.execute("SELECT * FROM _ermrest.known_keys_denorm;")
     for rid, schema_rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
         _introspect_pkey(
+            constraint_name, 
             table_rid, column_rids, comment,
             lambda pk_colset: Unique(pk_colset, name_pair, comment, annotations, rid)
         )
@@ -185,6 +185,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
     for rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
         _introspect_pkey(
+            constraint_name, 
             table_rid, column_rids, comment,
             lambda pk_colset: PseudoUnique(pk_colset, rid, name_pair, comment, annotations)
         )
@@ -193,6 +194,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
     # Introspect foreign keys references, aggregated by reference constraint
     #
     def _introspect_fkr(
+            constraint_name,
             fk_table_rid, fk_column_rids, pk_table_rid, pk_column_rids, fk_comment,
             fkr_factory
     ):
@@ -218,14 +220,12 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
 
         # each reference constraint implies a foreign key reference but might be duplicate
         fkr = fkr_factory(fk, pk, fk_ref_map)
-        if fk_ref_map not in fk.references:
-            fk.references[fk_ref_map] = fkr
-        else:
-            fk.references[fk_ref_map].constraints.add(fkr)
-            if fk_comment:
-                # save at least one comment in case multiple csontraints have same key mapping
-                fk.references[fk_ref_map].comment = fk_comment
-
+        if fk_ref_map in fk.references:
+            raise ValueError('Duplicate constraint %s collides with %s.' % (
+                constraint_name,
+                fk.references[fk_ref_map].names
+            ))
+        fk.references[fk_ref_map] = fkr
         return fkr
 
     cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm;")
@@ -233,6 +233,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         delete_rule, update_rule, comment, annotations, acls in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
         fkeyrefs[rid] = _introspect_fkr(
+            constraint_name,
             fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
             lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, name_pair, annotations, comment, acls, rid=rid)
         )
@@ -241,7 +242,8 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
     for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         comment, annotations, acls in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
-        _introspect_fkr(
+        pfkeyrefs[rid] = _introspect_fkr(
+            constraint_name,
             fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
             lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, rid, name_pair, annotations, comment, acls)
         )

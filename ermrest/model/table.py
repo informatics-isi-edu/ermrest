@@ -256,7 +256,6 @@ ORDER BY column_num;
 
     def delete(self, conn, cur):
         self.enforce_right('owner')
-        self.pre_delete(conn, cur)
         cur.execute("""
 DROP %(kind)s %(sname)s.%(tname)s ;
 DELETE FROM _ermrest.known_tables WHERE "RID" = %(table_rid)s;
@@ -268,17 +267,6 @@ SELECT _ermrest.model_version_bump();
     table_rid=sql_literal(self.rid),
 )
         )
-
-    def pre_delete(self, conn, cur):
-        """Do any maintenance before table is deleted."""
-        for fkey in self.fkeys.values():
-            fkey.pre_delete(conn, cur)
-        for unique in self.uniques.values():
-            unique.pre_delete(conn, cur)
-        for column in self.columns.values():
-            column.pre_delete(conn, cur)
-        self.delete_annotation(conn, cur, None)
-        self.delete_acl(cur, None, purging=True)
 
     def alter_table(self, conn, cur, alterclause, altermodelstmts):
         """Generic ALTER TABLE ... wrapper"""
@@ -347,13 +335,6 @@ RETURNING "RID", column_num;
         """Delete column from table."""
         self.enforce_right('owner')
         column = self.columns[cname]
-        for unique in self.uniques.values():
-            if column in unique.columns:
-                unique.pre_delete(conn, cur)
-        for fkey in self.fkeys.values():
-            if column in fkey.columns:
-                fkey.pre_delete(conn, cur)
-        column.pre_delete(conn, cur)
         self.alter_table(
             conn, cur,
             'DROP COLUMN %s' % sql_identifier(cname),
@@ -369,6 +350,7 @@ WHERE "RID" = %s;
         self.enforce_right('owner')
         for key in Unique.fromjson_single(self, udoc):
             key.add(conn, cur)
+            key.set_annotations(conn, cur, key.annotations)
             yield key
 
     def add_fkeyref(self, conn, cur, fkrdoc):

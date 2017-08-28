@@ -207,9 +207,29 @@ class ForeignKey (common.ErmrestTest):
         self.assertHttp(self.session.delete(self._fkey_url(5)), 204)
         self.assertHttp(self.session.get(self._fkey_url(5)), 409)
 
-    def test_2_recreate_fkey(self):
-        self.assertHttp(self.session.post(self._fkey_url(1), json=_table_defs[self.table]['foreign_keys'][0]), 201)
-        self.assertHttp(self.session.get(self._fkey_url(5)), 200, 'application/json')
+    def _recreate_fkey(self, on_delete, on_update):
+        self.session.delete(self._fkey_url(5))
+        fkey_def = dict(_table_defs[self.table]['foreign_keys'][0])
+        fkey_def['on_delete'] = on_delete
+        fkey_def['on_update'] = on_update
+        self.assertHttp(self.session.post(self._fkey_url(1), json=fkey_def), 201)
+        r = self.session.get(self._fkey_url(5))
+        self.assertHttp(r, 200, 'application/json')
+        self.assertEqual(r.json()[0]['on_update'], on_update or 'NO ACTION')
+        self.assertEqual(r.json()[0]['on_delete'], on_delete or 'NO ACTION')
+
+    def test_2_recreate_none_none(self): self._recreate_fkey(None, None)
+    def test_2_recreate_noact_noact(self): self._recreate_fkey('NO ACTION', 'NO ACTION')
+
+    def test_2_recreate_restrict_noact(self): self._recreate_fkey('RESTRICT', 'NO ACTION')
+    def test_2_recreate_cascade_noact(self): self._recreate_fkey('CASCADE', 'NO ACTION')
+    def test_2_recreate_setnull_noact(self): self._recreate_fkey('SET NULL', 'NO ACTION')
+    def test_2_recreate_setdefault_noact(self): self._recreate_fkey('SET DEFAULT', 'NO ACTION')
+
+    def test_2_recreate_noact_restrict(self): self._recreate_fkey('NO ACTION', 'RESTRICT')
+    def test_2_recreate__noactcascade(self): self._recreate_fkey('NO ACTION', 'CASCADE')
+    def test_2_recreate_noact_setnull(self): self._recreate_fkey('NO ACTION', 'SET NULL')
+    def test_2_recreate_noact_setdefault(self): self._recreate_fkey('NO ACTION', 'SET DEFAULT')
 
 class ForeignKeyComposite (ForeignKey):
     table = _Tc2
