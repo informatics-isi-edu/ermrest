@@ -19,6 +19,8 @@
 
 DO $ermrest_schema$
 << ermrest_schema >>
+DECLARE
+  looprow record;
 BEGIN
 -- NOTE, we don't indent this block so editing below is easier...
 -- We use a lot of conditionals rather than idempotent DDL to make successful operation quieter...
@@ -542,7 +544,40 @@ CREATE OR REPLACE VIEW _ermrest.introspect_fkey_columns AS
   JOIN _ermrest.known_columns pk_kc ON (fk.pk_table_rid = pk_kc.table_rid AND ca.pk_attnum = pk_kc.column_num)
 ;
 
-CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect() RETURNS boolean AS $$
+CREATE OR REPLACE FUNCTION _ermrest.insert_types() RETURNS int AS $$
+DECLARE
+  had_changes int;
+BEGIN
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_types (
+      oid,
+      schema_rid,
+      type_name,
+      array_element_type_rid,
+      domain_element_type_rid,
+      domain_notnull,
+      domain_default,
+      "comment"
+    )
+    SELECT
+      it.oid,
+      it.schema_rid,
+      it.type_name,
+      it.array_element_type_rid,
+      it.domain_element_type_rid,
+      it.domain_notnull,
+      it.domain_default,
+      it."comment"
+    FROM _ermrest.introspect_types it
+    LEFT OUTER JOIN _ermrest.known_types kt ON (it.oid = kt.oid)
+    WHERE kt.oid IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  RETURN had_changes;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_oid() RETURNS boolean AS $$
 DECLARE
   model_changed boolean;
   had_changes int;
@@ -622,31 +657,14 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
-  WITH inserted AS (
-    INSERT INTO _ermrest.known_types (
-      oid,
-      schema_rid,
-      type_name,
-      array_element_type_rid,
-      domain_element_type_rid,
-      domain_notnull,
-      domain_default,
-      "comment"
-    )
-    SELECT
-      it.oid,
-      it.schema_rid,
-      it.type_name,
-      it.array_element_type_rid,
-      it.domain_element_type_rid,
-      it.domain_notnull,
-      it.domain_default,
-      it."comment"
-    FROM _ermrest.introspect_types it
-    LEFT OUTER JOIN _ermrest.known_types kt ON (it.oid = kt.oid)
-    WHERE kt.oid IS NULL
-    RETURNING "RID"
-  ) SELECT count(*) INTO had_changes FROM inserted;
+  -- need to do this 3x for base type, array, domain dependency chains
+  had_changes := _ermrest.insert_types();
+  model_changed := model_changed OR had_changes > 0;
+
+  had_changes := _ermrest.insert_types();
+  model_changed := model_changed OR had_changes > 0;
+
+  had_changes := _ermrest.insert_types();
   model_changed := model_changed OR had_changes > 0;
 
   -- sync up known with currently visible tables
@@ -698,13 +716,13 @@ BEGIN
   WITH deleted AS (
     DELETE FROM _ermrest.known_columns k
     USING (
-      SELECT k.table_rid, k.column_num
+      SELECT k."RID"
       FROM _ermrest.known_columns k
       LEFT OUTER JOIN _ermrest.introspect_columns i ON (k.table_rid = i.table_rid AND k.column_num = i.column_num)
-      WHERE k.column_num IS NULL
+      WHERE i.column_num IS NULL
     ) d
-    WHERE k.table_rid = d.table_rid AND k.column_num = d.column_num
-    RETURNING k.table_rid, k.column_num
+    WHERE k."RID" = d."RID"
+    RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
@@ -867,6 +885,308 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_name() RETURNS boolean AS $$
+DECLARE
+  model_changed boolean;
+  had_changes int;
+BEGIN
+  model_changed := False;
+
+  -- sync up known with currently visible schemas
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_schemas k
+    USING (
+      SELECT schema_name FROM _ermrest.known_schemas
+      EXCEPT SELECT schema_name FROM _ermrest.introspect_schemas
+    ) d
+    WHERE k.schema_name = d.schema_name
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH updated AS (
+    UPDATE _ermrest.known_schemas k
+    SET
+      oid = v.oid,
+      "comment" = v."comment",
+      "RMT" = DEFAULT,
+      "RMB" = DEFAULT
+    FROM _ermrest.introspect_schemas v
+    WHERE k.schema_name = v.schema_name
+      AND ROW(k.oid, k."comment")
+          IS DISTINCT FROM
+          ROW(v.oid, v."comment")
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_schemas (oid, schema_name, "comment")
+    SELECT i.oid, i.schema_name, i."comment"
+    FROM _ermrest.introspect_schemas i
+    LEFT OUTER JOIN _ermrest.known_schemas k ON (i.oid = k.oid)
+    WHERE k.oid IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible types
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_types k
+    USING (
+      SELECT schema_rid, type_name FROM _ermrest.known_types
+      EXCEPT SELECT schema_rid, type_name FROM _ermrest.introspect_types
+    ) d
+    WHERE k.type_name = d.type_name
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH updated AS (
+    UPDATE _ermrest.known_types k
+    SET
+      oid = v.oid,
+      array_element_type_rid = v.array_element_type_rid,
+      domain_element_type_rid = v.domain_element_type_rid,
+      domain_notnull = v.domain_notnull,
+      domain_default = v.domain_default,
+      "comment" = v."comment",
+      "RMT" = DEFAULT,
+      "RMB" = DEFAULT
+    FROM _ermrest.introspect_types v
+    WHERE k.schema_rid = v.schema_rid AND k.type_name = v.type_name
+      AND ROW(k.oid, k.array_element_type_rid, k.domain_element_type_rid,
+              k.domain_notnull, k.domain_default, k."comment")
+          IS DISTINCT FROM
+          ROW(v.oid, v.array_element_type_rid, v.domain_element_type_rid,
+	      v.domain_notnull, v.domain_default, v."comment")
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- need to do this 3x for base type, array, domain dependency chains
+  had_changes := _ermrest.insert_types();
+  model_changed := model_changed OR had_changes > 0;
+
+  had_changes := _ermrest.insert_types();
+  model_changed := model_changed OR had_changes > 0;
+
+  had_changes := _ermrest.insert_types();
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible tables
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_tables k
+    USING (
+      SELECT schema_rid, table_name FROM _ermrest.known_tables
+      EXCEPT SELECT schema_rid, table_name FROM _ermrest.introspect_tables
+    ) d
+    WHERE k.schema_rid = d.schema_rid AND k.table_name = d.table_name
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH updated AS (
+    UPDATE _ermrest.known_tables k
+    SET
+      oid = v.oid,
+      table_kind = v.table_kind,
+      "comment" = v."comment",
+      "RMT" = DEFAULT,
+      "RMB" = DEFAULT
+    FROM _ermrest.introspect_tables v
+    WHERE k.schema_rid = v.schema_rid AND k.table_name = v.table_name
+      AND ROW(k.oid, k.table_kind, k."comment")
+          IS DISTINCT FROM
+	  ROW(v.oid, v.table_kind, v."comment")
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_tables (oid, schema_rid, table_name, table_kind, "comment")
+    SELECT
+      it.oid,
+      it.schema_rid,
+      it.table_name,
+      it.table_kind,
+      it."comment"
+    FROM _ermrest.introspect_tables it
+    LEFT OUTER JOIN _ermrest.known_tables kt ON (it.oid = kt.oid)
+    WHERE kt.oid IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible columns
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_columns k
+    USING (
+      SELECT k."RID"
+      FROM _ermrest.known_columns k
+      LEFT OUTER JOIN _ermrest.introspect_columns i ON (k.table_rid = i.table_rid AND k.column_name = i.column_name)
+      WHERE i.column_name IS NULL
+    ) d
+    WHERE k."RID" = d."RID"
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH updated AS (
+    UPDATE _ermrest.known_columns k
+    SET
+      column_num = v.column_num,
+      type_rid = v.type_rid,
+      not_null = v.not_null,
+      column_default = v.column_default,
+      "comment" = v."comment",
+      "RMB" = DEFAULT,
+      "RMT" = DEFAULT
+    FROM _ermrest.introspect_columns v
+    WHERE k.table_rid = v.table_rid AND k.column_name = v.column_name
+      AND ROW(k.column_num, k.type_rid, k.not_null, k.column_default, k.comment)
+          IS DISTINCT FROM
+	  ROW(v.column_num, v.type_rid, v.not_null, v.column_default, v.comment)
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_columns (table_rid, column_num, column_name, type_rid, not_null, column_default, comment)
+    SELECT ic.table_rid, ic.column_num, ic.column_name, ic.type_rid, ic.not_null, ic.column_default, ic.comment
+    FROM _ermrest.introspect_columns ic
+    LEFT OUTER JOIN _ermrest.known_columns kc ON (ic.table_rid = kc.table_rid AND ic.column_num = kc.column_num)
+    WHERE kc.column_num IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible keys
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_keys k
+    USING (
+      SELECT schema_rid, constraint_name FROM _ermrest.known_keys
+      EXCEPT SELECT schema_rid, constraint_name FROM _ermrest.introspect_keys
+    ) d
+    WHERE k.schema_rid = d.schema_rid AND k.constraint_name = d.constraint_name
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH updated AS (
+    UPDATE _ermrest.known_keys k
+    SET
+      oid = v.oid,
+      "comment" = v."comment",
+      "RMB" = DEFAULT,
+      "RMT" = DEFAULT
+    FROM _ermrest.introspect_keys v
+    WHERE k.schema_rid = v.schema_rid AND k.constraint_name = v.constraint_name
+      AND ROW(k.oid, k.comment)
+          IS DISTINCT FROM
+	  ROW(v.oid, v.comment)
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_keys (oid, schema_rid, constraint_name, table_rid, comment)
+    SELECT ik.oid, ik.schema_rid, ik.constraint_name, ik.table_rid, ik.comment
+    FROM _ermrest.introspect_keys ik
+    LEFT OUTER JOIN _ermrest.known_keys kk ON (ik.oid = kk.oid)
+    WHERE kk.oid IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible key columns
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_key_columns k
+    USING (
+      SELECT key_rid, column_rid FROM _ermrest.known_key_columns
+      EXCEPT SELECT key_rid, column_rid FROM _ermrest.introspect_key_columns
+    ) d
+    WHERE k.key_rid = d.key_rid AND k.column_rid = d.column_rid
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
+    SELECT key_rid, column_rid FROM _ermrest.introspect_key_columns
+    EXCEPT SELECT key_rid, column_rid FROM _ermrest.known_key_columns
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible foreign keys
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_fkeys k
+    USING (
+      SELECT schema_rid, constraint_name FROM _ermrest.known_fkeys
+      EXCEPT SELECT schema_rid, constraint_name FROM _ermrest.introspect_fkeys
+    ) d
+    WHERE k.schema_rid = d.schema_rid AND k.constraint_name = d.constraint_name
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH updated AS (
+    UPDATE _ermrest.known_fkeys k
+    SET
+      oid = v.oid,
+      fk_table_rid = v.fk_table_rid,
+      pk_table_rid = v.pk_table_rid,
+      delete_rule = v.delete_rule,
+      update_rule = v.update_rule,
+      "comment" = v."comment",
+      "RMB" = DEFAULT,
+      "RMT" = DEFAULT
+    FROM _ermrest.introspect_fkeys v
+    WHERE k.schema_rid = v.schema_rid AND k.constraint_name = v.constraint_name
+      AND ROW(k.oid, k.fk_table_rid, k.pk_table_rid, k.delete_rule, k.update_rule, k.comment)
+          IS DISTINCT FROM
+	  ROW(v.oid, v.fk_table_rid, v.pk_table_rid, v.delete_rule, v.update_rule, v.comment)
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule, comment)
+    SELECT i.oid, i.schema_rid, i.constraint_name, i.fk_table_rid, i.pk_table_rid, i.delete_rule, i.update_rule, i.comment
+    FROM _ermrest.introspect_fkeys i
+    LEFT OUTER JOIN _ermrest.known_fkeys kfk ON (i.oid = kfk.oid)
+    WHERE kfk.oid IS NULL
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  -- sync up known with currently visible fkey columns
+  WITH deleted AS (
+    DELETE FROM _ermrest.known_fkey_columns k
+    USING (
+      SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.known_fkey_columns
+      EXCEPT SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.introspect_fkey_columns
+    ) d
+    WHERE k.fkey_rid = d.fkey_rid
+      AND k.fk_column_rid = d.fk_column_rid
+      AND k.pk_column_rid = d.pk_column_rid
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM deleted;
+  model_changed := model_changed OR had_changes > 0;
+
+  WITH inserted AS (
+    INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
+    SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.introspect_fkey_columns
+    EXCEPT SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.known_fkey_columns
+    RETURNING "RID"
+  ) SELECT count(*) INTO had_changes FROM inserted;
+  model_changed := model_changed OR had_changes > 0;
+
+  RETURN model_changed;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION _ermrest.model_version_bump() RETURNS void AS $$
 DECLARE
   last_ts timestamptz;
@@ -886,24 +1206,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.model_change_idempotent() RETURNS void AS $$
-DECLARE
-  model_changed boolean;
+CREATE OR REPLACE FUNCTION _ermrest.model_change_event() RETURNS void AS $$
 BEGIN
-  SELECT _ermrest.rescan_introspect() INTO model_changed;
-  
-  IF _ermrest.rescan_introspect() THEN
-    PERFORM _ermrest.model_version_bump();
-  END IF;
+  PERFORM _ermrest.rescan_introspect_by_name();
+  PERFORM _ermrest.model_version_bump();
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.model_change_event() RETURNS void AS $$
+CREATE OR REPLACE FUNCTION _ermrest.model_change_event_by_oid() RETURNS void AS $$
 BEGIN
-  -- use the new, smarter scan
-  PERFORM _ermrest.model_change_idempotent();
-
-  -- but force version change for backward-compatibility with DBAs and legacy code
+  PERFORM _ermrest.rescan_introspect_by_oid();
   PERFORM _ermrest.model_version_bump();
 END;
 $$ LANGUAGE plpgsql;
@@ -1419,6 +1731,9 @@ LEFT OUTER JOIN (
 ) acl ON (fk."RID" = acl.fkey_rid)
 ;
 
+-- this is by-name to handle possible dump/restore scenarios
+-- a DBA who does many SQL DDL RENAME events and wants to link by OID rather than name
+-- should call _ermrest.model_change_by_oid() **before** running ermrest-deploy
 PERFORM _ermrest.model_change_event();
 
 INSERT INTO _ermrest.known_pseudo_notnulls (column_rid)
@@ -1457,7 +1772,23 @@ WHERE constraint_name IN (
   'known_pseudo_keys_denorm_key',
   'known_fkeys_denorm_key',
   'known_pseudo_fkeys_denorm_key'
-);
+)
+ON CONFLICT (key_rid, column_rid) DO NOTHING;
+
+FOR looprow IN
+SELECT s.schema_name, t.table_name
+FROM _ermrest.known_tables t
+JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+LEFT OUTER JOIN pg_catalog.pg_trigger tg ON (tg.tgrelid = t.oid AND tg.tgname = 'ermrest_syscols')
+WHERE tg.tgrelid IS NULL
+  AND s.schema_name NOT IN ('pg_catalog')
+  AND t.table_kind = 'r'
+  AND (SELECT True FROM _ermrest.known_columns c WHERE c.table_rid = t."RID" AND c.column_name = 'RID')
+LOOP
+  EXECUTE 'CREATE TRIGGER ermrest_syscols BEFORE INSERT OR UPDATE ON '
+    || quote_ident(looprow.schema_name) || '.' || quote_ident(looprow.table_name)
+    || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest.maintain_row();';
+END LOOP;
 
 RAISE NOTICE 'Completed idempotent creation of standard ERMrest schema.';
 
