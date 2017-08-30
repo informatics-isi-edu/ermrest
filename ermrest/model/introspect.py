@@ -62,12 +62,7 @@ def introspect(cur, config=None):
     pfkeyrefs = dict()
 
     version = current_model_version(cur)
-    cur.execute("""
-SELECT
-  COALESCE((SELECT jsonb_object_agg(a.annotation_uri, a.annotation_value) FROM _ermrest.known_catalog_annotations a), '{}'::jsonb),
-  COALESCE((SELECT jsonb_object_agg(a.acl, a.members) FROM _ermrest.known_catalog_acls a), '{}'::jsonb)
-;
-""")
+    cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(now());")
     annotations, acls = cur.next()
     model = Model(version, annotations, acls)
 
@@ -76,22 +71,14 @@ SELECT
     #
     
     # get schemas (including empty ones)
-    cur.execute("SELECT * FROM _ermrest.known_schemas_denorm")
+    cur.execute("SELECT * FROM _ermrest.known_schemas_denorm(now())")
     for rid, schema_name, comment, annotations, acls in cur:
         schemas[rid] = Schema(model, schema_name, comment, annotations, acls, rid)
 
     # get possible column types (including unused ones)
     cur.execute("""
-SELECT
-    "RID",
-    schema_rid,
-    type_name,
-    array_element_type_rid,
-    domain_element_type_rid,
-    domain_notnull,
-    domain_default,
-    "comment"
-FROM _ermrest.known_types
+SELECT *
+FROM _ermrest.known_types(now())
 ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST;
 """)
     for rid, schema_rid, type_name, array_element_type_rid, domain_element_type_rid, domain_notnull, domain_default, comment in cur:
@@ -104,7 +91,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             typesengine.add_base_type(rid, type_name, comment)
 
     # get tables, views, etc. (including empty zero-column ones)
-    cur.execute("SELECT * FROM _ermrest.known_tables_denorm")
+    cur.execute("SELECT * FROM _ermrest.known_tables_denorm(now())")
     for rid, schema_rid, table_name, table_kind, comment, annotations, acls, coldocs in cur:
         tcols = []
         for i in range(len(coldocs)):
@@ -172,7 +159,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             ))
         pkeys[pk_colset] = pk
 
-    cur.execute("SELECT * FROM _ermrest.known_keys_denorm;")
+    cur.execute("SELECT * FROM _ermrest.known_keys_denorm(now());")
     for rid, schema_rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
         _introspect_pkey(
@@ -181,7 +168,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             lambda pk_colset: Unique(pk_colset, name_pair, comment, annotations, rid)
         )
 
-    cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm;")
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm(now());")
     for rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
         _introspect_pkey(
@@ -228,7 +215,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         fk.references[fk_ref_map] = fkr
         return fkr
 
-    cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm;")
+    cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm(now());")
     for rid, schema_rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         delete_rule, update_rule, comment, annotations, acls in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
@@ -238,7 +225,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, name_pair, annotations, comment, acls, rid=rid)
         )
 
-    cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm;")
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm(now());")
     for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         comment, annotations, acls in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
@@ -249,61 +236,28 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         )
 
     # AclBinding constructor needs whole model to validate binding projections...
-    cur.execute("""
-SELECT
-  a.table_rid,
+    for resourceset, sqlfunc, grpcol in [
+            (tables, 'known_table_dynacls', 'table_rid'),
+            (columns, 'known_column_dynacls', 'column_rid'),
+            (fkeyrefs, 'known_fkey_dynacls', 'fkey_rid'),
+            (pfkeyrefs, 'known_pseudo_fkey_dynacls', 'fkey_rid'),
+    ]:
+        cur.execute("""
+SELECT 
+  %(grpcol)s,
   jsonb_object_agg(a.binding_name, a.binding) AS dynacls
-FROM _ermrest.known_table_dynacls a
-GROUP BY a.table_rid;
-""")
-    for rid, dynacls in cur:
-        table = tables[rid]
-        table.dynacls.update({
-            binding_name: AclBinding(model, table, binding_name, binding_doc) if binding_doc else binding_doc
-            for binding_name, binding_doc in dynacls.items()
-        })
-
-    cur.execute("""
-SELECT
-  a.column_rid,
-  jsonb_object_agg(a.binding_name, a.binding) AS dynacls
-FROM _ermrest.known_column_dynacls a
-GROUP BY a.column_rid;
-""")
-    for column_rid, dynacls in cur:
-        column = columns[column_rid]
-        column.dynacls.update({
-            binding_name: AclBinding(model, column, binding_name, binding_doc) if binding_doc else binding_doc
-            for binding_name, binding_doc in dynacls.items()
-        })
-
-    cur.execute("""
-SELECT
-  fkey_rid,
-  jsonb_object_agg(binding_name, binding) AS dynacls
-FROM _ermrest.known_fkey_dynacls
-GROUP BY fkey_rid;
-""")
-    for rid, dynacls in cur:
-        fkr = fkeyrefs[rid]
-        fkr.dynacls.update({
-            binding_name: AclBinding(model, fkr, binding_name, binding_doc) if binding_doc else binding_doc
-            for binding_name, binding_doc in dynacls.items()
-        })
-
-    cur.execute("""
-SELECT
-  fkey_rid,
-  jsonb_object_agg(binding_name, binding) AS dynacls
-FROM _ermrest.known_pseudo_fkey_dynacls
-GROUP BY fkey_rid;
-""")
-    for rid, dynacls in cur:
-        fkr = pfkeyrefs[rid]
-        fkr.dynacls.update({
-            binding_name: AclBinding(model, fkr, binding_name, binding_doc) if binding_doc else binding_doc
-            for binding_name, binding_doc in dynacls.items()
-        })
+FROM _ermrest.%(sqlfunc)s(now()) a 
+GROUP BY a.%(grpcol)s ;
+""" % {
+    'sqlfunc': sqlfunc,
+    'grpcol': grpcol
+})
+        for rid, dynacls in cur:
+            resource = resourceset[rid]
+            resource.dynacls.update({
+                binding_name: AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
+                for binding_name, binding_doc in dynacls.items()
+            })
 
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']

@@ -49,12 +49,21 @@ BEGIN
   mustreindex := False;
 
   SELECT extversion INTO orig_version FROM pg_catalog.pg_extension WHERE extname = 'pg_trgm';
-
   IF orig_version IS NULL THEN
     CREATE EXTENSION "pg_trgm";
   ELSE
     ALTER EXTENSION "pg_trgm" UPDATE;
     IF (SELECT extversion FROM pg_catalog.pg_extension WHERE extname = 'pg_trgm') != orig_version THEN
+      mustreindex := True;
+    END IF;
+  END IF;
+
+  SELECT extversion INTO orig_version FROM pg_catalog.pg_extension WHERE extname = 'btree_gist';
+  IF orig_version IS NULL THEN
+    CREATE EXTENSION "btree_gist";
+  ELSE
+    ALTER EXTENSION "btree_gist" UPDATE;
+    IF (SELECT extversion FROM pg_catalog.pg_extension WHERE extname = 'btree_gist') != orig_version THEN
       mustreindex := True;
     END IF;
   END IF;

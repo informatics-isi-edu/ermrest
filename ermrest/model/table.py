@@ -121,11 +121,14 @@ class Table (object):
                 return True
         return False
 
+    def check_system_columns(self):
+        for cname in {'RID','RCT','RMT','RCB','RMB'}:
+            if cname not in self.columns:
+                raise exception.ConflictModel('Table %s lacks required system column %s.' % (self, cname))
+
     def check_primary_keys(self, require):
         try:
-            for cname in {'RID','RCT','RMT','RCB','RMB'}:
-                if cname not in self.columns:
-                    raise exception.ConflictModel('Table %s lacks required system column %s.' % (self, cname))
+            self.check_system_columns()
             if frozenset([self.columns['RID']]) not in self.uniques:
                 raise exception.ConflictModel('Column "%s"."RID" lacks uniqueness constraint.' % self.name)
         except exception.ConflictModel as te:
