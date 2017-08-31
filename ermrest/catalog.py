@@ -30,7 +30,7 @@ import sanepg2
 import pkgutil
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
-from .model import introspect, current_model_version
+from .model import introspect, current_model_version, normalized_catalog_version
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
 from . import sql
 
@@ -213,16 +213,22 @@ class Catalog (object):
         cur.execute("SELECT now();")
         return cur.next()[0]
 
-    def get_model(self, cur=None, config=None, private=False):
+    def get_history_version(self, when, cur=None):
+        if cur is None:
+            cur = web.ctx.ermrest_catalog_pc.cur
+        return normalized_catalog_version(cur, when)
+
+    def get_model(self, cur=None, config=None, private=False, when=None):
         if cur is None:
             cur = web.ctx.ermrest_catalog_pc.cur
         if config is None:
             config = self._config
-        cache_key = (str(self.descriptor), current_model_version(cur))
+        if when is None:
+            when = current_model_version(cur)
+        cache_key = (str(self.descriptor), when)
         model = self.MODEL_CACHE.get(cache_key)
         if (model is None) or private:
-            model = introspect(cur, config)
-
+            model = introspect(cur, config, when)
             if private:
                 assert self.MODEL_CACHE.get(cache_key) != model
             

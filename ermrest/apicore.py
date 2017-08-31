@@ -195,6 +195,7 @@ def request_init():
     web.ctx.ermrest_content_type = None
     web.ctx.webauthn2_manager = webauthn2_manager
     web.ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
+    web.ctx.ermrest_history_version = None
     web.ctx.ermrest_request_trace = request_trace
     web.ctx.ermrest_registry = registry
     web.ctx.ermrest_catalog_factory = catalog_factory

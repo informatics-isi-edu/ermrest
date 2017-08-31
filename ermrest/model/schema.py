@@ -36,6 +36,7 @@ class Model (object):
     database sense of the term.
     """
     def __init__(self, version, annotations={}, acls={}):
+        #web.debug('Model created at version %s (%s)' % (version, type(version)))
         self.version = version
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
@@ -51,6 +52,7 @@ class Model (object):
 
     def prejson(self):
         doc = {
+            "version": unicode(self.version),
             "annotations": self.annotations,
             "rights": self.rights(),
             "schemas": {

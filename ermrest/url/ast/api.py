@@ -32,13 +32,16 @@ import json
 
 class Api (object):
 
-    def __init__(self, catalog):
+    def __init__(self, catalog, when=None):
         self.catalog = catalog
         self.queryopts = dict()
         self.sort = None
         self.before = None
         self.after = None
-        web.ctx.ermrest_catalog_model = catalog.manager.get_model()
+        if when is not None:
+            when = catalog.manager.get_history_version(when)
+            web.ctx.ermrest_history_version = when
+        web.ctx.ermrest_catalog_model = catalog.manager.get_model(when=web.ctx.ermrest_history_version)
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 

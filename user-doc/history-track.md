@@ -16,11 +16,11 @@ Implementation Status:
 - [x] Historical tuple storage for stateful model tables
 - [x] Historical tuple storage for user-defined tables
 - [x] Introspection mechanism for model at revision instead of latest model
-- [ ] REST URL structure for access at revision
-- [ ] Revision timestamp normalization (fit URL param to discrete events in history)
-- [ ] Read-only model introspection at revision
+- [x] REST URL structure for access at revision
+- [x] Revision timestamp normalization (fit URL param to discrete events in history)
+- [x] Read-only model introspection at revision
 - [ ] Read-only data query at revision
-- [ ] Appropriate errors reject write access at revision
+- [x] Appropriate errors reject write access at revision
 - [ ] Appropriate errors to reject historical access to non-tracked tables or views
 - [ ] Register table functions to replace view at revision?
 - [ ] Caching of historical models in Python?
@@ -68,6 +68,40 @@ Implementation Status:
    - One trigger *after* insert or update tracks historical tuples
 7. The service will become able to query historical tuple storage instead of live tables
    
+## Historical Catalog Access via REST API
+
+Historical access will be defined in terms of a timestamp _revision_
+which SHOULD be a time in the past. Requests for a future timestamp
+MAY be interpreted as *time of access* which might be non-reproducible
+if other changes are made to the catalog between the time of access
+and the future timestamp which was requested.
+
+### Model at Revision
+
+Latest version of schema:
+
+    GET /ermrest/catalog/N/schema
+	
+Historical version of schema:
+
+	GET /ermrest/catalog/N@revision/schema
+	
+where _revision_ is a URL-encoded timestamp. Each whole schema
+document will also gain a new `version` attribute at the top level to
+specify the effective revision timestamp for the model it describes.
+
+All sub-resources on the versioned catalog resource should also work
+for read-only access, e.g.
+
+	GET /ermrest/catalog/N@revision/schema/S1/table/T1/column/C1
+
+would address a specific column `C1` in table `T1` in schema `S1`
+according to the model definitions in effect at _revision_.
+
+### Data at Revision
+
+TBD.
+
 ## Accessing History within SQL
 
 To access historical data for a history-tracked table with table

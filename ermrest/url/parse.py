@@ -95,6 +95,10 @@ def p_catalog(p):
     """catalog : '/' string '/' CATALOG '/' NUMSTRING """ 
     p[0] = ast.Catalog(p[6])
 
+def p_catalog_when(p):
+    """catalog : '/' string '/' CATALOG '/' NUMSTRING '@' string""" 
+    p[0] = ast.Catalog(p[6], p[8])
+
 def p_catalogslash(p):
     """catalogslash : catalog '/' """
     p[0] = p[1]

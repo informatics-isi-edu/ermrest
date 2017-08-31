@@ -196,8 +196,13 @@ class TestSession (requests.Session):
                 sys.stderr.write(preamble)
 
     def _path2url(self, path):
+        if isinstance(path, tuple):
+            revision, path = path
+            mycpath = '%s@%s' % (cpath, urlquote(revision))
+        else:
+            mycpath = cpath
         if path == '' or path[0] != '/':
-            path = "%s/%s" % (cpath, path)
+            path = "%s/%s" % (mycpath, path)
         return _server_url + path
 
     def get_client_id(self):
@@ -271,6 +276,10 @@ try:
     _r.raise_for_status()
     cid = _r.json()['id']
     cpath = "/ermrest/catalog/%s" % cid
+    _r = primary_session.get('schema')
+    _r.raise_for_status()
+    catalog_initial_version = _r.json()['version']
+    sys.stderr.write('\nCreated %s at initial revision %s.\n' % (cpath, catalog_initial_version))
     primary_session.put('acl', json=catalog_acls).raise_for_status()
     sys.stderr.write('OK.\n\n')
 except Exception, e:

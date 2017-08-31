@@ -63,8 +63,10 @@ def _GET(handler, thunk, _post_commit):
 
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
+        if web.ctx.ermrest_history_version is not None:
+            raise exception.Forbidden('modification to catalog at previous revision')
         # we need a private (uncached) copy of model because we mutate it optimistically
-        # and this could corrupt a cached copy if our operation is not committed to DB
+        # and this could corrupt a cached copy
         web.ctx.ermrest_catalog_model = handler.catalog.manager.get_model(cur, private=True)
         handler.set_http_etag( web.ctx.ermrest_catalog_model.version )
         handler.http_check_preconditions(method='PUT')

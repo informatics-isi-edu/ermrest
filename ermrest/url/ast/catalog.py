@@ -102,7 +102,7 @@ class Catalog (Api):
     supported_types = [default_content_type]
 
     """A specific catalog by ID."""
-    def __init__(self, catalog_id):
+    def __init__(self, catalog_id, when=None):
         self.catalog_id = catalog_id
         self.manager = None
         entries = web.ctx.ermrest_registry.lookup(catalog_id)
@@ -117,7 +117,7 @@ class Catalog (Api):
         assert web.ctx.ermrest_catalog_pc is None
         web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
 
-        Api.__init__(self, self)
+        Api.__init__(self, self, when)
         # now enforce read permission
         self.enforce_right('enumerate', 'catalog/' + str(self.catalog_id))
 
@@ -184,7 +184,8 @@ class Catalog (Api):
             resource = dict(
                 id=self.catalog_id,
                 meta=_acls_to_meta(model.acls),
-                acls=model.acls
+                acls=model.acls,
+                version=unicode(model.version),
             )
             response = json.dumps(resource) + '\n'
             web.header('Content-Length', len(response))

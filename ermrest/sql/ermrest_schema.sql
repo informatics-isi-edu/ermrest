@@ -138,6 +138,13 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
   );
 END IF;
 
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'last_modified') IS NULL THEN
+  CREATE TABLE _ermrest.last_modified (
+    ts timestamptz PRIMARY KEY,
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client()
+  );
+END IF;
+
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_schemas') IS NULL THEN
   CREATE TABLE _ermrest.known_schemas (
     "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
@@ -657,6 +664,7 @@ WHERE it.table_name IS NULL
     '    INSERT INTO _ermrest_history.' || htname || '("RID", during, "RMB", rowdata)'
     '    VALUES (NEW."RID", tstzrange(NEW."RMT", NULL, ''[)''), NEW."RMB", rowsnap);'
     '  END IF;'
+    '  PERFORM _ermrest.version_bump();'
     '  RETURN NULL;'
     'END; $$ LANGUAGE plpgsql;' ;
     
@@ -1323,6 +1331,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION _ermrest.version_bump() RETURNS void AS $$
+DECLARE
+  last_ts timestamptz;
+BEGIN
+  SELECT ts INTO last_ts FROM _ermrest.last_modified ORDER BY ts DESC LIMIT 1;
+
+  IF last_ts > now() THEN
+    -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
+    RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest version clock reversal!';
+  END IF;
+
+  INSERT INTO _ermrest.last_modified (ts)
+    VALUES (now())
+    ON CONFLICT (ts) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION _ermrest.model_change_event() RETURNS void AS $$
 BEGIN
   PERFORM _ermrest.rescan_introspect_by_name();
@@ -1353,6 +1378,8 @@ BEGIN
 
   INSERT INTO _ermrest.table_last_modified (table_rid, ts) VALUES ($1, now())
     ON CONFLICT (table_rid) DO NOTHING;
+
+  PERFORM _ermrest.version_bump();
 END;
 $$ LANGUAGE plpgsql;
 
