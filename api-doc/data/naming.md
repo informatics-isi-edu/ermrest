@@ -2,26 +2,32 @@
 
 The [ERMrest](http://github.com/informatics-isi-edu/ermrest) data resource names always have a common structure:
 
-- _service_ `/catalog/` _cid_ `/` _api_ `/` _path_
-- _service_ `/catalog/` _cid_ `/` _api_ `/` _path_ _suffix_
-- _service_ `/catalog/` _cid_ `/` _api_ `/` _path_ _suffix_ `?` _query parameters_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/` _api_ `/` _path_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/` _api_ `/` _path_ _suffix_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/` _api_ `/` _path_ _suffix_ `?` _query parameters_
     
 where the components in this structure are:
 
 - _service_: the ERMrest service endpoint such as `https://www.example.com/ermrest`.
 - _cid_: the catalog identifier for one dataset such as `42`.
+- _revision_: (optional) timestamp identifying a snapshot of the catalog to query.
 - _api_: the API or data resource space identifier such as `entity`, `attribute`, `attributegroup`, or `aggregate`.
 - _path_: the data path which identifies one filtered entity set with optional joined context.
 - _suffix_: additional content that depends on the _api_
-  - the group keys associated with `attributegroup` resources
-  - the projection associated with `attribute`, `attributegroup`, and `aggregate` resources
+   - the group keys associated with `attributegroup` resources
+   - the projection associated with `attribute`, `attributegroup`, and `aggregate` resources
+   - the `@sort(...)` modifier to order results of queries
+   - the `@before(...)` or `@after(...)` modifier to select a paging position within sorted results
 - _query parameters_: optional parameters which may affect interpretation of the data name
+   - the `limit` parameter to define query result paging length
+   - the `accept` parameter to override HTTP `Accept` header for content negotiation
+   - the `defaults` parameter to modify the behavior of POST operations to the `entity` API
 
 ## Entity Names
 
 The `entity` resource space denotes whole entities using names of the form:
 
-- _service_ `/catalog/` _cid_ `/entity/` _path_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_
 
 The primary naming convention, without query parameters, denotes the final entity set referenced by _path_, as per the [data path rules](#data-paths). The denoted entity set has the same tuple structure as the final table instance in _path_ and may be a subset of the entities based on joining and filtering criteria encoded in _path_. The set of resulting tuples are distinct according to the key definitions of that table instance, i.e. any joins in the path may be used to filter out rows but do not cause duplicate rows.
 
@@ -29,7 +35,7 @@ The primary naming convention, without query parameters, denotes the final entit
 
 The `attribute` resource space denotes projected attributes of entities using names of the form:
 
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _column reference_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _column reference_ `,` ...
 
 The _path_ is interpreted identically to the `entity` resource space. However, rather than denoting a set of whole entities, the `attribute` resource space denotes specific fields *projected* from that set of entities.  The projected _column reference_ list elements can be in one of several forms:
 
@@ -52,7 +58,7 @@ Like in the `entity` resource space, joined tables may cause filtering but not d
 
 The `aggregate` resource space denotes computed (global) aggregates using names of the form:
 
-- _service_ `/catalog/` _cid_ `/aggregate/` _path_ `/` _aggregate_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/aggregate/` _path_ `/` _aggregate_ `,` ...
 
 The _path_ is interpreted slightly differently than in the `attribute` resource space. Rather than denoting a set of entities drawn from the final table instance in _path_, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of intermediate records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to a single _aggregate_ tuple. The computed _aggregate_ tuple elements can be in one of several forms:
 
@@ -82,8 +88,8 @@ TODO: document other variants?
 
 The `attributegroup` resource space denotes groups of entities by arbitrary grouping keys and computed (group-level) aggregates using names of the form:
 
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ...
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _aggregate_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _aggregate_ `,` ...
 
 The _path_ is interpreted slightly differently than in the `attribute` resource space. Rather than denoting a set of entities drawn from the final table instance in _path_, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to groups where each group represents a set of entities sharing the same _group key_ tuple, and optional _aggregate_ list elements are evaluated over this set of entities to produce a group-level aggregate value.
 
@@ -317,13 +323,13 @@ The list of sort keys goes left-to-right from primary to secondary etc.  The ind
 
 The modifier appears as an optional suffix to data names, but before any query parameters in the URL:
 
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)`
   - Each _sort key_ MUST be a column name in the denoted entities since no column renaming is supported in `entity` resources.
   - The sort modifies the order of the entity records in the external representation.
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
   - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
   - The sort modifies the order of the entity records in the external representation.
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
   - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
   - The sort modifies the order of the group records in the external representation, i.e. groups are sorted after aggregation has occurred. Sorting by a _projection_ value means sorting by a computed aggregate or an arbitrarily chosen example value when projecting bare columns.
 
@@ -359,10 +365,10 @@ For each comma-separated output column named in the sort modifier, the correspon
 
 An optional `accept` query parameter can override the `Accept` HTTP header and content-negotiation in data access:
 
-- _service_ `/catalog/` _cid_ `/entity/` _path_ ... `?accept=` _t_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_  ... `?accept=` _t_
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_  `;` _projection_  ... `?accept=` _t_
-- _service_ `/catalog/` _cid_ `/aggregate/` _path_ `/` _projection_ ... `?accept=` _t_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ ... `?accept=` _t_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_  ... `?accept=` _t_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_  `;` _projection_  ... `?accept=` _t_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/aggregate/` _path_ `/` _projection_ ... `?accept=` _t_
 
 If the specified MIME content-type _t_ is one of those supported by the data API, it is selected in preference to normal content-negotiation rules. Otherwise, content-negotiation proceeds as usual. Two short-hand values are recognized:
 
@@ -375,10 +381,10 @@ Note that the content-type _t_ MUST be URL-escaped to protect the `/` character 
 
 An optional `download` query parameter can activate a `Content-Disposition: attachment` response header for GET operations on data resources.
 
-- _service_ `/catalog/` _cid_ `/entity/` _path_ ... `?download=` _bn_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_  ... `?download=` _bn_
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_  `;` _projection_  ... `?download=` _bn_
-- _service_ `/catalog/` _cid_ `/aggregate/` _path_ `/` _projection_ ... `?download=` _bn_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ ... `?download=` _bn_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_  ... `?download=` _bn_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_  `;` _projection_  ... `?download=` _bn_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/aggregate/` _path_ `/` _projection_ ... `?download=` _bn_
 
 The specified file base-name _bn_ MUST be non-empty and SHOULD NOT include a file-extension suffix to indicate the download file type. The _bn_, when URL-decoded, MUST be a valid UTF-8 string. The service SHOULD append an appropriate suffix based on the negotiated response content type, e.g. `.json' or `.csv`.
 
@@ -409,12 +415,12 @@ A list of one or more _column name_ indicates columns of the target table which 
 
 An optional `limit` query parameter can truncate the length of set-based resource representations denoted by `entity`, `attribute`, and `attributegroup` resource names:
 
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `?limit=` _n_
-- _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `?limit=` _n_
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `?limit=` _n_
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `?limit=` _n_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_ `,` ... `?limit=` _n_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `?limit=` _n_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
 
 If the set denoted by the resource name (without the limit modifier) has _k_ elements, the denoted limited subset will have _n_ members if _n_ < _k_ and will otherwise have all _k_ members. When combined with a sort modifier, the first _n_ members will be returned, otherwise an arbitrary subset will be chosen.
 
@@ -433,11 +439,11 @@ This allows sequential paging or scrolling of large result sets with reversing/r
 A client can choose an arbitrary application-oriented sort order with paging. However, the client SHOULD include row-level unique key material in the sort and page key to avoid hazards of missing rows that have identical sorting rank due to non-unique page keys. This can be achieved by appending unique key columns to the application sort as the lowest precedence sort criteria, i.e. sort first by an interesting but non-unique property and then finally break ties by a unique serial ID or similar property.
 
 1. Fetch first page:
-  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+  - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
 1. Fetch subsequent page by encoding a page key projected from the **last** row of the preceding page:
-  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
+  - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
 1. Fetch antecedent page by encoding a page key projected from the **first** row of the subsequent page:
-  - _service_ `/catalog/` _cid_ `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@before(` _limit value_ `,` ...`)` `?limit=` _n_
+  - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@before(` _limit value_ `,` ...`)` `?limit=` _n_
 
 Realize that a sequence of forward and backward page requests through a dataset might not land on the same page boundaries on both visits!
 

@@ -7,8 +7,8 @@ The model operations configure the entity-relationship model that will be used t
 The GET operation is used to retrieve a document describing the entire catalog data model using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema`
-- _service_ `/catalog/` _cid_ `/schema/`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/`
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation as other content types MAY be returned, including HTML-based user interfaces:
 
@@ -108,7 +108,7 @@ Typical error response codes include:
 The GET operation is used to retrieve a document describing the one schema in the data model using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -165,8 +165,8 @@ Typical error response codes include:
 The GET operation is used to retrieve a list of tables in one schema using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/`
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation as other content types MAY be returned, including HTML-based user interfaces:
 
@@ -250,7 +250,7 @@ Typical error response codes include:
 The GET operation is used to retrieve a document describing one table in the data model using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -295,8 +295,8 @@ Typical error response codes include:
 The GET operation is used to retrieve a list of columns in one table using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/`
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -373,7 +373,7 @@ Typical error response codes include:
 The GET operation is used to retrieve a document describing one column in the data model using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -416,8 +416,8 @@ Typical error response codes include:
 The GET operation is used to retrieve a list of keys in one table using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/`
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -500,7 +500,7 @@ Typical error response codes include:
 The GET operation is used to retrieve a document describing one key in the data model using
 a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ...
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -543,12 +543,12 @@ Typical error response codes include:
 The GET operation is used to retrieve a list of foreign key references in one table using
 a model-level resource name of the following forms:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey` 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ...
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/`
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey` 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/`
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_
 
 These names differ in how many constraints are applied to filter the set of retrieved foreign key references:
 1. The list is always constrained to foreign keys stored in _schema name_ : _table name_
@@ -669,7 +669,7 @@ Typical error response codes include:
 
 The GET operation is used to retrieve a document describing one foreign key constraint in the data model using a model-level resource name of the form:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -730,12 +730,12 @@ Typical error response codes include:
 
 Annotations are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
 
-- _service_ `/catalog/` _cid_
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ]
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
 
 And the annotation sub-resources are named by appending `/annotation/` to the _subject_ resource as described in the following operations.
 
@@ -744,6 +744,8 @@ And the annotation sub-resources are named by appending `/annotation/` to the _s
 The GET operation is used to retrieve a document describing a set of annotations on one subject resource:
 
 - _subject_ `/annotation/`
+
+For annotation retrieval, the optional `@` _revision_ qualifier is allowed on the _cid_ of the subject.
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -771,6 +773,8 @@ Typical error response codes include:
 The PUT operation is used to add or replace a single annotation:
 
 - _subject_ `/annotation/` _annotation key_
+
+For annotation creation, the `@` _revision_ qualifier is *not allowed* on the _cid_ of the subject.
 
 In this operation, the `application/json` _annotation document_ is supplied as input:
 
@@ -802,6 +806,8 @@ The PUT operation can also replace the whole annotation list at once:
 
 - _subject_ `/annotation`
 
+For annotation bulk update, the `@` _revision_ qualifier is *not allowed* on the _cid_ of the subject.
+
 In this operation, the `application/json` _annotation list_ is supplied as input to specify all _annotation key_ and _annotation document_ values at once:
 
     PUT subject/annotation HTTP/1.1
@@ -823,6 +829,8 @@ Typical error response codes include:
 The GET operation is used to retrieve a document describing one annotation using a model-level resource name of the form:
 
 - _subject_ `/annotation/` _annotation key_
+
+For annotation retrieval, the optional `@` _revision_ qualifier is allowed on the _cid_ of the subject.
 
 In this operation, content-negotiation SHOULD be used to select the `application/json` representation:
 
@@ -850,6 +858,8 @@ The DELETE method is used to delete an annotation using a model-level resource n
 
 - _subject_ `/annotation/` _annotation key_
 
+For annotation deletion, the `@` _revision_ qualifier is *not allowed* on the _cid_ of the subject.
+
 The request does not require content-negotiation since there is no response representation:
 
     DELETE subject/annotation/annotation_key HTTP/1.1
@@ -868,11 +878,11 @@ Typical error response codes include:
 
 Comments are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... 
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
 
 And the comment sub-resources are named by appending `/comment` to the _subject_ resource as described in the following operations.
 
@@ -882,6 +892,8 @@ The PUT operation is used to add or replace a single comment:
 
 - _subject_ `/comment`
 - _subject_ `/comment/`
+
+For comment creation, the optional `@` _revision_ qualifier is *not allowed* on the _cid_ of the subject.
 
 In this operation, the `text/plain` _comment text_ is supplied as input:
 
@@ -909,6 +921,8 @@ The GET operation is used to retrieve a document describing one comment using a 
 
 - _subject_ `/comment`
 
+For comment retrieval, the optional `@` _revision_ qualifier is allowed on the _cid_ of the subject.
+
 In this operation, content-negotiation is not necessary:
 
     GET subject/comment HTTP/1.1
@@ -933,6 +947,8 @@ Typical error response codes include:
 The DELETE method is used to delete an comment using a model-level resource name of the form:
 
 - _subject_ `/comment`
+
+For comment deletion, the optional `@` _revision_ qualifier is *not allowed* on the _cid_ of the subject.
 
 The request does not require content-negotiation since there is no response representation:
 

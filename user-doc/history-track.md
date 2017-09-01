@@ -19,11 +19,11 @@ Implementation Status:
 - [x] REST URL structure for access at revision
 - [x] Revision timestamp normalization (fit URL param to discrete events in history)
 - [x] Read-only model introspection at revision
-- [ ] Read-only data query at revision
+- [x] Read-only data query at revision
 - [x] Appropriate errors reject write access at revision
-- [ ] Appropriate errors to reject historical access to non-tracked tables or views
+- [x] Appropriate errors to reject historical access to non-tracked tables or views
 - [ ] Register table functions to replace view at revision?
-- [ ] Caching of historical models in Python?
+- [x] Caching of historical models in Python
 - [ ] Index acceleration of historical tuple queries?
 
 ## Overview of Design
@@ -50,11 +50,11 @@ Implementation Status:
       - Annotations
 	  - ACLs
 	  - ACL bindings
-4. We add a internal `_ermrest_history` schema to each catalog
+4. We add an internal `_ermrest_history` schema to each catalog
 5. We add internal tables to `_ermrest_history` corresponding to other tables in catalog
    - History tables track tuple content generically
       - `RID` corresponds to the same `RID` from the tracked table
-	  - `during` is an interval `[RMT,NULL)` when tuples are born or `[X,RMT)` when tuples died
+	  - `during` is an interval `[RMT1,NULL)` when tuples are born or `[RMT1,RMT2)` when tuples have already died
 	  - `RMB` corresponds to the same `RMB` from the tracked table (in case we want to show changes by client later...)
    - System tables from `_ermrest` are mapped in a simplified fashion by name
       - Table `_ermrest_history.foo` tracks table `_ermrest.foo`
@@ -65,16 +65,16 @@ Implementation Status:
 	  - System columns `RID`, `RMT`, and `RMB` are lifted out of the JSON blob
 6. We add triggers to automate data management
    - One trigger *before* insert or update manages system column values
-   - One trigger *after* insert or update tracks historical tuples
-7. The service will become able to query historical tuple storage instead of live tables
+   - One trigger *after* insert or update tracks tuples aka versions of rows
+7. The service can query historical content at a given time or live content
    
 ## Historical Catalog Access via REST API
 
-Historical access will be defined in terms of a timestamp _revision_
-which SHOULD be a time in the past. Requests for a future timestamp
-MAY be interpreted as *time of access* which might be non-reproducible
-if other changes are made to the catalog between the time of access
-and the future timestamp which was requested.
+Historical access is defined in terms of a timestamp _revision_ which
+SHOULD be a time in the past. Requests for a future _revision_
+timestamp MAY be interpreted as *most recent known revision* which
+might be non-reproducible if the same _revision_ is requested multiple
+times with intervening writes to the live catalog.
 
 ### Model at Revision
 
@@ -100,7 +100,33 @@ according to the model definitions in effect at _revision_.
 
 ### Data at Revision
 
-TBD.
+Queries on latest live data:
+
+    GET /ermrest/catalog/N/entity/...
+    GET /ermrest/catalog/N/attribute/...
+    GET /ermrest/catalog/N/attributegroup/...
+    GET /ermrest/catalog/N/aggregate/...
+
+Queries on historical data:
+
+    GET /ermrest/catalog/N@revision/entity/...
+    GET /ermrest/catalog/N@revision/attribute/...
+    GET /ermrest/catalog/N@revision/attributegroup/...
+    GET /ermrest/catalog/N@revision/aggregate/...
+
+Aside from the new `@revision` syntax in the URL, the entire read-only
+catalog data API should work.
+
+Limitation: if the query involves a table for which history collection
+is not enabled, the entire request will fail. This includes explicit
+joins in the entity path as well as implicit joins needed to handle
+dynamic ACL bindings.
+
+All SQL views exposed as tables will lack history collection. Any
+table lacking the core system columns `RID`, `RMB`, and `RMT` will
+lack history collection.  In future implementations, history
+collection MAY be disabled on individual tables as a local policy
+decision, even if they would otherwise support history collection.
 
 ## Accessing History within SQL
 
@@ -184,21 +210,6 @@ This example differs only in the extraction of the `C2` field. The
 value. Instead, we explicitly project that value directly from the raw
 `rowdata` blob while using the procedure to structure the other
 non-JSON values.
-
-## Accessing History from ERMrest
-
-We will add experimental REST API support for (read-only) access to a
-catalog.
-
-1. New REST URL structure to add a version timestamp to the whole request
-2. Request dispatch adds version timestamp to request processing context
-3. Normalize version timestamp
-   - Consider model and data revisions as single stream of ordered revisions
-   - Use most recent catalog revision *prior* or *equal* to version in URL
-4. Reject requests that cannot be handled
-5. Construct ETag based on normalized version instead of latest version
-6. Introspect model at version instead of *latest* model
-7. Generate query using historical tuples instead of *live* storage table
 
 ## Limitations
 

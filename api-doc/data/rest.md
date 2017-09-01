@@ -129,7 +129,7 @@ Typical error response codes include:
 
 The GET operation is used to retrieve entity records, using an `entity` resource data name of the form:
 
-- _service_ `/catalog/` _cid_ `/entity/` _path_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_
 
 In this operation, complex entity paths with filter and linked entity elements are allowed, for example:
 
@@ -181,7 +181,7 @@ Typical error response codes include:
 
 The GET operation is used to retrieve projected attribute records, using an `attribute` resource data name of the form:
 
-- _service_ `/catalog/` _cid_ `/attribute/` _path_ `/` _projection_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_ `,` ...
 
 In this operation, complex entity paths with filter and linked entity elements are allowed and projection can draw values from any entity element of _path_, for example:
 
@@ -235,8 +235,8 @@ Typical error response codes include:
 
 The GET operation is used to retrieve projected attribute group records, using an `attributegroup` resource data name of the form:
 
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... 
-- _service_ `/catalog/` _cid_ `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ...
 
 In this operation, complex entity paths with filter and linked entity elements are allowed, for example:
 
@@ -331,7 +331,7 @@ On success, the response is:
 
 The GET operation is used to retrieve projected aggregates, using an `aggregate` resource data name of the form:
 
-- _service_ `/catalog/` _cid_ `/aggregate/` _path_ `/` _projection_ `,` ...
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/aggregate/` _path_ `/` _projection_ `,` ...
 
 In this operation, complex entity paths with filter and linked entity elements are allowed, for example:
 
