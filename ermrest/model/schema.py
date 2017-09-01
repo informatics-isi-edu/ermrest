@@ -38,6 +38,7 @@ class Model (object):
     def __init__(self, version, annotations={}, acls={}):
         #web.debug('Model created at version %s (%s)' % (version, type(version)))
         self.version = version
+        self.last_access = None # hack: slot to track LRU state for model_cache
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
             lambda k, v: enforce_63byte_id(k, "Schema")

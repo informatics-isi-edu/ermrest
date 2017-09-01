@@ -28,6 +28,7 @@ import web
 import psycopg2
 import sanepg2
 import pkgutil
+import datetime
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model import introspect, current_model_version, normalized_catalog_version
@@ -176,6 +177,7 @@ class Catalog (object):
 
     # key cache by (str(descriptor), version)
     MODEL_CACHE = dict()
+    MODEL_CACHE_SIZE = 16
 
     def __init__(self, factory, descriptor, config=None):
         """Initializes the catalog.
@@ -234,6 +236,13 @@ class Catalog (object):
             
             if not private:
                 self.MODEL_CACHE[cache_key] = model
+        # LRU replacement scheme
+        model.last_access = datetime.datetime.utcnow()
+        if len(self.MODEL_CACHE) > 2 * self.MODEL_CACHE_SIZE:
+            cache_items = list(self.MODEL_CACHE.items())
+            cache_items.sort(key=lambda item: item[1].last_access, reverse=True)
+            for key, model in cache_items[self.MODEL_CACHE_SIZE:]:
+                del self.MODEL_CACHE[key]
         return model
     
     def destroy(self):
