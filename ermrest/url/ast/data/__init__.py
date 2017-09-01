@@ -126,6 +126,8 @@ def _GET(handler, uri, dresource, vresource):
 def _PUT(handler, uri, put_thunk, vresource):
     """Perform HTTP PUT of generic data resources.
     """
+    if web.ctx.ermrest_history_version is not None:
+        raise exception.Forbidden('modification to catalog at previous revision')
     try:
         in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
         in_content_type = in_content_type.split(";", 1)[0].strip()
@@ -163,6 +165,8 @@ def _PUT(handler, uri, put_thunk, vresource):
 def _DELETE(handler, uri, resource, vresource):
     """Perform HTTP DELETE of generic data resources.
     """
+    if web.ctx.ermrest_history_version is not None:
+        raise exception.Forbidden('modification to catalog at previous revision')
     def body(conn, cur):
         handler.set_http_etag( vresource.get_data_version(cur) )
         handler.http_check_preconditions(method='DELETE')

@@ -25,7 +25,7 @@ needed by other modules of the ermrest project.
 """
 
 from .. import exception, ermpath
-from ..util import sql_identifier, sql_literal, udecode
+from ..util import sql_identifier, sql_literal, udecode, table_exists
 from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
@@ -415,10 +415,48 @@ WHERE "RID" = %s;
 
            The result is a schema-qualified table name for dynauthz=None, else a subquery.
         """
-        tsql = '.'.join([
-            sql_identifier(self.schema.name),
-            sql_identifier(self.name)
-        ])
+        if web.ctx.ermrest_history_version is not None:
+            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
+                raise exception.ConflictModel(u'Historical data not available for table %s.' % unicode(self.name))
+
+            def column_projection(c):
+                if c.name in {'RID','RMB'}:
+                    return 'h.%s::%s' % (sql_identifier(c.name), c.type.sql(basic_storage=True))
+                elif c.name == 'RMT':
+                    return 'lower(h.during)::%s AS "RMT"' % c.type.sql(basic_storage=True)
+                elif c.type.name in {'json','jsonb'}:
+                    return '(h.rowdata->%s)::%s AS %s' % (sql_literal('%d' % c.rid), c.type.sql(basic_storage=True), c.sql_name())
+                else:
+                    return 'r.%s AS %s' % (sql_identifier('%d' % c.rid), c.sql_name())
+
+            def column_unpack(c):
+                if c.name in {'RID','RMB','RMT'}:
+                    return None
+                elif c.type.name in {'json','jsonb'}:
+                    return None
+                else:
+                    return '%s %s' % (sql_identifier('%d' % c.rid), c.type.sql(basic_storage=True))
+
+            tsql = """
+(SELECT %(projs)s
+ FROM %(htable)s h,
+ LATERAL jsonb_to_record(h.rowdata) r(%(jfields)s)
+ WHERE h.during @> %(when)s::timestamptz )
+""" % {
+    'projs': ','.join([
+        column_projection(c)
+        for c in self.columns_in_order()
+    ]),
+    'jfields': ','.join([
+        column_unpack(c)
+        for c in self.columns_in_order()
+        if column_unpack(c)
+    ]),
+    'htable': "_ermrest_history.t%d" % self.rid,
+    'when': sql_literal(web.ctx.ermrest_history_version),
+}
+        else:
+            tsql = '%s.%s' % (sql_identifier(self.schema.name), sql_identifier(self.name))
 
         talias = alias if alias else 's'
 
