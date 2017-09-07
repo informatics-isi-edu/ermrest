@@ -35,9 +35,9 @@ class Model (object):
     At present, this amounts to a collection of 'schemas' in the conventional
     database sense of the term.
     """
-    def __init__(self, version, annotations={}, acls={}):
-        #web.debug('Model created at version %s (%s)' % (version, type(version)))
+    def __init__(self, version, annotations={}, acls={}, catalog_version=None):
         self.version = version
+        self.catalog_version = catalog_version
         self.last_access = None # hack: slot to track LRU state for model_cache
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),

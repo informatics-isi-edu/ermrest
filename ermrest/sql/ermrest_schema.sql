@@ -134,14 +134,15 @@ $$ LANGUAGE plpgsql;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_last_modified') IS NULL THEN
   CREATE TABLE _ermrest.model_last_modified (
-    ts timestamptz PRIMARY KEY
+    ts timestamptz PRIMARY KEY,
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client()
   );
 END IF;
 
-IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'last_modified') IS NULL THEN
-  CREATE TABLE _ermrest.last_modified (
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_modified') IS NULL THEN
+  CREATE TABLE _ermrest.model_modified (
     ts timestamptz PRIMARY KEY,
-    "RMB" ermrest_rmb DEFAULT _ermrest.current_client()
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client()
   );
 END IF;
 
@@ -199,9 +200,20 @@ END IF;
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'table_last_modified') IS NULL THEN
   CREATE TABLE _ermrest.table_last_modified (
     table_rid int8 PRIMARY KEY REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
-    ts timestamptz
+    ts timestamptz,
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client()
   );
   CREATE INDEX tlm_ts_rid ON _ermrest.table_last_modified (ts, table_rid);
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'table_modified') IS NULL THEN
+  CREATE TABLE _ermrest.table_modified (
+    table_rid int8 REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    ts timestamptz,
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    PRIMARY KEY (table_rid, ts)
+  );
+  CREATE INDEX tm_ts_rid ON _ermrest.table_modified (ts, table_rid);
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_columns') IS NULL THEN
@@ -588,21 +600,48 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION _ermrest.table_change() RETURNS TRIGGER AS $$
+DECLARE
+  trid int8;
+BEGIN
+  IF TG_OP IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE') THEN
+    SELECT "RID" INTO trid FROM _ermrest.known_tables t WHERE t.oid = TG_RELID;
+    PERFORM _ermrest.data_change_event(trid);
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION _ermrest.enable_table_history(table_rid int8) RETURNS void AS $func$
 DECLARE
   sname text;
   tname text;
   htname text;
-  rct timestamptz;
 BEGIN
-  SELECT s.schema_name, t.table_name, t."RCT" INTO sname, tname, rct
+  SELECT s.schema_name, t.table_name INTO sname, tname
+  FROM _ermrest.known_tables t
+  JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+  LEFT OUTER JOIN pg_catalog.pg_trigger tg ON (t.oid = tg.tgrelid AND tg.tgname = 'ermrest_table_change')
+  WHERE t."RID" = $1
+    AND t.table_kind = 'r'
+    AND s.schema_name NOT IN ('pg_catalog', '_ermrest', '_ermrest_history')
+    AND tg.tgrelid IS NULL;
+
+  IF sname IS NOT NULL THEN
+    EXECUTE
+      'CREATE TRIGGER ermrest_table_change'
+      ' AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON ' || quote_ident(sname) || '.' || quote_ident(tname) ||
+      ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_change();' ;
+  END IF;
+
+  SELECT s.schema_name, t.table_name, t."RCT" INTO sname, tname
   FROM _ermrest.known_tables t
   JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
   LEFT OUTER JOIN information_schema.tables it
     ON (it.table_schema = '_ermrest_history'
         AND (s.schema_name = '_ermrest' AND it.table_name = t.table_name
 	     OR s.schema_name != '_ermrest' AND it.table_name = ('t' || t."RID"::text)))
-WHERE it.table_name IS NULL
+  WHERE it.table_name IS NULL
   AND t."RID" = $1
   AND t.table_kind = 'r'
   AND s.schema_name NOT IN ('pg_catalog')
@@ -664,7 +703,6 @@ WHERE it.table_name IS NULL
     '    INSERT INTO _ermrest_history.' || htname || '("RID", during, "RMB", rowdata)'
     '    VALUES (NEW."RID", tstzrange(NEW."RMT", NULL, ''[)''), NEW."RMB", rowsnap);'
     '  END IF;'
-    '  PERFORM _ermrest.version_bump();'
     '  RETURN NULL;'
     'END; $$ LANGUAGE plpgsql;' ;
     
@@ -1312,39 +1350,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION _ermrest.model_modified_last() RETURNS TRIGGER AS $$
+DECLARE
+  last_ts timestamptz;
+BEGIN
+  SELECT ts INTO last_ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1;
+  IF last_ts > NEW.ts THEN
+    -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
+    RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest model version clock reversal!';
+  END IF;
+
+  DELETE FROM _ermrest.model_last_modified WHERE ts < NEW.ts;
+  INSERT INTO _ermrest.model_last_modified (ts) VALUES (NEW.ts) ON CONFLICT (ts) DO NOTHING;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION _ermrest.model_version_bump() RETURNS void AS $$
 DECLARE
   last_ts timestamptz;
 BEGIN
   SELECT ts INTO last_ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1;
-
   IF last_ts > now() THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest model version clock reversal!';
+  ELSIF last_ts = now() THEN
+    RETURN;
+  ELSE
+    IF last_ts < now() THEN
+      DELETE FROM _ermrest.model_last_modified;
+    END IF;
+    INSERT INTO _ermrest.model_last_modified (ts) VALUES (now());
+    INSERT INTO _ermrest.model_modified (ts) VALUES (now());
   END IF;
-
-  DELETE FROM _ermrest.model_last_modified WHERE ts != now();
-
-  INSERT INTO _ermrest.model_last_modified (ts)
-    VALUES (now())
-    ON CONFLICT (ts) DO NOTHING;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION _ermrest.version_bump() RETURNS void AS $$
-DECLARE
-  last_ts timestamptz;
-BEGIN
-  SELECT ts INTO last_ts FROM _ermrest.last_modified ORDER BY ts DESC LIMIT 1;
-
-  IF last_ts > now() THEN
-    -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
-    RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest version clock reversal!';
-  END IF;
-
-  INSERT INTO _ermrest.last_modified (ts)
-    VALUES (now())
-    ON CONFLICT (ts) DO NOTHING;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1363,23 +1402,22 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid int8) RETURNS void AS $$
+DECLARE
+  last_ts timestamptz;
 BEGIN
-  IF (SELECT l.ts
-      FROM _ermrest.table_last_modified l
-      WHERE l.table_rid = $1
-      ORDER BY l.ts DESC
-      LIMIT 1) > now() THEN
+  SELECT ts INTO last_ts FROM _ermrest.table_last_modified t WHERE t.table_rid = $1 ORDER BY ts DESC LIMIT 1;
+  IF last_ts > now() THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest table version clock reversal!';
+  ELSIF last_ts = now() THEN
+    RETURN;
+  ELSE
+    IF last_ts < now() THEN
+      DELETE FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
+    END IF;
+    INSERT INTO _ermrest.table_last_modified (table_rid, ts) VALUES ($1, now());
+    INSERT INTO _ermrest.table_modified (table_rid, ts) VALUES ($1, now());
   END IF;
-
-  DELETE FROM _ermrest.table_last_modified l
-  WHERE l.table_rid = $1 AND l.ts != now();
-
-  INSERT INTO _ermrest.table_last_modified (table_rid, ts) VALUES ($1, now())
-    ON CONFLICT (table_rid) DO NOTHING;
-
-  PERFORM _ermrest.version_bump();
 END;
 $$ LANGUAGE plpgsql;
 

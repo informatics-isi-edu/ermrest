@@ -185,7 +185,7 @@ class Catalog (Api):
                 id=self.catalog_id,
                 meta=_acls_to_meta(model.acls),
                 acls=model.acls,
-                version=unicode(model.version),
+                version=unicode(model.catalog_version),
             )
             response = json.dumps(resource) + '\n'
             web.header('Content-Length', len(response))

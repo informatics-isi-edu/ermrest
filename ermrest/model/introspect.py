@@ -41,8 +41,24 @@ SELECT COALESCE((SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LI
 """)
     return cur.next()[0]
 
+def current_catalog_version(cur):
+    cur.execute("""
+SELECT GREATEST(
+  (SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1),
+  (SELECT ts FROM _ermrest.table_last_modified ORDER BY ts DESC LIMIT 1)
+);
+""")
+    return cur.next()[0]
+
 def normalized_catalog_version(cur, when):
-    cur.execute("SELECT ts FROM _ermrest.last_modified WHERE ts <= %s ORDER BY ts DESC LIMIT 1;" % sql_literal(when))
+    cur.execute("""
+SELECT GREATEST(
+  (SELECT ts FROM _ermrest.model_modified WHERE ts <= %(when)s ORDER BY ts DESC LIMIT 1),
+  (SELECT ts FROM _ermrest.table_modified WHERE ts <= %(when)s ORDER BY ts DESC LIMIT 1)
+);
+""" % {
+    'when': sql_literal(when)
+})
     for when2, in cur:
         return when2
     raise exception.ConflictData('Requested catalog revision "%s" is prior to any known revision.' % when)
@@ -68,19 +84,22 @@ def introspect(cur, config=None, when=None):
     pfkeyrefs = dict()
 
     if when is None:
-        version = current_model_version(cur)
+        model_version = current_model_version(cur)
+        catalog_version = current_catalog_version(cur)
     else:
-        version = when
-    cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(%s);" % sql_literal(version))
+        model_version = when
+        catalog_version = when
+
+    cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(%s);" % sql_literal(model_version))
     annotations, acls = cur.next()
-    model = Model(version, annotations, acls)
+    model = Model(model_version, annotations, acls, catalog_version=catalog_version)
 
     #
     # Introspect schemas, tables, columns
     #
     
     # get schemas (including empty ones)
-    cur.execute("SELECT * FROM _ermrest.known_schemas_denorm(%s)" % sql_literal(version))
+    cur.execute("SELECT * FROM _ermrest.known_schemas_denorm(%s)" % sql_literal(model_version))
     for rid, schema_name, comment, annotations, acls in cur:
         schemas[rid] = Schema(model, schema_name, comment, annotations, acls, rid)
 
@@ -88,7 +107,7 @@ def introspect(cur, config=None, when=None):
     cur.execute("""
 SELECT * FROM _ermrest.known_types(%s)
 ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST;
-""" % sql_literal(version))
+""" % sql_literal(model_version))
     for rid, schema_rid, type_name, array_element_type_rid, domain_element_type_rid, domain_notnull, domain_default, comment in cur:
         # TODO: track schema and comments?
         if domain_element_type_rid is not None:
@@ -99,7 +118,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             typesengine.add_base_type(rid, type_name, comment)
 
     # get tables, views, etc. (including empty zero-column ones)
-    cur.execute("SELECT * FROM _ermrest.known_tables_denorm(%s)" % sql_literal(version))
+    cur.execute("SELECT * FROM _ermrest.known_tables_denorm(%s)" % sql_literal(model_version))
     for rid, schema_rid, table_name, table_kind, comment, annotations, acls, coldocs in cur:
         tcols = []
         for i in range(len(coldocs)):
@@ -167,7 +186,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             ))
         pkeys[pk_colset] = pk
 
-    cur.execute("SELECT * FROM _ermrest.known_keys_denorm(%s);" % sql_literal(version))
+    cur.execute("SELECT * FROM _ermrest.known_keys_denorm(%s);" % sql_literal(model_version))
     for rid, schema_rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
         _introspect_pkey(
@@ -176,7 +195,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             lambda pk_colset: Unique(pk_colset, name_pair, comment, annotations, rid)
         )
 
-    cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm(%s);" % sql_literal(version))
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm(%s);" % sql_literal(model_version))
     for rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
         _introspect_pkey(
@@ -223,7 +242,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         fk.references[fk_ref_map] = fkr
         return fkr
 
-    cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm(%s);" % sql_literal(version))
+    cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm(%s);" % sql_literal(model_version))
     for rid, schema_rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         delete_rule, update_rule, comment, annotations, acls in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
@@ -233,7 +252,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, name_pair, annotations, comment, acls, rid=rid)
         )
 
-    cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm(%s);" % sql_literal(version))
+    cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm(%s);" % sql_literal(model_version))
     for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         comment, annotations, acls in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
@@ -259,7 +278,7 @@ GROUP BY a.%(grpcol)s ;
 """ % {
     'sqlfunc': sqlfunc,
     'grpcol': grpcol,
-    'when': sql_literal(version),
+    'when': sql_literal(model_version),
 })
         for rid, dynacls in cur:
             resource = resourceset[rid]
