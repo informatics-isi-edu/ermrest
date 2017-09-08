@@ -41,40 +41,40 @@ def extupgrade_sql(dbname):
     """
     return """
 \\connect %(dbname)s
-DO $$
+
+CREATE OR REPLACE FUNCTION ermrest_extension_upgrade(text) RETURNS text AS $$
 DECLARE
-  mustreindex boolean;
   orig_version text;
 BEGIN
-  mustreindex := False;
-
-  SELECT extversion INTO orig_version FROM pg_catalog.pg_extension WHERE extname = 'pg_trgm';
+  SELECT extversion INTO orig_version FROM pg_catalog.pg_extension WHERE extname = $1;
   IF orig_version IS NULL THEN
-    CREATE EXTENSION "pg_trgm";
+    EXECUTE 'CREATE EXTENSION ' || quote_ident($1) || ';';
   ELSE
-    ALTER EXTENSION "pg_trgm" UPDATE;
-    IF (SELECT extversion FROM pg_catalog.pg_extension WHERE extname = 'pg_trgm') != orig_version THEN
-      mustreindex := True;
+    EXECUTE 'ALTER EXTENSION ' || quote_ident($1) || ' UPDATE;';
+    IF (SELECT extversion FROM pg_catalog.pg_extension WHERE extname = $1) != orig_version THEN
+      RETURN 'REINDEX DATABASE %(dbname)s; ANALYZE;';
     END IF;
   END IF;
-
-  SELECT extversion INTO orig_version FROM pg_catalog.pg_extension WHERE extname = 'btree_gist';
-  IF orig_version IS NULL THEN
-    CREATE EXTENSION "btree_gist";
-  ELSE
-    ALTER EXTENSION "btree_gist" UPDATE;
-    IF (SELECT extversion FROM pg_catalog.pg_extension WHERE extname = 'btree_gist') != orig_version THEN
-      mustreindex := True;
-    END IF;
-  END IF;
-
-  -- there might be more than one extension requiring reindexing in the future?
-  IF mustreindex THEN
-    REINDEX DATABASE %(dbname)s;
-    ANALYZE;
-  END IF;
+  RETURN NULL::text;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION ermrest_extensions_upgrade() RETURNS text AS $$
+DECLARE
+  result text;
+BEGIN
+  result := '';
+  result := COALESCE(ermrest_extension_upgrade('btree_gist'), result);
+  result := COALESCE(ermrest_extension_upgrade('pg_trgm'), result);
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql;
+
+-- NOTE: this is psql-specific syntax using the gset meta-command and variable interpolation!
+SELECT ermrest_extensions_upgrade() AS conditional_reindex_sql
+\gset
+:conditional_reindex_sql ;
+
 """ % {
     "dbname": sql_identifier(dbname)
 }
