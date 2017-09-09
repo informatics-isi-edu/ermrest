@@ -208,12 +208,11 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'table_modified') IS NULL THEN
   CREATE TABLE _ermrest.table_modified (
-    table_rid int8 REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     ts timestamptz,
+    table_rid int8,
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
-    PRIMARY KEY (table_rid, ts)
+    PRIMARY KEY (ts, table_rid)
   );
-  CREATE INDEX tm_ts_rid ON _ermrest.table_modified (ts, table_rid);
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_columns') IS NULL THEN
@@ -1405,7 +1404,7 @@ CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid int8) RETURNS void
 DECLARE
   last_ts timestamptz;
 BEGIN
-  SELECT ts INTO last_ts FROM _ermrest.table_last_modified t WHERE t.table_rid = $1 ORDER BY ts DESC LIMIT 1;
+  SELECT ts INTO last_ts FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
   IF last_ts > now() THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest table version clock reversal!';
