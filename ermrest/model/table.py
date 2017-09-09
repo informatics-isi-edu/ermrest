@@ -418,25 +418,6 @@ WHERE "RID" = %s;
         if web.ctx.ermrest_history_version is not None:
             if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
                 raise exception.ConflictModel(u'Historical data not available for table %s.' % unicode(self.name))
-
-            def column_projection(c):
-                if c.name in {'RID','RMB'}:
-                    return 'h.%s::%s' % (sql_identifier(c.name), c.type.sql(basic_storage=True))
-                elif c.name == 'RMT':
-                    return 'lower(h.during)::%s AS "RMT"' % c.type.sql(basic_storage=True)
-                elif c.type.name in {'json','jsonb'}:
-                    return '(h.rowdata->%s)::%s AS %s' % (sql_literal('%d' % c.rid), c.type.sql(basic_storage=True), c.sql_name())
-                else:
-                    return 'r.%s AS %s' % (sql_identifier('%d' % c.rid), c.sql_name())
-
-            def column_unpack(c):
-                if c.name in {'RID','RMB','RMT'}:
-                    return None
-                elif c.type.name in {'json','jsonb'}:
-                    return None
-                else:
-                    return '%s %s' % (sql_identifier('%d' % c.rid), c.type.sql(basic_storage=True))
-
             tsql = """
 (SELECT %(projs)s
  FROM %(htable)s h,
@@ -444,13 +425,13 @@ WHERE "RID" = %s;
  WHERE h.during @> %(when)s::timestamptz )
 """ % {
     'projs': ','.join([
-        column_projection(c)
+        c.type.history_projection(c)
         for c in self.columns_in_order()
     ]),
     'jfields': ','.join([
-        column_unpack(c)
+        c.type.history_unpack(c)
         for c in self.columns_in_order()
-        if column_unpack(c)
+        if c.type.history_unpack(c)
     ]),
     'htable': "_ermrest_history.t%d" % self.rid,
     'when': sql_literal(web.ctx.ermrest_history_version),

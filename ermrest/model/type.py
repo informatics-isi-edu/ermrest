@@ -17,6 +17,7 @@
 import re
 import json
 
+from ..util import sql_identifier
 from .. import exception
 
 # only to allow module to be used outside normal service context
@@ -274,6 +275,24 @@ class Type (object):
             # fall back for text and text-like e.g. domains or other unknown types
             return raw
 
+    def history_unpack(self, c):
+        if c.name in {'RID','RMB','RMT'}:
+            return None
+        elif self.name in {'json','jsonb'}:
+            return None
+        else:
+            return '%s %s' % (sql_identifier('%d' % c.rid), self.sql(basic_storage=True))
+
+    def history_projection(self, c):
+        if c.name in {'RID','RMB'}:
+            return 'h.%s::%s' % (sql_identifier(c.name), self.sql(basic_storage=True))
+        elif c.name == 'RMT':
+            return 'lower(h.during)::%s AS "RMT"' % self.sql(basic_storage=True)
+        elif self.name in {'json','jsonb'}:
+            return '(h.rowdata->%s)::%s AS %s' % (sql_literal('%d' % c.rid), self.sql(basic_storage=True), c.sql_name())
+        else:
+            return 'r.%s AS %s' % (sql_identifier('%d' % c.rid), c.sql_name())
+
     @staticmethod
     def fromjson(typedoc, ermrest_config):
         return mock_type(typedoc, config=ermrest_config)
@@ -306,6 +325,24 @@ class ArrayType(Type):
         else:
             return self.base_type.default_value(raw)
 
+    def history_unpack(self, c):
+        return None
+
+    def history_projection(self, c):
+        # json storage can be `null` or `[...]` for this type
+        return (
+            "CASE"
+            " WHEN jsonb_typeof(%(hfield)s) = 'null' THEN NULL"
+            " ELSE (SELECT array_agg(e.x::%(base_type)s) FROM jsonb_array_elements_text(%(hfield)s) e(x))"
+            " END AS %(fname)s"
+        ) % {
+            # unpack with -> for json elements, ->> for all else
+            'hfield': "(h.rowdata->%s'%d')" % ('' if self.base_type.name in {'json','jsonb'} else '>', c.rid),
+            'array_type': self.sql(basic_storage=True),
+            'base_type': self.base_type.sql(basic_storage=True),
+            'fname': c.sql_name(),
+        }
+
 class DomainType(Type):
     """Represents a domain type."""
     is_domain = True
@@ -326,6 +363,12 @@ class DomainType(Type):
             return None
         else:
             return self.base_type.default_value(raw)
+
+    def history_unpack(self, c):
+        return self.base_type.history_unpack(c)
+
+    def history_projection(self, c):
+        return self.base_type.history_projection(c)
 
 
 text_type = mock_type({'typename': 'text', 'length': -1}, readonly=True)
