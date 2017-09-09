@@ -1113,21 +1113,12 @@ class EntityPath (AnyPath):
 
     def get_data_version(self, cur):
         """Get data version txid considering all tables in entity path."""
-        preds = [
-            elem.table.kind == 'r'
-            and
-            '(tlm.table_rid = %s)' % sql_literal(elem.table.rid)
-            or
-            'True'
-            for elem in self._path
-        ]
         cur.execute("""
 SELECT GREATEST(
-  COALESCE( (SELECT tlm.ts FROM _ermrest.table_last_modified tlm WHERE %(pred)s ORDER BY tlm.ts DESC LIMIT 1), now() ),
-  COALESCE( (SELECT mlm.ts FROM _ermrest.model_last_modified mlm ORDER BY mlm.ts DESC LIMIT 1), now() )
+  (SELECT tlm.ts FROM _ermrest.table_last_modified tlm ORDER BY tlm.ts DESC LIMIT 1),
+  (SELECT mlm.ts FROM _ermrest.model_last_modified mlm ORDER BY mlm.ts DESC LIMIT 1)
 );
-""" % dict(pred=' OR '.join(preds))
-        )
+""")
         version = next(cur)
         return version
 
@@ -2015,10 +2006,7 @@ class TextFacet (AnyPath):
     def get_data_version(self, cur):
         """Get data version txid considering all tables in catalog."""
         cur.execute("""
-SELECT COALESCE(
-  (SELECT tlm.ts FROM _ermrest.table_last_modified tlm ORDER BY tlm.ts DESC LIMIT 1),
-  now()
-);
+SELECT tlm.ts FROM _ermrest.table_last_modified tlm ORDER BY tlm.ts DESC LIMIT 1;
 """)
         version = next(cur)[0]
         return max(version, self._model.version)

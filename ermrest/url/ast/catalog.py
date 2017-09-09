@@ -120,6 +120,7 @@ class Catalog (Api):
         Api.__init__(self, self, when)
         # now enforce read permission
         self.enforce_right('enumerate', 'catalog/' + str(self.catalog_id))
+        self.current_version = None
 
     def final(self):
         web.ctx.ermrest_catalog_pc.final()
@@ -167,7 +168,9 @@ class Catalog (Api):
         return data.Query(self, qpath)
 
     def GET_body(self, conn, cur):
-        return web.ctx.ermrest_catalog_model
+        model = web.ctx.ermrest_catalog_model
+        self.current_version = model.get_catalog_version(cur)
+        return model
 
     def GET(self, uri):
         """Perform HTTP GET of catalog.
@@ -185,7 +188,7 @@ class Catalog (Api):
                 id=self.catalog_id,
                 meta=_acls_to_meta(model.acls),
                 acls=model.acls,
-                version=unicode(model.catalog_version),
+                version=unicode(self.current_version),
             )
             response = json.dumps(resource) + '\n'
             web.header('Content-Length', len(response))

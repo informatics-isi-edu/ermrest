@@ -22,6 +22,15 @@ from .table import Table
 import json
 import web
 
+def current_catalog_version(cur):
+    cur.execute("""
+SELECT GREATEST(
+  (SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1),
+  (SELECT ts FROM _ermrest.table_last_modified ORDER BY ts DESC LIMIT 1)
+);
+""")
+    return cur.next()[0]
+
 @annotatable
 @hasacls(
     { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
@@ -35,9 +44,8 @@ class Model (object):
     At present, this amounts to a collection of 'schemas' in the conventional
     database sense of the term.
     """
-    def __init__(self, version, annotations={}, acls={}, catalog_version=None):
+    def __init__(self, version, annotations={}, acls={}):
         self.version = version
-        self.catalog_version = catalog_version
         self.last_access = None # hack: slot to track LRU state for model_cache
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
@@ -50,6 +58,14 @@ class Model (object):
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
+
+    def get_catalog_version(self, cur):
+        if web.ctx.ermrest_history_version is not None:
+            # we are at a historical version
+            return web.ctx.ermrest_history_version
+        else:
+            # model can be cached, while we want latest DB version unless 
+            return current_catalog_version(cur)
 
     def prejson(self):
         doc = {

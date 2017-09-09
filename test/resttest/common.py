@@ -276,7 +276,7 @@ try:
     _r.raise_for_status()
     cid = _r.json()['id']
     cpath = "/ermrest/catalog/%s" % cid
-    _r = primary_session.get('schema')
+    _r = primary_session.get('')
     _r.raise_for_status()
     catalog_initial_version = _r.json()['version']
     sys.stderr.write('\nCreated %s at initial revision %s.\n' % (cpath, catalog_initial_version))

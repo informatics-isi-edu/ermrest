@@ -37,24 +37,15 @@ from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyRefere
 
 def current_model_version(cur):
     cur.execute("""
-SELECT COALESCE((SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1), now());
-""")
-    return cur.next()[0]
-
-def current_catalog_version(cur):
-    cur.execute("""
-SELECT GREATEST(
-  (SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1),
-  (SELECT ts FROM _ermrest.table_last_modified ORDER BY ts DESC LIMIT 1)
-);
+SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1;
 """)
     return cur.next()[0]
 
 def normalized_catalog_version(cur, when):
     cur.execute("""
 SELECT GREATEST(
-  (SELECT ts FROM _ermrest.model_modified WHERE ts <= %(when)s ORDER BY ts DESC LIMIT 1),
-  (SELECT ts FROM _ermrest.table_modified WHERE ts <= %(when)s ORDER BY ts DESC LIMIT 1)
+  (SELECT ts FROM _ermrest.model_modified WHERE ts <= %(when)s::timestamptz ORDER BY ts DESC LIMIT 1),
+  (SELECT ts FROM _ermrest.table_modified WHERE ts <= %(when)s::timestamptz ORDER BY ts DESC LIMIT 1)
 );
 """ % {
     'when': sql_literal(when)
@@ -85,14 +76,12 @@ def introspect(cur, config=None, when=None):
 
     if when is None:
         model_version = current_model_version(cur)
-        catalog_version = current_catalog_version(cur)
     else:
         model_version = when
-        catalog_version = when
 
     cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(%s);" % sql_literal(model_version))
     annotations, acls = cur.next()
-    model = Model(model_version, annotations, acls, catalog_version=catalog_version)
+    model = Model(model_version, annotations, acls)
 
     #
     # Introspect schemas, tables, columns

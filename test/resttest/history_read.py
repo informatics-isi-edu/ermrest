@@ -28,19 +28,14 @@ def setUpModule():
         common.primary_session.post('schema', json=_defs).raise_for_status()
         common.primary_session.post('entity/%s:%s' % (_S, _T1), json=data.BasicKey._initial).raise_for_status()
         common.primary_session.post('entity/%s:%s' % (_S, _T2), json=data.ForeignKey.data).raise_for_status()
-        common.primary_session.put('annotation/TICK', json=0).raise_for_status()
         _data_t0_version = common.primary_session.get('').json()['version']
         common.primary_session.delete('schema/%s/table/%s/column/name' % (_S, _T1)).raise_for_status()
-        common.primary_session.put('annotation/TICK', json=1).raise_for_status()
         _data_t1_version = common.primary_session.get('').json()['version']
         common.primary_session.delete('schema/%s/table/%s/column/name' % (_S, _T2)).raise_for_status()
-        common.primary_session.put('annotation/TICK', json=2).raise_for_status()
         _data_t2_version = common.primary_session.get('').json()['version']
         common.primary_session.delete('entity/%s:%s' % (_S, _T2)).raise_for_status()
-        common.primary_session.put('annotation/TICK', json=3).raise_for_status()
         _data_t3_version = common.primary_session.get('').json()['version']
         common.primary_session.delete('entity/%s:%s' % (_S, _T1)).raise_for_status()
-        common.primary_session.put('annotation/TICK', json=4).raise_for_status()
         _data_t4_version = common.primary_session.get('').json()['version']
 
 class CatalogWhen (common.ErmrestTest):
@@ -103,7 +98,7 @@ class TableWhen (common.ErmrestTest):
             r = self.session.get((version, entity))
             self.assertHttp(r, 200, 'application/json')
             if has_name_col:
-                self.assertIn('name', r.json()[0])
+                self.assertIn('name', r.json()[0], 'name column missing at snapshot %s' % version)
             else:
                 self.assertNotIn('name', r.json()[0])
 
