@@ -364,11 +364,13 @@ class EntityElem (object):
         input_json_table = random_name("input_json_")
 
         drop_tables = []
+        system_colnames = {'RID','RCT','RMT','RCB','RMB'}
 
         if attr_update is not None:
             # caller has configured an attribute update request
             # input table has key columns followed by non-key columns
             mkcols, nmkcols = attr_update
+            extra_return_cols = []
             if attr_aliases is not None:
                 mkcol_aliases, nmkcol_aliases = attr_aliases
             else:
@@ -382,10 +384,11 @@ class EntityElem (object):
             for unique in self.table.uniques:
                 for c in unique:
                     mkcols.add(c)
-            nmkcols = [ c for c in inputcols if c not in mkcols and c.name not in {'RID','RCT','RMT','RCB','RMB'} ]
-            mkcols = [ c for c in inputcols if c in mkcols and c.name not in {'RID','RCT','RMT','RCB','RMB'} ]
+            nmkcols = [ c for c in inputcols if c not in mkcols and c.name not in system_colnames ]
+            mkcols = [ c for c in inputcols if c in mkcols and c.name not in system_colnames ]
             mkcol_aliases = dict()
             nmkcol_aliases = dict()
+            extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
 
         if len(mkcols) == 0:
             raise ConflictModel('PUT not supported on entities without key constraints.')
@@ -399,7 +402,7 @@ class EntityElem (object):
             ] + [
                 # system columns aren't writable so don't make client ask for their defaults explicitly
                 self.table.columns[cname]
-                for cname in {'RID','RCT','RMT','RCB','RMB'}
+                for cname in system_colnames
                 if cname in self.table.columns
             ])
 
@@ -879,7 +882,10 @@ LIMIT 1""") % dict(
                         ['i.%s' % c.sql_name(mkcol_aliases.get(c)) for c in mkcols if use_defaults is None or c.name not in use_defaults]
                         + ['i.%s' % c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols if use_defaults is None or c.name not in use_defaults]
                     ),
-                    tcols = ','.join([ jsonfix2(c.sql_name(), c) for c in (mkcols + nmkcols) ])
+                    tcols = ','.join([
+                        jsonfix2(c.sql_name(), c)
+                        for c in (mkcols + nmkcols + extra_return_cols)
+                    ])
                 )
                 cur.execute(
                     preserialize(("""
