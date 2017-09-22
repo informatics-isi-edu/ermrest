@@ -267,6 +267,7 @@ Supported JSON payload pattern:
 
 - `{` ... _context_ `:` _columnlist_ `,` ... `}`: A separate _columnlist_ can be specified for any number of _context_ names.
 - `{` ... _context1_ `:` _context2_ `,` ... `}`: Configure _context1_ to use the same _columnlist_ configured for _context2_.
+- `{` ... `"filter": { "and": [` _facetlist_ `,` ... `]}` : Configure list of facets to be displayed.
 
 For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available columns SHOULD be presented in their defined order unless the application has guidance from other sources.
 
@@ -280,6 +281,48 @@ Supported _columnentry_ patterns:
 
 - _columnname_: A string literal _columnname_ identifies a constituent column of the table. The value of the column SHOULD be presented, possibly with representation guided by other annotations or heuristics.
 - `[` _schemaname_ `,` _constraintname_ `]`: A two-element list of string literal _schemaname_ and _constraintname_ identifies a constituent foreign key of the table. The value of the external entity referenced by the foreign key SHOULD be presented, possibly with representation guided by other annotations or heuristics.
+
+
+Supported _facetlist_ pattern:
+
+- `[` ... _facetentry_ `,` ... `]`: Present content corresponding to each _facetentry_, in the order specified in the list. Ignore invalid listed _facetentry_. Do not present other facets that are not specified in the list.
+
+_facetentry_ must be a JSON payload with the following attributes:
+
+Required attributes:
+- `source`: Source of the filter. If it is not specified or is invalid the _facetentry_ will be ignored. It can have any of the following:
+
+    <!-- - `*`: Filter on the whole table. This can be used for adding a regular expression filter on the table. -->
+    - _columnname_: : A string literal. _columnname_ identifies a constituent column of the table.
+    - _path_: An array of _foreign key path_ that ends with a _columnname_ that will be projected and filtered. _foreign key path_ is in the following format:
+            "`{` _direction_ `:[` *schema name*`,` *constraint name* `]}` "
+        Where _direction_ is either `inbound`, or `outbound`.
+
+Constraint attributes (optional): 
+
+You can use these attributes to define default preselected facets (Combination of these attributes are not supported yet, you cannot have both `choices` and `ranges` specified on a facet).
+- `choices`: Discrete choice e.g. maps to a checklist or similar UX. Its value MUST be an array of values.
+- `ranges`: Half-open or closed intervals, e.g. maps to a slider or similar UX. Its value MUST be an array of JSON payload, with `min` and `max` attributes.
+<!-- - `search`: Substring search, e.g. maps to a search box UX. -->
+
+
+Configuration attributes (optional):
+- `markdown_name`: The markdown to use in place of the default heuristics for facet.
+- `entity`: If the facet can be treated as entity (the column that is being used for facet is key of the table), setting this attribute to `false` will force the facet to show scalar mode.
+- `ux_mode`: `choices` or `ranges`. If a multi-modal facet control UX is available, it will specify the default UX mode that should be used (If `ux_mode` is defined, the other type of constraint will not be displayed even if you have defined it in the annotation).
+
+
+The following is an example of facet annotation payload:
+
+```
+"filter": {
+    "and" : [
+        {"source": "column", "ranges": [{"min": 1}, {"min":5, "max":10}] ,"markdown_name": "**col**"},
+        {"source": [{"outbound": ["S", "FK2"]}, "id"], "choices": [1, 2]},
+        {"source": [{"inbound": ["S", "FK1"]}, {"outbound": ["S", "FK2"]}, "term"], "entity": false}
+    ]
+}
+```
 
 ### 2017 Key Display
 
