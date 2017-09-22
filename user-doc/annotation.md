@@ -267,7 +267,7 @@ Supported JSON payload pattern:
 
 - `{` ... _context_ `:` _columnlist_ `,` ... `}`: A separate _columnlist_ can be specified for any number of _context_ names.
 - `{` ... _context1_ `:` _context2_ `,` ... `}`: Configure _context1_ to use the same _columnlist_ configured for _context2_.
-- `{` ... `"filter": { "and": [` _facetlist_ `,` ... `]}` : Configure list of facets to be displayed.
+- `{` ... `"filter": { "and": [` _facetlist_ `,` ... `]} }` : Configure list of facets to be displayed.
 
 For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available columns SHOULD be presented in their defined order unless the application has guidance from other sources.
 
