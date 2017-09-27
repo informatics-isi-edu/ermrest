@@ -73,35 +73,54 @@ def add_paging_tests(klass):
         (True, "entity",    "entity/pagedata"),
 	(True, "attribute", "attribute/pagedata/id,name,value"),
 	(True, "group",     "attributegroup/pagedata/id;name,value"),
-	(True, "groupagg",  "attributegroup/pagedata/id;name,value,c:=cnt(*)"),
+	(True, "groupagg",  "attributegroup/pagedata/id;name,value,c:=cnt(*),c_d:=cnt_d(id),a:=array(*)"),
         (False, "agg",      "aggregate/pagedata/id:=cnt(id),name:=cnt(name),value:=cnt(*)"),
     ]
 
-    for canpage, qname, query in queries:
-        def add_good(pname, page, expected):
-            path = '%s%s' % (query, page)
-            setattr(
-                klass,
-                'test_good_%s_%s' % (qname, pname),
-                lambda self: self._check_valid(path, expected)
-            )
+    def add_good(qname, query, pname, page, expected):
+        path = '%s%s' % (query, page)
+        setattr(
+            klass,
+            'test_good_%s_%s' % (qname, pname),
+            lambda self: self._check_valid(path, expected)
+        )
 
-        def add_bad(pname, page):
-            path = '%s%s' % (query, page)
-            setattr(
-                klass,
-                'test_bad_%s_%s' % (qname, pname),
-                lambda self: self._check_invalid(path)
-            )
-        
+    def add_bad(qname, query, pname, page):
+        path = '%s%s' % (query, page)
+        setattr(
+            klass,
+            'test_bad_%s_%s' % (qname, pname),
+            lambda self: self._check_invalid(path)
+        )
+
+    for canpage, qname, query in queries:
+
         for expected, pname, page in valid:
             if canpage:
-                add_good(pname, page, expected)
+                add_good(qname, query, pname, page, expected)
             else:
-                add_bad(pname, page)
+                add_bad(qname, query, pname, page)
 
         for pname, page in invalid:
-            add_bad(pname, page)
+            add_bad(qname, query, pname, page)
+
+    # test for aggregates which change effective type of page boundary values
+    canpage, qname, query = queries[3]
+
+    add_good(qname, query, 'A_cntnum', '@sort(c)@after(0)', 20)
+    add_good(qname, query, 'B_cntnum', '@sort(c)@before(2)?limit=50', 20)
+    add_good(qname, query, 'A_cntnull', '@sort(c)@after(::null::)', 0)
+    add_good(qname, query, 'B_cntnull', '@sort(c)@before(::null::)?limit=50', 20)
+
+    add_good(qname, query, 'A_cntdnum', '@sort(c_d)@after(0)', 20)
+    add_good(qname, query, 'B_cntdnum', '@sort(c_d)@before(2)?limit=50', 20)
+    add_good(qname, query, 'A_cntdnull', '@sort(c_d)@after(::null::)', 0)
+    add_good(qname, query, 'B_cntdnull', '@sort(c_d)@before(::null::)?limit=50', 20)
+
+    add_good(qname, query, 'A_jsonval', '@sort(a)@after(%5B%5D)', 20)
+    add_good(qname, query, 'B_jsonval', '@sort(a)@before(%7B%7D)?limit=50', 20)
+    add_good(qname, query, 'A_jsonnull', '@sort(a)@after(::null::)', 0)
+    add_good(qname, query, 'B_jsonnull', '@sort(a)@before(::null::)?limit=50', 20)
 
     return klass
 

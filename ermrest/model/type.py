@@ -277,3 +277,5 @@ class DomainType(Type):
 
 text_type = build_type({'typename': 'text', 'length': -1}, readonly=True)
 tsvector_type = build_type({'typename': 'tsvector', 'length': -1}, readonly=True)
+int8_type = build_type({'typename': 'int8', 'length': -1}, readonly=True)
+jsonb_type = build_type({'typename': 'jsonb', 'length': -1}, readonly=True)

@@ -24,7 +24,7 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
-from .type import Type, text_type, tsvector_type
+from .type import Type, text_type, tsvector_type, int8_type, jsonb_type
 from .column import Column
 from .table import Table
 from .schema import Model, Schema

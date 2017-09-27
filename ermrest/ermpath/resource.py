@@ -30,7 +30,7 @@ from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
-from ..model import text_type
+from ..model import text_type, int8_type, jsonb_type
 
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
@@ -919,6 +919,27 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
+    def _get_sort_element(self, key):
+        raise NotImplementedError()
+
+    def _get_sortvec(self):
+        if self.sort is not None:
+            sortvec, sort1, sort2 = sort_components(map(self._get_sort_element, self.sort), self.before is not None)
+        else:
+            sortvec, sort1, sort2 = (None, None, None)
+        return sortvec, sort1, sort2
+
+    def _get_page_sql(self, sortvec, output_type_overrides={}):
+        if sortvec is not None:
+            a, b, c = zip(*sortvec)
+            if self.after is not None:
+                page = 'WHERE %s' % page_filter_sql(a, b, c, self.after, is_before=False)
+            elif self.before is not None:
+                page = 'WHERE %s' % page_filter_sql(a, b, c, self.before, is_before=True)
+            else:
+                page = ''
+        return page
+
     def _sql_get_agg_attributes(self, allow_extra=True):
         """Process attribute lists for aggregation APIs.
         """
@@ -927,23 +948,29 @@ class AnyPath (object):
             max='max(%(attr)s)', 
             cnt='count(%(attr)s)', 
             cnt_d='count(DISTINCT %(attr)s)',
-            array='array_to_json(array_agg(%(attr)s))'
+            array='array_to_json(array_agg(%(attr)s))::jsonb'
             )
 
         aggfunc_star_templates = dict(
             cnt='count(*)',
-            array='array_to_json(array_agg(%(attr)s))'
+            array='array_to_json(array_agg(%(attr)s))::jsonb'
             )
+
+        aggfunc_type_overrides = dict(
+            cnt=int8_type,
+            cnt_d=int8_type,
+            array=jsonb_type,
+        )
 
         aggregates = []
         extras = []
-        
+        output_type_overrides = {}
+
         for attribute, col, base in self.attributes:
             col.enforce_right('select')
 
-            sql_attr = sql_identifier(
-                attribute.alias is not None and unicode(attribute.alias) or unicode(col.name)
-                )
+            output_name = unicode(attribute.alias) if attribute.alias is not None else unicode(col.name)
+            sql_attr = sql_identifier(output_name)
 
             if hasattr(attribute, 'aggfunc'):
                 templates = col.is_star_column() and aggfunc_star_templates or aggfunc_templates
@@ -955,12 +982,15 @@ class AnyPath (object):
                     raise BadSyntax('Unknown or unsupported aggregate function "%s" applied to column "%s".' % (attribute.aggfunc, col.name))
 
                 aggregates.append((templates[unicode(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
+
+                if attribute.aggfunc in aggfunc_type_overrides:
+                    output_type_overrides[output_name] = aggfunc_type_overrides[attribute.aggfunc]
             elif not allow_extra:
                 raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
             else:
                 extras.append(sql_attr)
 
-        return aggregates, extras
+        return aggregates, extras, output_type_overrides
 
     def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None):
         """Fetch resources.
@@ -1178,6 +1208,11 @@ WHERE %(pred)s
                 raise BadData('Alias %s bound more than once.' % ralias)
             self.aliases[ralias] = rpos
 
+    def _get_sort_element(self, key):
+        table = self.current_entity_table()
+        column = table.columns.get_enumerable(key.keyname)
+        # select access was already enforced for enumerable output columns
+        return (key.keyname, key.descending, column.type)
 
     def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, dynauthz_testcol=None):
         """Generate SQL query to get the entities described by this epath.
@@ -1264,31 +1299,11 @@ FROM %(tables)s
            )
 	
 	# This subquery is ugly and inefficient but necessary due to DISTINCT ON above
-	if self.sort is not None:
-            table = self.current_entity_table()
-
-            def sort_lookup(key):
-                column = table.columns.get_enumerable(key.keyname)
-                # select access is already enforced above for enumerable output columns
-                return (key.keyname, key.descending, column.type)
-
-            sortvec, sort1, sort2 = sort_components(map(sort_lookup, self.sort), self.before is not None)
-        else:
-            sortvec, sort1, sort2 = (None, None, None)
-
+        sortvec, sort1, sort2 = self._get_sortvec()
         limit = 'LIMIT %d' % limit if limit is not None else ''
-            
     	if sort1 is not None:
-            a, b, c = map(lambda x: x[0], sortvec), map(lambda x: x[1], sortvec), map(lambda x: x[2], sortvec)
-            if self.after is not None:
-                page = 'WHERE %s' % page_filter_sql(a, b, c, self.after, is_before=False)
-            elif self.before is not None:
-                page = 'WHERE %s' % page_filter_sql(a, b, c, self.before, is_before=True)
-            else:
-                page = ''
-
+            page = self._get_page_sql(sortvec)
             sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
-
             if sort2 is not None:
                 if not limit:
                     raise BadSyntax('Page @before(...) modifier not allowed without limit parameter.')
@@ -1426,7 +1441,12 @@ class AttributePath (AnyPath):
             raise BadSyntax('At most one @before() or @after() modifier is permitted in a single request.')
         self.after = after
         self.before = before
-            
+
+    def _get_sort_element(self, key):
+        if key.keyname not in self.outputs:
+            raise BadData('Sort key "%s" not among output columns.' % key.keyname)
+        return (key.keyname, key.descending, self.output_types[key.keyname])
+
     def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
@@ -1527,25 +1547,14 @@ END
                 output_types[unicode(col.name)] = col.type
                 selects.append('%s AS %s' % (select, col.sql_name()))
 
-        if self.sort:
-            def sort_lookup(key):
-                if key.keyname not in outputs:
-                    raise BadData('Sort key "%s" not among output columns.' % key.keyname)
-                return (key.keyname, key.descending, output_types[key.keyname])
-            
-            sortvec, sort1, sort2 = sort_components(map(sort_lookup, self.sort), self.before is not None)
-        else:
-            sortvec, sort1, sort2 = (None, None, None)
-
+        # HACK: _get_sortvec() calls _get_sort_element() which looks at self.outputs and self.output_types
+        self.outputs = outputs
+        self.output_types = output_types
+        sortvec, sort1, sort2 = self._get_sortvec()
         page = ''
-            
         if sort1 is not None:
-            a, b, c = map(lambda x: x[0], sortvec), map(lambda x: x[1], sortvec), map(lambda x: x[2], sortvec)
-            if self.after is not None:
-                page = 'WHERE %s' % page_filter_sql(a, b, c, self.after, is_before=False)
-            elif self.before is not None:
-                page = 'WHERE %s' % page_filter_sql(a, b, c, self.before, is_before=True)
-                
+            page = self._get_page_sql(sortvec)
+
         selects = ', '.join(selects)
 
         limit = 'LIMIT %d' % limit if limit is not None else ''
@@ -1678,6 +1687,15 @@ class AttributeGroupPath (AnyPath):
         self.after = after
         self.before = before
             
+    def _get_sort_element(self, key):
+        if key.keyname in self.output_type_overrides:
+            otype = self.output_type_overrides[key.keyname]
+        elif key.keyname in self.apath.outputs:
+            otype = self.apath.output_types[key.keyname]
+        else:
+            raise BadData('Sort key "%s" not among output columns.' % key.keyname)
+        return (key.keyname, key.descending, otype)
+
     def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
         """Generate SQL query to get the resources described by this apath.
 
@@ -1698,6 +1716,7 @@ class AttributeGroupPath (AnyPath):
 
         """
         apath = AttributePath(self.epath, self.groupkeys + self.attributes)
+        self.apath = apath
         apath.add_sort(self.sort)
         apath.add_paging(self.after, self.before)
         
@@ -1711,8 +1730,8 @@ class AttributeGroupPath (AnyPath):
             else:
                 groupkeys.append( sql_identifier(unicode(col.name)) )
 
-        aggregates, extras = self._sql_get_agg_attributes()
         asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
+        aggregates, extras, self.output_type_overrides = self._sql_get_agg_attributes()
 
         if extras:
             # an impure aggregate query includes extras which must be reduced 
@@ -1751,6 +1770,8 @@ GROUP BY %(groupkeys)s
             )
 
         if sort1 is not None:
+            sortvec, sort1, sort2 = self._get_sortvec() # HACK: this gets output_type_overrides from side-effects above...
+            page = self._get_page_sql(sortvec)
             sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
 
             if sort2 is not None:
@@ -1886,7 +1907,7 @@ class AggregatePath (AnyPath):
 
         """
         apath = AttributePath(self.epath, self.attributes)
-        aggregates, extras = self._sql_get_agg_attributes(allow_extra=False)
+        aggregates, extras, output_type_overrides = self._sql_get_agg_attributes(allow_extra=False)
         asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
 
         # a pure aggregate query has aggregates
