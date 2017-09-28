@@ -164,7 +164,8 @@ class CtypeText (common.ErmrestTest):
     def _data(self):
         return [
             {"sid": 1, "column1": self.cval, "column2": "value1", "column3": None}, 
-            {"sid": 2, "column1": None, "column2": "value2", "column3": [self.cval, self.cval]} 
+            {"sid": 2, "column1": None, "column2": "value2", "column3": [self.cval, self.cval]},
+            {"sid": 3, "column1": None, "column2": "value3", "column3": []},
         ]
     
     def test_01_create(self):
@@ -200,10 +201,16 @@ class CtypeText (common.ErmrestTest):
             'Column %s should match %s %s times, not %s.\n%s\n' % (colname, self.pattern, expected_count, got_count, r.content)
         )
         
-    def test_05_patterns(self):
+    def test_05a_patterns(self):
         self._pattern_check('column1', 1)
         self._pattern_check('column3', 1)
         self._pattern_check('*', 2)
+
+    def test_05b_empty_array_input(self):
+        # this test is useless but harmless for the subclasses that disable array storage for column3...
+        r = self.session.get(self._entity_url() + '/sid=3')
+        self.assertHttp(r, 200, 'application/json')
+        self.assertEqual(r.json()[0]["column3"], self._data()[2]["column3"])
 
     def test_06_retrieve(self):
         self.assertHttp(self.session.get(self._entity_url()), 200, 'application/json')
@@ -227,7 +234,8 @@ class CtypeJsonb (CtypeText):
         # SQL NULL vs JSON null vs empty string for JSON vs CSV inputs
         return [
             {"sid": 1, "column1": self.cval, "column2": "value1", "column3": None}, 
-            {"sid": 2, "column1": 5, "column2": "value2", "column3": [self.cval, self.cval]} 
+            {"sid": 2, "column1": 5, "column2": "value2", "column3": [self.cval, self.cval]},
+            {"sid": 3, "column1": 10, "column2": "value3", "column3": []},
         ]
 
 class CtypeFloat4 (CtypeText):
@@ -310,7 +318,7 @@ class CtypeSerial2 (CtypeInt2):
             200
         )
 
-    def test_05_patterns(self):
+    def test_05a_patterns(self):
         self._pattern_check('column1', 1)
         self._pattern_check('*', 4)
 
@@ -332,6 +340,7 @@ class CtypeLongtext (CtypeText):
         """Don't make arrays of this type."""
         doc = CtypeText._data(self)
         doc[1]["column3"] = self.cval
+        doc[2]["column3"] = None
         return doc
     
 class CtypeMarkdown (CtypeLongtext):

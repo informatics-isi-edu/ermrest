@@ -444,7 +444,7 @@ class EntityElem (object):
  WHEN json_typeof(j->'%(field)s') = 'null'
    THEN NULL::%(type)s[]
  ELSE
-   (SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->'%(field)s') s (x))
+   COALESCE((SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->'%(field)s') s (x)), ARRAY[]::%(type)s[])
  END) AS %(alias)s
 """ % dict(
     type=c.type.base_type.sql(basic_storage=True),
