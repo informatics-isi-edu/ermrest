@@ -345,7 +345,7 @@ class FreetextColumn (Column):
 
         self.table = table
         
-        self.srccols = [ c for c in table.columns.itervalues() if c.istext() ]
+        self.srccols = [ c for c in table.columns.itervalues() if c.istext() and c.has_right('enumerate') ]
         self.srccols.sort(key=lambda c: c.position)
 
     def sql_name_astext_with_talias(self, talias):

@@ -399,6 +399,9 @@ class Authz (common.ErmrestTest):
         ]:
             self._json_check(self.session.get(url), self.get_data_T1_id_status)
 
+    def test_wildcard_query(self):
+        self.assertHttp(self.session.get('entity/%s:T1/*::regexp::foo' % _S), self.get_data_T1_status)
+
     def test_get_data_T1T3_id(self):
         for url in [
                 'attribute/A:=%s:T1/%s:T3/id,name' % (_S, _S2),
