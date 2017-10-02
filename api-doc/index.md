@@ -55,6 +55,18 @@ The ERMrest web service model exposes resources to support management of dataset
 
 Rather than treating data resources as nested sub-resources of the model resources, ERMrest treats them as separate parallel resource spaces often thought of as separate APIs for model and data-level access.  The reality is that these resources have many possible semantic relationships in the form of a more general graph structure, and any attempt to normalize them into a hierarchical structure must emphasize some relationships at the detriment of others.  We group model elements hierarchically to assist in listing and to emphasize their nested lifecycle properties.  We split out data resources because they can have a more complex relationship to multiple model elements simultaneously.
 
+#### ERMrest System Columns
+
+In general, ERMrest allows clients to define their own models. However, to simplify both client and server implementation for certain generic data management purposes, ERMrest requires that each table definition include a set of standard columns. These system columns have content managed by the ERMrest service and ensure consistent semantics for:
+
+- A stable row-level resource identifier for the mutable entity
+- Basic row-level provenance
+   - A timestamp for *when* the row was created and *when* it was last modified
+   - A client identifier for *who* created or *who* last modified the row
+- An idiom for referring to a *version* of a row, i.e. a snapshot of its state, via the combination of the row identifier and the row last modified timestamp.
+
+See [ERMrest standard system columns documentation](model/system-columns.md#ermrest-standard-system-columns) for more information about the names, types, and special guarantees of these system columns.
+ 
 #### Model Annotations
 
 The machine-readable annotation mechanism in ERMrest enables a three-level interpretation of datasets:
