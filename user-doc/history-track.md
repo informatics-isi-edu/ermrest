@@ -26,12 +26,8 @@ Implementation Status:
 - [ ] Historical ACL amendment
 - [ ] Historical ACL binding amendment
 - [ ] Historical annotation amendment
-- [ ] Historical single attribute redaction (whole table)
-- [ ] Historical single attribute redaction with tuple filtering
-- [ ] Historical row redaction (whole table)
-- [ ] Historical row redaction with tuple filtering
-- [ ] Historical table truncation (whole table)
-- [ ] Historical table truncation with tuple filtering
+- [ ] Historical single attribute redaction
+- [ ] Historical single attribute redaction with basic filtering
 - [ ] Catalog history truncation
 
 Future work requiring more investigation:
@@ -209,15 +205,25 @@ procedures parameterized by the catalog version timestamp.
     
 ## Writable History
 
-To support history amendment required for production use, we need to
+To support history tracking for production use, we need to
 introduce new REST API features. History amendment means revising the
-apparent historical content of the catalog *after the fact*:
+apparent historical content of the catalog so that subsequent access to
+a particular historical snapshot will return different results:
 
 1. Amend historical ACLs (replace ACLs).
+   - Correct an erroneous ACL to patch an information leak of historical data
+   - Adjust historical access rules due to organizational policy changes
 2. Amend historical dynamic ACL bindings (replace ACL bindings).
+   - (same motivations as for ACL amendment above)
 3. Amend historical model annotations (replace annotations).
+   - Correct erroneous presentation hints for historical model
+   - Enhance presentation hints to support newer client software capabilities
 4. Redact historical attributes (set fields to NULL for some or all rows).
+   - Purge sensitive values which should not have been stored
+   - Retain the other non-sensitive tuple info and identifiers as a "tombstone"
 5. Truncate history (discard oldest history for some or all tables/rows).
+   - Implement data retention policies which limit the storage horizon
+   - Reclaim storage space
 
 Pragmatically, we want operations on history to be flexible and
 efficient:
@@ -238,6 +244,9 @@ half-open or fully open interval of history. However, for history
 amendment, the effective _until_ boundary MUST be clamped by the
 implementation to only affect *dead* storage. In other words, 
 history amendment operation cannot affect *live* catalog state.
+
+This resource space MAY be extended to support more interesting use
+cases in the future. For now, only a minimal feature set is specified.
 
 ### Amend Historical ACLs
 
@@ -265,7 +274,7 @@ resource via different URL patterns:
 
 A collection of ACL binding resources can be mutated over a *time span*:
 
-    PUT /ermrest/catalog/N/history/from,until/table/RID/acl\_binding
+    PUT /ermrest/catalog/N/history/from,until/table/RID/acl_binding
     Content-Type: application/json
     
     {bindingname: binding, ...}
@@ -277,9 +286,9 @@ enclosed within the time span.
 A similar operation is possible for each different type of ACL binding
 subject resource via different URL patterns:
 
-- table: `/ermrest/catalog/N/history/from,until/table/RID/acl\_binding` where _RID_ is the RID of the table
-- column: `/ermrest/catalog/N/history/from,until/column/RID/acl\_binding` where _RID_ is the RID of the column
-- foreign key: `/ermrest/catalog/N/history/from,until/foreignkey/RID/acl\_binding` where _RID_ is the RID of the foreignkey
+- table: `/ermrest/catalog/N/history/from,until/table/RID/acl_binding` where _RID_ is the RID of the table
+- column: `/ermrest/catalog/N/history/from,until/column/RID/acl_binding` where _RID_ is the RID of the column
+- foreign key: `/ermrest/catalog/N/history/from,until/foreignkey/RID/acl_binding` where _RID_ is the RID of the foreignkey
 
 ### Amend Historical Annotations
 
@@ -325,38 +334,6 @@ may be considered in future enhancements to ERMrest. This syntax is
 sufficient to target one row by its actual `RID` or all rows with a
 certain *bad value* _X_ in the column being redacted.
 
-### Redact Historical Entities
-
-Specific entities can be redacted over a *time span*:
-
-    DELETE /ermrest/catalog/N/history/from,until/attribute/TRID
-
-The effect of this operation is to redact (set NULL) all non-system
-columns of the table whose RID is _TRID_ for all tuple revisions whose
-lifetimes are wholly enclosed within the time span. This is equivalent
-to redacting each individual attribute via the previously described
-interface.
-
-More selective redaction can be made by a limited filter syntax:
-
-    DELETE /ermrest/catalog/N/history/from,until/attribute/TRID/FRID=X
-
-Here, only tuples with the given filter column whose RID is _FRID_
-matches a given value _X_ are redacted.  More rich filtering syntax
-may be considered in future enhancements to ERMrest.
-
-### Truncate Entity History
-
-Entity history can be truncated:
-
-    DELETE /ermrest/catalog/N/history/,until/entity/TRID
-
-All historical *dead* tuples wholly contained within the time span
-will be discarded. This differs from entity redaction in that redaction
-preserves a record of row identifiers and row revisions (timestamps)
-while discarding sensitive user data. Truncation completely discards
-row history and any record of the row revision having existed.
-
 ### Truncate Catalog History
 
 A single, bulk request can irreversibly truncate catalog history:
@@ -366,4 +343,25 @@ A single, bulk request can irreversibly truncate catalog history:
 All historical model and data content with a death time before or
 equal to the _until_ time will be discarded. This can be used to
 implement a data retention horizon and to reclaim storage resources.
+
+### Longitudinal History Retrieval
+
+(Possible future extension...)
+
+Do we want to retrieve existing versions within a time range? These
+would be collective resources providing an array of documents with
+their own `[from,until)` intervals which chain together to span the
+whole range of the request. Each document would have its own
+configuration content.
+
+- `GET /ermrest/catalog/N/history/from,until/schema/RID/acl`
+   - Content example: `{"from": T1, "until": T2, "acls": {aclname: members, ...}}`
+- `GET /ermrest/catalog/N/history/from,until/schema/RID/acl_binding`
+   - Content example: `{"from": T1, "until": T2, "acl_bindings": {bindingname: binding, ...}}`
+- `GET /ermrest/catalog/N/history/from,until/schema/RID/annotation`
+   - Content example: `{"from": T1, "until": T2, "annotations": {key: annotation_value, ...}}`
+- `GET /ermrest/catalog/N/history/from,until/attribute/CRID/FRID=X`
+   - Content example: `{"from": T1, "until": T2, "tuple": {CRID: Y}}`
+- `GET /ermrest/catalog/N/history/from,until/entity/TRID/FRID=X`
+   - Content example: `{"from": T1, "until": T2, "tuple": {CRID: value, ...}}`
 
