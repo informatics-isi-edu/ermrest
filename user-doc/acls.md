@@ -124,6 +124,14 @@ For example:
 - A table can only be accessed if its enclosing schema is visible.
 - A schema can only be access if its enclosing catalog is visible.
 - A column can only be modified if its governing reference constraints allow the new value.
+- A key constraint is only visible if the columns it governs are selectable.
+- A foreign key constraint is only visible if the columns it governs are selectable.
+
+The last two dependencies above are more strict than necessary.  A
+constraint can be well-defined if its constituent columns are
+enumerable. But, in practice most clients cannot do anything useful
+with the constraint unless it can also see the data, and the presence
+of the useless constraint would only confuse most model-driven clients.
 
 ### Data-Dependent Policies
 
@@ -697,6 +705,7 @@ on the resource and access mode:
     - Schemas can be entirely hidden.
 	- Tables can be entirely hidden.
 	- Columns can be entirely hidden.
+	- Keys and foreign keys will be hidden if their constituent columns disallow data selection.
 3. Some access rights will be advertised on model elements in the introspection document.
 4. An invisible row or datum will be filtered during queries (both for data retrieval and queries in support of data-modifying requests).
 5. Datum-specific access rights will be advertised on retrieved data rows.

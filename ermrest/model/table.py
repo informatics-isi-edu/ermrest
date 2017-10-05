@@ -104,14 +104,13 @@ class Table (object):
 
     @cache_rights
     def has_right(self, aclname, roles=None):
-        if aclname in {'enumerate',}:
-            # we need parent enumeration too
-            if not self.schema.has_right(aclname, roles):
+        # we need parent enumeration too
+        if not self.schema.has_right('enumerate', roles):
+            return False
+        # a table without history is not enumerable during historical access
+        if web.ctx.ermrest_history_version is not None:
+            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
                 return False
-            # a table without history is not enumerable during historical access
-            if web.ctx.ermrest_history_version is not None:
-                if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
-                    return False
         return self._has_right(aclname, roles)
 
     def columns_in_order(self):

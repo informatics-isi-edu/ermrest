@@ -205,7 +205,7 @@ RETURNING key_rid;
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.columns:
-            if not c.has_right('enumerate', roles):
+            if c.has_right('select', roles) is False:
                 return False
         return True
 
@@ -321,7 +321,7 @@ SELECT _ermrest.model_version_bump();
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.columns:
-            if not c.has_right('enumerate', roles):
+            if c.has_right('select', roles) is False:
                 return False
         return True
 
@@ -365,14 +365,15 @@ class ForeignKey (object):
 
     def columns_have_right(self, aclname, roles=None):
         for c in self.columns:
-            if not c.has_right(aclname, roles):
-                return False
+            decision = c.has_right(aclname, roles)
+            if not decision:
+                return decision
         return True
 
     @cache_rights
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
-        if not self.columns_have_right(aclname, roles):
+        if self.columns_have_right("select", roles) is False:
             return False
         for krset in self.table_references.values():
             for kr in krset:
@@ -432,9 +433,12 @@ def _keyref_has_right(self, aclname, roles=None):
     if aclname == 'enumerate':
         if not self.unique.has_right('enumerate', roles):
             return False
-        decision = self.foreign_key.columns_have_right('enumerate')
+        decision = self.foreign_key.columns_have_right('select')
         if not decision:
             # None or False may happen here
+            return decision
+        decision = self.unique.has_right(aclname)
+        if not decision:
             return decision
     return self._has_right(aclname, roles)
 
