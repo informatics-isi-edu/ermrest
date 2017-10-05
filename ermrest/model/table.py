@@ -109,10 +109,9 @@ class Table (object):
 
     @cache_rights
     def has_right(self, aclname, roles=None):
-        if aclname in {'enumerate',}:
-            # we need parent enumeration too
-            if not self.schema.has_right(aclname, roles):
-                return False
+        # we need parent enumeration too
+        if not self.schema.has_right('enumerate', roles):
+            return False
         return self._has_right(aclname, roles)
 
     def columns_in_order(self):

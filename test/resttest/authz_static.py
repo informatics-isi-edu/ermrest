@@ -203,7 +203,7 @@ class Authz (common.ErmrestTest):
             )
             return
         expected.update(self.rights_T1_id)
-        if expected.get('enumerate') is False:
+        if expected.get('enumerate') is False or self.get_T3_fkey_status == 404:
             self.assertEqual(
                 len(schemas[_S2]['tables']['T3']['foreign_keys']),
                 0
@@ -663,7 +663,11 @@ class AuthzT3InsertOnly (AuthzT3InsertSelectFkeyInsert):
 
     get_data_T3_status = 403
     get_data_T1T3_status = 403
-    get_data_T1T3_id_status = 403
+    get_data_T1T3_id_status = 409
+    get_T3_fkey_status = 404
+    get_T3_fkeys_count = 0
+    get_T3_fkeyref_status = 409
+    delete_T3_fkeyref_status = 409
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3Update (Authz):
