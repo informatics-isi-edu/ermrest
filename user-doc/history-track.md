@@ -261,20 +261,21 @@ The effect of this operation will be to destructively overwrite the
 effective ACLs for all revisions whose lifetimes are wholly enclosed
 within the time span.
 
-A similar operation is possible for each different type of ACL subject
-resource via different URL patterns:
+A similar operation is possible for each different ACL subjects 
+by including the RID of the subject:
 
 - catalog: `/ermrest/catalog/N/history/from,until/acl`
-- schema: `/ermrest/catalog/N/history/from,until/schema/RID/acl` where _RID_ is the RID of the schema
-- table: `/ermrest/catalog/N/history/from,until/table/RID/acl` where _RID_ is the RID of the table
-- column: `/ermrest/catalog/N/history/from,until/column/RID/acl` where _RID_ is the RID of the column
-- foreign key: `/ermrest/catalog/N/history/from,until/foreignkey/RID/acl` where _RID_ is the RID of the foreignkey
+- model element: `/ermrest/catalog/N/history/from,until/RID/acl`
+   - schema RID
+   - table RID
+   - column RID
+   - foreign key RID
 
 ### Amend Historical ACL Bindings
 
 A collection of ACL binding resources can be mutated over a *time span*:
 
-    PUT /ermrest/catalog/N/history/from,until/table/RID/acl_binding
+    PUT /ermrest/catalog/N/history/from,until/RID/acl_binding
     Content-Type: application/json
     
     {bindingname: binding, ...}
@@ -284,11 +285,8 @@ effective ACL bindings for all revisions whose lifetimes are wholly
 enclosed within the time span.
 
 A similar operation is possible for each different type of ACL binding
-subject resource via different URL patterns:
-
-- table: `/ermrest/catalog/N/history/from,until/table/RID/acl_binding` where _RID_ is the RID of the table
-- column: `/ermrest/catalog/N/history/from,until/column/RID/acl_binding` where _RID_ is the RID of the column
-- foreign key: `/ermrest/catalog/N/history/from,until/foreignkey/RID/acl_binding` where _RID_ is the RID of the foreignkey
+subject resource, just supplying the appropriate RID for the model
+element subject to the ACL.
 
 ### Amend Historical Annotations
 
@@ -303,15 +301,16 @@ The effect of this operation will be to destructively overwrite the
 effective annotations for all revisions whose lifetimes are wholly
 enclosed within the time span.
 
-A similar operation is possible for each different type of annotation subject
-resource via different URL patterns:
+A similar operation is possible for each different type of annotation
+subject by including the RID of the subject:
 
 - catalog: `/ermrest/catalog/N/history/from,until/annotation`
-- schema: `/ermrest/catalog/N/history/from,until/schema/RID/annotation` where _RID_ is the RID of the schema
-- table: `/ermrest/catalog/N/history/from,until/table/RID/annotation` where _RID_ is the RID of the table
-- column: `/ermrest/catalog/N/history/from,until/column/RID/annotation` where _RID_ is the RID of the column
-- key: `/ermrest/catalog/N/history/from,until/key/RID/annotation` where _RID_ is the RID of the key
-- foreign key: `/ermrest/catalog/N/history/from,until/foreignkey/RID/annotation` where _RID_ is the RID of the foreignkey
+- model element: `/ermrest/catalog/N/history/from,until/RID/annotation`
+   - schema RID
+   - table RID
+   - column RID
+   - key RID
+   - foreign key RID
 
 ### Redact Historical Attributes
 
@@ -354,11 +353,11 @@ their own `[from,until)` intervals which chain together to span the
 whole range of the request. Each document would have its own
 configuration content.
 
-- `GET /ermrest/catalog/N/history/from,until/schema/RID/acl`
+- `GET /ermrest/catalog/N/history/from,until/RID/acl`
    - Content example: `{"from": T1, "until": T2, "acls": {aclname: members, ...}}`
-- `GET /ermrest/catalog/N/history/from,until/schema/RID/acl_binding`
+- `GET /ermrest/catalog/N/history/from,until/RID/acl_binding`
    - Content example: `{"from": T1, "until": T2, "acl_bindings": {bindingname: binding, ...}}`
-- `GET /ermrest/catalog/N/history/from,until/schema/RID/annotation`
+- `GET /ermrest/catalog/N/history/from,until/RID/annotation`
    - Content example: `{"from": T1, "until": T2, "annotations": {key: annotation_value, ...}}`
 - `GET /ermrest/catalog/N/history/from,until/attribute/CRID/FRID=X`
    - Content example: `{"from": T1, "until": T2, "tuple": {CRID: Y}}`
