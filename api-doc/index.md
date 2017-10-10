@@ -14,6 +14,7 @@ Any ERMrest URL is a valid HTTP URL and contains user-generated content which ma
 - The `,` or comma, used as a separator
 - The `=` or equals sign, used as an operator and as part of multi-character tokens
 - The `?` or question-mark, used to separate a resource name from query-parameters
+- The `@` or at-symbol, used as a separator
 - The `&` or ampersand, used as a separator
 - The `(` and `)` parentheses, used for nested grouping
 - TODO: more syntax to list here
