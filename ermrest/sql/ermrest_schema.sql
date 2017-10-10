@@ -146,6 +146,14 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
   );
 END IF;
 
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'catalog_amended') IS NULL THEN
+  CREATE TABLE _ermrest.catalog_amended (
+    ts timestamptz PRIMARY KEY,
+    during tstzrange NOT NULL,
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client()
+  );
+END IF;
+
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_schemas') IS NULL THEN
   CREATE TABLE _ermrest.known_schemas (
     "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
@@ -1380,6 +1388,22 @@ CREATE OR REPLACE FUNCTION _ermrest.model_change_event_by_oid() RETURNS void AS 
 BEGIN
   PERFORM _ermrest.rescan_introspect_by_oid();
   PERFORM _ermrest.model_version_bump();
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.amended_version_bump(during tstzrange) RETURNS void AS $$
+DECLARE
+  last_ts timestamptz;
+BEGIN
+  SELECT ts INTO last_ts FROM _ermrest.catalog_amended ORDER BY ts DESC LIMIT 1;
+  IF last_ts > now() THEN
+    -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
+    RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest amendment clock reversal!';
+  ELSIF last_ts = now() THEN
+    RETURN;
+  ELSE
+    INSERT INTO _ermrest.catalot_amended (ts, during) VALUES (now(), during);
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
