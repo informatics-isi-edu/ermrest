@@ -54,7 +54,8 @@
         "text": {
             "aliases": [ "char", "bpchar", "varchar" ],
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
-            }
+        },
+	"tstzrange": null
     },
 
     "change_notification": {

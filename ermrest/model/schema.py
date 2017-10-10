@@ -17,20 +17,11 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, view_exists, udecode
-from .misc import AltDict, AclDict, keying, annotatable, hasacls, enforce_63byte_id
+from .misc import AltDict, AclDict, keying, annotatable, hasacls, enforce_63byte_id, current_request_snaptime
 from .table import Table
 
 import json
 import web
-
-def current_catalog_version(cur):
-    cur.execute("""
-SELECT GREATEST(
-  (SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1),
-  (SELECT ts FROM _ermrest.table_last_modified ORDER BY ts DESC LIMIT 1)
-);
-""")
-    return cur.next()[0]
 
 @annotatable
 @hasacls(
@@ -45,8 +36,9 @@ class Model (object):
     At present, this amounts to a collection of 'schemas' in the conventional
     database sense of the term.
     """
-    def __init__(self, version, annotations={}, acls={}):
-        self.version = version
+    def __init__(self, snapwhen, amendver, annotations={}, acls={}):
+        self.snaptime = snapwhen
+        self.amendver = amendver
         self.last_access = None # hack: slot to track LRU state for model_cache
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
@@ -60,17 +52,9 @@ class Model (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
-    def get_catalog_version(self, cur):
-        if web.ctx.ermrest_history_version is not None:
-            # we are at a historical version
-            return web.ctx.ermrest_history_version
-        else:
-            # model can be cached, while we want latest DB version unless 
-            return current_catalog_version(cur)
-
     def prejson(self):
         doc = {
-            "version": unicode(self.version),
+            #"modelsnap": unicode(self.modelsnap),
             "annotations": self.annotations,
             "rights": self.rights(),
             "schemas": {
@@ -82,6 +66,20 @@ class Model (object):
         if self.has_right('owner'):
             doc['acls'] = self.acls
         return doc
+
+    def etag(self, mutation_cur=None):
+        """Produce ETag for this model or for the model resulting from this mutation request.
+
+           mutation_cur:
+             None (default): produce ETag for model at start of request.
+             live cursor: produce ETag for new model produced as result of this request.
+        """
+        if mutation_cur is not None:
+            return current_request_snaptime(mutation_cur)
+        elif self.amendver is not None:
+            return '%s-%s' % (self.snaptime, self.amendver)
+        else:
+            return '%s' % self.snaptime
 
     def check_primary_keys(self, require):
         for schema in self.schemas.values():

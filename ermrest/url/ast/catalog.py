@@ -27,6 +27,7 @@ from .api import Api, negotiated_content_type
 from ... import exception, catalog, sanepg2
 from ...apicore import web_method
 from ...exception import *
+from ...model import current_catalog_snaptime
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
@@ -102,7 +103,7 @@ class Catalog (Api):
     supported_types = [default_content_type]
 
     """A specific catalog by ID."""
-    def __init__(self, catalog_id, when=None):
+    def __init__(self, catalog_id):
         self.catalog_id = catalog_id
         self.manager = None
         entries = web.ctx.ermrest_registry.lookup(catalog_id)
@@ -117,10 +118,9 @@ class Catalog (Api):
         assert web.ctx.ermrest_catalog_pc is None
         web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
 
-        Api.__init__(self, self, when)
+        Api.__init__(self, self)
         # now enforce read permission
         self.enforce_right('enumerate', 'catalog/' + str(self.catalog_id))
-        self.current_version = None
 
     def final(self):
         web.ctx.ermrest_catalog_pc.final()
@@ -168,9 +168,9 @@ class Catalog (Api):
         return data.Query(self, qpath)
 
     def GET_body(self, conn, cur):
-        model = web.ctx.ermrest_catalog_model
-        self.current_version = model.get_catalog_version(cur)
-        return model
+        _model = web.ctx.ermrest_catalog_model
+        self.catalog_snaptime = current_catalog_snaptime(cur, encode=True)
+        return _model
 
     def GET(self, uri):
         """Perform HTTP GET of catalog.
@@ -180,16 +180,16 @@ class Catalog (Api):
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
         
-        def post_commit(model):
+        def post_commit(_model):
             # note that the 'descriptor' includes private system information such 
             # as the dbname (and potentially connection credentials) which should
             # not ever be shared.
-            resource = dict(
-                id=self.catalog_id,
-                meta=_acls_to_meta(model.acls),
-                acls=model.acls,
-                version=unicode(self.current_version),
-            )
+            resource = {
+                'id': self.catalog_id,
+                'meta': _acls_to_meta(_model.acls),
+                'acls': _model.acls,
+                'snaptime': self.catalog_snaptime,
+            }
             response = json.dumps(resource) + '\n'
             web.header('Content-Length', len(response))
             return response

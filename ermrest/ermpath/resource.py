@@ -30,7 +30,70 @@ from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
-from ..model import text_type, int8_type, jsonb_type
+from ..model.type import text_type, int8_type, jsonb_type
+
+def current_request_snaptime(cur):
+    """The snaptime produced by this mutation request."""
+    cur.execute("""
+SELECT now();
+""")
+    return cur.next()[0]
+
+def current_catalog_snaptime(cur, encode=False):
+    """The whole catalog snaptime is the latest transaction of any type.
+
+       Encode:
+         False (default): return raw snaptime
+         True: encode as a simple URL-safe string as time since EPOCH
+    """
+    cur.execute("""
+SELECT %(prefix)s GREATEST(
+  (SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1),
+  (SELECT ts FROM _ermrest.table_last_modified ORDER BY ts DESC LIMIT 1)
+) %(suffix)s;
+""" % {
+    'prefix': 'EXTRACT(epoch FROM ' if encode else '',
+    'suffix': ')::text' if encode else '',
+})
+    return cur.next()[0]
+
+def current_model_snaptime(cur):
+    """The current model snaptime is the most recent change to the live model."""
+    cur.execute("""
+SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1;
+""")
+    return cur.next()[0]
+
+def normalized_history_snaptime(cur, snapwhen, encoded=True):
+    """Clamp snapwhen to the latest historical snapshot which precedes it.
+
+       Encoded:
+         True (default): snapwhen should be a float8 input string as time since EPOCH
+         False: snapwhen should be a timestamptz input string
+    """
+    cur.execute("""
+SELECT GREATEST(
+  (SELECT ts FROM _ermrest.model_modified WHERE ts <= %(when)s::timestamptz ORDER BY ts DESC LIMIT 1),
+  (SELECT ts FROM _ermrest.table_modified WHERE ts <= %(when)s::timestamptz ORDER BY ts DESC LIMIT 1)
+);
+""" % {
+    'when': "(timestamptz('epoch') + %s::float8 * INTERVAL '1 second')" % sql_literal(snapwhen) if encoded else sql_literal(snapwhen)
+})
+    when2 = cur.next()[0]
+    if when2 is None:
+        raise exception.ConflictData('Requested catalog revision "%s" is prior to any known revision.' % snapwhen)
+    return when2
+
+def current_history_amendver(cur, snapwhen):
+    cur.execute("""
+SELECT GREATEST(
+  %(when)s::timestamptz,
+  (SELECT ts FROM _ermrest.catalog_amended WHERE during @> %(when)s::timestamptz ORDER BY ts DESC LIMIT 1)
+);
+""" % {
+    'when': sql_literal(snapwhen)
+})
+    return cur.next()[0]
 
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
@@ -925,6 +988,13 @@ class AnyPath (object):
         """
         raise NotImplementedError('sql_get on abstract class ermpath.AnyPath')
 
+    def etag(self, cur):
+        """Return snaptime of data resource.
+
+           Result may vary if performed *before* or *after* mutation actions on catalog.
+        """
+        return current_catalog_snaptime(cur)
+
     def _get_sort_element(self, key):
         raise NotImplementedError()
 
@@ -1123,17 +1193,6 @@ class EntityPath (AnyPath):
     def set_context(self, alias):
         """Change path entity context to existing context referenced by alias."""
         self._context_index = self.aliases[alias]
-
-    def get_data_version(self, cur):
-        """Get data version txid considering all tables in entity path."""
-        cur.execute("""
-SELECT GREATEST(
-  (SELECT tlm.ts FROM _ermrest.table_last_modified tlm ORDER BY tlm.ts DESC LIMIT 1),
-  (SELECT mlm.ts FROM _ermrest.model_last_modified mlm ORDER BY mlm.ts DESC LIMIT 1)
-);
-""")
-        version = next(cur)
-        return version
 
     def add_filter(self, filt, enforce_client=True):
         """Add a filter condition to the current path.
@@ -2004,14 +2063,6 @@ class TextFacet (AnyPath):
                             c_policy = get_policy(t_policy, cname)
                             if c_policy:
                                 yield (sname, tname, column)
-
-    def get_data_version(self, cur):
-        """Get data version txid considering all tables in catalog."""
-        cur.execute("""
-SELECT tlm.ts FROM _ermrest.table_last_modified tlm ORDER BY tlm.ts DESC LIMIT 1;
-""")
-        version = next(cur)[0]
-        return max(version, self._model.version)
 
     def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
         queries = [

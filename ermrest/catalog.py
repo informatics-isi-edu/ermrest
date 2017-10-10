@@ -31,8 +31,9 @@ import pkgutil
 import datetime
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
-from .model import introspect, current_model_version, normalized_catalog_version
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
+from .model.introspect import introspect
+from .model import current_model_snaptime, normalized_history_snaptime
 from . import sql
 
 __all__ = ['get_catalog_factory']
@@ -211,29 +212,20 @@ class Catalog (object):
         else:
             raise KeyError("Catalog descriptor type not supported: %(type)s" % descriptor)
 
-    def get_model_update_version(self, cur):
-        cur.execute("SELECT now();")
-        return cur.next()[0]
-
-    def get_history_version(self, when, cur=None):
-        if cur is None:
-            cur = web.ctx.ermrest_catalog_pc.cur
-        return normalized_catalog_version(cur, when)
-
-    def get_model(self, cur=None, config=None, private=False, when=None):
+    def get_model(self, cur=None, config=None, private=False, snapwhen=None, amendver=None):
         if cur is None:
             cur = web.ctx.ermrest_catalog_pc.cur
         if config is None:
             config = self._config
-        if when is None:
-            when = current_model_version(cur)
-        cache_key = (str(self.descriptor), when)
+        if snapwhen is None:
+            snapwhen = current_model_snaptime(cur)
+            assert amendver is None
+        else:
+            assert amendver is not None
+        cache_key = (str(self.descriptor), (snapwhen, amendver))
         model = self.MODEL_CACHE.get(cache_key)
         if (model is None) or private:
-            model = introspect(cur, config, when)
-            if private:
-                assert self.MODEL_CACHE.get(cache_key) != model
-            
+            model = introspect(cur, config, snapwhen, amendver)
             if not private:
                 self.MODEL_CACHE[cache_key] = model
         # LRU replacement scheme
@@ -244,7 +236,7 @@ class Catalog (object):
             for key, model in cache_items[self.MODEL_CACHE_SIZE:]:
                 del self.MODEL_CACHE[key]
         return model
-    
+
     def destroy(self):
         """Destroys the catalog (i.e., drops the database).
         

@@ -29,7 +29,7 @@ import web
 import urllib
 
 from ..exception import *
-from ..model import predicate
+from ..model import predicate, normalized_history_snaptime, current_history_amendver
 
 from lex import make_lexer, tokens, keywords
 import ast
@@ -96,8 +96,11 @@ def p_catalog(p):
     p[0] = ast.Catalog(p[6])
 
 def p_catalog_when(p):
-    """catalog : '/' string '/' CATALOG '/' NUMSTRING '@' string""" 
-    p[0] = ast.Catalog(p[6], p[8])
+    """catalog : '/' string '/' CATALOG '/' NUMSTRING '@' string"""
+    cur = web.ctx.ermrest_catalog_pc.cur
+    web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, snapwhen)
+    web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
+    p[0] = ast.Catalog(p[6])
 
 def p_catalogslash(p):
     """catalogslash : catalog '/' """

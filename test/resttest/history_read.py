@@ -28,15 +28,15 @@ def setUpModule():
         common.primary_session.post('schema', json=_defs).raise_for_status()
         common.primary_session.post('entity/%s:%s' % (_S, _T1), json=data.BasicKey._initial).raise_for_status()
         common.primary_session.post('entity/%s:%s' % (_S, _T2), json=data.ForeignKey.data).raise_for_status()
-        _data_t0_version = common.primary_session.get('').json()['version']
+        _data_t0_version = common.primary_session.get('').json()['snaptime']
         common.primary_session.delete('schema/%s/table/%s/column/name' % (_S, _T1)).raise_for_status()
-        _data_t1_version = common.primary_session.get('').json()['version']
+        _data_t1_version = common.primary_session.get('').json()['snaptime']
         common.primary_session.delete('schema/%s/table/%s/column/name' % (_S, _T2)).raise_for_status()
-        _data_t2_version = common.primary_session.get('').json()['version']
+        _data_t2_version = common.primary_session.get('').json()['snaptime']
         common.primary_session.delete('entity/%s:%s' % (_S, _T2)).raise_for_status()
-        _data_t3_version = common.primary_session.get('').json()['version']
+        _data_t3_version = common.primary_session.get('').json()['snaptime']
         common.primary_session.delete('entity/%s:%s' % (_S, _T1)).raise_for_status()
-        _data_t4_version = common.primary_session.get('').json()['version']
+        _data_t4_version = common.primary_session.get('').json()['snaptime']
 
 class CatalogWhen (common.ErmrestTest):
     container_resource = ''
@@ -55,18 +55,18 @@ class CatalogWhen (common.ErmrestTest):
         # bootstrap catalog version info
         r = common.primary_session.get('')
         r.raise_for_status()
-        cls.latest = r.json()['version']
+        cls.latest = r.json()['snaptime']
 
     def test_at_latest(self):
         r = self.session.get((self.latest, self.container_resource))
         self.assertHttp(r, 200, 'application/json')
-        self.assertEqual(self.latest, r.json()['version'])
+        self.assertEqual(self.latest, r.json()['snaptime'])
         return r
 
     def test_at_earliest(self):
         r = self.session.get((self.earliest, self.container_resource))
         self.assertHttp(r, 200, 'application/json')
-        self.assertEqual(self.earliest, r.json()['version'])
+        self.assertEqual(self.earliest, r.json()['snaptime'])
         return r
 
     def test_no_put_annotation(self):

@@ -26,22 +26,23 @@ import re
 
 from ...exception import *
 from ... import sanepg2
+from ...model import normalized_history_snaptime
 from ...util import sql_literal, negotiated_content_type
 import json
 
 
 class Api (object):
 
-    def __init__(self, catalog, when=None):
+    def __init__(self, catalog):
         self.catalog = catalog
         self.queryopts = dict()
         self.sort = None
         self.before = None
         self.after = None
-        if when is not None:
-            when = catalog.manager.get_history_version(when)
-            web.ctx.ermrest_history_version = when
-        web.ctx.ermrest_catalog_model = catalog.manager.get_model(when=web.ctx.ermrest_history_version)
+        web.ctx.ermrest_catalog_model = catalog.manager.get_model(
+            snapwhen=web.ctx.ermrest_history_snaptime,
+            amendver=web.ctx.ermrest_history_amendver
+        )
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 

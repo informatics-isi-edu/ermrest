@@ -78,7 +78,7 @@ def _GET(handler, uri, dresource, vresource):
         results = None
         
     def body(conn, cur):
-        handler.set_http_etag( vresource.get_data_version(cur) )
+        handler.set_http_etag( vresource.etag(cur) )
         handler.http_check_preconditions()
         dresource.add_sort(handler.sort)
         dresource.add_paging(handler.after, handler.before)
@@ -126,8 +126,11 @@ def _GET(handler, uri, dresource, vresource):
 def _PUT(handler, uri, put_thunk, vresource):
     """Perform HTTP PUT of generic data resources.
     """
-    if web.ctx.ermrest_history_version is not None:
+    if web.ctx.ermrest_history_snaptime is not None:
         raise exception.Forbidden('modification to catalog at previous revision')
+    if web.ctx.ermrest_history_snaprange is not None:
+        # should not be possible bug check anyway...
+        raise NotImplementedError('modification on %s with snaprange' % uri)
     try:
         in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
         in_content_type = in_content_type.split(";", 1)[0].strip()
@@ -140,7 +143,7 @@ def _PUT(handler, uri, put_thunk, vresource):
 
     def body(conn, cur):
         input_data.seek(0) # rewinds buffer, in case of retry
-        handler.set_http_etag( vresource.get_data_version(cur) )
+        handler.set_http_etag( vresource.etag(cur) )
         handler.http_check_preconditions(method='PUT')
         result = put_thunk([
             conn,
@@ -149,7 +152,7 @@ def _PUT(handler, uri, put_thunk, vresource):
             in_content_type,
             content_type
         ])
-        handler.set_http_etag( vresource.get_data_version(cur) )
+        handler.set_http_etag( vresource.etag(cur) )
         cur.close()
         return result
 
@@ -165,13 +168,17 @@ def _PUT(handler, uri, put_thunk, vresource):
 def _DELETE(handler, uri, resource, vresource):
     """Perform HTTP DELETE of generic data resources.
     """
-    if web.ctx.ermrest_history_version is not None:
+    if web.ctx.ermrest_history_snaptime is not None:
         raise exception.Forbidden('modification to catalog at previous revision')
+    if web.ctx.ermrest_history_snaprange is not None:
+        # should not be possible bug check anyway...
+        raise NotImplementedError('modification on %s with snaprange' % uri)
+
     def body(conn, cur):
-        handler.set_http_etag( vresource.get_data_version(cur) )
+        handler.set_http_etag( vresource.etag(cur) )
         handler.http_check_preconditions(method='DELETE')
         resource.delete(conn, cur)
-        handler.set_http_etag( vresource.get_data_version(cur) )
+        handler.set_http_etag( vresource.etag(cur) )
 
     def post_commit(ignore):
         handler.emit_headers()

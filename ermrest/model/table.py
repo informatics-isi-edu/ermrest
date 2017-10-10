@@ -108,7 +108,7 @@ class Table (object):
         if not self.schema.has_right('enumerate', roles):
             return False
         # a table without history is not enumerable during historical access
-        if web.ctx.ermrest_history_version is not None:
+        if web.ctx.ermrest_history_snaptime is not None:
             if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
                 return False
         return self._has_right(aclname, roles)
@@ -418,7 +418,7 @@ WHERE "RID" = %s;
 
            The result is a schema-qualified table name for dynauthz=None, else a subquery.
         """
-        if web.ctx.ermrest_history_version is not None:
+        if web.ctx.ermrest_history_snaptime is not None:
             if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
                 raise exception.ConflictModel(u'Historical data not available for table %s.' % unicode(self.name))
             tsql = """
@@ -437,7 +437,7 @@ WHERE "RID" = %s;
         if c.type.history_unpack(c)
     ]),
     'htable': "_ermrest_history.t%d" % self.rid,
-    'when': sql_literal(web.ctx.ermrest_history_version),
+    'when': sql_literal(web.ctx.ermrest_history_snaptime),
 }
         else:
             tsql = '%s.%s' % (sql_identifier(self.schema.name), sql_identifier(self.name))

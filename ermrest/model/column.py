@@ -19,7 +19,7 @@ import json
 import re
 import web
 
-from .. import exception, ermpath
+from .. import exception
 from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
 from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, truncated_identifier, sufficient_rights, get_dynacl_clauses

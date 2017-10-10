@@ -195,10 +195,13 @@ def request_init():
     web.ctx.ermrest_content_type = None
     web.ctx.webauthn2_manager = webauthn2_manager
     web.ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
-    web.ctx.ermrest_history_version = None
+    web.ctx.ermrest_history_snaptime = None # for coherent historical snapshot queries
+    web.ctx.ermrest_history_snaprange = None # for longitudinal history manipulation
+    web.ctx.ermrest_history_amendver = None # for ETag versioning of historical results
     web.ctx.ermrest_request_trace = request_trace
     web.ctx.ermrest_registry = registry
     web.ctx.ermrest_catalog_factory = catalog_factory
+    web.ctx.ermrest_catalog_model = None
     web.ctx.ermrest_config = global_env
     web.ctx.ermrest_catalog_pc = None
     web.ctx.ermrest_change_notify = amqp_notifier.notify if amqp_notifier else lambda : None
@@ -263,7 +266,14 @@ def request_final():
             ('track', web.ctx.webauthn2_context.tracking),
         ]
         if v
-    ])
+    ] + (
+        [('snaptime', unicode(web.ctx.ermrest_history_snaptime))] if web.ctx.ermrest_history_snaptime else []
+    ) + (
+        [('snaprange', [
+            unicode(ts) if ts else None
+            for ts in web.ctx.ermrest_history_snaprange
+        ])] if web.ctx.ermrest_history_snaprange else []
+    ))
     logger.info( json.dumps(od, separators=(', ', ':')).encode('utf-8') )
 
 def web_method():

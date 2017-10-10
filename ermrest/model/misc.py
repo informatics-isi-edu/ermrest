@@ -19,7 +19,10 @@ from ..util import sql_identifier, sql_literal, table_exists, udecode
 from .. import ermpath
 from .type import _default_config
 from .name import Name
-import predicate
+from . import predicate
+
+# these are in ermpath to avoid recursive imports
+from ..ermpath import current_request_snaptime, current_catalog_snaptime, current_model_snaptime, normalized_history_snaptime, current_history_amendver
 
 import json
 import web

@@ -278,7 +278,7 @@ try:
     cpath = "/ermrest/catalog/%s" % cid
     _r = primary_session.get('')
     _r.raise_for_status()
-    catalog_initial_version = _r.json()['version']
+    catalog_initial_version = _r.json()['snaptime']
     sys.stderr.write('\nCreated %s at initial revision %s.\n' % (cpath, catalog_initial_version))
     primary_session.put('acl', json=catalog_acls).raise_for_status()
     sys.stderr.write('OK.\n\n')

@@ -53,7 +53,8 @@ _default_config = {
             "aliases": [ "char", "bpchar", "varchar" ],
             "regexps": [ "(text|character)( +varying)?( *[(][0-9]+[)])?$" ]
             },
-        "timestamp": { "aliases": [ "timestamp without time zone" ] }
+        "timestamp": { "aliases": [ "timestamp without time zone" ] },
+        "tstzrange": None,
         }
     }
 

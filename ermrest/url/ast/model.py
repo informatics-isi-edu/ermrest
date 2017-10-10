@@ -56,22 +56,25 @@ def _post_commit_json(handler, resource):
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
         handler.enforce_right('enumerate')
-        handler.set_http_etag( web.ctx.ermrest_catalog_model.version )
+        handler.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
         handler.http_check_preconditions()
         return thunk(conn, cur)
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
 
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
-        if web.ctx.ermrest_history_version is not None:
+        if web.ctx.ermrest_history_snaptime is not None:
             raise exception.Forbidden('modification to catalog at previous revision')
+        if web.ctx.ermrest_history_snaprange is not None:
+            # should not be possible bug check anyway...
+            raise NotImplementedError('modification on %s with snaprange' % handler)
         # we need a private (uncached) copy of model because we mutate it optimistically
         # and this could corrupt a cached copy
         web.ctx.ermrest_catalog_model = handler.catalog.manager.get_model(cur, private=True)
-        handler.set_http_etag( web.ctx.ermrest_catalog_model.version )
+        handler.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
         handler.http_check_preconditions(method='PUT')
         result = thunk(conn, cur)
-        handler.set_http_etag( handler.catalog.manager.get_model_update_version(cur) )
+        handler.set_http_etag( web.ctx.ermrest_catalog_model.etag(cur) )
         return result
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
 
