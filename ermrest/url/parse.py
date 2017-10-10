@@ -77,6 +77,9 @@ def p_apis(p):
              | foreignkeyref
              | foreignkeyrefslash
              | textfacet
+             | catalog_range
+             | data_range
+             | config_range
              | meta
              | data
              | datasort"""
@@ -101,6 +104,52 @@ def p_catalog_when(p):
     web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, snapwhen)
     web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
     p[0] = ast.Catalog(p[6])
+
+def p_catalog_range(p):
+    """cataloghistory : catalogslash HISTORY"""
+    p[0] = p[1]
+
+def p_catalog_history_slash(p):
+    """cataloghistoryslash : cataloghistory '/'"""
+    p[0] = p[1]
+
+def p_catalog_range1(p):
+    """catalog_range : cataloghistoryslash ',' string """
+    p[0] = ast.history.CatalogHistory(p[1].history_range('', p[3]))
+
+def p_catalog_range2(p):
+    """catalog_range : cataloghistoryslash string ',' string """
+    p[0] = ast.history.CatalogHistory(p[1].history_range(p[2], p[4]))
+
+def p_catalog_range3(p):
+    """catalog_range : cataloghistoryslash string ',' """
+    p[0] = ast.history.CatalogHistory(p[1].history_range(p[2], ''))
+
+def p_catalog_rangeslash(p):
+    """catalog_rangeslash : catalog_range '/'"""
+    p[0] = p[1]
+
+def p_data_range(p):
+    """data_range : catalog_rangeslash ATTRIBUTE '/' NUMSTRING """
+    p[0] = ast.history.DataHistory(p[1].catalog, p[4])
+
+def p_data_range_filtered(p):
+    """data_range : data_range '/' NUMSTRING '=' string """
+    p[0] = p[1].filtered(p[3], p[5])
+
+def p_config_api(p):
+    """config_api : ACL
+                  | ACL_BINDING
+                  | ANNOTATION """
+    p[0] = p[1]
+
+def p_config_range(p):
+    """config_range : catalog_rangeslash config_api """
+    p[0] = ast.history.ConfigHistory(p[1].catalog, p[2])
+
+def p_config_range2(p):
+    """config_range : catalog_rangeslash NUMSTRING '/' config_api """
+    p[0] = ast.history.ConfigHistory(p[1].catalog, p[4], target_rid=p[2])
 
 def p_catalogslash(p):
     """catalogslash : catalog '/' """
@@ -154,7 +203,8 @@ def p_meta_key(p):
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """
     p[0] = p[1].textfacet(predicate.Value(p[4]))
-    
+
+
 def p_entity(p):
     """entity : catalogslash ENTITY '/' entityelem1 """
     p[0] = p[1].entity(p[4])

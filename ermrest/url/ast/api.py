@@ -46,6 +46,17 @@ class Api (object):
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 
+    def history_range(self, h_from, h_until):
+        if web.ctx.ermrest_history_snaptime is not None:
+            # disable whole /history API if we have a versioned catalog snapshot
+            raise NotFound()
+        # model will be the current live catalog model since snaptime is None
+        cur = web.ctx.ermrest_catalog_pc.cur
+        h_from = normalized_history_snaptime(cur, h_from) if h_from else None
+        h_until = normalized_history_snaptime(cur, h_until) if h_until else None
+        web.ctx.ermrest_history_snaprange = (h_from, h_until)
+        return self
+
     def enforce_right(self, aclname, uri=None):
         """Policy enforcement for named right."""
         decision = web.ctx.ermrest_catalog_model.has_right(aclname)

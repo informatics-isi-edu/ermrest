@@ -75,6 +75,7 @@ keywords = [
     'full',
     'geq',
     'gt',
+    'history',
     'key',
     'leq',
     'left',

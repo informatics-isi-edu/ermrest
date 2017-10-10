@@ -32,6 +32,7 @@ from .catalog import Catalogs, Catalog
 from . import model
 from . import data
 from ...model.name import Name, NameList
+from . import history
 
 from ... import exception
 from ...util import sql_identifier
