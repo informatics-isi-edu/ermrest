@@ -1349,23 +1349,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.model_modified_last() RETURNS TRIGGER AS $$
-DECLARE
-  last_ts timestamptz;
-BEGIN
-  SELECT ts INTO last_ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1;
-  IF last_ts > NEW.ts THEN
-    -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
-    RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest model version clock reversal!';
-  END IF;
-
-  DELETE FROM _ermrest.model_last_modified WHERE ts < NEW.ts;
-  INSERT INTO _ermrest.model_last_modified (ts) VALUES (NEW.ts) ON CONFLICT (ts) DO NOTHING;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION _ermrest.model_version_bump() RETURNS void AS $$
 DECLARE
   last_ts timestamptz;

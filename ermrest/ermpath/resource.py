@@ -71,27 +71,6 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
         
     return row_thunk
 
-def notify_data_change(cur, table):
-    """Update data version information after possible change to table.
-
-       Conservatively updates version for any dependent tables too.
-    """
-    tables = set()
-
-    def expand_table(t1):
-        if t1 in tables:
-            # don't re-expand tables in event of a cyclic foreign key pattern (weird but possible in SQL)
-            return
-        tables.add(t1)
-        for unique in t1.uniques.values():
-            for ftable in unique.table_references:
-                expand_table(ftable)
-
-    expand_table(table)
-
-    for table in tables:
-        cur.execute('SELECT _ermrest.data_change_event(%s, %s)' % (sql_literal(table.schema.name), sql_literal(table.name)))
-
 def page_filter_sql(keynames, descendings, types, boundary, is_before):
     """Return SQL WHERE clause to filter by page boundary.
 
@@ -728,8 +707,6 @@ FROM (
 
         # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
-            notify_data_change(cur, self.table)
-
             if allow_existing:
                 if nmkcols:
                     # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
@@ -1373,7 +1350,6 @@ WHERE %(keymatches)s
         cnt = cur.fetchone()[0]
         if cnt == 0:
             raise NotFound('entities matching request path')
-        notify_data_change(cur, table)
         cur.execute(self.sql_delete())
 
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
@@ -1671,7 +1647,6 @@ WHERE %(keymatches)s
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
         table = self.epath.current_entity_table()
-        notify_data_change(cur, table)
         cur.execute(dquery)
 
 class AttributeGroupPath (AnyPath):
