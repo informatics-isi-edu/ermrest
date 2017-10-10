@@ -68,6 +68,7 @@ def add_acl_tests(klass):
 class Acls (common.ErmrestTest):
     expected_acls = {}
     override_value = ['foo', 'bar', common.primary_client_id]
+    can_remove = True
 
     def _base(self):
         return '%s/acl' % self.resource
@@ -102,7 +103,7 @@ class Acls (common.ErmrestTest):
 
     def test_6_check_all(self):
         if self.expected_acls:
-            self._checkvals(lambda acl: self.override_value if acl == 'owner' else None)
+            self._checkvals(lambda acl: (self.override_value if acl == 'owner' else (None if self.can_remove else []))  )
 
     def _restore(self, acl):
         if acl in self.expected_acls:
@@ -126,11 +127,11 @@ class Acls (common.ErmrestTest):
 
     def _setval(self, acl, value):
         self.assertHttp(self.session.put(self._url(acl), json=value), 200)
-        self._checkval(acl, value)
+        self._checkval(acl, value if value is not None or self.can_remove else [])
 
     def _delete(self, acl):
         self.assertHttp(self.session.delete(self._url(acl)), 200)
-        self._checkval(acl, None)
+        self._checkval(acl, None if self.can_remove else [])
 
     def _unsupported(self, acl):
         self.assertHttp(self.session.get(self._url(acl)), 404)
@@ -146,6 +147,7 @@ class Acls (common.ErmrestTest):
 @add_acl_tests
 class AclsCatalog (Acls):
     expected_acls = catalog_acls
+    can_remove = False
 
     def _base(self):
         return 'acl'

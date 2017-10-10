@@ -108,11 +108,12 @@ class AltDict (dict):
 
 class AclDict (dict):
     """Alternative dict that validates keys and returns default."""
-    def __init__(self, subject):
+    def __init__(self, subject, can_remove=True):
         dict.__init__(self)
         self._subject = subject
+        self.can_remove = can_remove
         self._acls = None
-        self._digest()
+        self.clear()
 
     def _digest(self):
         web.ctx.ermrest_model_rights_cache.clear()
@@ -143,7 +144,10 @@ class AclDict (dict):
         self._digest()
 
     def __delitem__(self, k):
-        dict.__delitem__(self, k)
+        if self.can_remove:
+            dict.__delitem__(self, k)
+        else:
+            dict.__setitem__(self, k, [])
         self._digest()
 
     def update(self, d):
@@ -151,7 +155,11 @@ class AclDict (dict):
         self._digest()
 
     def clear(self):
-        dict.clear(self)
+        if self.can_remove:
+            dict.clear(self)
+        else:
+            for aclname in self._subject._acls_supported:
+                dict.__setitem__(self, aclname, [])
         self._digest()
 
     def intersects(self, aclname, roles):
@@ -525,13 +533,16 @@ INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s acl, members) VALUES %(val
         assert aclname is not None
 
         if members is None:
-            return self.delete_acl(cur, aclname)
+            if self.acls.can_remove:
+                return self.delete_acl(cur, aclname)
+            else:
+                members = []
 
         self.enforce_right('owner') # pre-flight authz
         if aclname not in self._acls_supported:
             raise exception.ConflictData('ACL name %s not supported on %s.' % (aclname, self))
 
-        oldvalue = self.acls.get(aclname, members)
+        oldvalue = self.acls.get(aclname)
         self.acls[aclname] = members
         self.enforce_right('owner') # integrity check using Python data...
 
@@ -550,18 +561,25 @@ ON CONFLICT (%(cols)s) DO UPDATE SET members = %(newval)s;
         if aclname is not None and aclname not in self._acls_supported:
             raise exception.NotFound('ACL %s on %s' % (aclname, self))
 
-        if aclname is None:
-            self.acls.clear()
-        elif aclname in self.acls:
-            del self.acls[aclname]
+        if self.acls.can_remove:
+            if aclname is None:
+                self.acls.clear()
+            elif aclname in self.acls:
+                del self.acls[aclname]
 
-        if not purging:
-            self.enforce_right('owner') # integrity check... can't disown except when purging
+            if not purging:
+                self.enforce_right('owner') # integrity check... can't disown except when purging
 
-        cur.execute("""
+                cur.execute("""
 SELECT _ermrest.model_version_bump();
 DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
 """ % interp)
+        else:
+            if aclname is None:
+                for aclname in self._acls_supported:
+                    self.set_acl(cur, aclname, [])
+            else:
+                self.set_acl(cur, aclname, [])
 
     @cache_rights
     def has_right(self, aclname, roles=None):

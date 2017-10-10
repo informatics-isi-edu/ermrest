@@ -1,3 +1,4 @@
+
 # 
 # Copyright 2013-2017 University of Southern California
 # 
@@ -51,7 +52,7 @@ class Model (object):
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
             lambda k, v: enforce_63byte_id(k, "Schema")
         )
-        self.acls = AclDict(self)
+        self.acls = AclDict(self, can_remove=False)
         self.acls.update(acls)
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s"' % (k,)))
         self.annotations.update(annotations)
