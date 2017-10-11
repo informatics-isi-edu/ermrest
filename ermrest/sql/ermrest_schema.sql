@@ -76,6 +76,97 @@ CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE A
   SELECT $1::text;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.urlb32_encode(int8) RETURNS text IMMUTABLE AS $$
+DECLARE
+  raw bit(65);
+  code int;
+  encoded text;
+  symbols text[];
+BEGIN
+  symbols := '{0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F,G,H,J,K,M,N,P,Q,R,S,T,V,W,X,Y,Z}'::text[];
+  raw := $1::bit(64) || B'0';
+  encoded := '';
+  
+  FOR d IN 1..13 LOOP
+    code := substring(raw from 1 for 5)::int;
+    IF code = 0 AND encoded = ''
+    THEN
+      -- drop prefix
+    ELSE
+      encoded := encoded || symbols[ code + 1 ];
+    END IF;
+    raw := raw << 5;
+  END LOOP;
+
+  IF encoded = ''
+  THEN
+    RETURN '0';
+  ELSE
+    RETURN encoded;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.urlb32_decode(text) RETURNS int8 IMMUTABLE AS $$
+DECLARE
+  raw bit(65);
+  code int;
+  symbol text;
+  encoded text;
+BEGIN
+  encoded = regexp_replace(upper($1), '-', '', 'g');
+  raw := 0::bit(65);
+
+  IF octet_length(encoded) > 13
+  THEN
+    RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = 'Length exceeds 13 symbols';
+  END IF;
+
+  FOR d IN 1 .. octet_length(encoded) LOOP
+    CASE substring(encoded from 1 for 1)
+      WHEN '0', 'O' THEN code := 0;
+      WHEN '1', 'I', 'L' THEN code := 1;
+      WHEN '2' THEN code := 2;
+      WHEN '3' THEN code := 3;
+      WHEN '4' THEN code := 4;
+      WHEN '5' THEN code := 5;
+      WHEN '6' THEN code := 6;
+      WHEN '7' THEN code := 7;
+      WHEN '8' THEN code := 8;
+      WHEN '9' THEN code := 9;
+      WHEN 'A' THEN code := 10;
+      WHEN 'B' THEN code := 11;
+      WHEN 'C' THEN code := 12;
+      WHEN 'D' THEN code := 13;
+      WHEN 'E' THEN code := 14;
+      WHEN 'F' THEN code := 15;
+      WHEN 'G' THEN code := 16;
+      WHEN 'H' THEN code := 17;
+      WHEN 'J' THEN code := 18;
+      WHEN 'K' THEN code := 19;
+      WHEN 'M' THEN code := 20;
+      WHEN 'N' THEN code := 21;
+      WHEN 'P' THEN code := 22;
+      WHEN 'Q' THEN code := 23;
+      WHEN 'R' THEN code := 24;
+      WHEN 'S' THEN code := 25;
+      WHEN 'T' THEN code := 26;
+      WHEN 'V' THEN code := 27;
+      WHEN 'W' THEN code := 28;
+      WHEN 'X' THEN code := 29;
+      WHEN 'Y' THEN code := 30;
+      WHEN 'Z' THEN code := 31;
+      ELSE
+        RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = substring(encoded from 1 for 1);
+    END CASE;
+    raw := (raw << 5) | ((0::bit(60) || code::bit(5)));
+    encoded := substring(encoded from 2);
+  END LOOP;
+
+  RETURN substring(raw from 1 for 64)::int8;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION _ermrest.tstzencode(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT (floor(EXTRACT(epoch FROM $1))::int8 * 1000000 + EXTRACT(microseconds FROM $1)::int8 % 1000000)::text;
 $$ LANGUAGE SQL;
