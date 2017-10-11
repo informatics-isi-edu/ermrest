@@ -1,3 +1,4 @@
+
 # 
 # Copyright 2013-2017 University of Southern California
 # 
@@ -52,8 +53,8 @@ SELECT %(prefix)s GREATEST(
   (SELECT ts FROM _ermrest.table_last_modified ORDER BY ts DESC LIMIT 1)
 ) %(suffix)s;
 """ % {
-    'prefix': 'EXTRACT(epoch FROM ' if encode else '',
-    'suffix': ')::text' if encode else '',
+    'prefix': '_ermrest.tstzencode(' if encode else '',
+    'suffix': ')' if encode else '',
 })
     return cur.next()[0]
 
@@ -77,11 +78,11 @@ SELECT GREATEST(
   (SELECT ts FROM _ermrest.table_modified WHERE ts <= %(when)s::timestamptz ORDER BY ts DESC LIMIT 1)
 );
 """ % {
-    'when': "(timestamptz('epoch') + %s::float8 * INTERVAL '1 second')" % sql_literal(snapwhen) if encoded else sql_literal(snapwhen)
+    'when': ("_ermrest.tstzdecode(%s)" % sql_literal(snapwhen)) if encoded else sql_literal(snapwhen)
 })
     when2 = cur.next()[0]
     if when2 is None:
-        raise exception.ConflictData('Requested catalog revision "%s" is prior to any known revision.' % snapwhen)
+        raise ConflictData('Requested catalog revision "%s" is prior to any known revision.' % snapwhen)
     return when2
 
 def current_history_amendver(cur, snapwhen):

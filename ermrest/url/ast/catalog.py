@@ -28,6 +28,7 @@ from ... import exception, catalog, sanepg2
 from ...apicore import web_method
 from ...exception import *
 from ...model import current_catalog_snaptime
+from ...util import sql_literal
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
@@ -169,7 +170,11 @@ class Catalog (Api):
 
     def GET_body(self, conn, cur):
         _model = web.ctx.ermrest_catalog_model
-        self.catalog_snaptime = current_catalog_snaptime(cur, encode=True)
+        if web.ctx.ermrest_history_snaptime is not None:
+            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_snaptime))
+            self.catalog_snaptime = cur.fetchone()[0]
+        else:
+            self.catalog_snaptime = current_catalog_snaptime(cur, encode=True)
         return _model
 
     def GET(self, uri):
@@ -177,7 +182,6 @@ class Catalog (Api):
         """
         # content negotiation
         content_type = negotiated_content_type(self.supported_types, self.default_content_type)
-        web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
         
         def post_commit(_model):
@@ -191,6 +195,10 @@ class Catalog (Api):
                 'snaptime': self.catalog_snaptime,
             }
             response = json.dumps(resource) + '\n'
+            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            self.http_check_preconditions()
+            self.emit_headers()
+            web.header('Content-Type', content_type)
             web.header('Content-Length', len(response))
             return response
         
@@ -201,6 +209,14 @@ class Catalog (Api):
         """
         def body(conn, cur):
             self.enforce_right('owner', uri)
+            if web.ctx.ermrest_history_snaptime is not None:
+                raise exception.Forbidden('deletion of catalog at previous revision')
+            if web.ctx.ermrest_history_snaprange is not None:
+                # should not be possible bug check anyway...
+                raise NotImplementedError('deletion of catalog with snapshot range')
+            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            self.http_check_preconditions(method='DELETE')
+            self.emit_headers()
             return True
 
         def post_commit(destroy):
@@ -236,6 +252,9 @@ class Meta (Api):
             return web.ctx.ermrest_catalog_model.acls
 
         def post_commit(acls):
+            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            self.http_check_preconditions()
+            self.emit_headers()
             web.header('Content-Type', content_type)
             web.ctx.ermrest_request_content_type = content_type
 

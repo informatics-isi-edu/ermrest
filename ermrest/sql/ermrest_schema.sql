@@ -76,6 +76,14 @@ CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE A
   SELECT $1::text;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.tstzencode(timestamptz) RETURNS text IMMUTABLE AS $$
+  SELECT (floor(EXTRACT(epoch FROM $1))::int8 * 1000000 + EXTRACT(microseconds FROM $1)::int8 % 1000000)::text;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.tstzdecode(text) RETURNS timestamptz IMMUTABLE AS $$
+  SELECT timestamptz('epoch') + ($1::int8 / 1000000) * interval '1 second' + ($1::int8 % 1000000) * interval '1 microsecond';
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS $$
 BEGIN
   RETURN current_setting('webauthn2.client');

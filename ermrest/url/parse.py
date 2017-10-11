@@ -100,10 +100,10 @@ def p_catalog(p):
 
 def p_catalog_when(p):
     """catalog : '/' string '/' CATALOG '/' NUMSTRING '@' string"""
-    cur = web.ctx.ermrest_catalog_pc.cur
-    web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, snapwhen)
-    web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
     p[0] = ast.Catalog(p[6])
+    cur = web.ctx.ermrest_catalog_pc.cur
+    web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[8])
+    web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
 
 def p_catalog_range(p):
     """cataloghistory : catalogslash HISTORY"""
@@ -112,6 +112,10 @@ def p_catalog_range(p):
 def p_catalog_history_slash(p):
     """cataloghistoryslash : cataloghistory '/'"""
     p[0] = p[1]
+
+def p_catalog_range0(p):
+    """catalog_range : cataloghistoryslash ',' """
+    p[0] = ast.history.CatalogHistory(p[1].history_range('', ''))
 
 def p_catalog_range1(p):
     """catalog_range : cataloghistoryslash ',' string """

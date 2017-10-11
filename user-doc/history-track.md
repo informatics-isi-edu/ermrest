@@ -23,12 +23,13 @@ Implementation Status:
 - [x] Appropriate errors reject write access at revision
 - [x] Appropriate errors to reject historical access to non-tracked tables or views
 - [x] Caching of historical models in Python
+- [x] Change snapshot time format to URL-safe character string instead of human-readable timestamp text
 - [ ] Historical ACL amendment
 - [ ] Historical ACL binding amendment
 - [ ] Historical annotation amendment
 - [ ] Historical single attribute redaction
 - [ ] Historical single attribute redaction with basic filtering
-- [ ] Catalog history truncation
+- [x] Catalog history truncation
 
 Future work requiring more investigation:
 
@@ -332,6 +333,36 @@ matches a given value _X_ are redacted.  More rich filtering syntax
 may be considered in future enhancements to ERMrest. This syntax is
 sufficient to target one row by its actual `RID` or all rows with a
 certain *bad value* _X_ in the column being redacted.
+
+### Find Current History Span
+
+A simple GET request can discover the shape of history:
+
+    GET /ermrest/catalog/N/history/,
+
+this will return a summary of the stored history timeline in
+a JSON document such as:
+
+    {
+      "amendver": a,
+      "snaprange": [
+        t0, t1
+      ]
+    }
+
+where the two timepoints _t0_ and _t1_ represent the earliest and latest
+historical snaptimes known in the system. Any value in that range MAY be used
+as an _until_ boundary for the history truncation mechanism described next. The
+amendment version _a_ may be `null` or a timepoint representing the latest
+known amendment of that range.
+
+A narrower boundary can also be queried to find out whether that particular
+range of history has been amended:
+
+    GET /ermrest/catalog/N/history/from,until
+	
+this will return a similar response but the `snaprange` and `amendver` fields
+will only describe history within the requested range.
 
 ### Truncate Catalog History
 
