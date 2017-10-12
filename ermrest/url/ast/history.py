@@ -48,6 +48,56 @@ ORDER BY ts DESC
 LIMIT 1
 """
 
+def _validate_history_snaprange(cur):
+    h_from, h_until = web.ctx.ermrest_history_snaprange
+    if h_from is None:
+        cur.execute("""
+SELECT LEAST(
+  (SELECT ts
+   FROM _ermrest.model_modified
+   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
+   ORDER BY ts LIMIT 1),
+  (SELECT ts
+   FROM _ermrest.table_modified
+   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
+   ORDER BY ts LIMIT 1)
+);
+""" % {
+    'h_from': sql_literal(h_from),
+    'h_until': sql_literal(h_until),
+})
+        h_from = cur.next()[0]
+
+    if h_until is None:
+        cur.execute("""
+SELECT GREATEST(
+  (SELECT ts
+   FROM _ermrest.model_modified
+   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
+   ORDER BY ts DESC LIMIT 1),
+  (SELECT ts
+   FROM _ermrest.table_modified
+   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
+   ORDER BY ts DESC LIMIT 1)
+);
+""" % {
+    'h_from': sql_literal(h_from),
+    'h_until': sql_literal(h_until),
+})
+        h_until = cur.next()[0]
+
+    if h_from is None or h_until is None:
+        raise exception.rest.NotFound('history range [%s,%s)' % (h_from, h_until))
+
+    cur.execute(_RANGE_AMENDVER_SQL % {
+        'h_from': sql_literal(h_from),
+        'h_until': sql_literal(h_until),
+    })
+    amendver = cur.fetchone()
+    amendver = amendver[0] if amendver is not None else None
+
+    return h_from, h_until, amendver
+
 def _etag(cur):
     """Get current history ETag during request processing."""
     h_from, h_until = web.ctx.ermrest_history_snaprange
@@ -107,54 +157,7 @@ class CatalogHistory (Api):
              python_status: ( (h_from, h_until), amendver )
              prejson_status: { "snaprange": [ h_from_epoch, h_until_epoch ], "amendver": amendver_epoch }
         """
-        h_from, h_until = web.ctx.ermrest_history_snaprange
-
-        if h_from is None:
-            cur.execute("""
-SELECT LEAST(
-  (SELECT ts 
-   FROM _ermrest.model_modified 
-   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
-   ORDER BY ts LIMIT 1),
-  (SELECT ts 
-   FROM _ermrest.table_modified 
-   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
-   ORDER BY ts LIMIT 1)
-);
-""" % {
-    'h_from': sql_literal(h_from),
-    'h_until': sql_literal(h_until),
-})
-            h_from = cur.next()[0]
-
-        if h_until is None:
-            cur.execute("""
-SELECT GREATEST(
-  (SELECT ts 
-   FROM _ermrest.model_modified 
-   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
-   ORDER BY ts DESC LIMIT 1),
-  (SELECT ts 
-   FROM _ermrest.table_modified 
-   WHERE tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> ts
-   ORDER BY ts DESC LIMIT 1)
-);
-""" % {
-    'h_from': sql_literal(h_from),
-    'h_until': sql_literal(h_until),
-})
-            h_until = cur.next()[0]
-
-        if h_from is None or h_until is None:
-            raise exception.rest.NotFound('history range [%s,%s)' % (h_from, h_until))
-
-        cur.execute(_RANGE_AMENDVER_SQL % {
-            'h_from': sql_literal(h_from),
-            'h_until': sql_literal(h_until),
-        })
-        amendver = cur.fetchone()
-        amendver = amendver[0] if amendver is not None else None
-
+        h_from, h_until, amendver = _validate_history_snaprange(cur)
         return (
             ( (h_from, h_until), amendver ),
             {
@@ -296,7 +299,7 @@ INSERT INTO _ermrest.catalog_amended (ts, during)
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
-def _validate_model_rid(cur, rid, restypes={'schema', 'table', 'column', 'key', 'pseudo_key', 'fkey', 'pseudo_fkey'}):
+def _validate_model_rid(cur, rid, h_from, u_until, restypes={'schema', 'table', 'column', 'key', 'pseudo_key', 'fkey', 'pseudo_fkey'}):
     for restype in restypes:
         cur.execute("""
 SELECT True FROM _ermrest_history.known_%(restype)ss WHERE "RID" = %(target_rid)s LIMIT 1;
@@ -308,7 +311,74 @@ SELECT True FROM _ermrest_history.known_%(restype)ss WHERE "RID" = %(target_rid)
         if res is not None:
             return restype
     raise exception.NotFound('Historical model resource with RID=%s' % rid)
-    
+
+def _get_crid_table_rid(cur, column_rid):
+    cur.execute("""
+SELECT rowdata->>'table_rid' FROM _ermrest_history.known_columns WHERE "RID" = %(target_rid)s LIMIT 1;
+""" % {
+    'target_rid': sql_literal(column_rid),
+})
+    return int(cur.fetchone()[0])
+
+def _crid_is_unpacked(cur, column_rid, readonly=True):
+    cur.execute("""
+SELECT array_agg(DISTINCT rowdata->>'column_name')
+FROM _ermrest_history.known_columns
+WHERE "RID" = %(column_rid)s
+""" % {
+    'column_rid': sql_literal(column_rid),
+})
+    cnames = set(cur.fetchone()[0])
+    unpacked_cnames = cnames.intersection({'RID', 'RMT', 'RMB'})
+    if unpacked_cnames:
+        if len(cnames) > 1:
+            raise NotImplementedError('Redaction column %s inconsistently in rowdata or unpacked?' % column_rid)
+        if len(unpacked_cnames) > 1:
+            raise NotImplementedError('Redaction column %s inconsistently as unpacked columns' % column_rid)
+        if not readonly:
+            raise exception.rest.Conflict('Redactive modification of column %s is not possible.' % column_rid)
+        return unpacked_cnames.pop()
+    else:
+        return False
+
+def _redact_column(cur, table_rid, target_rid, h_from, h_until, filter_rid=None, filter_value=None):
+    _crid_is_unpacked(cur, target_rid, readonly=False)
+
+    if filter_rid is not None:
+        unpacked = _crid_is_unpacked(cur, filter_rid)
+        v = json.loads(filter_value)
+        if unpacked == 'RID':
+            try:
+                v = int(v)
+            except:
+                raise exception.rest.Conflict('Filter value %s is not a valid integer RID.' % filter_value)
+            filter_clause = '"RID" = %d' % v
+        elif unpacked == 'RMB':
+            filter_clause = '"RMB" = %s::text' % sql_literal(v)
+        elif unpacked == 'RMT':
+            filter_clause = 'lower(during) = %s::timestamptz' % sql_literal(v)
+        elif unpacked is False:
+            filter_clause = 'rowdata->%s = %s::jsonb' % (sql_literal(filter_rid), sql_literal(filter_value))
+        else:
+            raise NotImplementedError('Redaction unpacked column %s' % unpacked)
+    else:
+        filter_clause = 'True'
+
+    # BUG: this only redacts wholly enclosed tuple versions...
+    # should we also split overlapping tuple versions and redact the enclosed portion?
+    cur.execute("""
+UPDATE _ermrest_history.%(htable_name)s
+SET rowdata = jsonb_set(rowdata, ARRAY[%(target_rid)s::text], 'null'::jsonb, False)
+WHERE %(filter_clause)s
+  AND tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> during ;
+""" % {
+    'htable_name': sql_identifier('t%d' % table_rid),
+    'target_rid': sql_literal(target_rid),
+    'filter_clause': filter_clause,
+    'h_from': sql_literal(h_from),
+    'h_until': sql_literal(h_until),
+})
+
 class DataHistory (Api):
     """Represents data history resources.
 
@@ -326,21 +396,59 @@ class DataHistory (Api):
         """Add a value filter to a data history resource."""
         self.filter_rid = filter_rid
         self.filter_val = filter_val
+        try:
+            s = json.loads(filter_val)
+        except:
+            raise exception.rest.BadRequest(u'Filter value %s is not valid JSON.' % filter_val)
         return self
 
-    def validate_target(self, cur):
-        self.target_type = _validate_model_rid(cur, self.target_rid, {'table', 'column'})
+    def validate_target(self, cur, h_from, h_until):
+        _validate_model_rid(cur, self.target_rid, h_from, h_until, {'column'})
+        if self.filter_rid is not None:
+            _validate_model_rid(cur, self.filter_rid, h_from, h_until, {'column'})
+
+    def GET_body(self, conn, cur):
+        self.enforce_right('owner')
+        h_from, h_until, amendver = _validate_history_snaprange(cur)
+        self.validate_target(cur, h_from, h_until)
+        return (
+            (h_from, h_until, amendver),
+            {
+                "amendver": _encode_ts(cur, amendver),
+                "snaprange": [ _encode_ts(cur, h_from), _encode_ts(cur, h_until) ],
+            }
+        )
+
+    def GET(self, uri):
+        return _GET(self, self.GET_body, _post_commit_json)
 
     def DELETE_body(self, conn, cur):
-        self.enforce_right('owner')
-        h_from, h_until = web.ctx.ermrest_history_range
+        h_from, h_until = web.ctx.ermrest_history_snaprange
         if h_from is None:
             raise exception.BadData('Redaction requires a lower time bound.')
         if h_until is None:
             raise exception.BadData('Redaction requires an upper time bound.')
-        self.validate_target(cur)
-        # TODO: perform data redaction
-        raise exception.ConflictModel('Historical data redaction not yet implemented.')
+
+        h_from, h_until, amendver = self.GET_body(conn, cur)[0]
+
+        table_rid = _get_crid_table_rid(cur, self.target_rid)
+
+        if self.filter_rid is not None:
+            if table_rid != _get_crid_table_rid(cur, self.filter_rid):
+                raise exception.rest.Conflict('Filter column %s and target column %s do not belong to the same table.' % (self.filter_rid, self.target_rid))
+
+        if not table_exists(cur, '_ermrest_history', 't%d' % table_rid):
+            raise exception.rest.Conflict('Target table %s for target column %s lacks history tracking.' % (table_rid, self.target_rid))
+
+        cur.execute("""
+INSERT INTO _ermrest.catalog_amended (ts, during)
+VALUES (now(), tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)'));
+""" % {
+    'h_from': sql_literal(h_from),
+    'h_until': sql_literal(h_until),
+    })
+
+        _redact_column(cur, table_rid, self.target_rid, h_from, h_until, self.filter_rid, self.filter_val)
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
@@ -375,7 +483,7 @@ class ConfigHistory (Api):
             self.target_type = 'catalog'
         else:
             # probe each resource type to figure out what the RID refers to...
-            self.target_type = _validate_mode_rid(cur, self.target_rid)
+            self.target_type = _validate_model_rid(cur, self.target_rid, h_from, h_until)
 
     def PUT_body(self, cur, content):
         self.enforce_right('owner')

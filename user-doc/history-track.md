@@ -27,8 +27,8 @@ Implementation Status:
 - [ ] Historical ACL amendment
 - [ ] Historical ACL binding amendment
 - [ ] Historical annotation amendment
-- [ ] Historical single attribute redaction
-- [ ] Historical single attribute redaction with basic filtering
+- [x] Historical single attribute redaction
+- [x] Historical single attribute redaction with basic filtering
 - [x] Catalog history truncation
 
 Future work requiring more investigation:
@@ -94,10 +94,15 @@ Historical access is defined in terms of a timestamp _revision_:
 
 - /ermrest/catalog/N
 - /ermrest/catalog/N@revision
-	
-where _revision_ is a URL-encoded timestamp. Each whole schema
-document will also gain a new `version` attribute at the top level to
-specify the effective revision timestamp for the model it describes.
+
+where _revision_ is an implementation-defined snapshot
+identifier. Each whole schema document will also gain a new `snaptime`
+attribute at the top level to specify the effective revision 
+for the model it describes.
+
+Currently, we are using a decimal string representing full
+microseconds since "epoch" time. This may change before we complete
+this work.
 
 The first URL form continues to denote the live, mutable catalog and
 all its subresources used for query end editing. The second,
