@@ -24,9 +24,9 @@ Implementation Status:
 - [x] Appropriate errors to reject historical access to non-tracked tables or views
 - [x] Caching of historical models in Python
 - [x] Change snapshot time format to URL-safe character string instead of human-readable timestamp text
-- [ ] Historical ACL amendment
+- [x] Historical ACL amendment
 - [ ] Historical ACL binding amendment
-- [ ] Historical annotation amendment
+- [x] Historical annotation amendment
 - [x] Historical single attribute redaction
 - [x] Historical single attribute redaction with basic filtering
 - [x] Catalog history truncation

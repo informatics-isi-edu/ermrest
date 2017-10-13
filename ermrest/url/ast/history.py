@@ -19,6 +19,10 @@ import json
 import web
 
 from ...model import current_request_snaptime
+from ...model.schema import Model, Schema
+from ...model.table import Table
+from ...model.column import Column
+from ...model.key import KeyReference, PseudoKeyReference
 from ... import exception
 from ...util import sql_literal, sql_identifier, table_exists
 from .api import Api
@@ -453,6 +457,139 @@ VALUES (now(), tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)'
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
+def _amend_config(cur, h_from, h_until, restype, configtype, rid, namecol, contentcol, contentmap):
+    cur.execute("""
+INSERT INTO _ermrest.catalog_amended (ts, during)
+VALUES (now(), tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)'))
+ON CONFLICT (ts) DO NOTHING;
+
+WITH content AS (
+  SELECT * FROM jsonb_each(%(contentmap)s::jsonb) j (key, value)
+), snaprange AS (
+  SELECT tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') AS snaprange
+), deleted AS (
+  -- clear out all overlapping configs so we can build up desired state
+  DELETE FROM _ermrest_history.known_%(restype)s_%(configtype)ss
+  WHERE during && (SELECT snaprange FROM snaprange)
+    AND %(rid_clause)s
+  RETURNING *
+), restore_prefix AS (
+  -- rebuild any preceding config by clamping upper
+  INSERT INTO _ermrest_history.known_%(restype)s_%(configtype)ss ("RID", during, "RMB", rowdata)
+  SELECT
+    "RID",
+    tstzrange(lower(during), %(h_from)s::timestamptz, '[)'),
+    "RMB",
+    rowdata
+  FROM deleted
+  WHERE lower(during) < %(h_from)s::timestamptz
+  RETURNING *
+), restore_suffix AS (
+  -- rebuild any succeeding config by clamping lower
+  -- HACK: existing RID may disappear and reappear before/after the amended interval
+  INSERT INTO _ermrest_history.known_%(restype)s_%(configtype)ss ("RID", during, "RMB", rowdata)
+  SELECT
+    "RID",
+    tstzrange(%(h_until)s::timestamptz, upper(during), '[)'),
+    "RMB",
+    rowdata
+  FROM deleted
+  WHERE upper(during) > %(h_until)s::timestamptz
+  RETURNING *
+), construct_amended AS (
+  -- now, create the desired config during the amended interval using fresh RIDs
+  INSERT INTO _ermrest_history.known_%(restype)s_%(configtype)ss ("RID", during, "RMB", rowdata)
+  SELECT
+    nextval('_ermrest.rid_seq'::regclass),
+    (SELECT snaprange FROM snaprange),
+    _ermrest.current_client(),
+    jsonb_build_object(
+      'RCB', _ermrest.current_client(),
+      'RCT', %(h_from)s::timestamptz::text,
+      %(j_rid_field)s
+      '%(namecol)s', key,
+      '%(contentcol)s', value
+    )
+  FROM content
+  RETURNING *
+)
+SELECT jsonb_build_object(
+    'content',   (SELECT jsonb_agg(to_jsonb(s)) FROM content s),
+    'snaprange', (SELECT jsonb_agg(to_jsonb(s)) FROM snaprange s),
+    'deleted',   (SELECT jsonb_agg(to_jsonb(s)) FROM deleted s),
+    'prefix',    (SELECT jsonb_agg(to_jsonb(s)) FROM restore_prefix s),
+    'suffix',    (SELECT jsonb_agg(to_jsonb(s)) FROM restore_suffix s),
+    'construct', (SELECT jsonb_agg(to_jsonb(s)) FROM construct_amended s)
+);
+""" % {
+    'h_from': sql_literal(h_from),
+    'h_until': sql_literal(h_until),
+    'restype': restype,
+    'configtype': configtype,
+    'rid_clause': ("rowdata->'%s_rid' = to_jsonb(%s::int8)" % (restype, sql_literal(rid))) if rid is not None else 'True',
+    'j_rid_field': ("'%s_rid', to_jsonb(%s::int8)," % (restype, sql_literal(rid))) if rid is not None else "",
+    'namecol': namecol,
+    'contentcol': contentcol,
+    'contentmap': sql_literal(json.dumps(contentmap)),
+})
+    #web.debug('_amend_config:', cur.fetchone()[0])
+
+def _amend_acl(cur, h_from, h_until, restype, rid, contentmap):
+    try:
+        subject_class = {
+            'catalog': Model,
+            'schema': Schema,
+            'table': Table,
+            'column': Column,
+            'fkey': KeyReference,
+            'pseudo_fkey': PseudoKeyReference,
+        }[restype]
+    except KeyError:
+        raise exception.rest.Conflict('ACLs are not supported on selected %s resource.' % restype)
+
+    for name, content in contentmap.items():
+        if name not in subject_class._acls_supported:
+            raise exception.rest.Conflict('ACL name "%s" not supported on %s resources.' % (name, restype))
+
+        if not isinstance(content, (list, type(None))):
+            raise exception.rest.BadRequest('ACL content must be a list or null.')
+
+    contentmap = {
+        k: v
+        for k, v in contentmap.items()
+        if v is not None
+    }
+
+    _amend_config(cur, h_from, h_until, restype, 'acl', rid, 'acl', 'members', contentmap)
+
+def _amend_acl_binding(cur, h_from, h_until, restype, rid, contentmap):
+    try:
+        subject_class = {
+            'table': Table,
+            'column': Column,
+            'fkey': KeyReference,
+            'pseudo_fkey': PseudoKeyReference,
+        }[restype]
+    except KeyError:
+        raise exception.rest.Conflict('ACL bindings are not supported on selected %s resource.' % restype)
+
+    for name, content in contentmap.items():
+        if not isinstance(name, (str, unicode)):
+            raise exception.rest.Conflict('ACL binding names must be textual.')
+
+        if not (isinstance(content, dict) or content is False):
+            raise exception.rest.BadRequest('ACL binding must be an object or false value.')
+        # TODO: further ACL binding validation...?
+
+    _amend_config(cur, h_from, h_until, restype, 'dynacl', rid, 'binding_name', 'binding', contentmap)
+
+def _amend_annotation(cur, h_from, h_until, restype, rid, contentmap):
+    for name, content in contentmap.items():
+        if not isinstance(name, (str, unicode)):
+            raise exception.rest.Conflict('Annotation keys must be textual.')
+
+    _amend_config(cur, h_from, h_until, restype, 'annotation', rid, 'annotation_uri', 'annotation_value', contentmap)
+
 class ConfigHistory (Api):
     """Represents over-writable configuration resources.
 
@@ -466,34 +603,52 @@ class ConfigHistory (Api):
 
     """
     subresource_apis = {
-        'acl':         (),
-        'acl_binding': (),
-        'annotation':  (),
+        'acl':         (_amend_acl),
+        'acl_binding': (_amend_acl_binding),
+        'annotation':  (_amend_annotation),
     }
     
     def __init__(self, history_catalog, subresource_api, target_rid=None):
         Api.__init__(self, history_catalog)
-        assert subresource_api in subresource_apis
+        assert subresource_api in self.subresource_apis
         self.subresource_api = subresource_api
         self.target_rid = target_rid
         self.target_type = None
 
-    def validate_target(self, cur):
+    def validate_target(self, cur, h_from, h_until):
         if self.target_rid is None:
             self.target_type = 'catalog'
         else:
             # probe each resource type to figure out what the RID refers to...
             self.target_type = _validate_model_rid(cur, self.target_rid, h_from, h_until)
 
-    def PUT_body(self, cur, content):
+    def GET_body(self, conn, cur):
         self.enforce_right('owner')
+        h_from, h_until, amendver = _validate_history_snaprange(cur)
+        self.validate_target(cur, h_from, h_until)
+        return (
+            (h_from, h_until, amendver),
+            {
+                "amendver": _encode_ts(cur, amendver),
+                "snaprange": [ _encode_ts(cur, h_from), _encode_ts(cur, h_until) ],
+            }
+        )
+
+    def GET(self, uri):
+        return _GET(self, self.GET_body, _post_commit_json)
+
+    def PUT_body(self, conn, cur, content):
+        h_from, h_until = web.ctx.ermrest_history_snaprange
         if h_from is None:
-            raise exception.BadData('Historical %s amendment requires a lower time bound.' % self.subresource_api)
+            raise exception.rest.BadData('Historical %s amendment requires a lower time bound.' % self.subresource_api)
         if h_until is None:
-            raise exception.BadData('Historical %s amendment requires an upper time bound.' % self.subresource_api)
-        self.validate_target(cur)
-        # TODO: amend historical config
-        raise exception.ConflictModel('Historical %s amendment not yet implemented.' % self.subresource_api)
+            raise exception.rest.BadData('Historical %s amendment requires an upper time bound.' % self.subresource_api)
+
+        if not isinstance(content, dict):
+            raise exception.rest.BadRequest('Amendment input must be a key-value mapping object.')
+
+        h_from, h_until, amendver = self.GET_body(conn, cur)[0]
+        self.subresource_apis[self.subresource_api](cur, h_from, h_until, self.target_type, self.target_rid, content)
 
     def PUT(self, uri):
         return _MODIFY_with_json_input(self, self.PUT_body, _post_commit)
