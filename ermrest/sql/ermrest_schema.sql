@@ -88,22 +88,19 @@ BEGIN
   encoded := '';
   
   FOR d IN 1..13 LOOP
-    code := substring(raw from 1 for 5)::int;
-    IF code = 0 AND encoded = ''
+    IF d > 2 AND (d-1) % 4 = 0
     THEN
-      -- drop prefix
-    ELSE
-      encoded := encoded || symbols[ code + 1 ];
+      encoded := '-' || encoded;
     END IF;
-    raw := raw << 5;
+    code := substring(raw from 61 for 5)::int;
+    encoded := symbols[ code + 1 ] || encoded;
+    raw := raw >> 5;
   END LOOP;
 
-  IF encoded = ''
-  THEN
-    RETURN '0';
-  ELSE
-    RETURN encoded;
-  END IF;
+  encoded := regexp_replace(encoded, '^[0-]+', '');
+  IF encoded = '' THEN encoded := '0'; END IF;
+
+  RETURN encoded;
 END;
 $$ LANGUAGE plpgsql;
 
