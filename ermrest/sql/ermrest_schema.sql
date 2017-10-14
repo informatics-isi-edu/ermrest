@@ -165,11 +165,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.tstzencode(timestamptz) RETURNS text IMMUTABLE AS $$
-  SELECT (floor(EXTRACT(epoch FROM $1))::int8 * 1000000 + EXTRACT(microseconds FROM $1)::int8 % 1000000)::text;
+  SELECT _ermrest.urlb32_encode(floor(EXTRACT(epoch FROM $1))::int8 * 1000000 + EXTRACT(microseconds FROM $1)::int8 % 1000000);
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.tstzdecode(text) RETURNS timestamptz IMMUTABLE AS $$
-  SELECT timestamptz('epoch') + ($1::int8 / 1000000) * interval '1 second' + ($1::int8 % 1000000) * interval '1 microsecond';
+  SELECT timestamptz('epoch') + (_ermrest.urlb32_decode($1) / 1000000) * interval '1 second' + (_ermrest.urlb32_decode($1) % 1000000) * interval '1 microsecond';
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.current_client() RETURNS text STABLE AS $$

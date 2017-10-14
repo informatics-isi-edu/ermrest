@@ -53,8 +53,11 @@ class Model (object):
         return json.dumps(self.prejson(), indent=2)
 
     def prejson(self):
+        cur = web.ctx.ermrest_catalog_pc.cur
+        cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(self.snaptime))
+        snaptime = cur.fetchone()[0]
         doc = {
-            #"modelsnap": unicode(self.modelsnap),
+            "snaptime": snaptime,
             "annotations": self.annotations,
             "rights": self.rights(),
             "schemas": {

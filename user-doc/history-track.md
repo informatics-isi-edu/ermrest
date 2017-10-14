@@ -100,9 +100,10 @@ identifier. Each whole schema document will also gain a new `snaptime`
 attribute at the top level to specify the effective revision 
 for the model it describes.
 
-Currently, we are using a decimal string representing full
+Currently, we are using a base-32 string representing full
 microseconds since "epoch" time. This may change before we complete
-this work.
+this work. An example is `2NP-XR15-7BY6` which corresponds to
+`2017-10-13 17:39:22.308579-07`.
 
 The first URL form continues to denote the live, mutable catalog and
 all its subresources used for query end editing. The second,
