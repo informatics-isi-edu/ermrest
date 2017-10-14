@@ -134,11 +134,11 @@ def p_catalog_rangeslash(p):
     p[0] = p[1]
 
 def p_data_range(p):
-    """data_range : catalog_rangeslash ATTRIBUTE '/' NUMSTRING """
+    """data_range : catalog_rangeslash ATTRIBUTE '/' string """
     p[0] = ast.history.DataHistory(p[1].catalog, p[4])
 
 def p_data_range_filtered(p):
-    """data_range : data_range '/' NUMSTRING '=' string """
+    """data_range : data_range '/' string '=' string """
     p[0] = p[1].filtered(p[3], p[5])
 
 def p_config_api(p):
@@ -152,8 +152,8 @@ def p_config_range(p):
     p[0] = ast.history.ConfigHistory(p[1].catalog, p[2])
 
 def p_config_range2(p):
-    """config_range : catalog_rangeslash NUMSTRING '/' config_api """
-    p[0] = ast.history.ConfigHistory(p[1].catalog, p[4], target_rid=p[2])
+    """config_range : catalog_rangeslash config_api '/' string"""
+    p[0] = ast.history.ConfigHistory(p[1].catalog, p[2], target_rid=p[4])
 
 def p_catalogslash(p):
     """catalogslash : catalog '/' """

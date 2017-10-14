@@ -25,7 +25,7 @@ Implementation Status:
 - [x] Caching of historical models in Python
 - [x] Change snapshot time format to URL-safe character string instead of human-readable timestamp text
 - [x] Historical ACL amendment
-- [ ] Historical ACL binding amendment
+- [x] Historical ACL binding amendment
 - [x] Historical annotation amendment
 - [x] Historical single attribute redaction
 - [x] Historical single attribute redaction with basic filtering
@@ -271,7 +271,7 @@ A similar operation is possible for each different ACL subjects
 by including the RID of the subject:
 
 - catalog: `/ermrest/catalog/N/history/from,until/acl`
-- model element: `/ermrest/catalog/N/history/from,until/RID/acl`
+- model element: `/ermrest/catalog/N/history/from,until/acl/RID`
    - schema RID
    - table RID
    - column RID
@@ -311,7 +311,7 @@ A similar operation is possible for each different type of annotation
 subject by including the RID of the subject:
 
 - catalog: `/ermrest/catalog/N/history/from,until/annotation`
-- model element: `/ermrest/catalog/N/history/from,until/RID/annotation`
+- model element: `/ermrest/catalog/N/history/from,until/annotation/RID`
    - schema RID
    - table RID
    - column RID
@@ -389,11 +389,11 @@ their own `[from,until)` intervals which chain together to span the
 whole range of the request. Each document would have its own
 configuration content.
 
-- `GET /ermrest/catalog/N/history/from,until/RID/acl`
+- `GET /ermrest/catalog/N/history/from,until/acl/RID`
    - Content example: `{"from": T1, "until": T2, "acls": {aclname: members, ...}}`
-- `GET /ermrest/catalog/N/history/from,until/RID/acl_binding`
+- `GET /ermrest/catalog/N/history/from,until/acl_binding/RID`
    - Content example: `{"from": T1, "until": T2, "acl_bindings": {bindingname: binding, ...}}`
-- `GET /ermrest/catalog/N/history/from,until/RID/annotation`
+- `GET /ermrest/catalog/N/history/from,until/annotation/RID`
    - Content example: `{"from": T1, "until": T2, "annotations": {key: annotation_value, ...}}`
 - `GET /ermrest/catalog/N/history/from,until/attribute/CRID/FRID=X`
    - Content example: `{"from": T1, "until": T2, "tuple": {CRID: Y}}`
