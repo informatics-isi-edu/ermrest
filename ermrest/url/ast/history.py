@@ -484,7 +484,7 @@ WITH content AS (
     "RMB",
     rowdata
   FROM deleted
-  WHERE lower(during) < %(h_from)s::timestamptz
+  WHERE lower(during) < %(h_from)s::timestamptz OR lower(during) IS NULL
   RETURNING *
 ), restore_suffix AS (
   -- rebuild any succeeding config by clamping lower
@@ -496,7 +496,7 @@ WITH content AS (
     "RMB",
     rowdata
   FROM deleted
-  WHERE upper(during) > %(h_until)s::timestamptz
+  WHERE upper(during) > %(h_until)s::timestamptz OR upper(during) IS NULL
   RETURNING *
 ), construct_amended AS (
   -- now, create the desired config during the amended interval using fresh RIDs
