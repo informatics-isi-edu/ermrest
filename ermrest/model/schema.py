@@ -223,6 +223,7 @@ SELECT _ermrest.model_version_bump();
 
     def prejson(self):
         doc = {
+            "RID": self.rid,
             "schema_name": self.name,
             "comment": self.comment,
             "rights": self.rights(),

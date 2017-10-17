@@ -195,6 +195,7 @@ RETURNING key_rid;
 
     def prejson(self):
         return {
+            'RID': self.rid,
             'comment': self.comment,
             'annotations': self.annotations,
             'unique_columns': [ c.name for c in self.columns ],
@@ -265,6 +266,7 @@ SELECT _ermrest.model_version_bump();
         
     def prejson(self):
         return {
+            'RID': self.rid,
             'comment': self.comment,
             'annotations': self.annotations,
             'unique_columns': [ c.name for c in self.columns ],
@@ -413,6 +415,7 @@ def _keyref_prejson(self):
         fcs.append( fc.prejson_ref() )
         pcs.append( self.reference_map[fc].prejson_ref() )
     doc = {
+        'RID': self.rid,
         'foreign_key_columns': fcs,
         'referenced_columns': pcs,
         'rights': self.rights(),

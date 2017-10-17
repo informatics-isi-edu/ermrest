@@ -372,6 +372,7 @@ WHERE "RID" = %s;
 
     def prejson(self):
         doc = {
+            "RID": self.rid,
             "schema_name": self.schema.name,
             "table_name": self.name,
             "rights": self.rights(),
