@@ -332,8 +332,6 @@ class Unicode (common.ErmrestTest):
     def test_7_badcsv(self):
         for hdr in [
                 u"id,%s" % self.cname,
-                u"id",
-                self.cname,
                 u"id,%s" % self.tname
         ]:
             for row in [
