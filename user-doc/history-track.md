@@ -282,7 +282,7 @@ by including the RID of the subject:
 
 A collection of ACL binding resources can be mutated over a *time span*:
 
-    PUT /ermrest/catalog/N/history/from,until/RID/acl_binding
+    PUT /ermrest/catalog/N/history/from,until/acl_binding/RID
     Content-Type: application/json
     
     {bindingname: binding, ...}
