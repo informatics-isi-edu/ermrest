@@ -251,7 +251,8 @@ GROUP BY a.%(grpcol)s ;
     'grpcol': grpcol,
     'when': sql_literal(snapwhen),
 })
-        for rid, dynacls in cur:
+        rows = list(cur) # pre-fetch the result in case we use cursor in constructor code below...
+        for rid, dynacls in rows:
             resource = resourceset[rid]
             resource.dynacls.update({
                 binding_name: AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
