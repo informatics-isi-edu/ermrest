@@ -299,6 +299,7 @@ INSERT INTO _ermrest.catalog_amended (ts, during)
                 truncate_htable(table_rid, htable_name)
 
         fixup_catalog_metadata()
+        return ''
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
@@ -453,6 +454,7 @@ VALUES (now(), tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)'
     })
 
         _redact_column(cur, table_rid, self.target_rid, h_from, h_until, self.filter_rid, self.filter_val)
+        return ''
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
@@ -640,15 +642,16 @@ class ConfigHistory (Api):
     def PUT_body(self, conn, cur, content):
         h_from, h_until = web.ctx.ermrest_history_snaprange
         if h_from is None:
-            raise exception.rest.BadData('Historical %s amendment requires a lower time bound.' % self.subresource_api)
+            raise exception.rest.BadRequest('Historical %s amendment requires a lower time bound.' % self.subresource_api)
         if h_until is None:
-            raise exception.rest.BadData('Historical %s amendment requires an upper time bound.' % self.subresource_api)
+            raise exception.rest.BadRequest('Historical %s amendment requires an upper time bound.' % self.subresource_api)
 
         if not isinstance(content, dict):
             raise exception.rest.BadRequest('Amendment input must be a key-value mapping object.')
 
         h_from, h_until, amendver = self.GET_body(conn, cur)[0]
         self.subresource_apis[self.subresource_api](cur, h_from, h_until, self.target_type, self.target_rid, content)
+        return ''
 
     def PUT(self, uri):
         return _MODIFY_with_json_input(self, self.PUT_body, _post_commit)
