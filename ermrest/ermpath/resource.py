@@ -493,10 +493,6 @@ class EntityElem (object):
                     else:
                         raise ConflictModel('CSV column %s not recognized.' % cn)
 
-            if len(inputcol_names) > 0:
-                raise ConflictModel('CSV input missing required columns: %s' 
-                              % ', '.join([ '"%s"' % cn for cn in inputcol_names ]))
-
             try:
                 cur.copy_expert(
                 """
