@@ -301,7 +301,7 @@ class ZHistory (common.ErmrestTest):
         when = r.json()['snaprange'][1]
         when = when[0:-4] + '0000'
         self.assertHttp(self.session.delete(self.url(huntil=when)), 204)
-        self.assertHttp(self.session.delete(self.url(huntil=when)), 404)
+        self.assertHttp(self.session.delete(self.url(huntil=when)), (404, 409))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
