@@ -61,10 +61,11 @@ SELECT
   current_database() AS catalog_name,
   nc.nspname AS schema_name,
   obj_description(nc.oid) AS schema_comment
-FROM 
+FROM
   pg_catalog.pg_namespace nc
 WHERE
   nc.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  AND nc.nspname !~ '^pg_(toast_)?temp_'
   AND NOT pg_is_other_temp_schema(nc.oid);
     '''
 
@@ -80,6 +81,7 @@ FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace nc ON (c.relnamespace = nc.oid)
 LEFT JOIN pg_catalog.pg_attribute a ON (a.attrelid = c.oid)
 WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+  AND nc.nspname !~ '^pg_(toast_)?temp_'
   AND NOT pg_is_other_temp_schema(nc.oid) 
   AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'm'::"char"]))
   AND (pg_has_role(c.relowner, 'USAGE'::text) OR has_column_privilege(c.oid, a.attnum, 'SELECT, INSERT, UPDATE, REFERENCES'::text))
@@ -145,6 +147,7 @@ LEFT JOIN pg_catalog.pg_type bt ON (t.typtype = 'd'::"char" AND t.typbasetype = 
 LEFT JOIN pg_catalog.pg_type bet ON (bt.typelem = bet.oid)
 LEFT JOIN pg_catalog.pg_namespace nbt ON (bt.typnamespace = nbt.oid)
 WHERE nc.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+  AND nc.nspname !~ '^pg_(toast_)?temp_'
   AND NOT pg_is_other_temp_schema(nc.oid) 
   AND a.attnum > 0
   AND NOT a.attisdropped
