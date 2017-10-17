@@ -13,6 +13,7 @@ from comments import *
 from ctypes import *
 from data import *
 from degenerate import *
+from history import *
 from joins import *
 from paging import *
 from preconditions import *
