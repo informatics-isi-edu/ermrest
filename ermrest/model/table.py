@@ -46,7 +46,7 @@ import web
 @keying(
     'table',
     {
-        "table_rid": ('int8', lambda self: self.rid)
+        "table_rid": ('text', lambda self: self.rid)
     }
 )
 class Table (object):
@@ -109,7 +109,7 @@ class Table (object):
             return False
         # a table without history is not enumerable during historical access
         if web.ctx.ermrest_history_snaptime is not None:
-            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
+            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
                 return False
         return self._has_right(aclname, roles)
 
@@ -420,7 +420,7 @@ WHERE "RID" = %s;
            The result is a schema-qualified table name for dynauthz=None, else a subquery.
         """
         if web.ctx.ermrest_history_snaptime is not None:
-            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%d' % self.rid):
+            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
                 raise exception.ConflictModel(u'Historical data not available for table %s.' % unicode(self.name))
             tsql = """
 (SELECT %(projs)s
@@ -437,7 +437,7 @@ WHERE "RID" = %s;
         for c in self.columns_in_order()
         if c.type.history_unpack(c)
     ]),
-    'htable': "_ermrest_history.t%d" % self.rid,
+    'htable': "_ermrest_history.%s" % sql_identifier("t%s" % self.rid),
     'when': sql_literal(web.ctx.ermrest_history_snaptime),
 }
         else:

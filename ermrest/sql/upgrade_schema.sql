@@ -22,15 +22,15 @@ DECLARE
   proc record;
 
   pkey record;
-  pk_rid int8;
-  t_rid int8;
+  pk_rid text;
+  t_rid text;
   
   pfkey record;
   ridmatch record;
-  fk1_rid int8;
-  fk2_rid int8;
-  t1_rid int8;
-  t2_rid int8;
+  fk1_rid text;
+  fk2_rid text;
+  t1_rid text;
+  t2_rid text;
 BEGIN
 -- NOTE, we don't indent this block so editing below is easier...
 
@@ -49,14 +49,14 @@ ON CONFLICT (table_rid) DO NOTHING;
 
 -- helpers for converting old model decorations
 
-CREATE OR REPLACE FUNCTION _ermrest.find_key_rid(sname text, tname text, cnames text[], OUT rid int8, OUT is_physical boolean) AS $$
+CREATE OR REPLACE FUNCTION _ermrest.find_key_rid(sname text, tname text, cnames text[], OUT rid text, OUT is_physical boolean) AS $$
 DECLARE
-  t_rid int8;
-  c_rids int8[];
+  t_rid text;
+  c_rids text[];
 BEGIN
   t_rid := _ermrest.find_table_rid($1, $2);
 
-  SELECT array_agg(c."RID"::int8 ORDER BY c."RID") INTO c_rids
+  SELECT array_agg(c."RID"::text ORDER BY c."RID") INTO c_rids
   FROM (SELECT unnest($3)) a (column_name)
   JOIN _ermrest.known_columns c ON (c.column_name = a.column_name AND c.table_rid = t_rid);
 
@@ -64,7 +64,7 @@ BEGIN
   FROM (
     SELECT
       kc.key_rid,
-      array_agg(kc.column_rid::int8 ORDER BY kc.column_rid) AS column_rids
+      array_agg(kc.column_rid::text ORDER BY kc.column_rid) AS column_rids
     FROM _ermrest.known_key_columns kc JOIN _ermrest.known_keys k ON (kc.key_rid = k."RID")
     WHERE k.table_rid = t_rid
     GROUP BY kc.key_rid
@@ -79,7 +79,7 @@ BEGIN
   FROM (
     SELECT
       kc.key_rid,
-      array_agg(kc.column_rid::int8 ORDER BY kc.column_rid) AS column_rids
+      array_agg(kc.column_rid::text ORDER BY kc.column_rid) AS column_rids
     FROM _ermrest.known_pseudo_key_columns kc JOIN _ermrest.known_pseudo_keys k ON (kc.key_rid = k."RID")
     WHERE k.table_rid = t_rid
     GROUP BY kc.key_rid
@@ -92,21 +92,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.find_fkey_rid(fk_sname text, fk_tname text, fk_cnames text[], pk_sname text, pk_tname text, pk_cnames text[], OUT rid int8, OUT is_physical boolean) AS $$
+CREATE OR REPLACE FUNCTION _ermrest.find_fkey_rid(fk_sname text, fk_tname text, fk_cnames text[], pk_sname text, pk_tname text, pk_cnames text[], OUT rid text, OUT is_physical boolean) AS $$
 DECLARE
-  fkt_rid int8;
-  pkt_rid int8;
-  fkc_rids int8[];
-  pkc_rids int8[];
+  fkt_rid text;
+  pkt_rid text;
+  fkc_rids text[];
+  pkc_rids text[];
 BEGIN
   fkt_rid := _ermrest.find_table_rid($1, $2);
   pkt_rid := _ermrest.find_table_rid($4, $5);
 
-  SELECT array_agg(c."RID"::int8 ORDER BY c."RID") INTO fkc_rids
+  SELECT array_agg(c."RID"::text ORDER BY c."RID") INTO fkc_rids
   FROM (SELECT unnest($3)) a (column_name)
   JOIN _ermrest.known_columns c ON (c.column_name = a.column_name AND c.table_rid = fkt_rid);
 
-  SELECT array_agg(c."RID"::int8 ORDER BY c."RID") INTO pkc_rids
+  SELECT array_agg(c."RID"::text ORDER BY c."RID") INTO pkc_rids
   FROM (SELECT unnest($6)) a (column_name)
   JOIN _ermrest.known_columns c ON (c.column_name = a.column_name AND c.table_rid = pkt_rid);
 
@@ -114,8 +114,8 @@ BEGIN
   FROM (
     SELECT
       fkc.fkey_rid,
-      array_agg(fkc.fk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS fk_column_rids,
-      array_agg(fkc.pk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS pk_column_rids
+      array_agg(fkc.fk_column_rid::text ORDER BY fkc.fk_column_rid) AS fk_column_rids,
+      array_agg(fkc.pk_column_rid::text ORDER BY fkc.fk_column_rid) AS pk_column_rids
     FROM _ermrest.known_fkey_columns fkc
     JOIN _ermrest.known_fkeys fk ON (fkc.fkey_rid = fk."RID")
     WHERE fk.fk_table_rid = fkt_rid
@@ -132,8 +132,8 @@ BEGIN
   FROM (
     SELECT
       fkc.fkey_rid,
-      array_agg(fkc.fk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS fk_column_rids,
-      array_agg(fkc.pk_column_rid::int8 ORDER BY fkc.fk_column_rid) AS pk_column_rids
+      array_agg(fkc.fk_column_rid::text ORDER BY fkc.fk_column_rid) AS fk_column_rids,
+      array_agg(fkc.pk_column_rid::text ORDER BY fkc.fk_column_rid) AS pk_column_rids
     FROM _ermrest.known_pseudo_fkey_columns fkc
     JOIN _ermrest.known_pseudo_fkeys fk ON (fkc.fkey_rid = fk."RID")
     WHERE fk.fk_table_rid = fkt_rid

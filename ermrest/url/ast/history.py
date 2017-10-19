@@ -210,7 +210,7 @@ WHERE t.during && tstzrange(NULL, %(h_until)s::timestamptz, '[)');
             cur.execute("""
 SELECT True
 FROM _ermrest_history.known_tables
-WHERE "RID" = %(table_rid)s::int8
+WHERE "RID" = %(table_rid)s::text
   AND lower(during) >= %(h_until)s::timestamptz
 LIMIT 1;
 """ % {
@@ -220,7 +220,7 @@ LIMIT 1;
             is_visible = cur.fetchone() is not None
             if not is_visible:
                 # sanity check
-                cur.execute('SELECT True FROM _ermrest.known_tables WHERE "RID" = %s' % table_rid);
+                cur.execute('SELECT True FROM _ermrest.known_tables WHERE "RID" = %s' % sql_literal(table_rid));
                 assert cur.fetchone() is None
             return is_visible
 
@@ -288,7 +288,7 @@ INSERT INTO _ermrest.catalog_amended (ts, during)
         user_tables, system_tables = affected_tables()
         
         for table_rid in user_tables:
-            htable_name = 't%d' % table_rid
+            htable_name = 't%s' % table_rid
             if visible_after(table_rid):
                 truncate_htable(table_rid, htable_name)
             else:
@@ -323,7 +323,7 @@ SELECT rowdata->>'table_rid' FROM _ermrest_history.known_columns WHERE "RID" = %
 """ % {
     'target_rid': sql_literal(column_rid),
 })
-    return int(cur.fetchone()[0])
+    return cur.fetchone()[0]
 
 def _crid_is_unpacked(cur, column_rid, readonly=True):
     cur.execute("""
@@ -353,11 +353,7 @@ def _redact_column(cur, table_rid, target_rid, h_from, h_until, filter_rid=None,
         unpacked = _crid_is_unpacked(cur, filter_rid)
         v = json.loads(filter_value)
         if unpacked == 'RID':
-            try:
-                v = int(v)
-            except:
-                raise exception.rest.Conflict('Filter value %s is not a valid integer RID.' % filter_value)
-            filter_clause = '"RID" = %d' % v
+            filter_clause = '"RID" = %s::text' % sql_literal(v)
         elif unpacked == 'RMB':
             filter_clause = '"RMB" = %s::text' % sql_literal(v)
         elif unpacked == 'RMT':
@@ -377,7 +373,7 @@ SET rowdata = jsonb_set(rowdata, ARRAY[%(target_rid)s::text], 'null'::jsonb, Fal
 WHERE %(filter_clause)s
   AND tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') @> during ;
 """ % {
-    'htable_name': sql_identifier('t%d' % table_rid),
+    'htable_name': sql_identifier('t%s' % table_rid),
     'target_rid': sql_literal(target_rid),
     'filter_clause': filter_clause,
     'h_from': sql_literal(h_from),
@@ -442,7 +438,7 @@ class DataHistory (Api):
             if table_rid != _get_crid_table_rid(cur, self.filter_rid):
                 raise exception.rest.Conflict('Filter column %s and target column %s do not belong to the same table.' % (self.filter_rid, self.target_rid))
 
-        if not table_exists(cur, '_ermrest_history', 't%d' % table_rid):
+        if not table_exists(cur, '_ermrest_history', 't%s' % table_rid):
             raise exception.rest.Conflict('Target table %s for target column %s lacks history tracking.' % (table_rid, self.target_rid))
 
         cur.execute("""
@@ -528,8 +524,8 @@ SELECT jsonb_build_object(
     'h_until': sql_literal(h_until),
     'restype': restype,
     'configtype': configtype,
-    'rid_clause': ("rowdata->'%s_rid' = to_jsonb(%s::int8)" % (restype, sql_literal(rid))) if rid is not None else 'True',
-    'j_rid_field': ("'%s_rid', to_jsonb(%s::int8)," % (restype, sql_literal(rid))) if rid is not None else "",
+    'rid_clause': ("rowdata->'%s_rid' = to_jsonb(%s::text)" % (restype, sql_literal(rid))) if rid is not None else 'True',
+    'j_rid_field': ("'%s_rid', to_jsonb(%s::text)," % (restype, sql_literal(rid))) if rid is not None else "",
     'namecol': namecol,
     'contentcol': contentcol,
     'contentmap': sql_literal(json.dumps(contentmap)),

@@ -282,7 +282,7 @@ class Type (object):
         elif self.name in {'json','jsonb'}:
             return None
         else:
-            return '%s %s' % (sql_identifier('%d' % c.rid), self.sql(basic_storage=True))
+            return '%s %s' % (sql_identifier(c.rid), self.sql(basic_storage=True))
 
     def history_projection(self, c):
         if c.name in {'RID','RMB'}:
@@ -290,9 +290,9 @@ class Type (object):
         elif c.name == 'RMT':
             return 'lower(h.during)::%s AS "RMT"' % self.sql(basic_storage=True)
         elif self.name in {'json','jsonb'}:
-            return '(h.rowdata->%s)::%s AS %s' % (sql_literal('%d' % c.rid), self.sql(basic_storage=True), c.sql_name())
+            return '(h.rowdata->%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
         else:
-            return 'r.%s AS %s' % (sql_identifier('%d' % c.rid), c.sql_name())
+            return 'r.%s AS %s' % (sql_identifier(c.rid), c.sql_name())
 
     @staticmethod
     def fromjson(typedoc, ermrest_config):
@@ -338,7 +338,7 @@ class ArrayType(Type):
             " END AS %(fname)s"
         ) % {
             # unpack with -> for json elements, ->> for all else
-            'hfield': "(h.rowdata->%s'%d')" % ('' if self.base_type.name in {'json','jsonb'} else '>', c.rid),
+            'hfield': "(h.rowdata->%s'%s')" % ('' if self.base_type.name in {'json','jsonb'} else '>', c.rid),
             'array_type': self.sql(basic_storage=True),
             'base_type': self.base_type.sql(basic_storage=True),
             'fname': c.sql_name(),

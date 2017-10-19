@@ -23,7 +23,7 @@ import web
 import json
 
 @annotatable
-@keying('key', {"key_rid": ('int8', lambda self: self.rid)})
+@keying('key', {"key_rid": ('text', lambda self: self.rid)})
 class Unique (object):
     """A unique constraint."""
     
@@ -211,7 +211,7 @@ RETURNING key_rid;
         return True
 
 @annotatable
-@keying('pseudo_key', {"pkey_rid": ('int8', lambda self: self.rid)})
+@keying('pseudo_key', {"pkey_rid": ('text', lambda self: self.rid)})
 class PseudoUnique (object):
     """A pseudo-uniqueness constraint."""
 
@@ -303,7 +303,7 @@ INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
 SELECT %(rid)s, c.rid FROM unnest(%(col_rids)s) c(rid);
 """ % {
     'rid': sql_literal(self.rid),
-    'col_rids': 'ARRAY[%s]::int8[]' % (','.join([ sql_literal(c.rid) for c in self.columns ])),
+    'col_rids': 'ARRAY[%s]::text[]' % (','.join([ sql_literal(c.rid) for c in self.columns ])),
 })
 
     def delete(self, conn, cur):
@@ -452,7 +452,7 @@ def _keyref_has_right(self, aclname, roles=None):
     {"insert", "update"},
     lambda self: self.foreign_key.table
 )
-@keying('fkey', {"fkey_rid": ('int8', lambda self: self.rid)})
+@keying('fkey', {"fkey_rid": ('text', lambda self: self.rid)})
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
@@ -707,7 +707,7 @@ RETURNING fkey_rid;
     {"insert", "update"},
     lambda self: self.foreign_key.table
 )
-@keying('pseudo_fkey', {"fkey_rid": ('int8', lambda self: self.id)})
+@keying('pseudo_fkey', {"fkey_rid": ('text', lambda self: self.id)})
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     

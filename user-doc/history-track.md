@@ -41,7 +41,7 @@ Future work requiring more investigation:
 ## Overview of Design
 
 1. The design depends heavily on new _system columns_ used throughout:
-   - `RID` a numeric resource or row ID as primary key
+   - `RID` a resource/row ID as primary key
    - `RMT` row modification timestamp
    - `RMB` row modified by client ID
    - `RCT` row creation timestamp

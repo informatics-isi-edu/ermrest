@@ -31,7 +31,7 @@ from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_right
     {"insert", "update", "select", "delete"},
     lambda self: self.table
 )
-@keying('column', {"column_rid": ('int8', lambda self: self.rid)})
+@keying('column', {"column_rid": ('text', lambda self: self.rid)})
 class Column (object):
     """Represents a table column.
     

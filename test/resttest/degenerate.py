@@ -89,7 +89,7 @@ class ConstraintCollision (common.ErmrestTest):
             ),
             TableDoc(
                 self._T2,
-                [ RID, RCT, RMT, RCB, RMB, ColumnDoc('t1_rid', Int8) ],
+                [ RID, RCT, RMT, RCB, RMB, ColumnDoc('t1_rid', Text) ],
                 [ RidKey ],
                 [ FkeyDoc(self._S, self._T2, ['t1_rid'], self._S, self._T1, ['RID'], names=[[self._S, 'fkey1']]) ] + extra_fkeys,
                 schema_name=self._S

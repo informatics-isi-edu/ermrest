@@ -130,7 +130,7 @@ Timestamptz = TypeDoc('timestamptz')
 TextArray = ArrayDoc('text[]', Text)
 Int4Array = ArrayDoc('int4[]', Int4)
 
-Ermrest_rid = DomainDoc('ermrest_rid', Int8)
+Ermrest_rid = DomainDoc('ermrest_rid', Text)
 Ermrest_rct = DomainDoc('ermrest_rct', Timestamptz)
 Ermrest_rmt = DomainDoc('ermrest_rmt', Timestamptz)
 Ermrest_rcb = DomainDoc('ermrest_rcb', Text)

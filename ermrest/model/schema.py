@@ -150,7 +150,7 @@ SELECT _ermrest.model_version_bump();
 )
 @keying(
     'schema',
-    { "schema_rid": ('int8', lambda self: self.rid) },
+    { "schema_rid": ('text', lambda self: self.rid) },
 )
 class Schema (object):
     """Represents a database schema.

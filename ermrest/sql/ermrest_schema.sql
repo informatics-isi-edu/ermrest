@@ -193,14 +193,14 @@ CREATE OR REPLACE FUNCTION _ermrest.current_attributes() RETURNS text[] STABLE A
 $$ LANGUAGE SQL;
 
 IF (SELECT True FROM information_schema.sequences WHERE sequence_schema = '_ermrest' AND sequence_name = 'rid_seq') IS NULL THEN
-  -- MAXVALUE 2**53 - 1 for Javsascript
-  CREATE SEQUENCE _ermrest.rid_seq MAXVALUE 9007199254740991 NO CYCLE;
+  -- MAXVALUE 2**63 - 1 default
+  CREATE SEQUENCE _ermrest.rid_seq NO CYCLE;
 END IF;
 
 PERFORM _ermrest.create_domain_if_not_exists('public', 'longtext', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'markdown', 'text');
 -- PERFORM _ermrest.create_domain_if_not_exists('public', 'gene_sequence', 'text');
-PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rid', 'int8');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rid', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rcb', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmb', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rct', 'timestamptz');
@@ -210,7 +210,7 @@ PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmt', 'timestamp
 CREATE OR REPLACE FUNCTION _ermrest.maintain_row() RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    NEW."RID" := nextval('_ermrest.rid_seq');
+    NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
     NEW."RCB" := _ermrest.current_client();
     NEW."RCT" := now();
     NEW."RMB" := _ermrest.current_client();
@@ -252,7 +252,7 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_schemas') IS NULL THEN
   CREATE TABLE _ermrest.known_schemas (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
@@ -265,16 +265,16 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_types') IS NULL THEN
   CREATE TABLE _ermrest.known_types (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
-    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     type_name text NOT NULL,
-    array_element_type_rid int8 REFERENCES _ermrest.known_types("RID"),
-    domain_element_type_rid int8 REFERENCES _ermrest.known_types("RID"),
+    array_element_type_rid text REFERENCES _ermrest.known_types("RID"),
+    domain_element_type_rid text REFERENCES _ermrest.known_types("RID"),
     domain_notnull boolean,
     domain_default text,
     "comment" text,
@@ -287,13 +287,13 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_tables') IS NULL THEN
   CREATE TABLE _ermrest.known_tables (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
-    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     table_name text NOT NULL,
     table_kind text NOT NULL,
     "comment" text,
@@ -303,7 +303,7 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'table_last_modified') IS NULL THEN
   CREATE TABLE _ermrest.table_last_modified (
-    table_rid int8 PRIMARY KEY REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    table_rid text PRIMARY KEY REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     ts timestamptz,
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client()
   );
@@ -313,7 +313,7 @@ END IF;
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'table_modified') IS NULL THEN
   CREATE TABLE _ermrest.table_modified (
     ts timestamptz,
-    table_rid int8,
+    table_rid text,
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     PRIMARY KEY (ts, table_rid)
   );
@@ -321,15 +321,15 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_columns (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     column_num int NOT NULL,
     column_name text NOT NULL,
-    type_rid int8 NOT NULL REFERENCES _ermrest.known_types("RID") ON DELETE CASCADE,
+    type_rid text NOT NULL REFERENCES _ermrest.known_types("RID") ON DELETE CASCADE,
     not_null boolean NOT NULL,
     column_default text,
     "comment" text,
@@ -340,26 +340,26 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_notnulls') IS NULL THEN
   CREATE TABLE _ermrest.known_pseudo_notnulls (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    column_rid int8 NOT NULL UNIQUE REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE
+    column_rid text NOT NULL UNIQUE REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE
   );
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_keys') IS NULL THEN
   CREATE TABLE _ermrest.known_keys (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
-    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
-    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     "comment" text,
     UNIQUE(schema_rid, constraint_name)
   );
@@ -367,55 +367,55 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_key_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_key_columns (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    key_rid int8 NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
-    column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    key_rid text NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
+    column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(key_rid, column_rid)
   );
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_keys') IS NULL THEN
   CREATE TABLE _ermrest.known_pseudo_keys (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     constraint_name text UNIQUE,
-    table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     "comment" text
   );
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_key_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_pseudo_key_columns (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    key_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
-    column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    key_rid text NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
+    column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(key_rid, column_rid)
   );
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkeys') IS NULL THEN
   CREATE TABLE _ermrest.known_fkeys (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     oid oid UNIQUE NOT NULL,
-    schema_rid int8 NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
+    schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
-    fk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
-    pk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    fk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    pk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     delete_rule text NOT NULL,
     update_rule text NOT NULL,
     "comment" text,
@@ -425,59 +425,59 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkey_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_fkey_columns (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
-    fk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
-    pk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    fkey_rid text NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
+    fk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    pk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(fkey_rid, fk_column_rid)
   );
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkeys') IS NULL THEN
   CREATE TABLE _ermrest.known_pseudo_fkeys (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     constraint_name text NOT NULL UNIQUE,
-    fk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
-    pk_table_rid int8 NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    fk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
+    pk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     "comment" text
   );
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkey_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_pseudo_fkey_columns (
-    "RID" ermrest_rid PRIMARY KEY DEFAULT nextval('_ermrest.rid_seq'),
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    fkey_rid int8 NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
-    fk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
-    pk_column_rid int8 NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    fkey_rid text NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
+    fk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    pk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(fkey_rid, fk_column_rid)
   );
 END IF;
 
-CREATE OR REPLACE FUNCTION _ermrest.find_schema_rid(sname text) RETURNS int8 AS $$
+CREATE OR REPLACE FUNCTION _ermrest.find_schema_rid(sname text) RETURNS text AS $$
   SELECT s."RID" FROM _ermrest.known_schemas s
   WHERE schema_name = $1;
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION _ermrest.find_table_rid(sname text, tname text) RETURNS int8 AS $$
+CREATE OR REPLACE FUNCTION _ermrest.find_table_rid(sname text, tname text) RETURNS text AS $$
   SELECT t."RID"
   FROM _ermrest.known_schemas s
   JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
   WHERE s.schema_name = $1 AND t.table_name = $2;
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION _ermrest.find_column_rid(sname text, tname text, cname text) RETURNS int8 AS $$
+CREATE OR REPLACE FUNCTION _ermrest.find_column_rid(sname text, tname text, cname text) RETURNS text AS $$
   SELECT c."RID"
   FROM _ermrest.known_schemas s
   JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
@@ -502,8 +502,8 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
     t.oid as "oid",
     s."RID" as "schema_rid",
     pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
-    NULL::int8 AS "array_element_type_rid",
-    NULL::int8 AS "domain_element_type_rid",
+    NULL::text AS "array_element_type_rid",
+    NULL::text AS "domain_element_type_rid",
     NULL::boolean AS "domain_notnull",
     NULL::text AS domain_default,
     pg_catalog.obj_description(t.oid, 'pg_type')::text as "comment"
@@ -523,7 +523,7 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
     s."RID" as "schema_rid",
     pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
     ekt."RID" as "array_element_type_rid",
-    NULL::int8 AS "domain_element_type_rid",
+    NULL::text AS "domain_element_type_rid",
     NULL::boolean AS "domain_notnull",
     NULL::text AS domain_default,
     NULL::text AS "comment"
@@ -543,7 +543,7 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
     t.oid as "oid",
     s."RID" as "schema_rid",
     pg_catalog.format_type(t.oid, NULL)::text AS "type_name",
-    NULL::int8 AS array_element_type_rid,
+    NULL::text AS array_element_type_rid,
     ekt."RID" as "domain_element_type_rid",
     t.typnotnull AS "domain_notnull",
     t.typdefault::text AS "domain_value",
@@ -706,7 +706,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.table_change() RETURNS TRIGGER AS $$
 DECLARE
-  trid int8;
+  trid text;
 BEGIN
   IF TG_OP IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE') THEN
     SELECT "RID" INTO trid FROM _ermrest.known_tables t WHERE t.oid = TG_RELID;
@@ -716,7 +716,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.enable_table_history(table_rid int8) RETURNS void AS $func$
+CREATE OR REPLACE FUNCTION _ermrest.enable_table_history(table_rid text) RETURNS void AS $func$
 DECLARE
   sname text;
   tname text;
@@ -763,48 +763,48 @@ BEGIN
 
   -- avoid doing dynamic SQL during every trigger event by generating a custom function per table here...
   EXECUTE
-    'CREATE TABLE _ermrest_history.' || htname || '('
-    '  "RID" int8 NOT NULL,'
+    'CREATE TABLE _ermrest_history.' || quote_ident(htname) || '('
+    '  "RID" text NOT NULL,'
     '  during tstzrange NOT NULL,'
     '  "RMB" text,'
     '  rowdata jsonb NOT NULL,'
     '  EXCLUDE USING GIST ("RID" WITH =, during with &&)'
     ');' ;
 
-  EXECUTE 'COMMENT ON TABLE _ermrest_history.' || htname || ' IS '
+  EXECUTE 'COMMENT ON TABLE _ermrest_history.' || quote_ident(htname) || ' IS '
     || quote_literal('History from ' || now()::text || ' for table ' || quote_ident(sname) || '.' || quote_ident(tname)) || ';';
 
   EXECUTE
-    'CREATE OR REPLACE FUNCTION _ermrest_history.maintain_' || htname || '() RETURNS TRIGGER AS $$'
+    'CREATE OR REPLACE FUNCTION _ermrest_history.' || quote_ident('maintain_' || htname) || '() RETURNS TRIGGER AS $$'
     'DECLARE'
     '  rowsnap jsonb;'
     'BEGIN'
     '  IF TG_OP = ''UPDATE'' THEN'
     '    IF OLD."RMT" < NEW."RMT" THEN'
-    '      UPDATE _ermrest_history.' || htname || ' t'
+    '      UPDATE _ermrest_history.' || quote_ident(htname) || ' t'
     '      SET during = tstzrange(OLD."RMT", NEW."RMT", ''[)'')'
     '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
     '    ELSE'
-    '      DELETE FROM _ermrest_history.' || htname || ' t'
+    '      DELETE FROM _ermrest_history.' || quote_ident(htname) || ' t'
     '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
     '    END IF;'
     '  END IF;'
     '  IF TG_OP = ''DELETE'' THEN'
     '    IF OLD."RMT" < now() THEN'
-    '      UPDATE _ermrest_history.' || htname || ' t'
+    '      UPDATE _ermrest_history.' || quote_ident(htname) || ' t'
     '      SET during = tstzrange(OLD."RMT", now(), ''[)'')'
     '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
     '    ELSE'
-    '      DELETE FROM _ermrest_history.' || htname || ' t'
+    '      DELETE FROM _ermrest_history.' || quote_ident(htname) || ' t'
     '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
     '    END IF;'
     '  END IF;'
     '  IF TG_OP IN (''INSERT'', ''UPDATE'') THEN'
     '    SELECT jsonb_object_agg(' || CASE WHEN sname = '_ermrest' THEN 'j.k' ELSE 'c."RID"::text' END || ', j.v) INTO rowsnap'
     '    FROM jsonb_each(to_jsonb(NEW)) j (k, v)'
-    '    JOIN _ermrest.known_columns c ON (j.k = c.column_name AND c.table_rid = ' || table_rid || ')'
+    '    JOIN _ermrest.known_columns c ON (j.k = c.column_name AND c.table_rid = ' || quote_literal(table_rid) || ')'
     '    WHERE c.column_name NOT IN (''RID'', ''RMT'', ''RMB'');'
-    '    INSERT INTO _ermrest_history.' || htname || '("RID", during, "RMB", rowdata)'
+    '    INSERT INTO _ermrest_history.' || quote_ident(htname) || '("RID", during, "RMB", rowdata)'
     '    VALUES (NEW."RID", tstzrange(NEW."RMT", NULL, ''[)''), NEW."RMB", rowsnap);'
     '  END IF;'
     '  RETURN NULL;'
@@ -813,16 +813,16 @@ BEGIN
   EXECUTE
     'CREATE TRIGGER ermrest_history AFTER INSERT OR UPDATE OR DELETE ON '
     || quote_ident(sname) || '.' || quote_ident(tname)
-    || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest_history.maintain_' || htname || '();';
+    || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
     
   EXECUTE
-    'INSERT INTO _ermrest_history.' || htname || '("RID", during, rowdata)'
+    'INSERT INTO _ermrest_history.' || quote_ident(htname) || '("RID", during, rowdata)'
     'SELECT'
     '  t."RID",'
     '  tstzrange(t."RMT", NULL, ''[)''),'
     '  (SELECT jsonb_object_agg(' || CASE WHEN sname = '_ermrest' THEN 'j.k' ELSE 'c."RID"::text' END || ', j.v)'
     '   FROM jsonb_each(to_jsonb(t)) j (k, v)'
-    '   JOIN _ermrest.known_columns c ON (j.k = c.column_name AND c.table_rid = ' || table_rid || ')'
+    '   JOIN _ermrest.known_columns c ON (j.k = c.column_name AND c.table_rid = ' || quote_literal(table_rid) || ')'
     '   WHERE c.column_name NOT IN (''RID'', ''RMT''))'
     'FROM ' || quote_ident(sname) || '.' || quote_ident(tname) || ' t';
 END;
@@ -1504,7 +1504,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid int8) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid text) RETURNS void AS $$
 DECLARE
   last_ts timestamptz;
 BEGIN
@@ -1546,7 +1546,7 @@ BEGIN
       '  "RMT" ermrest_rmt NOT NULL DEFAULT now(),'
       '  "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),'
       '  "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),'
-      || COALESCE(fkcname || '_rid int8 NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,', '') ||
+      || COALESCE(fkcname || '_rid text NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,', '') ||
       '  acl text NOT NULL,'
       '  members text[] NOT NULL,'
       '  UNIQUE(' || COALESCE(fkcname || '_rid, ', '') || 'acl)'
@@ -1575,7 +1575,7 @@ BEGIN
       '  "RMT" ermrest_rmt NOT NULL DEFAULT now(),'
       '  "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),'
       '  "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),'
-      || fkcname || '_rid int8 NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,' ||
+      || fkcname || '_rid text NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,' ||
       '  binding_name text NOT NULL,'
       '  binding jsonb NOT NULL,'
       '  UNIQUE (' || fkcname || '_rid, binding_name)'
@@ -1602,7 +1602,7 @@ BEGIN
       '  "RMT" ermrest_rmt NOT NULL DEFAULT now(),'
       '  "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),'
       '  "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),'
-      || COALESCE(fkcname || '_rid int8 NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,', '') ||
+      || COALESCE(fkcname || '_rid text NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,', '') ||
       '  annotation_uri text NOT NULL,'
       '  annotation_value jsonb NOT NULL,'
       '  UNIQUE(' || COALESCE(fkcname || '_rid, ', '') || 'annotation_uri)'
@@ -1629,8 +1629,8 @@ CREATE OR REPLACE FUNCTION _ermrest.create_historical_annotation_func(rname text
 BEGIN
   EXECUTE
     'CREATE OR REPLACE FUNCTION _ermrest.known_' || rname || '_annotations(ts timestamptz)'
-    'RETURNS TABLE (' || COALESCE(cname || ' int8,', '') || 'annotation_uri text, annotation_value jsonb) AS $$'
-    '  SELECT ' || COALESCE('(s.rowdata->>' || quote_literal(cname) || ')::int8,', '') || 's.rowdata->>''annotation_uri'', s.rowdata->''annotation_value'''
+    'RETURNS TABLE (' || COALESCE(cname || ' text,', '') || 'annotation_uri text, annotation_value jsonb) AS $$'
+    '  SELECT ' || COALESCE('(s.rowdata->>' || quote_literal(cname) || ')::text,', '') || 's.rowdata->>''annotation_uri'', s.rowdata->''annotation_value'''
     '  FROM _ermrest_history.known_' || rname || '_annotations s'
     '  WHERE s.during @> COALESCE(ts, now());'
     '$$ LANGUAGE SQL;' ;
@@ -1650,8 +1650,8 @@ CREATE OR REPLACE FUNCTION _ermrest.create_historical_acl_func(rname text, cname
 BEGIN
   EXECUTE
     'CREATE OR REPLACE FUNCTION _ermrest.known_' || rname || '_acls(ts timestamptz)'
-    'RETURNS TABLE (' || COALESCE(cname || ' int8,', '') || 'acl text, members jsonb) AS $$'
-    '  SELECT ' || COALESCE('(s.rowdata->>' || quote_literal(cname) || ')::int8,', '') || 's.rowdata->>''acl'', s.rowdata->''members'''
+    'RETURNS TABLE (' || COALESCE(cname || ' text,', '') || 'acl text, members jsonb) AS $$'
+    '  SELECT ' || COALESCE('(s.rowdata->>' || quote_literal(cname) || ')::text,', '') || 's.rowdata->>''acl'', s.rowdata->''members'''
     '  FROM _ermrest_history.known_' || rname || '_acls s'
     '  WHERE s.during @> COALESCE(ts, now());'
     '$$ LANGUAGE SQL;' ;
@@ -1669,8 +1669,8 @@ CREATE OR REPLACE FUNCTION _ermrest.create_historical_dynacl_func(rname text, cn
 BEGIN
   EXECUTE
     'CREATE OR REPLACE FUNCTION _ermrest.known_' || rname || '_dynacls(ts timestamptz)'
-    'RETURNS TABLE (' || cname || ' int8,' || 'binding_name text, binding jsonb) AS $$'
-    '  SELECT ' || '(s.rowdata->>' || quote_literal(cname) || ')::int8,' || 's.rowdata->>''binding_name'', s.rowdata->''binding'''
+    'RETURNS TABLE (' || cname || ' text,' || 'binding_name text, binding jsonb) AS $$'
+    '  SELECT ' || '(s.rowdata->>' || quote_literal(cname) || ')::text,' || 's.rowdata->>''binding_name'', s.rowdata->''binding'''
     '  FROM _ermrest_history.known_' || rname || '_dynacls s'
     '  WHERE s.during @> COALESCE(ts, now());'
     '$$ LANGUAGE SQL;' ;
@@ -1694,7 +1694,7 @@ SELECT
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_schemas(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_name text, comment text) AS $$
+RETURNS TABLE ("RID" text, schema_name text, comment text) AS $$
   SELECT s."RID", sr.schema_name, sr.comment
   FROM _ermrest_history.known_schemas s,
   LATERAL jsonb_to_record(s.rowdata) sr (schema_name text, comment text)
@@ -1702,7 +1702,7 @@ RETURNS TABLE ("RID" int8, schema_name text, comment text) AS $$
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_schemas_denorm(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_name text, comment text, annotations jsonb, acls jsonb) AS $$
+RETURNS TABLE ("RID" text, schema_name text, comment text, annotations jsonb, acls jsonb) AS $$
 SELECT
   s."RID",
   s.schema_name,
@@ -1727,31 +1727,31 @@ LEFT OUTER JOIN (
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_types(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_rid int8, type_name text, array_element_type_rid int8, domain_element_type_rid int8, domain_notnull boolean, domain_default text, comment text) AS $$
+RETURNS TABLE ("RID" text, schema_rid text, type_name text, array_element_type_rid text, domain_element_type_rid text, domain_notnull boolean, domain_default text, comment text) AS $$
   SELECT s."RID", sr.schema_rid, sr.type_name, sr.array_element_type_rid, sr.domain_element_type_rid, sr.domain_notnull, sr.domain_default, sr.comment
   FROM _ermrest_history.known_types s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid int8, type_name text, array_element_type_rid int8, domain_element_type_rid int8, domain_notnull boolean, domain_default text, comment text)
+  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, type_name text, array_element_type_rid text, domain_element_type_rid text, domain_notnull boolean, domain_default text, comment text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_columns(ts timestamptz)
-RETURNS TABLE ("RID" int8, table_rid int8, column_num int, column_name text, type_rid int8, not_null boolean, column_default text, comment text) AS $$
+RETURNS TABLE ("RID" text, table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text) AS $$
   SELECT s."RID", sr.table_rid, sr.column_num, sr.column_name, sr.type_rid, sr.not_null, sr.column_default, sr.comment
   FROM _ermrest_history.known_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (table_rid int8, column_num int, column_name text, type_rid int8, not_null boolean, column_default text, comment text)
+  LATERAL jsonb_to_record(s.rowdata) sr (table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_notnulls(ts timestamptz)
-RETURNS TABLE ("RID" int8, column_rid int8) AS $$
+RETURNS TABLE ("RID" text, column_rid text) AS $$
   SELECT s."RID", sr.column_rid
   FROM _ermrest_history.known_pseudo_notnulls s,
-  LATERAL jsonb_to_record(s.rowdata) sr (column_rid int8)
+  LATERAL jsonb_to_record(s.rowdata) sr (column_rid text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_columns_denorm(ts timestamptz)
-RETURNS TABLE ("RID" int8, table_rid int8, column_num int, column_name text, type_rid int8, not_null boolean, column_default text, comment text, annotations jsonb, acls jsonb) AS $$
+RETURNS TABLE ("RID" text, table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text, annotations jsonb, acls jsonb) AS $$
 SELECT
   c."RID",
   c.table_rid,
@@ -1782,15 +1782,15 @@ LEFT OUTER JOIN (
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_tables(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_rid int8, table_name text, table_kind text, comment text) AS $$
+RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, comment text) AS $$
   SELECT s."RID", sr.schema_rid, sr.table_name, sr.table_kind, sr.comment
   FROM _ermrest_history.known_tables s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid int8, table_name text, table_kind text, comment text)
+  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, table_name text, table_kind text, comment text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_tables_denorm(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_rid int8, table_name text, table_kind text, comment text, annotations jsonb, acls jsonb, columns jsonb[]) AS $$
+RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, comment text, annotations jsonb, acls jsonb, columns jsonb[]) AS $$
 SELECT
   t."RID",
   t.schema_rid,
@@ -1824,9 +1824,9 @@ LEFT OUTER JOIN (
 ) acls ON (t."RID" = acls.table_rid)
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION _ermrest.record_new_table(schema_rid int8, tname text) RETURNS int8 AS $$
+CREATE OR REPLACE FUNCTION _ermrest.record_new_table(schema_rid text, tname text) RETURNS text AS $$
 DECLARE
-  t_rid int8;
+  t_rid text;
 BEGIN
   INSERT INTO _ermrest.known_tables (oid, schema_rid, table_name, table_kind, "comment")
   SELECT t.oid, t.schema_rid, t.table_name, t.table_kind, t."comment"
@@ -1848,39 +1848,39 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_rid int8, constraint_name text, table_rid int8, comment text) AS $$
+RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, comment text) AS $$
   SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.table_rid, sr.comment
   FROM _ermrest_history.known_keys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid int8, constraint_name text, table_rid int8, comment text)
+  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, table_rid text, comment text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_keys(ts timestamptz)
-RETURNS TABLE ("RID" int8, constraint_name text, table_rid int8, comment text) AS $$
+RETURNS TABLE ("RID" text, constraint_name text, table_rid text, comment text) AS $$
   SELECT s."RID", sr.constraint_name, sr.table_rid, sr.comment
   FROM _ermrest_history.known_pseudo_keys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, table_rid int8, comment text)
+  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, table_rid text, comment text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_key_columns(ts timestamptz)
-RETURNS TABLE ("RID" int8, key_rid int8, column_rid int8) AS $$
+RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
   SELECT s."RID", sr.key_rid, sr.column_rid
   FROM _ermrest_history.known_key_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (key_rid int8, column_rid int8)
+  LATERAL jsonb_to_record(s.rowdata) sr (key_rid text, column_rid text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_key_columns(ts timestamptz)
-RETURNS TABLE ("RID" int8, key_rid int8, column_rid int8) AS $$
+RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
   SELECT s."RID", sr.key_rid, sr.column_rid
   FROM _ermrest_history.known_pseudo_key_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (key_rid int8, column_rid int8)
+  LATERAL jsonb_to_record(s.rowdata) sr (key_rid text, column_rid text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys_denorm(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_rid int8, constraint_name text, table_rid int8, column_rids int8[], comment text, annotations jsonb) AS $$
+RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, column_rids text[], comment text, annotations jsonb) AS $$
 SELECT
   k."RID",
   k.schema_rid,
@@ -1893,7 +1893,7 @@ FROM _ermrest.known_keys($1) k
 JOIN (
   SELECT
     kc.key_rid,
-    array_agg(kc.column_rid ORDER BY kc.column_rid)::int8[] AS column_rids
+    array_agg(kc.column_rid ORDER BY kc.column_rid)::text[] AS column_rids
   FROM _ermrest.known_key_columns($1) kc
   GROUP BY kc.key_rid
 ) kc ON (k."RID" = kc.key_rid)
@@ -1907,7 +1907,7 @@ LEFT OUTER JOIN (
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_keys_denorm(ts timestamptz)
-RETURNS TABLE ("RID" int8, constraint_name text, table_rid int8, column_rids int8[], comment text, annotations jsonb) AS $$
+RETURNS TABLE ("RID" text, constraint_name text, table_rid text, column_rids text[], comment text, annotations jsonb) AS $$
 SELECT
   k."RID",
   k.constraint_name,
@@ -1919,7 +1919,7 @@ FROM _ermrest.known_pseudo_keys($1) k
 JOIN (
   SELECT
     kc.key_rid,
-    array_agg(kc.column_rid ORDER BY kc.column_rid)::int8[] AS column_rids
+    array_agg(kc.column_rid ORDER BY kc.column_rid)::text[] AS column_rids
   FROM _ermrest.known_pseudo_key_columns($1) kc
   GROUP BY kc.key_rid
 ) kc ON (k."RID" = kc.key_rid)
@@ -1933,39 +1933,39 @@ LEFT OUTER JOIN (
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkeys(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_rid int8, constraint_name text, fk_table_rid int8, pk_table_rid int8, delete_rule text, update_rule text, comment text) AS $$
+RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, fk_table_rid text, pk_table_rid text, delete_rule text, update_rule text, comment text) AS $$
   SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.delete_rule, sr.update_rule, sr.comment
   FROM _ermrest_history.known_fkeys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid int8, constraint_name text, fk_table_rid int8, pk_table_rid int8, delete_rule text, update_rule text, comment text)
+  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, fk_table_rid text, pk_table_rid text, delete_rule text, update_rule text, comment text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkeys(ts timestamptz)
-RETURNS TABLE ("RID" int8, constraint_name text, fk_table_rid int8, pk_table_rid int8, comment text) AS $$
+RETURNS TABLE ("RID" text, constraint_name text, fk_table_rid text, pk_table_rid text, comment text) AS $$
   SELECT s."RID", sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.comment
   FROM _ermrest_history.known_pseudo_fkeys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, fk_table_rid int8, pk_table_rid int8, comment text)
+  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, fk_table_rid text, pk_table_rid text, comment text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkey_columns(ts timestamptz)
-RETURNS TABLE ("RID" int8, fkey_rid int8, fk_column_rid int8, pk_column_rid int8) AS $$
+RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
   SELECT s."RID", sr.fkey_rid, sr.fk_column_rid, sr.pk_column_rid
   FROM _ermrest_history.known_fkey_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid int8, fk_column_rid int8, pk_column_rid int8)
+  LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid text, fk_column_rid text, pk_column_rid text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkey_columns(ts timestamptz)
-RETURNS TABLE ("RID" int8, fkey_rid int8, fk_column_rid int8, pk_column_rid int8) AS $$
+RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
   SELECT s."RID", sr.fkey_rid, sr.fk_column_rid, sr.pk_column_rid
   FROM _ermrest_history.known_pseudo_fkey_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid int8, fk_column_rid int8, pk_column_rid int8)
+  LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid text, fk_column_rid text, pk_column_rid text)
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkeys_denorm(ts timestamptz)
-RETURNS TABLE ("RID" int8, schema_rid int8, constraint_name text, fk_table_rid int8, fk_column_rids int8[], pk_table_rid int8, pk_column_rids int8[], delete_rule text, update_rule text, comment text, annotations jsonb, acls jsonb) AS $$
+RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, fk_table_rid text, fk_column_rids text[], pk_table_rid text, pk_column_rids text[], delete_rule text, update_rule text, comment text, annotations jsonb, acls jsonb) AS $$
 SELECT
   fk."RID",
   fk.schema_rid,
@@ -1983,8 +1983,8 @@ FROM _ermrest.known_fkeys($1) fk
 JOIN (
   SELECT
     fkey_rid,
-    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS fk_column_rids,
-    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS pk_column_rids
+    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS fk_column_rids,
+    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS pk_column_rids
   FROM _ermrest.known_fkey_columns($1) fkcp
   GROUP BY fkcp.fkey_rid
 ) fkcp ON (fk."RID" = fkcp.fkey_rid)
@@ -2005,7 +2005,7 @@ LEFT OUTER JOIN (
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkeys_denorm(ts timestamptz)
-RETURNS TABLE ("RID" int8, constraint_name text, fk_table_rid int8, fk_column_rids int8[], pk_table_rid int8, pk_column_rids int8[], comment text, annotations jsonb, acls jsonb) AS $$
+RETURNS TABLE ("RID" text, constraint_name text, fk_table_rid text, fk_column_rids text[], pk_table_rid text, pk_column_rids text[], comment text, annotations jsonb, acls jsonb) AS $$
 SELECT
   fk."RID",
   fk.constraint_name,
@@ -2020,8 +2020,8 @@ FROM _ermrest.known_pseudo_fkeys($1) fk
 LEFT OUTER JOIN (
   SELECT
     fkey_rid,
-    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS fk_column_rids,
-    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::int8[] AS pk_column_rids
+    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS fk_column_rids,
+    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS pk_column_rids
   FROM _ermrest.known_pseudo_fkey_columns($1) fkcp
   GROUP BY fkcp.fkey_rid
 ) fkcp ON (fk."RID" = fkcp.fkey_rid)
