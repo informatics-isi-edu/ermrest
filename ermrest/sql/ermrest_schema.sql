@@ -727,6 +727,8 @@ DECLARE
   sname text;
   tname text;
   htname text;
+  htable_exists bool;
+  trigger_exists bool;
 BEGIN
   SELECT s.schema_name, t.table_name INTO sname, tname
   FROM _ermrest.known_tables t
@@ -744,18 +746,21 @@ BEGIN
       ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_change();' ;
   END IF;
 
-  SELECT s.schema_name, t.table_name, t."RCT" INTO sname, tname
+  SELECT s.schema_name, t.table_name, it.table_name IS NOT NULL, tg.trigger_name IS NOT NULL
+    INTO sname, tname, htable_exists, trigger_exists
   FROM _ermrest.known_tables t
   JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
   LEFT OUTER JOIN information_schema.tables it
     ON (it.table_schema = '_ermrest_history'
-        AND (s.schema_name = '_ermrest' AND it.table_name = t.table_name
-	     OR s.schema_name != '_ermrest' AND it.table_name = ('t' || t."RID"::text)))
-  WHERE it.table_name IS NULL
-  AND t."RID" = $1
+        AND it.table_name = CASE WHEN s.schema_name = '_ermrest' THEN t.table_name ELSE 't' || t."RID" END)
+  LEFT OUTER JOIN information_schema.triggers tg
+    ON (tg.event_object_schema = s.schema_name
+        AND tg.event_object_table = t.table_name
+	AND tg.trigger_name = 'ermrest_history'
+	AND tg.event_manipulation = 'INSERT') -- ignore UPDATE/DELETE that would duplicate table names...
+  WHERE t."RID" = $1
   AND t.table_kind = 'r'
   AND s.schema_name NOT IN ('pg_catalog')
-  AND t.table_kind = 'r'
   AND (SELECT True FROM _ermrest.known_columns c WHERE c.table_rid = t."RID" AND c.column_name = 'RID')
   AND (SELECT True FROM _ermrest.known_columns c WHERE c.table_rid = t."RID" AND c.column_name = 'RMT')
   AND (SELECT True FROM _ermrest.known_columns c WHERE c.table_rid = t."RID" AND c.column_name = 'RMB')
@@ -767,15 +772,18 @@ BEGIN
   -- we do the same for column names within the history jsonb rowdata blobs below.
   htname := CASE WHEN sname = '_ermrest' THEN tname ELSE 't' || table_rid END;
 
-  -- avoid doing dynamic SQL during every trigger event by generating a custom function per table here...
-  EXECUTE
-    'CREATE TABLE _ermrest_history.' || quote_ident(htname) || '('
-    '  "RID" text NOT NULL,'
-    '  during tstzrange NOT NULL,'
-    '  "RMB" text,'
-    '  rowdata jsonb NOT NULL,'
-    '  EXCLUDE USING GIST ("RID" WITH =, during with &&)'
-    ');' ;
+  IF NOT htable_exists
+  THEN
+    -- avoid doing dynamic SQL during every trigger event by generating a custom function per table here...
+    EXECUTE
+      'CREATE TABLE _ermrest_history.' || quote_ident(htname) || '('
+      '  "RID" text NOT NULL,'
+      '  during tstzrange NOT NULL,'
+      '  "RMB" text,'
+      '  rowdata jsonb NOT NULL,'
+      '  EXCLUDE USING GIST ("RID" WITH =, during with &&)'
+      ');' ;
+  END IF;
 
   EXECUTE 'COMMENT ON TABLE _ermrest_history.' || quote_ident(htname) || ' IS '
     || quote_literal('History from ' || now()::text || ' for table ' || quote_ident(sname) || '.' || quote_ident(tname)) || ';';
@@ -815,22 +823,43 @@ BEGIN
     '  END IF;'
     '  RETURN NULL;'
     'END; $$ LANGUAGE plpgsql;' ;
-    
+
+  IF NOT trigger_exists
+  THEN
+    EXECUTE
+      'CREATE TRIGGER ermrest_history AFTER INSERT OR UPDATE OR DELETE ON '
+      || quote_ident(sname) || '.' || quote_ident(tname)
+      || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
+  END IF;
+
+  -- seal off open history tuples if we missed a delete or update
   EXECUTE
-    'CREATE TRIGGER ermrest_history AFTER INSERT OR UPDATE OR DELETE ON '
-    || quote_ident(sname) || '.' || quote_ident(tname)
-    || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
-    
+    'UPDATE _ermrest_history.' || quote_ident(htname) || ' h'
+    ' SET during = tstzrange(lower(h.during), COALESCE(s."RMT", now()), ''[)'')'
+    ' FROM ('
+        ' SELECT h2."RID", h2.during, s."RMT"'
+	' FROM _ermrest_history.' || quote_ident(htname) || ' h2'
+        ' LEFT OUTER JOIN ' || quote_ident(sname) || '.' || quote_ident(tname) || ' s'
+	'   ON (h2."RID" = s."RID" AND upper(h2.during) IS NULL)'
+	' WHERE lower(h2.during) < s."RMT"'
+    ' ) s'
+    ' WHERE h."RID" = s."RID" AND h.during = s.during;' ;
+
+  -- replicate latest live data if it's not already there
   EXECUTE
-    'INSERT INTO _ermrest_history.' || quote_ident(htname) || '("RID", during, rowdata)'
+    'INSERT INTO _ermrest_history.' || quote_ident(htname) || '("RID", during, "RMB", rowdata)'
     'SELECT'
     '  t."RID",'
     '  tstzrange(t."RMT", NULL, ''[)''),'
+    '  t."RMB",'
     '  (SELECT jsonb_object_agg(' || CASE WHEN sname = '_ermrest' THEN 'j.k' ELSE 'c."RID"::text' END || ', j.v)'
     '   FROM jsonb_each(to_jsonb(t)) j (k, v)'
     '   JOIN _ermrest.known_columns c ON (j.k = c.column_name AND c.table_rid = ' || quote_literal(table_rid) || ')'
     '   WHERE c.column_name NOT IN (''RID'', ''RMT''))'
-    'FROM ' || quote_ident(sname) || '.' || quote_ident(tname) || ' t';
+    ' FROM ' || quote_ident(sname) || '.' || quote_ident(tname) || ' t'
+    ' LEFT OUTER JOIN _ermrest_history.' || quote_ident(htname) || ' h'
+    '  ON (t."RID" = h."RID" AND h.during = tstzrange(t."RMT", NULL, ''[)''))'
+    ' WHERE h."RID" IS NULL;' ;
 END;
 $func$ LANGUAGE plpgsql;
 
