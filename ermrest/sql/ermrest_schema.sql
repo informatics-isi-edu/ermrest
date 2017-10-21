@@ -333,9 +333,15 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     not_null boolean NOT NULL,
     column_default text,
     "comment" text,
-    UNIQUE(table_rid, column_num),
-    UNIQUE(table_rid, column_name)
+    UNIQUE(table_rid, column_num) DEFERRABLE,
+    UNIQUE(table_rid, column_name) DEFERRABLE
   );
+ELSE
+  ALTER TABLE _ermrest.known_columns
+    DROP CONSTRAINT known_columns_table_rid_column_name_key,
+    DROP CONSTRAINT known_columns_table_rid_column_num_key,
+    ADD CONSTRAINT known_columns_table_rid_column_name_key UNIQUE (table_rid, column_name) DEFERRABLE,
+    ADD CONSTRAINT known_columns_table_rid_column_num_key UNIQUE (table_rid, column_num) DEFERRABLE;
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_notnulls') IS NULL THEN
@@ -1623,7 +1629,9 @@ PERFORM _ermrest.create_annotation_table('pseudo_fkey', 'fkey', 'pseudo_fkeys');
 -- this is by-name to handle possible dump/restore scenarios
 -- a DBA who does many SQL DDL RENAME events and wants to link by OID rather than name
 -- should call _ermrest.model_change_by_oid() **before** running ermrest-deploy
+SET CONSTRAINTS ALL DEFERRED;
 PERFORM _ermrest.model_change_event();
+SET CONSTRAINTS ALL IMMEDIATE;
 
 CREATE OR REPLACE FUNCTION _ermrest.create_historical_annotation_func(rname text, cname text) RETURNS void AS $def$
 BEGIN
