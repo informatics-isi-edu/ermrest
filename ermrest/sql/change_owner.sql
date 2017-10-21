@@ -23,6 +23,7 @@ DECLARE
   trow record;
   vrow record;
   seqrow record;
+  frow record;
 BEGIN
   FOR srow
   IN SELECT nspname
@@ -56,6 +57,29 @@ BEGIN
     WHERE sequence_schema = srow.nspname
     LOOP
       EXECUTE 'ALTER SEQUENCE ' || quote_ident(srow.nspname) || '.' || quote_ident(seqrow.sequence_name) || ' OWNER TO ermrest;';
+    END LOOP;
+
+    FOR frow
+    IN SELECT
+      r.routine_schema,
+      r.routine_name,
+      p.argtypes
+    FROM information_schema.routines r
+    LEFT OUTER JOIN (
+      SELECT
+        specific_schema,
+	specific_name,
+	array_agg(parameter_mode || ' ' || udt_name ORDER BY ordinal_position) AS argtypes
+      FROM information_schema.parameters p
+      GROUP BY specific_schema, specific_name
+    ) p ON (r.specific_schema = p.specific_schema AND r.specific_name = p.specific_name)
+    WHERE r.routine_type = 'FUNCTION'
+      AND r.routine_schema IN ('_ermrest', '_ermrest_history')
+    LOOP
+      EXECUTE 'ALTER FUNCTION '
+        || quote_ident(frow.routine_schema) || '.' || quote_ident(frow.routine_name)
+	|| '(' || array_to_string(COALESCE(frow.argtypes, ARRAY[]::text[]), ', ') || ')'
+	|| ' OWNER TO ermrest;';
     END LOOP;
 
   END LOOP;
