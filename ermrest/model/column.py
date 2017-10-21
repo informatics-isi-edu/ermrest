@@ -326,7 +326,7 @@ class SystemColumn (Column):
             'ctype': self.type.sql(),
             'notnull': '' if self.nullok else 'NOT NULL',
             'default': {
-                'RID': "nextval('_ermrest.rid_seq')",
+                'RID': "_ermrest.urlb32_encode(nextval('_ermrest.rid_seq'))",
                 'RCT': "now()",
                 'RMT': "now()",
                 'RCB': "_ermrest.current_client()",

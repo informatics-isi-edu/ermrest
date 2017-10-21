@@ -17,7 +17,7 @@
 import re
 import json
 
-from ..util import sql_identifier
+from ..util import sql_identifier, sql_literal
 from .. import exception
 
 # only to allow module to be used outside normal service context
