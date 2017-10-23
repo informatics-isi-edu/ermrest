@@ -338,7 +338,10 @@ THEN
       || ' ALTER COLUMN ' || quote_ident(entry->'fcnames'->>0) || ' SET DATA TYPE text'
       || ' USING _ermrest.urlb32_encode(' || quote_ident(entry->'fcnames'->>0) || '::int8);' ;
   END LOOP;
-  
+
+  ALTER TABLE _ermrest.table_modified
+    ALTER COLUMN table_rid SET DATA TYPE text USING _ermrest.urlb32_encode(table_rid);
+
   -- convert RIDs to base32 storage format
   FOREACH entry IN ARRAY COALESCE(rid_columns, ARRAY[]::jsonb[])
   LOOP
