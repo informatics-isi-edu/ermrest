@@ -374,11 +374,14 @@ THEN
       || ' ON UPDATE ' || COALESCE(entry->>'on_update', 'NO ACTION') || ';' ;
   END LOOP;
 
-  -- fudge history of type definitions to always have text-based ermrest_rid domain
-  -- so it's consistent with data mangling we did above...
-  UPDATE _ermrest_history.known_types
-  SET rowdata = jsonb_set(rowdata, '{domain_element_type_rid}'::text[], to_jsonb((SELECT "RID" FROM _ermrest.known_types WHERE type_name = 'text')))
-  WHERE rowdata->>'type_name' = 'ermrest_rid';
+  IF (SELECT True FROM information_schema.schemata WHERE schema_name = '_ermrest_history')
+  THEN
+    -- fudge history of type definitions to always have text-based ermrest_rid domain
+    -- so it's consistent with data mangling we did above...
+    UPDATE _ermrest_history.known_types
+    SET rowdata = jsonb_set(rowdata, '{domain_element_type_rid}'::text[], to_jsonb((SELECT "RID" FROM _ermrest.known_types WHERE type_name = 'text')))
+    WHERE rowdata->>'type_name' = 'ermrest_rid';
+  END IF;
 
   RAISE NOTICE 'Completed conversion of int8 ermrest_rid to text ermrest_rid.';
 END IF;
