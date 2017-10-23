@@ -461,6 +461,13 @@ INSERT INTO _ermrest.catalog_amended (ts, during)
 VALUES (now(), tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)'))
 ON CONFLICT (ts) DO NOTHING;
 
+-- adjust live tuples to be consistent with revised history boundary
+UPDATE _ermrest.known_%(restype)s_%(configtype)ss
+SET
+  "RMT" = %(h_until)s::timestamptz,
+  "RMB" = _ermrest.current_client()
+WHERE "RMT"::timestamptz < %(h_until)s::timestamptz;
+
 WITH content AS (
   SELECT * FROM jsonb_each(%(contentmap)s::jsonb) j (key, value)
 ), snaprange AS (
