@@ -189,7 +189,7 @@ IF (SELECT True
     t_rid := _ermrest.find_table_rid(pkey.schema_name, pkey.table_name);
 
     INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_rid, "comment")
-    VALUES (pkey.name, t_rid, pkey.comment)
+    VALUES (COALESCE(pkey.name, 'fake_constraint_name_' || pkey.id), t_rid, pkey.comment)
     RETURNING "RID" INTO pk_rid;
 	
     INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
@@ -212,7 +212,7 @@ IF (SELECT True
     t2_rid := _ermrest.find_table_rid(pfkey.to_schema_name, pfkey.to_table_name);
 
     INSERT INTO _ermrest.known_pseudo_fkeys (constraint_name, fk_table_rid, pk_table_rid, "comment")
-    VALUES (pfkey.name, t1_rid, t2_rid, pfkey.comment)
+    VALUES (COALESCE(pfkey.name, 'fake_constraint_name_' || pfkey.id), t1_rid, t2_rid, pfkey.comment)
     RETURNING "RID" INTO fk1_rid;
 	
     INSERT INTO _ermrest.known_pseudo_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
@@ -242,7 +242,7 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_catalog_annotation') THEN
   INSERT INTO _ermrest.known_catalog_annotations (annotation_uri, annotation_value)
-  SELECT annotation_uri, annotation_value
+  SELECT annotation_uri, COALESCE(annotation_value, 'null'::json)
   FROM _ermrest.model_catalog_annotation;
   DROP TABLE _ermrest.model_catalog_annotation;
 END IF;
@@ -257,7 +257,7 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_schema_annotation') THEN
   INSERT INTO _ermrest.known_schema_annotations (schema_rid, annotation_uri, annotation_value)
-  SELECT _ermrest.find_schema_rid(a.schema_name), a.annotation_uri, a.annotation_value
+  SELECT _ermrest.find_schema_rid(a.schema_name), a.annotation_uri, COALESCE(a.annotation_value, 'null'::json)
   FROM _ermrest.model_schema_annotation a;
   DROP TABLE _ermrest.model_schema_annotation;
 END IF;
@@ -279,7 +279,7 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_table_annotation') THEN
   INSERT INTO _ermrest.known_table_annotations (table_rid, annotation_uri, annotation_value)
-  SELECT _ermrest.find_table_rid(a.schema_name, a.table_name), a.annotation_uri, a.annotation_value
+  SELECT _ermrest.find_table_rid(a.schema_name, a.table_name), a.annotation_uri, COALESCE(a.annotation_value, 'null'::json)
   FROM _ermrest.model_table_annotation a;
   DROP TABLE _ermrest.model_table_annotation;
 END IF;
@@ -301,7 +301,7 @@ END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'model_column_annotation') THEN
   INSERT INTO _ermrest.known_column_annotations (column_rid, annotation_uri, annotation_value)
-  SELECT _ermrest.find_column_rid(a.schema_name, a.table_name, a.column_name), a.annotation_uri, a.annotation_value
+  SELECT _ermrest.find_column_rid(a.schema_name, a.table_name, a.column_name), a.annotation_uri, COALESCE(a.annotation_value, 'null'::json)
   FROM _ermrest.model_column_annotation a;
   DROP TABLE _ermrest.model_column_annotation;
 END IF;
@@ -312,10 +312,10 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     ridmatch := _ermrest.find_key_rid(pfkey.schema_name, pfkey.table_name, pfkey.column_names);
     IF ridmatch.is_physical THEN
       INSERT INTO _ermrest.known_key_annotations (key_rid, annotation_uri, annotation_value)
-      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+      VALUES (ridmatch.rid, pfkey.annotation_uri, COALESCE(pfkey.annotation_value, 'null'::json));
     ELSIF NOT ridmatch.is_physical THEN
       INSERT INTO _ermrest.known_pseudo_key_annotations (key_rid, annotation_uri, annotation_value)
-      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+      VALUES (ridmatch.rid, pfkey.annotation_uri, COALESCE(pfkey.annotation_value, 'null'::json));
     ELSE
       RAISE EXCEPTION 'Could not match key annotation %', pfkey;
     END IF;
@@ -360,10 +360,10 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
 
     IF ridmatch.is_physical THEN
       INSERT INTO _ermrest.known_fkey_annotations (fkey_rid, annotation_uri, annotation_value)
-      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+      VALUES (ridmatch.rid, pfkey.annotation_uri, COALESCE(pfkey.annotation_value, 'null'::json));
     ELSIF NOT ridmatch.is_physical THEN
       INSERT INTO _ermrest.known_pseudo_fkey_annotations (fkey_rid, annotation_uri, annotation_value)
-      VALUES (ridmatch.rid, pfkey.annotation_uri, pfkey.annotation_value);
+      VALUES (ridmatch.rid, pfkey.annotation_uri, COALESCE(pfkey.annotation_value, 'null'::json));
     ELSE
       RAISE EXCEPTION 'Could not match fkey annotation %', pfkey;
     END IF;
