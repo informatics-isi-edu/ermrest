@@ -199,7 +199,7 @@ END IF;
 
 PERFORM _ermrest.create_domain_if_not_exists('public', 'longtext', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'markdown', 'text');
--- PERFORM _ermrest.create_domain_if_not_exists('public', 'gene_sequence', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'gene_sequence', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rid', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rcb', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmb', 'text');
