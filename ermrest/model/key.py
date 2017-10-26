@@ -384,12 +384,15 @@ class ForeignKey (object):
         return False
 
 def _guarded_add(s, new_fkr):
-    """Deduplicate FKRs by tracking duplicates under leader.constraints if leader exists in set s.
-    """
     for fkr in s:
         if fkr.reference_map_frozen == new_fkr.reference_map_frozen:
-            fkr.constraints.add(new_fkr)
-            return
+            raise NotImplementedError(
+                'Foreign key constraint %s collides with constraint %s on table %s.' % (
+                    new_fkr.constraint_name,
+                    fkr.constraint_name,
+                    fkr.foreign_key.table
+                )
+            )
     # otherwise this is a new leader
     s.add(new_fkr)
 
@@ -466,15 +469,15 @@ class KeyReference (object):
         self.on_delete = on_delete
         self.on_update = on_update
         # Link into foreign key's key reference list, by table ref
+        if constraint_name is not None:
+            enforce_63byte_id(constraint_name[1], 'Foreign-key constraint')
+        self.constraint_name = constraint_name
         if unique.table not in foreign_key.table_references:
             foreign_key.table_references[unique.table] = set()
         _guarded_add(foreign_key.table_references[unique.table], self)
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         _guarded_add(unique.table_references[foreign_key.table], self)
-        if constraint_name is not None:
-            enforce_63byte_id(constraint_name[1], 'Foreign-key constraint')
-        self.constraint_name = constraint_name
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
         self.acls = AclDict(self)
