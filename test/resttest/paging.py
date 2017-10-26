@@ -67,6 +67,11 @@ def add_paging_tests(klass):
         (5,  "B_str_NULL",  "@sort(name,value)@before(bar,::null::)?limit=50"),
         (19, "B_NULL_NULL", "@sort(name,value)@before(::null::,::null::)?limit=50"),
         (17, "B_NULL_num",  "@sort(value,id)@before(::null::,12)?limit=50"),
+        (18, "C_all_str",   "@sort(name)@after(aaa)@before(::null::)"),
+        (16, "C_all_num",   "@sort(value)@after(-1)@before(::null::)"),
+        (20, "C_all_id",    "@sort(id)@after(0)@before(::null::)"),
+        (10, "C_half_id",   "@sort(id)@after(0)@before(::null::)?limit=10"),
+        (12, "C_bxx_str",   "@sort(name)@after(aaa)@before(ccc)?limit=15"),
     ]
     
     invalid = [
@@ -74,6 +79,7 @@ def add_paging_tests(klass):
         ("B_nosort", "@before(bar)"),
         ("A1_sort2", "@sort(name,value)@after(bar)"),
         ("B1_sort2", "@sort(name,value)@before(bar)"),
+        ("C1_nolimit", "@sort(name)@before(bar)"),
     ]
 
     queries = [

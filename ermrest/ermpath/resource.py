@@ -997,7 +997,7 @@ class AnyPath (object):
 
     def _get_sortvec(self):
         if self.sort is not None:
-            sortvec, sort1, sort2 = sort_components(map(self._get_sort_element, self.sort), self.before is not None)
+            sortvec, sort1, sort2 = sort_components(map(self._get_sort_element, self.sort), self.after is None and self.before is not None)
         else:
             sortvec, sort1, sort2 = (None, None, None)
         return sortvec, sort1, sort2
@@ -1006,9 +1006,11 @@ class AnyPath (object):
         if sortvec is not None:
             a, b, c = zip(*sortvec)
             if self.after is not None:
-                page = 'WHERE %s' % page_filter_sql(a, b, c, self.after, is_before=False)
+                page = 'WHERE (%s)' % page_filter_sql(a, b, c, self.after, is_before=False)
+                if self.before is not None:
+                    page = '%s AND (%s)' % (page, page_filter_sql(a, b, c, self.before, is_before=True))
             elif self.before is not None:
-                page = 'WHERE %s' % page_filter_sql(a, b, c, self.before, is_before=True)
+                page = 'WHERE (%s)' % page_filter_sql(a, b, c, self.before, is_before=True)
             else:
                 page = ''
         return page
@@ -1208,8 +1210,6 @@ class EntityPath (AnyPath):
     def add_paging(self, after, before):
         """Add page key specification(s) for the final output.
         """
-        if after is not None and before is not None:
-            raise BadSyntax('At most one @before() or @after() modifier is permitted in a single request.')
         self.after = after
         self.before = before
             
@@ -1487,8 +1487,6 @@ class AttributePath (AnyPath):
     def add_paging(self, after, before):
         """Add page key specification(s) for the final output.
         """
-        if after is not None and before is not None:
-            raise BadSyntax('At most one @before() or @after() modifier is permitted in a single request.')
         self.after = after
         self.before = before
 
@@ -1731,8 +1729,6 @@ class AttributeGroupPath (AnyPath):
     def add_paging(self, after, before):
         """Add page key specification(s) for the final output.
         """
-        if after is not None and before is not None:
-            raise BadSyntax('At most one @before() or @after() modifier is permitted in a single request.')
         self.after = after
         self.before = before
             

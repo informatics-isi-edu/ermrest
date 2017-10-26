@@ -337,19 +337,31 @@ The sort modifier is only meaningful on retrieval requests using the `GET` metho
 
 ## Paging Modifiers
 
-Optional paging modifiers can designate results that come _before_ or _after_ a designated page key in a sorted sequence. A page key is a vector of values taken from a row that falls outside the page, with one component per field in the sort modifier. Only one modifier is allowed in a single request.
+Optional paging modifiers can designate results that come _before_ or _after_ a designated page key in a sorted sequence. A page key is a vector of values taken from a row that falls outside the page, with one component per field in the sort modifier.
 
-The modifier MUST be accompanied by a sort modifier to define the ordering of rows in the result set as well as the ordering of fields of the page key vector. The paging modifiers support a special symbol `::null::` to represent a NULL column value in a page key.
+The modifier MUST be accompanied by a sort modifier to define the ordering of rows in the result set as well as the ordering of fields of the page key vector. The paging modifiers support a special symbol `::null::` to represent a NULL column value in a page key. For determinism, page keys SHOULD include a non-null, unique key as the least significant key.
+
+Supported combinations:
+
+| `@after(...)` | `@before(...)` | `?limit`    | Result set |
+|---------------|----------------|-------------|------------|
+| _K1_          | absent         | absent      | All records *after* _K1_ |
+| _K1_          | absent         | _N_         | First records *after* _K1_ limited by page size |
+| _K1_          | _K2_           | _N_         | First records *after* _K1_ limited by page size or _K2_ whichever is smaller |
+| _K1_          | _K2_           | absent      | All records *between* _K1_ and _K2_ |
+| absent        | _K2_           | _N_         | Last records *before* _K2_ limited by page size |
 
 ### Before Modifier
 
-The `@before` modifier designates a result set of rows immediately antecedent to the encoded page key:
+The `@before` modifier designates a result set of rows immediately antecedent to the encoded page key, unless combined with the `@after` modifier:
 
 - `@sort(` _output column_ ...`)@before(` `,` ... `)` (i.e. empty string)
 - `@sort(` _output column_ ...`)@before(` _value_ `,` ... `)` (i.e. literal string)
 - `@sort(` _output column_ ...`)@before(` `::null::` `,` ... `)` (i.e. NULL)
 
 For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately before_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
+
+The `@before` modifier MUST be combined with the `@after` modifier and/or the `?limit=N` query parameter.
 
 ### After Modifier
 
@@ -360,6 +372,8 @@ The `@after` modifier designates a result set of rows immediately subsequent to 
 - `@sort(` _output column_ ...`)@after(` `::null::` `,` ... `)` (i.e. NULL)
 
 For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately after_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
+
+The `@after` modifier MAY be combined with the `@before` modifier and/or the `?limit=N` query parameter.
 
 ## Accept Query Parameter
 
