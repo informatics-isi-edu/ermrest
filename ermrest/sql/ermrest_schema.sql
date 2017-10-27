@@ -840,8 +840,9 @@ BEGIN
         ' SELECT h2."RID", h2.during, s."RMT"'
 	' FROM _ermrest_history.' || quote_ident(htname) || ' h2'
         ' LEFT OUTER JOIN ' || quote_ident(sname) || '.' || quote_ident(tname) || ' s'
-	'   ON (h2."RID" = s."RID" AND upper(h2.during) IS NULL)'
-	' WHERE lower(h2.during) < s."RMT"'
+	'   ON (h2."RID" = s."RID")'
+	' WHERE upper(h2.during) IS NULL'
+	'   AND (lower(h2.during) < s."RMT" OR s."RID" IS NULL)'
     ' ) s'
     ' WHERE h."RID" = s."RID" AND h.during = s.during;' ;
 

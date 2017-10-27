@@ -186,12 +186,6 @@ THEN
     AND t.table_type = 'BASE TABLE'
     AND t.table_schema NOT IN ('_ermrest_history');
 
-/* t.table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-    AND t.table_schema !~ '^pg_(toast_)temp'
-    AND t.table_type = 'BASE TABLE'
-    AND c.domain_schema = 'public'
-    AND c.domain_name = 'ermrest_rid_int8' ; */
-
   SELECT
     array_agg(
       jsonb_build_object('schema_view', vrw.ev_class::regclass::text)
