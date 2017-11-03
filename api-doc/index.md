@@ -32,27 +32,27 @@ The ERMrest web service model exposes resources to support management of dataset
 1. Service: the entire multi-tenant service end-point
 1. [Catalog](model/naming.md#catalog-names): a particular dataset (in one service)
 1. [Schema or model resources](model/naming.md)
-  1. [Schemata](model/naming.md#schemata-names): entire data model of a dataset (in one catalog)
-  1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
-    1. [Schema comment](model/naming.md#schema-comments): human-readable documentation for a schema
-    1. [Schema annotation](model/naming.md#schema-annotations): machine-readable documentation for a schema
-    1. [Table definition](model/naming.md#table-names): a particular named set of data tuples (in one schema)
-      1. [Table comment](model/naming.md#table-comments): human-readable documentation for a table
-      1. [Table annotation](model/naming.md#table-annotations): machine-readable documentation for a table
-      1. [Column definition](model/naming.md#column-names): a particular named field of data tuples (in one table)
-        1. [Column comment](model/naming.md#column-comments): human-readable documentation for a column
-        1. [Column annotation](model/naming.md#column-annotations): machine-readable documentation for a column
-      1. [Key definition](model/naming.md#key-names): a composite key constraint (in one table)
-        1. [Key comment](model/naming#key-comments): human-readable documentation for a key constraint
-        1. [Key annotation](model/naming#key-annotations): machine-readable documentation for a key constraint
-      1. [Foreign key definition](model/naming.md#foreign-key-names): a composite foreign key constraint (in one table)
-        1. [Foreign key comment](model/naming.md#foreign-key-comments): human-readable documentation for a foreign key constraint
-        1. [Foreign key annotation](model/naming.md#foreign-key-annotations): machine-readable documentation for a foreign key constraint
+   1. [Schemata](model/naming.md#schemata-names): entire data model of a dataset (in one catalog)
+   1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
+      1. [Schema comment](model/naming.md#schema-comments): human-readable documentation for a schema
+      1. [Schema annotation](model/naming.md#schema-annotations): machine-readable documentation for a schema
+      1. [Table definition](model/naming.md#table-names): a particular named set of data tuples (in one schema)
+         1. [Table comment](model/naming.md#table-comments): human-readable documentation for a table
+         1. [Table annotation](model/naming.md#table-annotations): machine-readable documentation for a table
+         1. [Column definition](model/naming.md#column-names): a particular named field of data tuples (in one table)
+            1. [Column comment](model/naming.md#column-comments): human-readable documentation for a column
+            1. [Column annotation](model/naming.md#column-annotations): machine-readable documentation for a column
+         1. [Key definition](model/naming.md#key-names): a composite key constraint (in one table)
+            1. [Key comment](model/naming#key-comments): human-readable documentation for a key constraint
+            1. [Key annotation](model/naming#key-annotations): machine-readable documentation for a key constraint
+         1. [Foreign key definition](model/naming.md#foreign-key-names): a composite foreign key constraint (in one table)
+            1. [Foreign key comment](model/naming.md#foreign-key-comments): human-readable documentation for a foreign key constraint
+            1. [Foreign key annotation](model/naming.md#foreign-key-annotations): machine-readable documentation for a foreign key constraint
 1. [Data resources](data/naming.md)
-  1. [Entity](data/naming.md#entity-names): a set of data tuples corresponding to a (possibly filtered) table
-  1. [Attribute](data/naming.md#attribute-names): a set of data tuples corresponding to a (possibly filtered) projection of a table
-  1. [Attribute group](data/naming.md#attribute-group-names): a set of data tuples corresponding to a (possibly filtered) projection of a table grouped by group keys
-  1. [Aggregate](data/naming.md#aggregate-names): a data tuple summarizing a (possibly filtered) projection of a table
+   1. [Entity](data/naming.md#entity-names): a set of data tuples corresponding to a (possibly filtered) table
+   1. [Attribute](data/naming.md#attribute-names): a set of data tuples corresponding to a (possibly filtered) projection of a table
+   1. [Attribute group](data/naming.md#attribute-group-names): a set of data tuples corresponding to a (possibly filtered) projection of a table grouped by group keys
+   1. [Aggregate](data/naming.md#aggregate-names): a data tuple summarizing a (possibly filtered) projection of a table
 
 Rather than treating data resources as nested sub-resources of the model resources, ERMrest treats them as separate parallel resource spaces often thought of as separate APIs for model and data-level access.  The reality is that these resources have many possible semantic relationships in the form of a more general graph structure, and any attempt to normalize them into a hierarchical structure must emphasize some relationships at the detriment of others.  We group model elements hierarchically to assist in listing and to emphasize their nested lifecycle properties.  We split out data resources because they can have a more complex relationship to multiple model elements simultaneously.
 
