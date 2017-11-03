@@ -83,94 +83,94 @@ As an openly extensible, machine-readable interface, the annotations are keyed b
 The [data resources](data/naming.md) make use of a model-driven language for denoting sub-parts of an entity-relationship modeled dataset. The language has several main syntactic components:
 
 1. [Data Paths](data/naming.md#data-paths)
-  1. [Path Root](data/naming.md#path-root)
-  1. [Path Filters](data/naming.md#path-filters)
-  1. [Entity Links](data/naming.md#entity-links)
-    1. [Linkage by Foriegn-Key Endpoint](data/naming.md#linkage-by-foreign-key-endpoint)
-    1. [Linkage by Explicit Column Mapping](data/naming.md#linkage-by-explicit-column-mapping)
-    1. [Outer-Join Linkage by Column Mapping](data/naming.md#outer-join-linkage-by-column-mapping)
-  1. [Table Instance Alias](data/naming.md#table-instance-alias)
-  1. [Path Context Reset](data/naming.md#path-context-reset)
+   1. [Path Root](data/naming.md#path-root)
+   1. [Path Filters](data/naming.md#path-filters)
+   1. [Entity Links](data/naming.md#entity-links)
+      1. [Linkage by Foriegn-Key Endpoint](data/naming.md#linkage-by-foreign-key-endpoint)
+      1. [Linkage by Explicit Column Mapping](data/naming.md#linkage-by-explicit-column-mapping)
+      1. [Outer-Join Linkage by Column Mapping](data/naming.md#outer-join-linkage-by-column-mapping)
+   1. [Table Instance Alias](data/naming.md#table-instance-alias)
+   1. [Path Context Reset](data/naming.md#path-context-reset)
 1. [Filter Language](data/naming.md#filter-language)
-  1. [Unary Filter Predicate](data/naming.md#unary-filter-predicate)
-  1. [Binary Filter Predicate](data/naming.md#binary-filter-predicate)
-  1. [Negated Filter](data/naming.md#negated-filter)
-  1. [Parenthetic Filter](data/naming.md#parenthetic-filter)
-  1. [Conjunctive Filter](data/naming.md#conjunctive-filter)
-  1. [Disjunctive Filter](data/naming.md#disjunctive-filter)
-  1. [Conjunctive Normal Form](data/naming.md#conjunctive-normal-form)
-  1. [Disjunctive Normal Form](data/naming.md#disjunctive-normal-form)
+   1. [Unary Filter Predicate](data/naming.md#unary-filter-predicate)
+   1. [Binary Filter Predicate](data/naming.md#binary-filter-predicate)
+   1. [Negated Filter](data/naming.md#negated-filter)
+   1. [Parenthetic Filter](data/naming.md#parenthetic-filter)
+   1. [Conjunctive Filter](data/naming.md#conjunctive-filter)
+   1. [Disjunctive Filter](data/naming.md#disjunctive-filter)
+   1. [Conjunctive Normal Form](data/naming.md#conjunctive-normal-form)
+   1. [Disjunctive Normal Form](data/naming.md#disjunctive-normal-form)
 1. Data Projection
-  1. [Attribute Projection](data/naming.md#attribute-names)
-  1. [Aggregate Projection](data/naming.md#aggregate-names)
-  1. [Grouped Attribute Projection](data/naming.md#attribute-group-names)
-  1. [Attribute Binning](data/naming.md#attribute-binning) i.e. for histograms
+   1. [Attribute Projection](data/naming.md#attribute-names)
+   1. [Aggregate Projection](data/naming.md#aggregate-names)
+   1. [Grouped Attribute Projection](data/naming.md#attribute-group-names)
+   1. [Attribute Binning](data/naming.md#attribute-binning) i.e. for histograms
 1. [Sort Modifer](data/naming.md#sort-modifier)
 1. [Paging Modifiers](data/naming.md#paging-modifiers)
-  1. [Before Modifier](data/naming.md#before-modifier)
-  1. [After Modifier](data/naming.md#after-modifier)
+   1. [Before Modifier](data/naming.md#before-modifier)
+   1. [After Modifier](data/naming.md#after-modifier)
 1. [Accept Query Parameter](data/naming.md#accept-query-parameter)
 1. [Download Query Parameter](data/naming.md#download-query-parameter)
 1. [Defaults Query Parameter](data/naming.md#defaults-query-parameter)
 1. [Limit Query Parameter](data/naming.md#limit-query-parameter)
 
 The sort, paging, and limit syntax together can support [paged data access](data/naming.md#data-paging):
-  1. [Simple Paging by Entity Key](data/naming.md#simple-paging-by-entity-key)
-  1. [Paging with Application Sort Order](data/naming.md#paging-with-application-sort-order)
+   1. [Simple Paging by Entity Key](data/naming.md#simple-paging-by-entity-key)
+   1. [Paging with Application Sort Order](data/naming.md#paging-with-application-sort-order)
 
 ### RESTful Operations Overview
 
 The ERMrest interface supports typical HTTP operations to manage these different levels of resource:
 
 1. [Catalog-level operations](rest-catalog.md)
-  1. [Catalog Creation](rest-catalog.md#catalog-creation)
-  1. [Catalog Retrieval](rest-catalog.md#catalog-retrieval)
-  1. [Catalog Deletion](rest-catalog.md#catalog-deletion)
-	 1. [ACL Retrieval](rest-catalog.md#access-control-list-retrieval)
+   1. [Catalog Creation](rest-catalog.md#catalog-creation)
+   1. [Catalog Retrieval](rest-catalog.md#catalog-retrieval)
+   1. [Catalog Deletion](rest-catalog.md#catalog-deletion)
+      1. [ACL Retrieval](rest-catalog.md#access-control-list-retrieval)
 1. [Model-level operations](model/rest.md)
-  1. [Schemata Retrieval](model/rest.md#schemata-retrieval)
-  1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)
-  1. [Schema Creation](model/rest.md#schema-creation)
-  1. [Schema Retrieval](model/rest.md#schema-retrieval)
-  1. [Schema Deletion](model/rest.md#schema-deletion)
-    1. [Table List Retrieval](model/rest.md#table-list-retrieval)
-    1. [Table Creation](model/rest.md#table-creation)
-    1. [Table Retrieval](model/rest.md#table-retrieval)
-    1. [Table Deletion](model/rest.md#table-deletion)
-      1. [Column List Retrieval](model/rest.md#column-list-retrieval)
-      1. [Column Creation](model/rest.md#column-creation)
-      1. [Column Retrieval](model/rest.md#column-retrieval)
-      1. [Column Deletion](model/rest.md#column-deletion)
-      1. [Key List Retrieval](model/rest.md#key-list-retrieval)
-      1. [Key Creation](model/rest.md#key-creation)
-      1. [Key Retrieval](model/rest.md#key-retrieval)
-      1. [Key Deletion](model/rest.md#key-deletion)
-      1. [Foreign Key List Retrieval](model/rest.md#foreign-key-list-retrieval)
-      1. [Foreign Key Creation](model/rest.md#foreign-key-creation)
-      1. [Foreign Key Retrieval](model/rest.md#foreign-key-retrieval)
-      1. [Foreign Key Deletion](model/rest.md#foreign-key-deletion)
-  1. [Model Annotations](model/rest.md#model-annotations)
-    1. [Annotation List Retrieval](model/rest.md#annotation-list-retrieval)
-    1. [Annotation Creation](model/rest.md#annotation-creation)
-    1. [Annotation Bulk Update](model/rest.md#annotation-bulk-update)
-    1. [Annotation Retrieval](model/rest.md#annotation-retrieval)
-    1. [Annotation Deletion](model/rest.md#annotation-deletion)
-  1. [Model Comments](model/rest.md#model-comments)
-    1. [Comment Creation](model/rest.md#comment-creation)
-    1. [Comment Retrieval](model/rest.md#comment-retrieval)
-    1. [Comment Deletion](model/rest.md#comment-deletion)
+   1. [Schemata Retrieval](model/rest.md#schemata-retrieval)
+   1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)
+   1. [Schema Creation](model/rest.md#schema-creation)
+   1. [Schema Retrieval](model/rest.md#schema-retrieval)
+   1. [Schema Deletion](model/rest.md#schema-deletion)
+      1. [Table List Retrieval](model/rest.md#table-list-retrieval)
+      1. [Table Creation](model/rest.md#table-creation)
+      1. [Table Retrieval](model/rest.md#table-retrieval)
+      1. [Table Deletion](model/rest.md#table-deletion)
+         1. [Column List Retrieval](model/rest.md#column-list-retrieval)
+         1. [Column Creation](model/rest.md#column-creation)
+         1. [Column Retrieval](model/rest.md#column-retrieval)
+         1. [Column Deletion](model/rest.md#column-deletion)
+         1. [Key List Retrieval](model/rest.md#key-list-retrieval)
+         1. [Key Creation](model/rest.md#key-creation)
+         1. [Key Retrieval](model/rest.md#key-retrieval)
+         1. [Key Deletion](model/rest.md#key-deletion)
+         1. [Foreign Key List Retrieval](model/rest.md#foreign-key-list-retrieval)
+         1. [Foreign Key Creation](model/rest.md#foreign-key-creation)
+         1. [Foreign Key Retrieval](model/rest.md#foreign-key-retrieval)
+         1. [Foreign Key Deletion](model/rest.md#foreign-key-deletion)
+   1. [Model Annotations](model/rest.md#model-annotations)
+      1. [Annotation List Retrieval](model/rest.md#annotation-list-retrieval)
+      1. [Annotation Creation](model/rest.md#annotation-creation)
+      1. [Annotation Bulk Update](model/rest.md#annotation-bulk-update)
+      1. [Annotation Retrieval](model/rest.md#annotation-retrieval)
+      1. [Annotation Deletion](model/rest.md#annotation-deletion)
+   1. [Model Comments](model/rest.md#model-comments)
+      1. [Comment Creation](model/rest.md#comment-creation)
+      1. [Comment Retrieval](model/rest.md#comment-retrieval)
+      1. [Comment Deletion](model/rest.md#comment-deletion)
 1. [Data operations](data/rest.md)
-  1. [Entity Creation](data/rest.md#entity-creation)
-    1. [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults)
-  1. [Entity Update](data/rest.md#entity-update)
-  1. [Entity Retrieval](data/rest.md#entity-retrieval)
-  1. [Entity Delete](data/rest.md#entity-delete)
-  1. [Attribute Retrieval](data/rest.md#attribute-retrieval)
-  1. [Attribute Delete](data/rest.md#attribute-delete)
-  1. [Attribute Group Retrieval](data/rest.md#attribute-group-retrieval)
-  1. [Attribute Group Update](data/rest.md#attribute-group-update)
-    1. [Attribute Group Update with Renaming](data/rest.md#attribute-group-update-with-renaming)
-  1. [Aggregate Retrieval](data/rest.md#aggregate-retrieval)
+   1. [Entity Creation](data/rest.md#entity-creation)
+   1. [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults)
+   1. [Entity Update](data/rest.md#entity-update)
+   1. [Entity Retrieval](data/rest.md#entity-retrieval)
+   1. [Entity Delete](data/rest.md#entity-delete)
+   1. [Attribute Retrieval](data/rest.md#attribute-retrieval)
+   1. [Attribute Delete](data/rest.md#attribute-delete)
+   1. [Attribute Group Retrieval](data/rest.md#attribute-group-retrieval)
+   1. [Attribute Group Update](data/rest.md#attribute-group-update)
+   1. [Attribute Group Update with Renaming](data/rest.md#attribute-group-update-with-renaming)
+   1. [Aggregate Retrieval](data/rest.md#aggregate-retrieval)
 
 These operations produce and/or consume representations of the resources. ERMrest defines its own JSON representations for catalog and model elements, and supports common representations of tabular data.
 
@@ -181,17 +181,17 @@ ERMrest supports opportunistic concurrency control using an entity tag ("ETag") 
 #### Precondition Processing
 
 1. A response header `ETag` carries an ETag representing the resource version _at the conclusion of request processing_.
-  - A `HEAD` response with an ETag identifies the version of the resource currently present in the server.
-  - A `GET` response with an ETag identifies the version of the resource being represented in the output.
-  - A `PUT`, `POST`, or `DELETE` response with an ETag identifies the version of the server-side resource after it was modified by the request.
+   - A `HEAD` response with an ETag identifies the version of the resource currently present in the server.
+   - A `GET` response with an ETag identifies the version of the resource being represented in the output.
+   - A `PUT`, `POST`, or `DELETE` response with an ETag identifies the version of the server-side resource after it was modified by the request.
 2. Request headers `If-Match` and `If-None-Match` carry one or more ETags (or the wildcard `*`) specifying constraints on the resource version _at the start of request processing_.
-  - The `If-Match` header requires that the server-side resource match one of the specified ETag values in order to permit processing of the request.
-  - The `If-None-Match` header requires that the server-side resource *not* match any of the specified ETag values in order to permit processing of the request.
-  - The wildcard `*` in either header trivially matches any server-side resource version.
-  - The combination of both headers is a logical conjunction of all constraints, meaning both headers' respective conditions must be met in order to permit processing of the request.
+   - The `If-Match` header requires that the server-side resource match one of the specified ETag values in order to permit processing of the request.
+   - The `If-None-Match` header requires that the server-side resource *not* match any of the specified ETag values in order to permit processing of the request.
+   - The wildcard `*` in either header trivially matches any server-side resource version.
+   - The combination of both headers is a logical conjunction of all constraints, meaning both headers' respective conditions must be met in order to permit processing of the request.
 3. HTTP methods conditionalize their behavior and response when precondition headers are present in requests.
-  - A `PUT`, `POST`, or `DELETE` operation returns a normal `200 OK` or `201 Created` in the absence of preconditions or if preconditions are met. They return `412 PreconditionFailed` when preconditions are not met; in this case, the operation has no effect on server-side resource state.
-  - A `GET` operation returns a normal `200 OK` in the absence of preconditions or if preconditions are met. It returns `304 Not Modified` when preconditions are not met. This alternative status code is required by the HTTP standard due to its idiomatic use for cache-control of `GET` responses; the "not modified" status means the client can reuse a representation when an `If-None-Match` header is used to specify the ETag associated with the representation previously retrieved by that client.
+   - A `PUT`, `POST`, or `DELETE` operation returns a normal `200 OK` or `201 Created` in the absence of preconditions or if preconditions are met. They return `412 PreconditionFailed` when preconditions are not met; in this case, the operation has no effect on server-side resource state.
+   - A `GET` operation returns a normal `200 OK` in the absence of preconditions or if preconditions are met. It returns `304 Not Modified` when preconditions are not met. This alternative status code is required by the HTTP standard due to its idiomatic use for cache-control of `GET` responses; the "not modified" status means the client can reuse a representation when an `If-None-Match` header is used to specify the ETag associated with the representation previously retrieved by that client.
 
 #### Atomic Retrieval of Multiple Resources
 
@@ -200,8 +200,8 @@ An example of concurrency control is to dump a set of data values from several t
 1. Plan the set of resources it needs to retrieve (e.g. a list of ERMrest URLs for schema and/or data resources).
 2. Pre-fetch each resource using an unconditional `GET` request and save both the representation and corresponding ETag from the response.
 3. Re-probe each resource using a conditional `GET` request with `If-None-Match` header specifying the ETag from the previous response for that URL.
-  - A `304 Not Modified` response indicates that the resource is still at the same version on the server.
-  - A `200 OK` response indicates that the server-side state has changed, so save both the representation and corresponding ETag from the response.
+   - A `304 Not Modified` response indicates that the resource is still at the same version on the server.
+   - A `200 OK` response indicates that the server-side state has changed, so save both the representation and corresponding ETag from the response.
 4. Repeat step (3) until an entire cycle of visits to all resources yielded `304 Not Modified`, indicating that no resource changed state since their states were retrieved.
 
 #### Atomic Change of a Resource
@@ -210,8 +210,8 @@ Another example of concurrency control is to change a resource while ensuring th
 
 1. Fetch a resource representation and its corresponding ETag.
 2. Send a revision of the data an appropriate `PUT`, `POST`, or `DELETE` to the same URL including an `If-Match` header with the previously retrieved ETag.
-  - A `200 OK`, `201 Created`, and/or `204 No Content` indicates that the mutation was performed safely.
-  - A `412 Precondition Failed` response indicates that someone else modified the resource since you last fetched it, so repeat the process from step (1).
+   - A `200 OK`, `201 Created`, and/or `204 No Content` indicates that the mutation was performed safely.
+   - A `412 Precondition Failed` response indicates that someone else modified the resource since you last fetched it, so repeat the process from step (1).
 
 ERMrest always makes an atomic change for one request, but the above workflow protects against concurrent access to the resource while the client is interpreting the first representation it retrieved, planning the mutation, and requesting that the change be applied. When an update hazard is identified by the `412 Precondition Failed` response, the client has avoided making an unsafe change and repeats the entire inspect, plan, execute cycle.
 
@@ -222,9 +222,9 @@ The two preceding workflows can be combined in order to determine consistent mod
 1. Perform [atomic retrieval of multiple resources](#atomic-retrieval-of-multiple-resources) until a consistent set of <URL, representation, ETag> triples are known.
 2. Plan a set of update operations for the same URLs.
 3. Perform a variant of [atomic change of a resource](#atomic-change-of-a-resource) once for each URL.
-  A. Perform the mutation request immediately with an `If-Match` header bearing the ETag obtained in step (1) of this bulk workflow.
-  B. Any `200 OK`, `201 Created`, and/or `204 No Content` response indicates that part of the update has completed. Save the update revision ETag associated with this response.
-  C. If any `412 Precondition Failed` response is encountered, a concurrent modification has been detected. The client should stop and analyze the situation!
+   A. Perform the mutation request immediately with an `If-Match` header bearing the ETag obtained in step (1) of this bulk workflow.
+   B. Any `200 OK`, `201 Created`, and/or `204 No Content` response indicates that part of the update has completed. Save the update revision ETag associated with this response.
+   C. If any `412 Precondition Failed` response is encountered, a concurrent modification has been detected. The client should stop and analyze the situation!
 
 Unfortunately, a concurrent change detected in step (3.C.) above leaves the server in an inconsistent state. The client is aware that they have partially applied updates and they must now formulate a compensation action which depends on domain knowledge and more sophisticated client behaviors.  For example:
 

@@ -40,17 +40,17 @@ The `attribute` resource space denotes projected attributes of entities using na
 The _path_ is interpreted identically to the `entity` resource space. However, rather than denoting a set of whole entities, the `attribute` resource space denotes specific fields *projected* from that set of entities.  The projected _column reference_ list elements can be in one of several forms:
 
 - [ _out alias_ `:=` ] _column name_
-  - A field is projected from the final table instance of _path_.
-  - An optional _out alias_ can be assigned to rename the output column, and by default the output column will be named by the unqualified _column name_.
+   - A field is projected from the final table instance of _path_.
+   - An optional _out alias_ can be assigned to rename the output column, and by default the output column will be named by the unqualified _column name_.
 - `*`
-  - A wildcard that expands to all of the columns from the final table instance of _path_.
-  - The output columns are automatically named by their unqualified column names.
+   - A wildcard that expands to all of the columns from the final table instance of _path_.
+   - The output columns are automatically named by their unqualified column names.
 - [ _out alias_ `:=` ] _alias_ `:` _column name_
-  - A field is projected from a table instance bound to _alias_ in _path_.
-  - An optional _out alias_ can be assigned to rename the output column, and by default the output column will be named by the unqualified _column name_.
+   - A field is projected from a table instance bound to _alias_ in _path_.
+   - An optional _out alias_ can be assigned to rename the output column, and by default the output column will be named by the unqualified _column name_.
 - _alias_ `:` `*`
-  - A wildcard that expands to all of the columns from a table instance bound to _alias_ in _path_.
-  - The output columns are automatically named by their _alias_ qualified column names to prevent collisions between the multiple wildcard-expansions that are possible within one complex _path_. If a projection `A:*` is used for a table instance with a column named `foo` in it, the output data will then have a column with the literal name `A:foo`. Special attention must be paid when trying to reference such columns using the [sort modifier](#sort-modifier), as this modifier uses the output name `A:foo` as a user-supplied literal and therefore the `:` must be escaped as in `@sort(A%3Afoo)`.
+   - A wildcard that expands to all of the columns from a table instance bound to _alias_ in _path_.
+   - The output columns are automatically named by their _alias_ qualified column names to prevent collisions between the multiple wildcard-expansions that are possible within one complex _path_. If a projection `A:*` is used for a table instance with a column named `foo` in it, the output data will then have a column with the literal name `A:foo`. Special attention must be paid when trying to reference such columns using the [sort modifier](#sort-modifier), as this modifier uses the output name `A:foo` as a user-supplied literal and therefore the `:` must be escaped as in `@sort(A%3Afoo)`.
 
 Like in the `entity` resource space, joined tables may cause filtering but not duplication of rows in the final entity set. Thus, when projecting fields from aliased table instances in _path_, values are arbitrarily selected from one of the joined contextual rows if more than one such row was joined to the same final entity.
 
@@ -69,18 +69,18 @@ The _path_ is interpreted slightly differently than in the `attribute` resource 
 
 The _out alias_ is the name given to the computed field. The _function_ is one of a limited set of aggregate functions supported by ERMrest:
 
-  - `min`: the minimum non-NULL value (or NULL)
-  - `max`: the maximum non-NULL value (or NULL)
-  - `cnt_d`: the count of distinct non-NULL values
-  - `cnt`: the count of non-NULL values
-  - `array`: an array containing all values (including NULL)
+- `min`: the minimum non-NULL value (or NULL)
+- `max`: the maximum non-NULL value (or NULL)
+- `cnt_d`: the count of distinct non-NULL values
+- `cnt`: the count of non-NULL values
+- `array`: an array containing all values (including NULL)
 
 These aggregate functions are evaluated over the set of values projected from the entity set denoted by _path_. The same column resolution rules apply as in other projection lists: a bare _column name_ MUST reference a column of the final entity set while an alias-qualified column name MUST reference a column of a table instance bound to _alias_ in the _path_.
 
 As a special case, the psuedo-column `*` can be used in several idiomatic forms:
 
-  - `cnt(*)`: a count of entities rather than of non-NULL values is computed
-  - `array(`_alias_`:*)`: an array of records rather than an array of values is computed
+- `cnt(*)`: a count of entities rather than of non-NULL values is computed
+- `array(`_alias_`:*)`: an array of records rather than an array of values is computed
 
 TODO: document other variants?
 
@@ -105,11 +105,11 @@ In order to group numerical values into bins, e.g. for histogram presentation, a
 The binning operator determines which bucket the value in _column name_ belongs to, dividing the requested range from _minval_ (inclusive) to _maxval_ (exclusive) into _nbins_ equal-width intervals. The result is always a three-element JSON array `[` _bucket_ `,` _lower_ `,` _upper_ `]` describing the bucket.
 
 - _bucket_: The bin number which the value falls into.
-    - `null`: The `null` bin captures all NULL values.
-	- 0: The zero bin captures all values below the requested range.
-    - 1: The first bin in the requested range.
-	- _nbins_: The last bin in the requested range.
-	- _bins_ + 1: The final bin captures all values above the requested range.
+   - `null`: The `null` bin captures all NULL values.
+   - 0: The zero bin captures all values below the requested range.
+   - 1: The first bin in the requested range.
+   - _nbins_: The last bin in the requested range.
+   - _nbins_ + 1: The final bin captures all values above the requested range.
 - _lower_: The lower bound (inclusive) of the bin, or `null`.
 - _upper_: The upper bound (exclusive) of the bin, or `null`.
 
@@ -168,17 +168,17 @@ This set of columns MUST comprise either a primary key or a foreign key which un
 The resolution procedure for these column sets is as follows:
 
 1. First column resolution:
-  1. Each bare _column name_ MUST be a column of the entity set denoted by _parent path_;
-  1. Each qualified name pair _table name_ `:` _column name_ MUST be a column in a table instance within _parent path_ if _table name_ is bound as an alias in _parent path_ (see following sub-section on table instance aliases);
-  1. Each qualified name pair _table name_ `:` _column name_ MUST be a column in a table known unambiguously by _table name_ if _table name_ is not bound as an alias in _parent path_;
-  1. Each qualified name triple _schema name_ `:` _table name_ `:` _column name_ MUST be a column within a table in the catalog.
+   1. Each bare _column name_ MUST be a column of the entity set denoted by _parent path_;
+   1. Each qualified name pair _table name_ `:` _column name_ MUST be a column in a table instance within _parent path_ if _table name_ is bound as an alias in _parent path_ (see following sub-section on table instance aliases);
+   1. Each qualified name pair _table name_ `:` _column name_ MUST be a column in a table known unambiguously by _table name_ if _table name_ is not bound as an alias in _parent path_;
+   1. Each qualified name triple _schema name_ `:` _table name_ `:` _column name_ MUST be a column within a table in the catalog.
 1. Endpoint resolution:
-  1. All columns in the column set MUST resolve to the same table in the catalog or the same table instance in the _parent path_;
-  1. When a sequence of more than one _column name_ is presented, the second and subsequent column names MAY be unqualified and are resolved first to the table associated with the first (possibly qualified) _column name_ in the sequence.
-  1. The set of columns MUST comprise either a foreign key or a key in their containing table but not both.
+   1. All columns in the column set MUST resolve to the same table in the catalog or the same table instance in the _parent path_;
+   1. When a sequence of more than one _column name_ is presented, the second and subsequent column names MAY be unqualified and are resolved first to the table associated with the first (possibly qualified) _column name_ in the sequence.
+   1. The set of columns MUST comprise either a foreign key or a key in their containing table but not both.
 1. Link resolution:
-  1. If the endpoint is a key or foreign key in a table in the catalog, that endpoint MUST unambiguously participate in exactly one link between that table and the entity set denoted by _parent path_;
-  1. If the endpoint is a key or foreign key of a table instance in _parent path_ (whether referenced by alias-qualified or unqualified column names), that endpoint MUST unambiguously participate in exactly one link between that table instance and exactly one table in the catalog.
+   1. If the endpoint is a key or foreign key in a table in the catalog, that endpoint MUST unambiguously participate in exactly one link between that table and the entity set denoted by _parent path_;
+   1. If the endpoint is a key or foreign key of a table instance in _parent path_ (whether referenced by alias-qualified or unqualified column names), that endpoint MUST unambiguously participate in exactly one link between that table instance and exactly one table in the catalog.
   
 The path extended with an entity link element denotes the entities of a new table drawn from the catalog and joined to the existing entities in _parent path_, with the default entity context of the extended path being the newly joined (i.e. right-most) table instance.
 
@@ -324,14 +324,14 @@ The list of sort keys goes left-to-right from primary to secondary etc.  The ind
 The modifier appears as an optional suffix to data names, but before any query parameters in the URL:
 
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)`
-  - Each _sort key_ MUST be a column name in the denoted entities since no column renaming is supported in `entity` resources.
-  - The sort modifies the order of the entity records in the external representation.
+   - Each _sort key_ MUST be a column name in the denoted entities since no column renaming is supported in `entity` resources.
+   - The sort modifies the order of the entity records in the external representation.
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
-  - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
-  - The sort modifies the order of the entity records in the external representation.
+   - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
+   - The sort modifies the order of the entity records in the external representation.
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `@sort(` _sort key_ `,` ... `)`
-  - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
-  - The sort modifies the order of the group records in the external representation, i.e. groups are sorted after aggregation has occurred. Sorting by a _projection_ value means sorting by a computed aggregate or an arbitrarily chosen example value when projecting bare columns.
+   - Each _sort key_ MUST refer to a column in the external representation, i.e. after any renaming has been applied.
+   - The sort modifies the order of the group records in the external representation, i.e. groups are sorted after aggregation has occurred. Sorting by a _projection_ value means sorting by a computed aggregate or an arbitrarily chosen example value when projecting bare columns.
 
 The sort modifier is only meaningful on retrieval requests using the `GET` method described in [Data Operations](#data-operations).
 
@@ -453,11 +453,11 @@ This allows sequential paging or scrolling of large result sets with reversing/r
 A client can choose an arbitrary application-oriented sort order with paging. However, the client SHOULD include row-level unique key material in the sort and page key to avoid hazards of missing rows that have identical sorting rank due to non-unique page keys. This can be achieved by appending unique key columns to the application sort as the lowest precedence sort criteria, i.e. sort first by an interesting but non-unique property and then finally break ties by a unique serial ID or similar property.
 
 1. Fetch first page:
-  - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
+   - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `?limit=` _n_
 1. Fetch subsequent page by encoding a page key projected from the **last** row of the preceding page:
-  - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
+   - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@after(` _limit value_ `,` ...`)` `?limit=` _n_
 1. Fetch antecedent page by encoding a page key projected from the **first** row of the subsequent page:
-  - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@before(` _limit value_ `,` ...`)` `?limit=` _n_
+   - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ `@sort(` _sort key_ `,` ... `)` `@before(` _limit value_ `,` ...`)` `?limit=` _n_
 
 Realize that a sequence of forward and backward page requests through a dataset might not land on the same page boundaries on both visits!
 
