@@ -32,22 +32,17 @@ The ERMrest web service model exposes resources to support management of dataset
 1. Service: the entire multi-tenant service end-point
 1. [Catalog](model/naming.md#catalog-names): a particular dataset (in one service)
 1. [Schema or model resources](model/naming.md)
-   1. [Schemata](model/naming.md#schemata-names): entire data model of a dataset (in one catalog)
+   1. [Schemata](model/naming.md#schema-names): entire data model of a dataset (in one catalog)
    1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
-      1. [Schema comment](model/naming.md#schema-comments): human-readable documentation for a schema
-      1. [Schema annotation](model/naming.md#schema-annotations): machine-readable documentation for a schema
       1. [Table definition](model/naming.md#table-names): a particular named set of data tuples (in one schema)
-         1. [Table comment](model/naming.md#table-comments): human-readable documentation for a table
-         1. [Table annotation](model/naming.md#table-annotations): machine-readable documentation for a table
          1. [Column definition](model/naming.md#column-names): a particular named field of data tuples (in one table)
-            1. [Column comment](model/naming.md#column-comments): human-readable documentation for a column
-            1. [Column annotation](model/naming.md#column-annotations): machine-readable documentation for a column
          1. [Key definition](model/naming.md#key-names): a composite key constraint (in one table)
-            1. [Key comment](model/naming#key-comments): human-readable documentation for a key constraint
-            1. [Key annotation](model/naming#key-annotations): machine-readable documentation for a key constraint
          1. [Foreign key definition](model/naming.md#foreign-key-names): a composite foreign key constraint (in one table)
-            1. [Foreign key comment](model/naming.md#foreign-key-comments): human-readable documentation for a foreign key constraint
-            1. [Foreign key annotation](model/naming.md#foreign-key-annotations): machine-readable documentation for a foreign key constraint
+1. [Generic sub-resources](model/naming.md#generic-model-sub-resources)
+   1. [Annotations](model/naming.md#annotations)
+   1. [Comments](model/naming.md#comments)
+   1. [Access Control Lists](model/naming.md#acls)
+   1. [Dynamic Access Control List Bindings](model/naming.md#acl-bindings)
 1. [Data resources](data/naming.md)
    1. [Entity](data/naming.md#entity-names): a set of data tuples corresponding to a (possibly filtered) table
    1. [Attribute](data/naming.md#attribute-names): a set of data tuples corresponding to a (possibly filtered) projection of a table
@@ -68,7 +63,63 @@ In general, ERMrest allows clients to define their own models. However, to simpl
 
 See [ERMrest standard system columns documentation](model/system-columns.md#ermrest-standard-system-columns) for more information about the names, types, and special guarantees of these system columns.
  
-#### Model Annotations
+#### Access Control
+
+ERMrest supports fine-grained static (data-independent) and dynamic (data-dependent) access control policies. It covers a wide range of use cases, allowing differentiated rights for one user versus another in a shared system:
+
+1. Make some content invisible
+   - An entire catalog
+   - An entire schema
+   - An entire table
+   - An entire column of a table
+   - Some rows of a table (as if row does not exist)
+   - Some fields of some rows of a table (as if the value is NULL)
+2. Prevent modification of some content
+   - Access control policy
+   - Table structure
+   - Table constraints
+   - Row insertion
+   - Row modification
+   - Row deletion
+   - Field modification (can change parts of row but not all parts)
+   - Value expression (can apply some values but not others in a given field)
+3. Delegate some rights within a community
+   - Authorize additional owners for sub-resources (can't suppress/mask parent owners from sub-resources)
+   - Delegate creation of new schema (while protecting other schemas)
+   - Delegate creation of new table (while protecting other tables)
+4. Make sure simple policies are still simple to manage
+   - Entire catalog visible to one group
+   - Entire catalog data mutable by one group
+   - Entire catalog model managed by one group
+
+Controlling visibility is complicated, particularly when multiple sophisticated features are combined:
+
+1. Most forms of access depend on other access
+   - Must see model to make sense of data APIs
+   - Must see data to make use of data modification APIs
+   - Must see related data to make sense of reference constraints
+   - Must see some abstraction of policy to make sense of what access mechanisms are available
+2. Reference constraints can expose "hidden" data
+   - Rows can be hidden in a domain table's policy
+   - Referring rows might still be visible due to a referring table's more open policy
+   - Presence of hidden domain data is revealed
+3. Integrity constraints can expose "hidden" columns
+   - A hidden column will receive default values on insert
+   - A default expression is not guaranteed to satisfy integrity constraints
+   - The conflict error will reveal information about the hidden column
+      - That a column with this name exists
+      - What the default value looks like
+      - What kind of constraint is violated by the default value
+
+See [ERMrest access control conceptual overview](acl/concepts.md) for more information about the authorization model.
+
+See [ERMrest static ACL technical reference](acl/static.md) for more information about static ACL syntax.
+
+See [ERMrest dynamic ACL technical reference](acl/dynamic.md) for more information about dynamic ACL binding syntax.
+
+See [ERMrest access decision introspection](acl/rights.md) for more information about predicting access rights from a client's perspective.
+
+#### Annotations
 
 The machine-readable annotation mechanism in ERMrest enables a three-level interpretation of datasets:
 
@@ -126,7 +177,6 @@ The ERMrest interface supports typical HTTP operations to manage these different
    1. [Catalog Creation](rest-catalog.md#catalog-creation)
    1. [Catalog Retrieval](rest-catalog.md#catalog-retrieval)
    1. [Catalog Deletion](rest-catalog.md#catalog-deletion)
-      1. [ACL Retrieval](rest-catalog.md#access-control-list-retrieval)
 1. [Model-level operations](model/rest.md)
    1. [Schemata Retrieval](model/rest.md#schemata-retrieval)
    1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)
@@ -149,16 +199,24 @@ The ERMrest interface supports typical HTTP operations to manage these different
          1. [Foreign Key Creation](model/rest.md#foreign-key-creation)
          1. [Foreign Key Retrieval](model/rest.md#foreign-key-retrieval)
          1. [Foreign Key Deletion](model/rest.md#foreign-key-deletion)
-   1. [Model Annotations](model/rest.md#model-annotations)
+   1. [Annotations](model/rest.md#annotations)
       1. [Annotation List Retrieval](model/rest.md#annotation-list-retrieval)
       1. [Annotation Creation](model/rest.md#annotation-creation)
       1. [Annotation Bulk Update](model/rest.md#annotation-bulk-update)
       1. [Annotation Retrieval](model/rest.md#annotation-retrieval)
       1. [Annotation Deletion](model/rest.md#annotation-deletion)
-   1. [Model Comments](model/rest.md#model-comments)
+   1. [Comments](model/rest.md#comments)
       1. [Comment Creation](model/rest.md#comment-creation)
       1. [Comment Retrieval](model/rest.md#comment-retrieval)
       1. [Comment Deletion](model/rest.md#comment-deletion)
+   1. [Access Control Lists](model/rest.md#access-control-lists)
+      1. [Access Control List Creation](model/rest.md#access-control-list-creation)
+      1. [Access Control List Retrieval](model/rest.md#access-control-list-retrieval)
+      1. [Access Control List Deletion](model/rest.md#access-control-list-deletion)
+   1. [Access Control List Bindings](model/rest.md#access-control-list-bindings)
+      1. [Access Control List Binding Creation](model/rest.md#access-control-list-binding-creation)
+      1. [Access Control List Binding Retrieval](model/rest.md#access-control-list-binding-retrieval)
+      1. [Access Control List Binding Deletion](model/rest.md#access-control-list-binding-deletion)
 1. [Data operations](data/rest.md)
    1. [Entity Creation](data/rest.md#entity-creation)
    1. [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults)

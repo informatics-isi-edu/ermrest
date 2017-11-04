@@ -726,7 +726,7 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
-## Model Annotations
+## Annotations
 
 Annotations are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
 
@@ -874,7 +874,7 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
-## Model Comments
+## Comments
 
 Comments are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
 
@@ -958,6 +958,209 @@ The request does not require content-negotiation since there is no response repr
 On success, this request yields a description:
 
     HTTP/1.1 204 No Content
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+## Access Control Lists
+
+Access control lists (ACLs) are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ]
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
+
+And the ACL sub-resources are named by appending `/acl` to the _subject_ resource as described in the following operations.
+
+### Access Control Lists Retrieval
+
+The GET method is used to get a summary of all access control (ACL)
+lists:
+
+    GET subject/acl HTTP/1.1
+	Host: www.example.com
+
+On success, this request yields the ACL content as an object with one value list for each named ACL:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    
+    {
+      "owner": ["user1", "group2"],
+      "select": ["*"],
+      "update": [],
+      "delete": [],
+      "insert": [],
+      "enumerate": []
+    }
+
+White-space is added above for readability. This legacy representation is likely to change in future revisions.
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+### Bulk Access Control List Update
+
+The PUT method can be used to reconfigure all access control lists on a single _subject_ resource at once:
+
+    PUT subject/acl HTTP/1.1
+    Content-Type: application/json
+
+    {
+      "owner": ["user1", "group2"],
+      "select": ["*"],
+      "update": [],
+      "delete": [],
+      "insert": [],
+      "enumerate": []
+    }
+
+The previous configuration of the _subject_ access control lists is completely replaced. When _subject_ is a whole catalog, absent ACL names are interpreted as implicitly present with value `[]`. When _subject_ is any other mode sub-resource, absent ACL names are interpreted as implicitly present with the value `null`.
+
+On success, this request produces no content:
+
+    204 No Content
+
+### Access Control List Creation
+
+The PUT method is used to set the state of a specific access control list (the `owner` ACL in this example):
+
+    PUT subject/acl/owner HTTP/1.1
+    Content-Type: application/json
+    
+    ["user1", "group2"]
+
+On success, this request produces no content:
+
+    204 No Content
+
+### Access Control List Retrieval
+
+The GET method is used to get the state of a specific access control list (the `owner` ACL in this example):
+
+    GET subject/acl/owner HTTP/1.1
+	Host: www.example.com
+
+On success, this request yields the ACL content as a value list:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    
+    ["user1", "group2"]
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+## Access Control List Bindings
+
+Access control list bindings (ACL bindings) are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ 
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... 
+
+And the ACL binding sub-resources are named by appending `/acl_binding` to the _subject_ resource as described in the following operations.
+
+### Access Control List Bindings Retrieval
+
+The GET method is used to get a summary of all access control list bindings:
+
+    GET subject/acl_binding HTTP/1.1
+	Host: www.example.com
+
+On success, this request yields the ACL content as an object with one value list for each named ACL:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    
+    {
+      "my_example_binding": {
+        "types": ["owner"],
+        "projection": "My Owner Column",
+        "projection_type": "acl"
+      },
+      "my_example_binding2": {
+        "types": ["select"],
+        "projection": [{"filter": "Is Public", "operand": true}, "Is Public"],
+        "projection_type": "nonnull"
+      }
+    }
+
+White-space is added above for readability. This legacy representation is likely to change in future revisions.
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+### Bulk Access Control List Binding Update
+
+The PUT method can be used to reconfigure all access control list bindings on a single _subject_ resource at once:
+
+    PUT subject/acl HTTP/1.1
+    Content-Type: application/json
+
+    {
+      "my_example_binding": {
+        "types": ["owner"],
+        "projection": "My Owner Column",
+        "projection_type": "acl"
+      },
+      "my_example_binding2": {
+        "types": ["select"],
+        "projection": [{"filter": "Is Public", "operand": true}, "Is Public"],
+        "projection_type": "nonnull"
+      }
+    }
+
+The previous configuration of access control list bindings on _subject_ is completely replaced.
+
+On success, this request produces no content:
+
+    204 No Content
+
+### Access Control List Binding Creation
+
+The PUT method is used to set the state of a specific access control list binding:
+
+    PUT subject/acl_binding/my_example_binding HTTP/1.1
+    Content-Type: application/json
+    
+    {
+      "types": ["owner"],
+      "projection": "My Owner Column",
+      "projection_type": "acl"
+    }
+
+On success, this request produces no content:
+
+    204 No Content
+
+### Access Control List Binding Retrieval
+
+The GET method is used to get the state of a specific access control list binding:
+
+    GET subject/acl_binding/my_example_binding HTTP/1.1
+	Host: www.example.com
+
+On success, this request yields the ACL content as a value list:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    
+    {
+      "types": ["owner"],
+      "projection": "My Owner Column",
+      "projection_type": "acl"
+    }
 
 Typical error response codes include:
 - 404 Not Found

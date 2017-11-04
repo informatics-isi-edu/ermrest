@@ -21,20 +21,81 @@ read-only retrieval of historical resource representations. Only the
 latest, *live* catalog represented by _cid_ without a _revision_
 supports mutation.
 
-### Catalog Annotations
+## Generic Model Sub-Resources
 
-Each catalog annotation is reified as a model-level resource:
+A number of different resource types in the model hierarchy all
+support sub-resources with very similar interfaces. Rather than
+describing each sub-resource independently, we summarize them here.
 
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/annotation/` _annotation key_
+### Annotations
 
-This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
+Annotations are reified as sub-resources:
 
-Additionally, a composite resource summarizes all existing annotations on one catalog for convenient discovery and bulk retrieval:
+- _subject_ `/annotation/` _annotation key_
 
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/annotation`
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/annotation/`
+| Subject Kind              | Purpose |
+|---------------------------|---------|
+| [catalog](#catalog-names) | Annotations about whole catalog |
+| [schema](#schema-names)   | Annotations about one named schema |
+| [table](#table-names)     | Annotations about one named table |
+| [column](#column-names)   | Annotations about one named column |
+| [key](#key-names)         | Annotations about one key constraint |
+| [foreign key](#foreign-key-names) | Annotations about one foreign key constraint |
 
-## Schemata Names
+Each keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
+
+Additionally, a composite resource summarizes all existing annotations on one annotated resource, for convenient discovery and bulk retrieval:
+
+- _annotated resource_ `/annotation`
+- _annotated resource_ `/annotation/`
+
+### Comments
+
+Comments are reified as a sub-resources:
+
+- _subject_ `/comment`
+
+| Subject Kind              | Purpose |
+|---------------------------|---------|
+| [schema](#schema-names)   | Comment about one named schema |
+| [table](#table-names)     | Comment about one named table |
+| [column](#column-names)   | Comment about one named column |
+| [key](#key-names)         | Comment about one key constraint |
+| [foreign key](#foreign-key-names) | Comment about one foreign key constraint |
+
+This resource has a simple representation which is just human readable text in `text/plain` format.
+
+### ACLs
+
+Access control lists (ACLs) are reified as sub-resources:
+
+- _subject_ `/acl/` _acl name_
+
+| Subject Kind              | Purpose |
+|---------------------------|---------|
+| [catalog](#catalog-names) | ACLs granting access to whole catalog |
+| [schema](#schema-names)   | ACLs granting access to one named schema |
+| [table](#table-names)     | ACLs granting access to one named table |
+| [column](#column-names)   | ACLs granting access to one named column |
+| [foreign key](#foreign-key-names) | ACLs granting access to one foreign key constraint |
+
+Each keyed ACL has a simple representation which is a machine-readable array of authorized client attribute strings or a `null` value in `application/json` format.
+
+### ACL Bindings
+
+Dynamic access control list bindings (ACL bindings) are reified as sub-resources:
+
+- _subject_ `/acl_binding/` _binding name_
+
+| Subject Kind              | Purpose |
+|---------------------------|---------|
+| [table](#table-names)     | ACL bindings granting access to one named table |
+| [column](#column-names)   | ACL bindings granting access to one named column |
+| [foreign key](#foreign-key-names) | ACL bindings granting access to one foreign key constraint |
+
+Each keyed ACL binding has a simple representation which is a machine-readable object or a `false` value in `application/json` format.
+
+## Schema Names
 
 The ERMrest model resources are named under a root collection of schemata for a particular catalog:
 
@@ -56,27 +117,6 @@ Each schema or namespace of tables in a particular catalog is reified as a model
 
 This named schema resource has a representation which summarizes the data model of all tables qualified by the _schema name_ namespace.
 
-### Schema Comments
-
-Each schema comment is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/comment`
-
-This named resource has a simple representation which is just human readable text in `text/plain` format.
-
-### Schema Annotations
-
-Each schema annotation is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/annotation/` _annotation key_
-
-This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
-
-Additionally, a composite resource summarizes all existing annotations on one schema for convenient discovery and bulk retrieval:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/annotation`
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/annotation/`
-
 ## Table Names
 
 Each table is reified as a model-level resource:
@@ -84,27 +124,6 @@ Each table is reified as a model-level resource:
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_
 
 This named table resource has a representation which summarizes its data model including columns, keys, and foreign keys. Within data resource names, a table may be referenced by _table name_ only if that name is unique within the catalog or by a fully qualified _schema name_ `:` _table name_. Concrete examples of such names might be `table1` or `schema1:table1`.
-
-### Table Comments
-
-Each table comment is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/comment`
-
-This named resource has a simple representation which is just human readable text in `text/plain` format.
-
-### Table Annotations
-
-Each table annotation is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/annotation/` _annotation key_
-
-This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
-
-Additionally, a composite resource summarizes all existing annotations on one table for convenient discovery and bulk retrieval:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/annotation`
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/annotation/`
 
 ### Column Names
 
@@ -118,27 +137,6 @@ This named column resource has a representation which summarizes its data model 
 - _table alias_ : _column name_ when resolving against a context where _table alias_ has been bound as an alias to a specific table instance;
 - _table name_ : _column name_ when resolving against the model and _table name_ is unique within the catalog;
 - _schema name_ : _table name_ : _column name_ when resolving against the model and _table name_ might otherwise be ambiguous.
-
-##### Column Comments
-
-Each column comment is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/comment`
-
-This named resource has a simple representation which is just human readable text in `text/plain` format.
-
-##### Column Annotations
-
-Each column annotation is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/annotation/` _annotation key_
-
-This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
-
-Additionally, a composite resource summarizes all existing annotations on one column for convenient discovery and bulk retrieval:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/annotation`
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `/annotation/`
 
 ### Key Names
 
@@ -157,27 +155,6 @@ Additionally, a composite resource summarizes all existing key constraints on on
 
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key`
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/`
-
-##### Key Comments
-
-Each key comment is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/comment`
-
-This named resource has a simple representation which is just human readable text in `text/plain` format.
-
-##### Key Annotations
-
-Each key annotation is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/annotation/` _annotation key_
-
-This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
-
-Additionally, a composite resource summarizes all existing annotations on one key for convenient discovery and bulk retrieval:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/annotation`
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/key/` _column name_ `,` ... `/annotation/`
 
 ### Foreign Key Names
 
@@ -208,24 +185,3 @@ Finally, a composite resource summarizes all foreign key constraints involving o
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_
 
 (While highly unusual, it is possible to express more than one foreign key constraint from the same composite foreign key _column name_ list to different composite key _key column_ lists in the same or different _table reference_ tables.)
-
-##### Foreign Key Comments
-
-Each foreign-key comment is reified as a model-level resource:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ... `/comment`
-
-This named resource has a simple representation which is just human readable text in `text/plain` format.
-
-#### Foreign Key Annotations
-
-Each foreign-key annotation is reified as a model-level resource:
-
--  _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ... `/annotation/` _annotation key_
-
-This keyed annotation has a simple representation which is a machine-readable document in `application/json` format. The expected content and interpretation of the JSON document is externally defined and associated with the _annotation key_ which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the _annotation key_ is to allow different user communities to organize their own annotation standards without ambiguity.
-
-Additionally, a composite resource summarizes all existing annotations on one foreign-key for convenient discovery and bulk retrieval:
-
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ... `/annotation`
-- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ... `/annotation/`
