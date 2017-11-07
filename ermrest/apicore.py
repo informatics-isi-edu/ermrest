@@ -247,6 +247,14 @@ def request_final():
         pass
     else:
         session = session.to_dict()
+
+    try:
+        dcctx = web.ctx.env.get('HTTP_DERIVA_CLIENT_CONTEXT', 'null')
+        dcctx = urllib.unquote(dcctx)
+        dcctx = json.loads(dcctx)
+    except:
+        dcctx = None
+
     od = OrderedDict([
         (k, v) for k, v in [
             ('elapsed', parts['elapsed']),
@@ -264,6 +272,7 @@ def request_final():
             ('agent', web.ctx.env.get('HTTP_USER_AGENT')),
             ('session', session),
             ('track', web.ctx.webauthn2_context.tracking),
+            ('dcctx', dcctx),
         ]
         if v
     ] + (
