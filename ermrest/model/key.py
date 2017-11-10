@@ -440,12 +440,11 @@ def _keyref_has_right(self, aclname, roles=None):
         if not self.unique.has_right('enumerate', roles):
             return False
         decision = self.foreign_key.columns_have_right('select')
-        if not decision:
-            # None or False may happen here
-            return decision
+        if decision is False:
+            return False
         decision = self.unique.has_right(aclname)
-        if not decision:
-            return decision
+        if decision is False:
+            return False
     return self._has_right(aclname, roles)
 
 @annotatable

@@ -312,8 +312,8 @@ class StaticHidden (common.ErmrestTest):
         # "schema/%s/table/Data/foreignkey/c_id/reference/Category/id" % _S: {}
     }
 
-    @classmethod
-    def setUpClass(cls):
+    @staticmethod
+    def _setUpClass(cls):
         for tname, acls in cls.acls.items():
             common.primary_session.put('schema/%s/table/%s/acl' % (_S, tname), json=acls).raise_for_status()
         for tname, col_acls in cls.col_acls.items():
@@ -339,6 +339,10 @@ class StaticHidden (common.ErmrestTest):
             common.primary_session.put('%s/acl_binding' % col_url_frag, json=bindings).raise_for_status()
         for fkr_url_frag, bindings in cls.fkr_bindings.items():
             common.primary_session.put('%s/acl_binding' % fkr_url_frag, json=bindings).raise_for_status()
+
+    @classmethod
+    def setUpClass(cls):
+        cls._setUpClass(cls)
 
     def setUp(self):
         # reset data in case we have mutation test cases
@@ -891,7 +895,78 @@ class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
             'anonymous_put_row_data_primary': Expectation(401),
         }
     )
-    
+
+class ImplicitEnumeration (common.ErmrestTest):
+    # Hack: this class steals part of StaticHidden but doesn't want all the data-api tests
+
+    acls = dict(StaticHidden.acls)
+    acls.update({
+        "Data": {
+            # TODO: revisit if we broaden the implicit-enumerate right for dynacls...
+            "enumerate": ["*"],
+            "select": [],
+            "update": [],
+        },
+        "Category": {
+            "select": ["*"],
+        }
+    })
+
+    col_acls = dict(StaticHidden.col_acls)
+    col_acls.update({
+        "Data": {
+            "id": {
+                "select": [],
+                "update": [],
+            },
+            "c_id": {
+                "select": [],
+                "update": [],
+            }
+        }
+    })
+
+    fkr_acls = {}
+
+    bindings = dict(StaticHidden.bindings)
+
+    col_bindings = {
+        "schema/%s/table/Data/column/c_id" % _S: {
+            'selectany': {
+                "types": ["select"],
+                "projection": ["id"],
+                "projection_type": "nonnull"
+            },
+        }
+    }
+    fkr_bindings = {}
+
+    @classmethod
+    def setUpClass(cls):
+        # Hack: borrow the policy setup...
+        StaticHidden._setUpClass(cls)
+
+    def _get_table_doc(self, tname):
+        r = common.anonymous_session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        return r.json()['schemas'][_S]['tables'][tname]
+
+    def test_id_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertIn('id', [ col['name'] for col in table['column_definitions'] ])
+
+    def test_fkc_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertIn('c_id', [ col['name'] for col in table['column_definitions'] ])
+
+    def test_key_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertEqual(len(table['keys']), 2)
+
+    def test_fkr_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertEqual(len(table['foreign_keys']), 1)
+
 _data = [
     (
         'entity/%s:Category' % _S,
