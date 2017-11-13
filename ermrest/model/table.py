@@ -340,7 +340,7 @@ SELECT _ermrest.data_change_event(%(snamestr)s, %(tnamestr)s);
             for k, v in fkr.annotations.items():
                 fkr.set_annotation(conn, cur, k, v)
             for k, v in fkr.acls.items():
-                fkr.set_acl(cur, k, v)
+                fkr.set_acl(cur, k, v, anon_mutation_ok=True)
             for k, v in fkr.dynacls.items():
                 fkr.set_dynacl(cur, k, v)
             yield fkr

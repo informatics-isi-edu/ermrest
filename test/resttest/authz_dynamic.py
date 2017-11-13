@@ -275,7 +275,7 @@ class StaticHidden (common.ErmrestTest):
         }
     }
 
-    # for brevity, col_acls are applied as an update over default {"select": ["*"], "update": ["*"]}
+    # for brevity, col_acls are applied as an update over default {"select": ["*"], "update": [common.secondary_client_id]}
     # so custom overrides be specified sparsely on a column-by-column basis
     col_acls = {
         "Data": {
@@ -317,7 +317,7 @@ class StaticHidden (common.ErmrestTest):
                 cname = coldef['name']
                 col_acl = {
                     "select": ['*'],
-                    "update": ['*']
+                    "update": [common.secondary_client_id]
                 }
                 if cname in col_acls:
                     col_acl.update(col_acls[cname])
@@ -464,9 +464,9 @@ class HiddenPolicy (StaticHidden):
             'secondary_put_row_data_primary': Expectation([200,204]),
             'secondary_put_row_data_secondary': Expectation([200,204]),
             'secondary_put_row_data_anonymous': Expectation([200,204]),
-            'anonymous_put_row_data_primary': Expectation([200,204]),
-            'anonymous_put_row_data_secondary': Expectation([200,204]),
-            'anonymous_put_row_data_anonymous': Expectation([200,204]),
+            'anonymous_put_row_data_primary': Expectation(401),
+            'anonymous_put_row_data_secondary': Expectation(401),
+            'anonymous_put_row_data_anonymous': Expectation(401),
         }
     )
 
@@ -491,9 +491,9 @@ class RestrictedFkr (HiddenPolicy):
             'secondary_put_col_data_primary': Expectation([200, 204]),
             'secondary_put_col_data_secondary': Expectation([200, 204]),
             'secondary_put_col_data_anonymous': Expectation([200, 204]),
-            'anonymous_put_col_data_primary': Expectation([200, 204]),
-            'anonymous_put_col_data_secondary': Expectation([200, 204]),
-            'anonymous_put_col_data_anonymous': Expectation([200, 204]),
+            'anonymous_put_col_data_primary': Expectation(401),
+            'anonymous_put_col_data_secondary': Expectation(401),
+            'anonymous_put_col_data_anonymous': Expectation(401),
         }
     )
 
@@ -509,7 +509,7 @@ class RestrictedFkrDomainAcl (RestrictedFkr):
         {
             'secondary_put_row_data_secondary': Expectation([200, 204]),
             'secondary_put_row_data_anonymous': Expectation([200, 204]),
-            'anonymous_put_row_data_anonymous': Expectation([200, 204]),
+            'anonymous_put_row_data_anonymous': Expectation(401),
         }
 )
 
@@ -606,8 +606,8 @@ class MemberColumnSelectUpdate (HiddenPolicy):
             'secondary_put_value_data_secondary': Expectation(403),
             'anonymous_put_row_data_primary': Expectation(401),
             'anonymous_put_row_data_secondary': Expectation(401),
-            'anonymous_put_col_data_primary': Expectation([200,204]),
-            'anonymous_put_col_data_secondary': Expectation([200,204]),
+            'anonymous_put_col_data_primary': Expectation(401),
+            'anonymous_put_col_data_secondary': Expectation(401),
             'anonymous_put_value_data_primary': Expectation(401),
             'anonymous_put_value_data_secondary': Expectation(401),
         }

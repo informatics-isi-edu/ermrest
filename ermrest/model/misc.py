@@ -458,8 +458,8 @@ SELECT %(cols)s FROM _ermrest.%(tname)s;
             pass
 
 def cache_rights(orig_method):
-    def helper(self, aclname, roles=None):
-        key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None)
+    def helper(self, aclname, roles=None, anon_mutation_ok=False):
+        key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None, anon_mutation_ok)
         if key in web.ctx.ermrest_model_rights_cache:
             result = web.ctx.ermrest_model_rights_cache[key]
         else:
@@ -618,7 +618,7 @@ def hasacls(acls_supported, rights_supported, getparent):
             resource.acls[acl] = members
         _introspect_helper(orig_class, cur, model, 'acl', {'acl': 'text'}, {'members': 'text[]'}, helper)
 
-    def set_acl(self, cur, aclname, members):
+    def set_acl(self, cur, aclname, members, anon_mutation_ok=False):
         """Set annotation on %s, returning previous value for updates or None.""" % self._model_restype
         assert aclname is not None
 
@@ -628,6 +628,9 @@ def hasacls(acls_supported, rights_supported, getparent):
         self.enforce_right('owner') # pre-flight authz
         if aclname not in self._acls_supported:
             raise exception.ConflictData('ACL name %s not supported on %s.' % (aclname, self))
+
+        if aclname not in {'enumerate', 'select'} and '*' in members and not anon_mutation_ok:
+            raise exception.BadData('ACL name %s does not support wildcard member.' % aclname)
 
         self.acls[aclname] = members
         self.enforce_right('owner') # integrity check using Python data...
@@ -697,7 +700,7 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         )
 
     @cache_rights
-    def has_right(self, aclname, roles=None):
+    def has_right(self, aclname, roles=None, anon_mutation_ok=False):
         """Return access decision True, False, None.
 
            aclname: the symbolic name for the access mode
@@ -707,6 +710,10 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
         """
         if roles is None:
             roles = web.ctx.ermrest_client_roles
+
+        if roles == {'*'} and aclname not in {'enumerate', 'select'} and not anon_mutation_ok:
+            # anonymous clients cannot have mutation permissions
+            return False
 
         if self.acls.intersects(aclname, roles):
             # have right explicitly due to ACL intersection

@@ -390,6 +390,9 @@ class ForeignkeyReferenceAcl (Acl):
     def __init__(self, fkey):
         Acl.__init__(self, fkey.catalog, fkey)
 
+    def PUT_body(self, cur, subject, key, element):
+        subject.set_acl(cur, key, element, anon_mutation_ok=True)
+
     def GET_subject(self, conn, cur):
         fkrs = self.subject.GET_body(conn, cur)
         if len(fkrs) != 1:
