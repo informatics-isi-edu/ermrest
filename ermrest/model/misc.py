@@ -191,9 +191,6 @@ class DynaclDict (dict):
         dict.__delitem__(self, k)
         self._digest()
 
-    def sufficient(self, aclname):
-        return not self._binding_types.isdisjoint(sufficient_rights[aclname].union({aclname}))
-
 class AclBinding (AltDict):
     """Represents one acl binding."""
     def __init__(self, model, resource, binding_name, doc):
@@ -214,6 +211,12 @@ class AclBinding (AltDict):
             elif k == 'comment':
                 if type(v) not in [str, unicode]:
                     raise exception.BadData('ACL binding comment must be of string type.')
+            elif k == 'scope_acl':
+                if not isinstance(v, list) or len(v) == 0:
+                    raise exception.BadData('Field "scope_acl" in ACL binding "%s" must be a non-empty list of members.' % binding_name)
+                for m in v:
+                    if not isinstance(m, (str, unicode)):
+                        raise exception.BadData('Field "scope_acl" in ACL binding "%s" must only contain textual member attribute names or the wildcard string.' % binding_name)
             else:
                 raise exception.BadData('Field "%s" in ACL binding "%s" not recognized.' % (k, binding_name))
         AltDict.__init__(self, keyerror, validator)
@@ -236,6 +239,19 @@ class AclBinding (AltDict):
         # set default
         if 'projection_type' not in self:
             self['projection_type'] = 'acl' if ctype.name == 'text' else 'nonnull'
+
+        if 'scope_acl' not in self:
+            self['scope_acl'] = ['*']
+
+    def inscope(self, access_type, roles=None):
+        """Return True if this ACL binding applies to this access type for this client, False otherwise."""
+        if roles is None:
+            roles = web.ctx.ermrest_client_roles
+        if set(self['scope_acl']).isdisjoint(roles):
+            return False
+        if set(self['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
+            return False
+        return True
 
     def _compile_projection(self):
         proj = self['projection']
@@ -734,14 +750,18 @@ DELETE FROM _ermrest.model_%(restype)s_acl WHERE %(where)s;
                 return True
 
         if hasattr(self, 'dynacls'):
-            if self.dynacls.sufficient(aclname):
-                # dynamic rights are possible on this resource...
-                return None
+            for binding in self.dynacls.values():
+                if binding and binding.inscope(aclname, roles):
+                    return None
 
-        if parentres is not None:
-            if parentres.has_right(aclname, roles) is None:
-                # dynamic rights are possible on parent resource...
-                return None
+            if parentres is not None and hasattr(parentres, 'dynacls'):
+                # only check for non-overridden parent bindings that are in scope...
+                for binding_name, binding in parentres.dynacls.items():
+                    if binding_name not in self.dynacls and binding and binding.inscope(aclname, roles):
+                        return None
+
+        elif parentres is not None and parentres.has_right(aclname, roles) is None:
+            return None
 
         # finally, static deny decision
         return False
@@ -904,11 +924,13 @@ def get_dynacl_clauses(src, access_type, prefix, dynacls=None):
         for binding in dynacls.values():
             if binding is False:
                 continue
-            if not set(binding['types'] if binding else []).isdisjoint(sufficient_rights[access_type].union({access_type})):
-                aclpath, col, ctype = binding._compile_projection()
-                aclpath.epath.add_filter(predicate.AclPredicate(binding, col))
-                authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
-                clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False))
+            if not binding.inscope(access_type):
+                continue
+
+            aclpath, col, ctype = binding._compile_projection()
+            aclpath.epath.add_filter(predicate.AclPredicate(binding, col))
+            authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
+            clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False))
     else:
         clauses = ['True']
 

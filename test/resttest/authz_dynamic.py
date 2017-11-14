@@ -963,6 +963,29 @@ class ImplicitEnumeration (common.ErmrestTest):
         table = self._get_table_doc('Data')
         self.assertEqual(len(table['foreign_keys']), 1)
 
+class UnscopedBindings (ImplicitEnumeration):
+
+    col_bindings = {
+        "schema/%s/table/Data/column/c_id" % _S: {
+            'selectany': {
+                "types": ["select"],
+                "projection": ["id"],
+                "projection_type": "nonnull",
+                "scope_acl": [common.primary_client_id],
+            },
+            "member": False,
+        }
+    }
+
+    def test_fkc_no_select(self):
+        table = self._get_table_doc('Data')
+        col = { col['name']: col for col in table['column_definitions'] }['c_id']
+        self.assertEqual(col['rights']['select'], False)
+
+    def test_fkr_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertEqual(len(table['foreign_keys']), 0)
+
 _data = [
     (
         'entity/%s:Category' % _S,
