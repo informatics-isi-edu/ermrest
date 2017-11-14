@@ -621,7 +621,7 @@ class AuthzHideSchema (AuthzHideT1):
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3InsertSelectFkeyInsert (Authz):
     T3 = {
-        "insert": ["*"],
+        "insert": [common.secondary_client_id],
         "select": ["*"],
     }
     T3_fkey = {
@@ -656,7 +656,7 @@ class AuthzT3InsertSelectFkeyUpdateOnly (AuthzT3InsertSelectFkeyInsert):
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3InsertOnly (AuthzT3InsertSelectFkeyInsert):
     T3 = {
-        "insert": ["*"],
+        "insert": [common.secondary_client_id],
         "select": []
     }
 
@@ -676,7 +676,7 @@ class AuthzT3InsertOnly (AuthzT3InsertSelectFkeyInsert):
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3Update (Authz):
     T3 = {
-        "update": ["*"]
+        "update": [common.secondary_client_id]
     }
 
     rights_T3 = {
@@ -694,7 +694,7 @@ class AuthzT3Update (Authz):
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3Write (AuthzT3Update):
     T3 = {
-        "write": ["*"]
+        "write": [common.secondary_client_id]
     }
 
     rights_T3 = {
@@ -749,12 +749,12 @@ class AuthzT3WriteFkeyUpdate (AuthzT3Write):
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3WriteCt1idInsert (AuthzT3Write):
     T3 = {
-        "write": ["*"]
+        "write": [common.secondary_client_id]
     }
     T3_t1id = {
         "write": [],
         "update": [],
-        "insert": ["*"],
+        "insert": [common.secondary_client_id],
     }
 
     rights_T3 = {
@@ -772,11 +772,11 @@ class AuthzT3WriteCt1idInsert (AuthzT3Write):
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3WriteCt1idUpdate (AuthzT3Write):
     T3 = {
-        "write": ["*"]
+        "write": [common.secondary_client_id]
     }
     T3_t1id = {
         "write": [],
-        "update": ["*"],
+        "update": [common.secondary_client_id],
         "insert": [],
     }
 
@@ -795,10 +795,10 @@ class AuthzT3WriteCt1idUpdate (AuthzT3Write):
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT3WriteCt1idWrite (AuthzT3Write):
     T3 = {
-        "write": ["*"]
+        "write": [common.secondary_client_id]
     }
     T3_t1id = {
-        "write": ["*"],
+        "write": [common.secondary_client_id],
         "update": [],
         "insert": [],
     }

@@ -200,6 +200,7 @@ class DynaclDict (dict):
         dict.__delitem__(self, k)
         self._digest()
 
+
     def update(self, d):
         dict.update(self, d)
         self._digest()
@@ -207,9 +208,6 @@ class DynaclDict (dict):
     def clear(self):
         dict.clear(self)
         self._digest()
-
-    def sufficient(self, aclname):
-        return not self._binding_types.isdisjoint(sufficient_rights[aclname].union({aclname}))
 
 class AclBinding (AltDict):
     """Represents one acl binding."""
@@ -231,6 +229,12 @@ class AclBinding (AltDict):
             elif k == 'comment':
                 if type(v) not in [str, unicode]:
                     raise exception.BadData('ACL binding comment must be of string type.')
+            elif k == 'scope_acl':
+                if not isinstance(v, list) or len(v) == 0:
+                    raise exception.BadData('Field "scope_acl" in ACL binding "%s" must be a non-empty list of members.' % binding_name)
+                for m in v:
+                    if not isinstance(m, (str, unicode)):
+                        raise exception.BadData('Field "scope_acl" in ACL binding "%s" must only contain textual member attribute names or the wildcard string.' % binding_name)
             else:
                 raise exception.BadData('Field "%s" in ACL binding "%s" not recognized.' % (k, binding_name))
         AltDict.__init__(self, keyerror, validator)
@@ -253,6 +257,19 @@ class AclBinding (AltDict):
         # set default
         if 'projection_type' not in self:
             self['projection_type'] = 'acl' if ctype.name == 'text' else 'nonnull'
+
+        if 'scope_acl' not in self:
+            self['scope_acl'] = ['*']
+
+    def inscope(self, access_type, roles=None):
+        """Return True if this ACL binding applies to this access type for this client, False otherwise."""
+        if roles is None:
+            roles = web.ctx.ermrest_client_roles
+        if set(self['scope_acl']).isdisjoint(roles):
+            return False
+        if set(self['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
+            return False
+        return True
 
     def _compile_projection(self):
         proj = self['projection']
@@ -394,8 +411,8 @@ def keying(restype, keying):
     return helper
 
 def cache_rights(orig_method):
-    def helper(self, aclname, roles=None):
-        key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None)
+    def helper(self, aclname, roles=None, anon_mutation_ok=False):
+        key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None, anon_mutation_ok)
         if key in web.ctx.ermrest_model_rights_cache:
             result = web.ctx.ermrest_model_rights_cache[key]
         else:
@@ -506,7 +523,7 @@ def hasacls(acls_supported, rights_supported, getparent):
             'where': ' AND '.join(['True'] + [ "%s = %s" % (k, v) for k, v in keying.items() ]),
         }
 
-    def set_acls(self, cur, doc):
+    def set_acls(self, cur, doc, anon_mutation_ok=False):
         """Replace full acls doc, returning None."""
         doc = dict(doc)
         for aclname in doc.keys():
@@ -515,6 +532,11 @@ def hasacls(acls_supported, rights_supported, getparent):
         self.delete_acl(cur, None, purging=True) # enforces owner rights for us...
         self.acls.update(doc)
         self.enforce_right('owner') # integrity check using Python data...
+        for aclname, members in self.acls.items():
+            if aclname not in {'enumerate', 'select'} \
+               and members is not None and '*' in members \
+               and not anon_mutation_ok:
+                raise exception.BadData('ACL name %s does not support wildcard member.' % aclname)
         interp = self._interp_acl(None)
         if doc:
             if interp['cols']:
@@ -531,7 +553,7 @@ SELECT _ermrest.model_version_bump();
 INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s acl, members) VALUES %(vals)s;
 """ % interp)
 
-    def set_acl(self, cur, aclname, members):
+    def set_acl(self, cur, aclname, members, anon_mutation_ok=False):
         """Set annotation on %s, returning previous value for updates or None.""" % self._model_restype
         assert aclname is not None
 
@@ -545,7 +567,11 @@ INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s acl, members) VALUES %(val
         if aclname not in self._acls_supported:
             raise exception.ConflictData('ACL name %s not supported on %s.' % (aclname, self))
 
+        if aclname not in {'enumerate', 'select'} and '*' in members and not anon_mutation_ok:
+            raise exception.BadData('ACL name %s does not support wildcard member.' % aclname)
+
         oldvalue = self.acls.get(aclname)
+
         self.acls[aclname] = members
         self.enforce_right('owner') # integrity check using Python data...
 
@@ -585,7 +611,7 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
                 self.set_acl(cur, aclname, [])
 
     @cache_rights
-    def has_right(self, aclname, roles=None):
+    def has_right(self, aclname, roles=None, anon_mutation_ok=False):
         """Return access decision True, False, None.
 
            aclname: the symbolic name for the access mode
@@ -595,6 +621,10 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
         """
         if roles is None:
             roles = web.ctx.ermrest_client_roles
+
+        if roles == {'*'} and aclname not in {'enumerate', 'select'} and not anon_mutation_ok:
+            # anonymous clients cannot have mutation permissions
+            return False
 
         if self.acls.intersects(aclname, roles):
             # have right explicitly due to ACL intersection
@@ -615,14 +645,18 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
                 return True
 
         if hasattr(self, 'dynacls'):
-            if self.dynacls.sufficient(aclname):
-                # dynamic rights are possible on this resource...
-                return None
+            for binding in self.dynacls.values():
+                if binding and binding.inscope(aclname, roles):
+                    return None
 
-        if parentres is not None:
-            if parentres.has_right(aclname, roles) is None:
-                # dynamic rights are possible on parent resource...
-                return None
+            if parentres is not None and hasattr(parentres, 'dynacls'):
+                # only check for non-overridden parent bindings that are in scope...
+                for binding_name, binding in parentres.dynacls.items():
+                    if binding_name not in self.dynacls and binding and binding.inscope(aclname, roles):
+                        return None
+
+        elif parentres is not None and parentres.has_right(aclname, roles) is None:
+            return None
 
         # finally, static deny decision
         return False
@@ -765,11 +799,13 @@ def get_dynacl_clauses(src, access_type, prefix, dynacls=None):
         for binding in dynacls.values():
             if binding is False:
                 continue
-            if not set(binding['types'] if binding else []).isdisjoint(sufficient_rights[access_type].union({access_type})):
-                aclpath, col, ctype = binding._compile_projection()
-                aclpath.epath.add_filter(predicate.AclPredicate(binding, col))
-                authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
-                clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False))
+            if not binding.inscope(access_type):
+                continue
+
+            aclpath, col, ctype = binding._compile_projection()
+            aclpath.epath.add_filter(predicate.AclPredicate(binding, col))
+            authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
+            clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False))
     else:
         clauses = ['True']
 

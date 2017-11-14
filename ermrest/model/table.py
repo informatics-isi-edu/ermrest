@@ -365,9 +365,11 @@ WHERE "RID" = %s;
         for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
             # new foreign key constraint must be added to table
             fkr.add(conn, cur)
+
             fkr.set_annotations(conn, cur, fkr.annotations)
-            fkr.set_acls(cur, fkr.acls)
+            fkr.set_acls(cur, fkr.acls, anon_mutation_ok=True)
             fkr.set_dynacls(cur, fkr.dynacls)
+
             yield fkr
 
     def prejson(self):

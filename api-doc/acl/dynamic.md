@@ -51,7 +51,8 @@ representation as in the following example:
 	    "My Binding": {
 		  "types": ["owner"],
 		  "projection": "Managed By",
-		  "projection_type": "acl"
+		  "projection_type": "acl",
+		  "scope_acl": ["registered-users-group"]
 		}
 	  }
 	}
@@ -62,8 +63,10 @@ are inherited from the enclosing schema. A dynamic ACL binding called
 `My Row Owners` specifies that an ACL stored in the `Managed By`
 column of the table grants `owner` dynamic access type for individual
 rows. The representation uses an array for the `type` so that multiple
-access modes can be more easily configured without having to repeat the
-same projection many times.
+access modes can be more easily configured without having to repeat
+the same projection many times. This binding has a scoping ACL such
+that only members of the `registered-users-group` can acquire these
+row-level rights.
 
 #### Inheritence and False Binding
 
@@ -166,3 +169,15 @@ The `nonnull` projection type is supported by all column types. The
 `acl` projection type is only supported for the projected column types
 shown above.
 
+#### Scoping ACLs
+
+The `"scope_acl"` field of each ACL binding document restricts the set
+of clients for whom the data-dependent privileges may be granted. If a
+client's attributes do not match this scoping ACL, the effective
+permissions for the client are the same as if this ACL binding were
+absent from the system.
+
+If `"scope_acl"` is omitted during binding creation, a default scoping
+ACL value of `["*"]` is configured. This provides backwards
+compatibility with older policies used in earlier versions of ERMrest,
+where all ACL bindings were evaluated for all clients.

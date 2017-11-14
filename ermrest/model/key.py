@@ -445,7 +445,7 @@ def _keyref_has_right(self, aclname, roles=None):
         decision = self.unique.has_right(aclname)
         if decision is False:
             return False
-    return self._has_right(aclname, roles)
+    return self._has_right(aclname, roles, anon_mutation_ok=True)
 
 @annotatable
 @hasdynacls({ "owner", "insert", "update" })

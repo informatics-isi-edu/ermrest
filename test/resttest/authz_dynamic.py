@@ -279,7 +279,7 @@ class StaticHidden (common.ErmrestTest):
         }
     }
 
-    # for brevity, col_acls are applied as an update over default {"select": ["*"], "update": ["*"]}
+    # for brevity, col_acls are applied as an update over default {"select": ["*"], "update": [common.secondary_client_id]}
     # so custom overrides be specified sparsely on a column-by-column basis
     col_acls = {
         "Data": {
@@ -321,7 +321,7 @@ class StaticHidden (common.ErmrestTest):
                 cname = coldef['name']
                 col_acl = {
                     "select": ['*'],
-                    "update": ['*']
+                    "update": [common.secondary_client_id]
                 }
                 if cname in col_acls:
                     col_acl.update(col_acls[cname])
@@ -468,9 +468,9 @@ class HiddenPolicy (StaticHidden):
             'secondary_put_row_data_primary': Expectation([200,204]),
             'secondary_put_row_data_secondary': Expectation([200,204]),
             'secondary_put_row_data_anonymous': Expectation([200,204]),
-            'anonymous_put_row_data_primary': Expectation([200,204]),
-            'anonymous_put_row_data_secondary': Expectation([200,204]),
-            'anonymous_put_row_data_anonymous': Expectation([200,204]),
+            'anonymous_put_row_data_primary': Expectation(401),
+            'anonymous_put_row_data_secondary': Expectation(401),
+            'anonymous_put_row_data_anonymous': Expectation(401),
         }
     )
 
@@ -495,9 +495,9 @@ class RestrictedFkr (HiddenPolicy):
             'secondary_put_col_data_primary': Expectation([200, 204]),
             'secondary_put_col_data_secondary': Expectation([200, 204]),
             'secondary_put_col_data_anonymous': Expectation([200, 204]),
-            'anonymous_put_col_data_primary': Expectation([200, 204]),
-            'anonymous_put_col_data_secondary': Expectation([200, 204]),
-            'anonymous_put_col_data_anonymous': Expectation([200, 204]),
+            'anonymous_put_col_data_primary': Expectation(401),
+            'anonymous_put_col_data_secondary': Expectation(401),
+            'anonymous_put_col_data_anonymous': Expectation(401),
         }
     )
 
@@ -513,7 +513,7 @@ class RestrictedFkrDomainAcl (RestrictedFkr):
         {
             'secondary_put_row_data_secondary': Expectation([200, 204]),
             'secondary_put_row_data_anonymous': Expectation([200, 204]),
-            'anonymous_put_row_data_anonymous': Expectation([200, 204]),
+            'anonymous_put_row_data_anonymous': Expectation(401),
         }
 )
 
@@ -610,8 +610,8 @@ class MemberColumnSelectUpdate (HiddenPolicy):
             'secondary_put_value_data_secondary': Expectation(403),
             'anonymous_put_row_data_primary': Expectation(401),
             'anonymous_put_row_data_secondary': Expectation(401),
-            'anonymous_put_col_data_primary': Expectation([200,204]),
-            'anonymous_put_col_data_secondary': Expectation([200,204]),
+            'anonymous_put_col_data_primary': Expectation(401),
+            'anonymous_put_col_data_secondary': Expectation(401),
             'anonymous_put_value_data_primary': Expectation(401),
             'anonymous_put_value_data_secondary': Expectation(401),
         }
@@ -966,6 +966,29 @@ class ImplicitEnumeration (common.ErmrestTest):
     def test_fkr_visible(self):
         table = self._get_table_doc('Data')
         self.assertEqual(len(table['foreign_keys']), 1)
+
+class UnscopedBindings (ImplicitEnumeration):
+
+    col_bindings = {
+        "schema/%s/table/Data/column/c_id" % _S: {
+            'selectany': {
+                "types": ["select"],
+                "projection": ["id"],
+                "projection_type": "nonnull",
+                "scope_acl": [common.primary_client_id],
+            },
+            "member": False,
+        }
+    }
+
+    def test_fkc_no_select(self):
+        table = self._get_table_doc('Data')
+        col = { col['name']: col for col in table['column_definitions'] }['c_id']
+        self.assertEqual(col['rights']['select'], False)
+
+    def test_fkr_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertEqual(len(table['foreign_keys']), 0)
 
 _data = [
     (

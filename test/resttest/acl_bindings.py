@@ -39,7 +39,8 @@ class AclBindingT1 (common.ErmrestTest):
         'my binding 2': {
             'types': ['owner'],
             'projection': 'name',
-            'projection_type': 'acl'
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
         }
     }
 
@@ -47,12 +48,14 @@ class AclBindingT1 (common.ErmrestTest):
         'my binding 3': {
             'types': ['owner', 'update'],
             'projection': [{"inbound": _fkey_T2_T1}, 'name'],
-            'projection_type': 'acl'
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
         },
         'my binding 4': {
             'types': ['owner', 'update'],
             'projection': [{"inbound": _fkey_T3_T1}, 'name'],
-            'projection_type': 'acl'
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
         }
     }
 
@@ -131,7 +134,8 @@ class AclBindingT2 (AclBindingT1):
         'my binding 3': {
             'types': ['owner', 'update'],
             'projection': [{"outbound": _fkey_T2_T1}, 'name'],
-            'projection_type': 'acl'
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
         }
     }
 
@@ -169,7 +173,8 @@ class AclBindingT3 (AclBindingT1):
         'my binding 1': {
             'types': ['owner'],
             'projection': 'owner',
-            'projection_type': 'acl'
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
         }
     }
 
@@ -177,7 +182,8 @@ class AclBindingT3 (AclBindingT1):
         'my binding 3': {
             'types': ['owner', 'update'],
             'projection': [{"outbound": _fkey_T3_T1}, 'name'],
-            'projection_type': 'acl'
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
         }
     }
 
@@ -210,7 +216,8 @@ class AclBindingT3Fkey (AclBindingT2Fkey):
         'my binding 1': {
             'types': ['owner'],
             'projection': 'name',
-            'projection_type': 'acl'
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
         }
     }
 

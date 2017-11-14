@@ -84,3 +84,19 @@ with `null` configuration are omitted from the canonical
 representation. Specifying each such ACL name with a literal `null`
 has the same meaning.
 
+### Restrictions on Wildcard Policies
+
+The wildcard ACL entry `"*"` matches any client including anonymous
+users. For safety, ERMrest will not accept ACLs containing wildcards
+for ACLs granting mutation privileges. For existing catalogs which may
+have acquired such policies before this safety check was introduced,
+anonymous clients will be rejected for mutation requests, even though
+the existing ACL has a wildcard.
+
+The wildcard is only permitted for:
+
+1. The `"enumerate"` ACL name, allowing model elements to be seen.
+2. The `"select"` ACL name, allowing data to be queried.
+3. The `"insert"` and `"update"` ACL names on foreign key constraints.
+   - Unlike other resources, foreign keys have a default ACL value of `["*"]` rather than `null`. This idiom is preserved for convenience.
+   - To actually mutate data in the catalog, the client must also have mutation rights on the table row and table columns, so safety is maintained.

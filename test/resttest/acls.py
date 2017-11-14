@@ -113,6 +113,12 @@ class Acls (common.ErmrestTest):
         if self.expected_acls:
             self._checkvals(lambda acl: self.expected_acls[acl])
 
+    anon_mutation_ok = False
+    def test_9_anon_mutation_acl(self):
+        for acl in self.expected_acls:
+            if acl not in {'enumerate', 'select'}:
+                self.assertHttp(self.session.put(self._url(acl), json=['*']), 200 if self.anon_mutation_ok else 400)
+
     def _checkvals(self, lookup):
         r = self.session.get(self._url())
         self.assertHttp(r, 200, 'application/json')
@@ -198,7 +204,7 @@ class AclsT1Col (Acls):
 class AclsOverrideSchema (Acls):
     resource = 'schema/%s' % _Se
     expected_acls = {
-        "owner": [common.primary_client_id, " NOT-A-MATCH ", "*"],
+        "owner": [common.primary_client_id, " NOT-A-MATCH "],
         "write": [],
         "create": None,
         "insert": None,
@@ -212,7 +218,7 @@ class AclsOverrideSchema (Acls):
 class AclsT3 (Acls):
     resource = 'schema/%s/table/T3' % _Se
     expected_acls = {
-        "owner": [common.primary_client_id, " NOT-A-MATCH ", "*"],
+        "owner": [common.primary_client_id, " NOT-A-MATCH "],
         "write": [],
         "insert": None,
         "update": None,
@@ -231,6 +237,15 @@ class AclsT3Col (Acls):
         "select": ["foo", "*"],
         "enumerate": ["bar", "*"]
     }
+
+@add_acl_tests
+class AclsFkey (Acls):
+    resource = 'schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_Sd, _Sd)
+    expected_acls = {
+        "insert": ["*"],
+        "update": ["*"],
+    }
+    anon_mutation_ok = True
     
 _defs = ModelDoc(
     [
