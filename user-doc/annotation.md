@@ -313,7 +313,7 @@ Configuration attributes (optional):
 - `ux_mode`: `choices` or `ranges`. If a multi-modal facet control UX is available, it will specify the default UX mode that should be used (If `ux_mode` is defined, the other type of constraint will not be displayed even if you have defined it in the annotation).
 
 
-The following is an example of visible-columns annotation payload for defining facets:
+The following is an example of visible-columns annotation payload for defining facets. You can find more examples in [here](https://github.com/informatics-isi-edu/ermrestjs/wiki/Facet-Examples).
 
 ```
 "filter": {
