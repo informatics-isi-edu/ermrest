@@ -333,12 +333,11 @@ class ArrayType(Type):
         # json storage can be `null` or `[...]` for this type
         return (
             "CASE"
-            " WHEN jsonb_typeof(%(hfield)s) = 'null' THEN NULL"
-            " ELSE (SELECT array_agg(e.x::%(base_type)s) FROM jsonb_array_elements_text(%(hfield)s) e(x))"
+            " WHEN jsonb_typeof(%(jfield)s) = 'null' THEN NULL"
+            " ELSE (SELECT array_agg(e.x::%(base_type)s) FROM jsonb_array_elements_text(%(jfield)s) e(x))"
             " END AS %(fname)s"
         ) % {
-            # unpack with -> for json elements, ->> for all else
-            'hfield': "(h.rowdata->%s'%s')" % ('' if self.base_type.name in {'json','jsonb'} else '>', c.rid),
+            'jfield': "(h.rowdata->'%s')" % c.rid,
             'array_type': self.sql(basic_storage=True),
             'base_type': self.base_type.sql(basic_storage=True),
             'fname': c.sql_name(),

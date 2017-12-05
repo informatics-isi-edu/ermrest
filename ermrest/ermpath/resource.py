@@ -1133,6 +1133,7 @@ class AnyPath (object):
             else:
                 raise NotImplementedError('content_type %s' % content_type)
 
+            #web.debug(sql)
             cur.execute(sql)
             
             return make_row_thunk(None, cur, content_type)()
