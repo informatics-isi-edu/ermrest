@@ -376,7 +376,7 @@ Supported JSON payload patterns:
 
 Supported display _option_ syntax:
 
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values.
+- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
 - `"column_order": false`: Sorting by this foreign key psuedo-column should not be offered.
 
 Set-naming heuristics (use first applicable rule):
