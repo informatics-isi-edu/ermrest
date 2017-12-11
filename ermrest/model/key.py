@@ -602,12 +602,20 @@ RETURNING fkey_rid;
         def check_columns(cols, kind):
             fksname = fktable.schema.name if fktable else None
             fktname = fktable.name if fktable else None
-            tnames = set(map(lambda d: (d.get('schema_name', fksname), d.get('table_name', fktname)), cols))
+            def get_tname(d):
+                if not isinstance(d, dict):
+                    raise exception.BadRequest('Foreign key column document "%s" should be an object.' % d)
+                return (d.get('schema_name', fksname), d.get('table_name', fktname))
+            tnames = set([ get_tname(d) for d in cols ])
             if len(tnames) != 1:
                 raise exception.BadData('All %s columns must come from one table.' % kind)
             sname, tname = tnames.pop()
             table = model.schemas[sname].tables[tname]
-            for cname in map(lambda d: d.get('column_name'), cols):
+            def get_cname(d):
+                if 'column_name' not in d:
+                    raise exception.BadRequest('Foreign key column document "%s" must have field "column_name".' % d)
+                return d['column_name']
+            for cname in [ get_cname(d) for d in cols ]:
                 if cname in table.columns:
                     yield table.columns[cname]
                 else:
