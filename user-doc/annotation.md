@@ -313,7 +313,7 @@ Configuration attributes (optional):
 - `ux_mode`: `choices` or `ranges`. If a multi-modal facet control UX is available, it will specify the default UX mode that should be used (If `ux_mode` is defined, the other type of constraint will not be displayed even if you have defined it in the annotation).
 
 
-The following is an example of visible-columns annotation payload for defining facets:
+The following is an example of visible-columns annotation payload for defining facets. You can find more examples in [here](https://github.com/informatics-isi-edu/ermrestjs/wiki/Facet-Examples).
 
 ```
 "filter": {
@@ -376,7 +376,7 @@ Supported JSON payload patterns:
 
 Supported display _option_ syntax:
 
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values.
+- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
 - `"column_order": false`: Sorting by this foreign key psuedo-column should not be offered.
 
 Set-naming heuristics (use first applicable rule):
@@ -441,7 +441,7 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 
 Supported _option_ syntax:
 
-- `"pre_format"`: _format_: The column value SHOULD be pre-formatted by evaluating the _format_ string with the raw column value as its sole argument. The exact format string dialect is TDB but means to align with POSIX format strings e.g. `%d` to format a decimal number.
+- `"pre_format"`: _format_: The column value SHOULD be pre-formatted by evaluating the _format_ string with the raw column value as its sole argument. Please refer to [Pre Format Annotation document](https://github.com/informatics-isi-edu/ermrestjs/wiki/Pre-Format-Annotation) for detailed explanation of supported syntax.
 - `"markdown_pattern":` _pattern_: The visual presentation of the column SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
 - `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column.
 - `"column_order": false`: Sorting by this column should not be offered.

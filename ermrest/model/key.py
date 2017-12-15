@@ -435,6 +435,13 @@ def _keyref_prejson(self):
         doc['on_update'] = self.on_update
     return doc
 
+def _keyref_rights(self):
+    rights = self._rights()
+    for aclname in {'insert', 'update'}:
+        if rights[aclname]:
+            rights[aclname] = self.foreign_key.columns_have_right(aclname)
+    return rights
+
 def _keyref_has_right(self, aclname, roles=None):
     if aclname == 'enumerate':
         if not self.unique.has_right('enumerate', roles):
@@ -445,6 +452,8 @@ def _keyref_has_right(self, aclname, roles=None):
         decision = self.unique.has_right(aclname)
         if decision is False:
             return False
+    if aclname in {'update', 'insert'} and aclname not in self.acls:
+        return True
     return self._has_right(aclname, roles, anon_mutation_ok=True)
 
 @annotatable
@@ -710,6 +719,9 @@ RETURNING fkey_rid;
     def has_right(self, aclname, roles=None):
         return _keyref_has_right(self, aclname, roles)
 
+    def rights(self):
+        return _keyref_rights(self)
+
 @annotatable
 @hasdynacls({ "owner", "insert", "update" })
 @hasacls(
@@ -823,3 +835,5 @@ SELECT _ermrest.model_version_bump();
     def has_right(self, aclname, roles=None):
         return _keyref_has_right(self, aclname, roles)
 
+    def rights(self):
+        return _keyref_rights(self)

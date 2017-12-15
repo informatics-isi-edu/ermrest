@@ -679,7 +679,10 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
         setattr(orig_class, '_acls_supported', set(acls_supported))
         setattr(orig_class, '_acls_rights', set(rights_supported))
         setattr(orig_class, '_interp_acl', _interp_acl)
-        setattr(orig_class, 'rights', rights)
+        if not hasattr(orig_class, 'rights'):
+            setattr(orig_class, 'rights', rights)
+        else:
+            setattr(orig_class, '_rights', rights)
         if not hasattr(orig_class, 'has_right'):
             setattr(orig_class, 'has_right', has_right)
         else:

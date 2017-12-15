@@ -633,7 +633,8 @@ class AuthzT3InsertSelectFkeyInsert (Authz):
         u"insert": True
     }
     rights_T3_fkey = {
-        u"insert": True
+        u"insert": True,
+        u"update": False
     }
 
     insert_data_T3_t1id_status = 200
@@ -648,7 +649,7 @@ class AuthzT3InsertSelectFkeyUpdateOnly (AuthzT3InsertSelectFkeyInsert):
 
     rights_T3_fkey = {
         u"insert": False,
-        u"update": True,
+        u"update": False,
     }
 
     insert_data_T3_fkey_status = 403
@@ -764,6 +765,11 @@ class AuthzT3WriteCt1idInsert (AuthzT3Write):
         "delete": True,
     }
 
+    rights_T3_fkey = {
+        u"insert": True,
+        u"update": False,
+    }
+
     update_data_T3_t1id_status = 403
     write_data_T3_t1id_status = 403
     update_data_T3_fkey_status = 403
@@ -785,6 +791,11 @@ class AuthzT3WriteCt1idUpdate (AuthzT3Write):
         "update": True,
         "insert": True,
         "delete": True,
+    }
+
+    rights_T3_fkey = {
+        u"insert": False,
+        u"update": True,
     }
 
     insert_data_T3_t1id_status = 403
