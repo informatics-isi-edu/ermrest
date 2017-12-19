@@ -433,9 +433,6 @@ class EntityElem (object):
             nmkcol_aliases = dict()
             extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
 
-        if len(mkcols) == 0:
-            raise ConflictModel('PUT not supported on entities without key constraints.')
-        
         skip_key_tests = False
 
         if use_defaults is not None:
@@ -449,10 +446,12 @@ class EntityElem (object):
                 if cname in self.table.columns
             ])
 
-            if use_defaults.intersection( set([ c.name for c in mkcols ]) ):
-                # default values for one or more key columns have been requested
+            if len(mkcols) == 0 or use_defaults.intersection( set([ c.name for c in mkcols ]) ):
                 # input rows cannot be tested for key uniqueness except by trying to insert!
                 skip_key_tests = True
+        else:
+            if len(mkcols) == 0:
+                raise ConflictModel('PUT not supported on entities without key constraints.')
 
         # create temporary table
         cur.execute(
@@ -664,7 +663,8 @@ FROM (
             )
         )
 
-        cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
+        if len(mkcols) > 0:
+            cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
         cur.execute("ANALYZE %s;" % sql_identifier(input_table))
 
         #  -- check for duplicate keys

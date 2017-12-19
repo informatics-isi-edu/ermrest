@@ -5,6 +5,7 @@ import basics
 from common import urlquote
 
 _S = 'data'
+_T0 = basics._T0
 _T1 = basics._T1
 _T2 = basics._T2
 _T2b = basics._T2b
@@ -18,6 +19,16 @@ def setUpModule():
     if r.status_code == 404:
         # idempotent because unittest can re-enter module several times...
         common.primary_session.post('schema', json=_defs).raise_for_status()
+
+class Minimal (common.ErmrestTest):
+    table = _T0
+    _initial = [
+        {"value": "foo1"},
+        {"value": "foo2"}
+    ]
+
+    def test_data_0_post(self):
+        self.assertHttp(self.session.post("entity/%s:%s?defaults=RID" % (_S, self.table), json=self._initial), 200)
 
 class BasicKey (common.ErmrestTest):
     table = _T1

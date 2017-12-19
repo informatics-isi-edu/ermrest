@@ -3,6 +3,7 @@ import unittest
 import common
 
 _S = 'basics'
+_T0 = 'minimal'
 _T1 = 'basictable1'
 _T2 = 'basictable2'
 _T2b = 'ambiguous2'
@@ -20,6 +21,11 @@ def defs(S):
             SchemaDoc(
                 S,
                 [
+                    TableDoc(
+                        _T0,
+                        [ RID, RCT, RMT, RCB, RMB, ColumnDoc('value', Text) ],
+                        [ RidKey ],
+                    ),
                     TableDoc(
                         _T1,
                         [
