@@ -55,7 +55,7 @@ def add_etype_tests(klass):
         for wk in klass._write_urls().keys():
             add_etype_vk_wk(klass, vk, wk)
     return klass
-                                         
+
 @add_etype_tests
 class EtypeJson (common.ErmrestTest):
     etype = 'json'
