@@ -303,6 +303,7 @@ Constraint attributes (optional):
 You can use these attributes to define default preselected facets (Combination of these attributes are not supported yet, you cannot have both `choices` and `ranges` specified on a facet).
 - `choices`: Discrete choice e.g. maps to a checklist or similar UX. Its value MUST be an array of values.
 - `ranges`: Half-open or closed intervals, e.g. maps to a slider or similar UX. Its value MUST be an array of JSON payload, with `min` and `max` attributes.
+- `not_null`: Match any record that has a value other than `null`. Its value MUST be `true`. If you have this constraint defined in your annotation, other constraints will be ignored (other than `"choice"`: [null]`. In this case both of the filters will be ignored).
 <!-- - `search`: Substring search, e.g. maps to a search box UX. -->
 
 
