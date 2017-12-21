@@ -317,7 +317,7 @@ An optional sorting modifier can modify the ordering of elements in the set-base
 - `@sort(` _output column_ `,` ... `)`
 - `@sort(` _output column_ `::desc::` `,` ... `)`
 
-where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. ERMrest **always sorts NULL values last** while sorting non-NULL values in ascending or descending order. This differs from the default behavior of the SQL language.
+where the optional `::desc::` direction indicator can apply a descending sort to that sort key to override the default ascending sort order. ERMrest by default sorts equivalently to the SQL sort order `ASC NULLS LAST` (ascending, with NULLs after non-NULLs) and switches to `DESC NULLS FIRST` (descending, with NULLs before non-NULLs) when the `::desc::` direction is selected.
 
 The list of sort keys goes left-to-right from primary to secondary etc.  The individual _output column_ names are user-supplied values and therefore must be URL-escaped if they contain any special characters, including the `:` character in implicitly named output columns introduced using the _alias_ `:` `*` wildcard syntax in projected [attribute names](#attribute-names) or [aggregate names](#aggregate-names).
 
@@ -359,7 +359,7 @@ The `@before` modifier designates a result set of rows immediately antecedent to
 - `@sort(` _output column_ ...`)@before(` _value_ `,` ... `)` (i.e. literal string)
 - `@sort(` _output column_ ...`)@before(` `::null::` `,` ... `)` (i.e. NULL)
 
-For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately before_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
+For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately before_ the page key according to the sorted sequence semantics (including ascending/descending direction). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
 
 The `@before` modifier MUST be combined with the `@after` modifier and/or the `?limit=N` query parameter.
 
@@ -371,7 +371,7 @@ The `@after` modifier designates a result set of rows immediately subsequent to 
 - `@sort(` _output column_ ...`)@after(` _value_ `,` ... `)` (i.e. literal string)
 - `@sort(` _output column_ ...`)@after(` `::null::` `,` ... `)` (i.e. NULL)
 
-For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately after_ the page key according to the sorted sequence semantics (including optional ascending/descending direction and NULLS last). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
+For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come _immediately after_ the page key according to the sorted sequence semantics (including ascending/descending direction). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.
 
 The `@after` modifier MAY be combined with the `@before` modifier and/or the `?limit=N` query parameter.
 
