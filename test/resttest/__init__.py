@@ -10,7 +10,7 @@ from basics import *
 from bulkschema import *
 from catalog import *
 from comments import *
-from ctypes_tests import *
+from ctypes_test import *
 from data import *
 from degenerate import *
 from joins import *
