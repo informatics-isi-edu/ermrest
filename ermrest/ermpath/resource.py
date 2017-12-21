@@ -117,27 +117,32 @@ def page_filter_sql(keynames, descendings, types, boundary, is_before):
     assert len(keynames) == len(boundary)
     
     def helper(keynames, descendings, types, boundary):
-        if descendings[0]:
-            ops = {True: '>', False: '<'}
-        else:
-            ops = {True: '<', False: '>'}
+        # cover non-null/non-null total orderings
+        term = '%(field)s %(op)s %(boundary)s' % {
+            'field': sql_identifier(keynames[0]),
+            'op': { # (descending, is_before)
+                (True,  True):  '>', # field is before boundary descending
+                (True,  False): '<', # field is after boundary descending
+                (False, True):  '<', # field is before boundary ascending
+                (False, False): '>', # field is after boundary ascending
+            }[(descendings[0], is_before)],
+            'boundary': boundary[0].sql_literal(types[0]) if not boundary[0].is_null() else 'NULL',
+        }
 
-        # only handles non-null to non-null sub-case!
-        term = '%s %s %s' % (
-            sql_identifier(keynames[0]),
-            ops[is_before],
-            boundary[0].sql_literal(types[0]) if not boundary[0].is_null() else 'NULL'
-        )
+        # cover mixed null/non-null total orderings
+        nulltests = { # (nullbound, descending, is_before)
+            (True,  True,  False): 'IS NOT NULL', # field is after null boundary descending
+            (False, True,  True):  'IS NULL',     # field is before non-null boundary descending
+            (True,  False, True):  'IS NOT NULL', # field is before null boundary ascending
+            (False, False, False): 'IS NULL',     # field is after non-null boundary ascending
+        }
+        ntestkey = (boundary[0].is_null(), descendings[0], is_before)
+        if ntestkey in nulltests:
+            term += ' OR %(field)s %(ntest)s' % {
+                'field': sql_identifier(keynames[0]),
+                'ntest': nulltests[ntestkey],
+            }
 
-        if is_before:
-            if boundary[0].is_null():
-                # all non-null come before this boundary
-                term += ' OR %s IS NOT NULL' % sql_identifier(keynames[0])
-        else:
-            if not boundary[0].is_null():
-                # all null come after this boundary
-                term += ' OR %s IS NULL' % sql_identifier(keynames[0])
-        
         if len(keynames) == 1:
             return term
         else:
@@ -166,14 +171,15 @@ def sort_components(sortvec, is_before):
     norm_parts = []
     revs_parts = []
     
-    direction = { True: ' DESC' }
+    direction = { True: 'DESC NULLS FIRST', False: 'ASC NULLS LAST' }
+    direction_revs = { False: 'DESC NULLS FIRST', True: 'ASC NULLS LAST' }
 
     for i in range(len(sortvec)):
         keyname = sortvec[i][0]
         descending = sortvec[i][1]
         keyname = sql_identifier(keyname)
-        norm_parts.append( '%s%s NULLS LAST' % (keyname, direction.get(descending, '')) )
-        revs_parts.append( '%s%s NULLS FIRST' % (keyname, direction.get(not descending, '')) )
+        norm_parts.append( '%s %s' % (keyname, direction.get(descending, '')) )
+        revs_parts.append( '%s %s' % (keyname, direction_revs.get(descending, '')) )
 
     norm_parts = ', '.join(norm_parts)
     revs_parts = ', '.join(revs_parts)
@@ -920,7 +926,10 @@ class AnyPath (object):
 
     def _get_sortvec(self):
         if self.sort is not None:
-            sortvec, sort1, sort2 = sort_components(map(self._get_sort_element, self.sort), self.after is None and self.before is not None)
+            sortvec, sort1, sort2 = sort_components(
+                [ self._get_sort_element(e) for e in self.sort ],
+                self.after is None and self.before is not None
+            )
         else:
             sortvec, sort1, sort2 = (None, None, None)
         return sortvec, sort1, sort2
