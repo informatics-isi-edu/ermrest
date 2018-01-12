@@ -1410,8 +1410,8 @@ WHERE %(keymatches)s
             # need to enforce dynamic ACLs
             cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.sql_get(dynauthz=False, access_type='delete'))
             if cur.fetchone():
-                raise Forbidden(u'delete access on one or more matching rows in table %s' % self.table)
-        
+                raise Forbidden(u'delete access on one or more matching rows in table %s' % table)
+
         cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
         cnt = cur.fetchone()[0]
         if cnt == 0:
