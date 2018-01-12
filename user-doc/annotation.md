@@ -303,6 +303,7 @@ Constraint attributes (optional):
 You can use these attributes to define default preselected facets (Combination of these attributes are not supported yet, you cannot have both `choices` and `ranges` specified on a facet).
 - `choices`: Discrete choice e.g. maps to a checklist or similar UX. Its value MUST be an array of values.
 - `ranges`: Half-open or closed intervals, e.g. maps to a slider or similar UX. Its value MUST be an array of JSON payload, with `min` and `max` attributes.
+- `not_null`: Match any record that has a value other than `null`. Its value MUST be `true`. If you have this constraint defined in your annotation, other constraints will be ignored (other than `"choice"`: [null]`. In this case both of the filters will be ignored).
 <!-- - `search`: Substring search, e.g. maps to a search box UX. -->
 
 
@@ -587,6 +588,9 @@ List of _context_ names that are used in ermrest:
   - `"entry/create"`: A sub-context of `entry` that only applies to creating new resources.
 - `"filter"`: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
 - `"row_name"`: Any abbreviated title-like presentation context.
+  - `"row_name/title"`: A sub-context of `row_name` that only applies to title of page.
+  - `"row_name/compact"`: A sub-context of `row_name` that only applies to compact, tabluar presentation of a row (When a foreignkey value is displayed in a tabular presentation).
+  - `"row_name/detailed"`: A sub-context of `row_name` that only applies to entity-level presentation of a row (When a foreignkey value is displayed in the entity-level page).
 - `"*"`: A default to apply for any context not matched by a more specific context name.
 
 If more than one _context_ name in the annotation payload matches, the _options_ should be combined in the following order (first occurrence wins):
