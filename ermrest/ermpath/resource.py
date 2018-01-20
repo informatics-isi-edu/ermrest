@@ -458,16 +458,16 @@ class EntityElem (object):
     alias=c.sql_name(col_name)
 )
                 )
-            elif c.type.name in ['json', 'jsonb']:
+            elif sql_type in ['json', 'jsonb']:
                 json_projection.append("(j->'%s')::%s AS %s" % (
                     col_name,
-                    c.type.sql(basic_storage=True),
+                    sql_type,
                     c.sql_name(col_name)
                 ))
             else:
                 json_projection.append("(j->>'%s')::%s AS %s" % (
                     col_name,
-                    c.type.sql(basic_storage=True),
+                    sql_type,
                     c.sql_name(col_name)
                 ))
                         
@@ -590,10 +590,10 @@ FROM (
                 raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
 
         def jsonfix1(sql, c):
-            return '%s::jsonb' % sql if c.type.name == 'json' else sql
+            return '%s::jsonb' % sql if c.type.sql(basic_storage=True) == 'json' else sql
         
         def jsonfix2(sql, c):
-            return '%s::json' % sql if c.type.name == 'json' else sql
+            return '%s::json' % sql if c.type.sql(basic_storage=True) == 'json' else sql
         
         # reusable parts interpolated into several SQL statements
         parts = dict(
@@ -1483,7 +1483,9 @@ class AttributePath (AnyPath):
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
 
             if hasattr(attribute, 'nbins'):
-                if col.type.name not in {'int2', 'int4', 'int8', 'float', 'float4', 'float8', 'numeric', 'serial2', 'serial4', 'serial8', 'timestamptz', 'date'}:
+                typname = col.type.sql(basic_storage=True)
+
+                if typname not in {'int2', 'int4', 'int8', 'float', 'float4', 'float8', 'numeric', 'timestamptz', 'date'}:
                     raise ConflictModel('Binning not supported on column type %s.' % col.type)
 
                 parts = {
@@ -1494,7 +1496,7 @@ class AttributePath (AnyPath):
                 }
 
                 bexpr = lambda e: e
-                if col.type.name in {'timestamptz', 'date'}:
+                if typname in {'timestamptz', 'date'}:
                     # convert to float so width_bucket can handle it
                     bexpr = lambda e: "EXTRACT(EPOCH FROM %s)" % e
 
@@ -1505,7 +1507,7 @@ class AttributePath (AnyPath):
                     'nbins': parts['nbins'],
                 }
 
-                if col.type.name == 'date':
+                if typname == 'date':
                     # date arithmetic produces integer when we wanted interval...
                     parts['bminv'] = "%(minv)s + '1 day'::interval * (%(maxv)s - %(minv)s) * (%(bucket)s - 1) / %(nbins)s::float4" % parts
                     parts['bmaxv'] = "%(minv)s + '1 day'::interval * (%(maxv)s - %(minv)s) * %(bucket)s       / %(nbins)s::float4" % parts

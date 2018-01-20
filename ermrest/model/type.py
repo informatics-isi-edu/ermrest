@@ -152,11 +152,12 @@ class Type (object):
 
     def url_parse(self, v):
         try:
-            if self.name in [ 'integer', 'int2', 'int4', 'int8', 'bigint', 'serial2', 'serial4', 'serial8' ]:
+            typname = self.sql(basic_storage=True)
+            if typname in [ 'integer', 'int2', 'int4', 'int8', 'bigint', 'serial2', 'serial4', 'serial8' ]:
                 return int(v)
-            elif self.name in [ 'float', 'float4', 'float8' ]:
+            elif typname in [ 'float', 'float4', 'float8' ]:
                 return float(v)
-            elif self.name in [ 'json', 'jsonb' ]:
+            elif typname in [ 'json', 'jsonb' ]:
                 return json.loads(v)
             else:
                 # text and text-like...
@@ -166,12 +167,13 @@ class Type (object):
 
     def sql_literal(self, v):
         try:
-            if self.name in [ 'integer', 'int2', 'int4', 'int8', 'bigint', 'serial2', 'serial4', 'serial8' ]:
+            typname = self.sql(basic_storage=True)
+            if typname in [ 'integer', 'int2', 'int4', 'int8', 'bigint', 'serial2', 'serial4', 'serial8' ]:
                 return "%s" % int(v)
-            elif self.name in [ 'float', 'float4', 'float8' ]:
+            elif typname in [ 'float', 'float4', 'float8' ]:
                 return "%s" % float(v)
             else:
-                if self.name in [ 'json', 'jsonb' ]:
+                if typname in [ 'json', 'jsonb' ]:
                     v = json.dumps(v)
                 # text and text-like...
                 return u"'" + unicode(v).replace(u"'", u"''") + u"'::%s" % self.sql()
@@ -209,13 +211,14 @@ class Type (object):
             if m:
                 raw = m.groupdict()['val']
 
-        if self.name in [ 'int2', 'int4', 'int8', 'smallint', 'bigint', 'integer', 'int' ]:
+        typname = self.sql(basic_storage=True)
+        if typname in [ 'int2', 'int4', 'int8', 'smallint', 'bigint', 'integer', 'int' ]:
             return int(raw)
-        elif self.name in [ 'float', 'float4', 'float8', 'real', 'double precision' ]:
+        elif typname in [ 'float', 'float4', 'float8', 'real', 'double precision' ]:
             return float(raw)
-        elif self.name in [ 'bool', 'boolean' ]:
+        elif typname in [ 'bool', 'boolean' ]:
             return raw is not None and raw.lower() == 'true'
-        elif self.name in [ 'json', 'jsonb' ]:
+        elif typname in [ 'json', 'jsonb' ]:
             return json.loads(raw)
         else:
             # fall back for text and text-like e.g. domains or other unknown types
@@ -260,6 +263,12 @@ class DomainType(Type):
     def __init__(self, **args):
         Type.__init__(self, **args)
         self.base_type = args['base_type']
+
+    def sql(self, basic_storage=False):
+        if basic_storage:
+            return self.base_type.sql(basic_storage=True)
+        else:
+            return Type.sql(self)
 
     def prejson(self):
         return dict(
