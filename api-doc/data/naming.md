@@ -117,6 +117,16 @@ If the client does not wish to consider NULL or out-of-range values, they MAY in
 
 A useful idiom is to use binning as a group-key in the `attributegroup` API with `cnt(*)` to count all matching rows within each bin. The results will be sparse: only bins with a non-zero row count will appear as grouped output rows. The sort modifier MAY be applied to the binning group key.
 
+### Supported Column Types for Binning
+
+The binning operator is only supported for certain basic column storage types:
+
+- `date`
+- `float4`, `float8`
+- `int2`, `int4`, `int8`
+- `numeric`
+- `timestamptz`, `timestamp`
+
 ## Data Paths
 
 ERMrest introduces a general path-based syntax for naming data resources with idioms for navigation and filtering of entity sets. The _path_ element of the data resource name always denotes a set of entities or joined entities.  The path must be interpreted from left to right in order to understand its meaning. The denoted entity set is understood upon reaching the right-most element of the path and may be modified by the resource space or _api_ under which the path occurs.
