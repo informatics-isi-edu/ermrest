@@ -1485,7 +1485,7 @@ class AttributePath (AnyPath):
             if hasattr(attribute, 'nbins'):
                 typname = col.type.sql(basic_storage=True)
 
-                if typname not in {'int2', 'int4', 'int8', 'float', 'float4', 'float8', 'numeric', 'timestamptz', 'date'}:
+                if typname not in {'int2', 'int4', 'int8', 'float', 'float4', 'float8', 'numeric', 'timestamptz', 'timestamp', 'date'}:
                     raise ConflictModel('Binning not supported on column type %s.' % col.type)
 
                 parts = {
@@ -1496,7 +1496,7 @@ class AttributePath (AnyPath):
                 }
 
                 bexpr = lambda e: e
-                if typname in {'timestamptz', 'date'}:
+                if typname in {'timestamptz', 'timestamp', 'date'}:
                     # convert to float so width_bucket can handle it
                     bexpr = lambda e: "EXTRACT(EPOCH FROM %s)" % e
 

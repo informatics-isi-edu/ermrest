@@ -119,8 +119,7 @@ The binning operator is only supported for certain basic column storage types:
 - `float4`, `float8`
 - `int2`, `int4`, `int8`
 - `numeric`
-- `timestamptz`
-
+- `timestamptz`, `timestamp`
 
 ## Data Paths
 
