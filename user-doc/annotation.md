@@ -311,8 +311,11 @@ Configuration attributes (optional):
 - `markdown_name`: The markdown to use in place of the default heuristics for facet title.
 - `entity`: If the facet can be treated as entity (the column that is being used for facet is key of the table), setting this attribute to `false` will force the facet to show scalar mode.
 - `open`: Setting this attribute to `true`, will force the facet to open by default.
-- `binning`: Setting this attribute to `false`, will force the histogram to not be shown in the facet in the facet panel. If unspecified, default is `true`
+- `bar_plot`: This attribute is meant to be an object of properties that control the display of the histogram. Setting this attribute to `false` will force the histogram to not be shown in the facet in the facet panel. If unspecified, default is `true` (or show the histogram).
 - `ux_mode`: `choices` or `ranges`. If a multi-modal facet control UX is available, it will specify the default UX mode that should be used (If `ux_mode` is defined, the other type of constraint will not be displayed even if you have defined it in the annotation).
+
+`bar_plot` attributes (optional):
+- `n_bins`: Used to define the number of bins the histogram uses to fetch and display data. If undefined, default is 30 bins.
 
 
 The following is an example of visible-columns annotation payload for defining facets. You can find more examples in [here](https://github.com/informatics-isi-edu/ermrestjs/wiki/Facet-Examples).
