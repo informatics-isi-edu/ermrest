@@ -235,17 +235,19 @@ ORDER BY column_num;
             column.set_annotations(conn, cur, column.annotations)
             column.set_acls(cur, column.acls)
             column.set_dynacls(cur, column.dynacls)
+
+        for keydoc in tabledoc.get('keys', []):
+            for key in table.add_unique(conn, cur, keydoc):
+                # need to drain this generating function
+                pass
+
+        for column in columns:
             try:
                 execute_if(column.btree_index_sql())
                 execute_if(column.pg_trgm_index_sql())
             except Exception, e:
                 web.debug(table, column, e)
                 raise
-
-        for keydoc in tabledoc.get('keys', []):
-            for key in table.add_unique(conn, cur, keydoc):
-                # need to drain this generating function
-                pass
 
         for fkeydoc in tabledoc.get('foreign_keys', []):
             for fkr in table.add_fkeyref(conn, cur, fkeydoc):
