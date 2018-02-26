@@ -262,6 +262,8 @@ class Entity (Api):
         if defaults and type(defaults) is not set:
             # defaults is a single column name from queryopts
             defaults = set([ defaults ])
+        elif defaults is None:
+            defaults = set()
         else:
             # defaults is already a set of column names from queryopts
             # or it is None

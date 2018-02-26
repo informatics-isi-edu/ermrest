@@ -169,15 +169,16 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             parts.append('NOT NULL')
         return ' '.join(parts)
 
-    def input_ddl(self, alias=None):
+    def input_ddl(self, alias=None, enforce_notnull=True):
         """Render SQL column clause for temporary input table DDL."""
         if alias:
             name = alias
         else:
             name = self.name
-        return u"%s %s" % (
+        return u"%s %s %s" % (
             sql_identifier(name),
-            self.type.sql(basic_storage=True)
+            self.type.sql(basic_storage=True),
+            "NOT NULL" if self.nullok is False and enforce_notnull else ""
             )
     
     @staticmethod

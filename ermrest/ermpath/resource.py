@@ -439,8 +439,6 @@ class EntityElem (object):
             nmkcol_aliases = dict()
             extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
 
-        skip_key_tests = False
-
         if use_defaults is not None:
             use_defaults = set([
                 self.table.columns.get_enumerable(cname).name
@@ -451,10 +449,6 @@ class EntityElem (object):
                 for cname in system_colnames
                 if cname in self.table.columns
             ])
-
-            if len(mkcols) == 0 or use_defaults.intersection( set([ c.name for c in mkcols ]) ):
-                # input rows cannot be tested for key uniqueness except by trying to insert!
-                skip_key_tests = True
         else:
             if len(mkcols) == 0:
                 raise ConflictModel('PUT not supported on entities without key constraints.')
@@ -465,10 +459,10 @@ class EntityElem (object):
                 sql_identifier(input_table),
                 ','.join(
                     [
-                        c.input_ddl(mkcol_aliases.get(c))
+                        c.input_ddl(mkcol_aliases.get(c), use_defaults is None or c.name not in use_defaults)
                         for c in mkcols
                     ] + [
-                        c.input_ddl(nmkcol_aliases.get(c))
+                        c.input_ddl(nmkcol_aliases.get(c), use_defaults is None or c.name not in use_defaults)
                         for c in nmkcols
                     ]
                 )
@@ -636,6 +630,19 @@ FROM (
             return '%s::json' % sql if c.type.sql(basic_storage=True) == 'json' else sql
         
         # reusable parts interpolated into several SQL statements
+        def keymatch(c, aliases, fix1=False):
+            parts = {
+                't': c.sql_name(),
+                'i': c.sql_name(aliases.get(c)),
+            }
+            if fix1:
+                parts['i'] = jsonfix1(parts['i'], c)
+                parts['t'] = jsonfix1(parts['t'], c)
+            sql = 't.%(t)s = i.%(i)s' % parts
+            if c.nullok:
+                sql += ' OR (t.%(t)s IS NULL AND i.%(i)s IS NULL)' % parts
+            return '(%s)' % sql
+
         parts = dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
@@ -648,12 +655,9 @@ FROM (
                 for cname in {'RMT','RMB'}
                 if cname in self.table.columns
             ]),
-            keymatches = u' AND '.join([
-                u"((t.%(t)s = i.%(i)s) OR (t.%(t)s IS NULL AND i.%(i)s IS NULL))" % dict(t=c.sql_name(), i=c.sql_name(mkcol_aliases.get(c)))
-                for c in mkcols
-            ]),
+            keymatches = u' AND '.join([ keymatch(c, mkcol_aliases) for c in mkcols ]),
+            keymatches_j1 = u' AND '.join([ keymatch(c, mkcol_aliases, fix1=True) for c in mkcols ]),
             cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
-            ecols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
             emkcols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in mkcols ]),
             icols = ','.join(
                 [jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols]
@@ -670,22 +674,11 @@ FROM (
         )
 
         if len(mkcols) > 0:
-            cur.execute("CREATE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
+            try:
+                cur.execute("CREATE UNIQUE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
+            except psycopg2.IntegrityError as e:
+                raise BadData(u'Multiple input rows share the same unique key information.')
         cur.execute("ANALYZE %s;" % sql_identifier(input_table))
-
-        #  -- check for duplicate keys
-        if not skip_key_tests:
-            cur.execute("SELECT count(*) FROM %s" % sql_identifier(input_table))
-            total_rows = cur.fetchone()[0]
-            cur.execute(
-                "SELECT count(*) FROM (SELECT DISTINCT %s FROM %s) s" % (
-                    ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols]),
-                    sql_identifier(input_table)
-                )
-            )
-            total_mkeys = cur.fetchone()[0]
-            if total_rows > total_mkeys:
-                raise ConflictData('Multiple input rows share the same unique key information.')
 
         # -- pre-checks for restricted fkey write scenarios
         # 1. accumulate all fkrs into a map  { c: {fkr,...} }
@@ -743,13 +736,13 @@ FROM (
             for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_fkrs.values() ]):
                 fkr.enforce_right('insert')
 
-        if allow_existing is False and not skip_key_tests:
-            cur.execute("%s INTERSECT ALL %s" % correlating_sql)
-            for row in cur:
-                raise ConflictData('Input row key (%s) collides with existing entity.' % unicode(row))
-
         if allow_missing is False:
-            cur.execute("%s EXCEPT ALL %s" % correlating_sql)
+            cur.execute("""
+SELECT *
+FROM %(input_table)s i
+LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
+WHERE NOT (%(keymatches)s)
+LIMIT 1;""" % parts)
             for row in cur:
                 raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
 
@@ -869,14 +862,13 @@ RETURNING %(tcols)s""") % parts
             if allow_missing:
                 # only check for insert rights if there are non-matching row keys
                 cur.execute(("""
-SELECT * FROM (
-  SELECT %(icols)s FROM %(input_table)s i
+SELECT %(icols)s
+FROM %(input_table)s i
 """ + ("""
-  JOIN (
-    SELECT %(emkcols)s FROM %(input_table)s e
-    EXCEPT SELECT %(mkcols)s FROM %(table)s e
-  ) t ON (%(keymatches)s)""" if use_defaults is None else ""
-) + ") i LIMIT 1") % parts
+LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
+WHERE COALESCE(NOT (%(keymatches)s), True)
+""" if use_defaults is None else "") + """
+LIMIT 1""") % parts
                 )
                 if cur.rowcount > 0:
                     self.table.enforce_right('insert', require_true=True)
@@ -926,26 +918,22 @@ LIMIT 1""") % dict(
                         + ['i.%s' % c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols if use_defaults is None or c.name not in use_defaults]
                     ),
                     tcols = ','.join([
-                        jsonfix2(c.sql_name(), c)
+                        c.sql_name()
                         for c in (mkcols + nmkcols + extra_return_cols)
                     ])
                 )
-                cur.execute(
-                    preserialize(("""
+                sql = ("""
 INSERT INTO %(table)s (%(cols)s)
-SELECT * FROM (
-  SELECT %(icols)s FROM %(input_table)s i
+SELECT %(icols)s FROM %(input_table)s i
 """ + ("""
-  JOIN (
-    SELECT %(emkcols)s FROM %(input_table)s e
-    EXCEPT SELECT %(mkcols)s FROM %(table)s e
-  ) t ON (%(keymatches)s)""" if use_defaults is None else ""
-) + ") i RETURNING %(tcols)s") % parts
-                    )
-                )
+LEFT OUTER JOIN %(table)s t ON (%(keymatches_j1)s)
+WHERE COALESCE(NOT (%(keymatches_j1)s), True)
+""" if use_defaults is None else "") + """
+RETURNING %(tcols)s""") % parts
 
+                cur.execute(preserialize(sql))
                 new_results = list(make_row_thunk(None, cur, content_type)())
-                
+
                 if content_type == 'application/json':
                     if not results:
                         pass
@@ -967,7 +955,7 @@ SELECT * FROM (
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
         except psycopg2.IntegrityError, e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
-            
+
         return results
 
 class AnyPath (object):
@@ -1412,11 +1400,43 @@ WHERE %(keymatches)s
             if cur.fetchone():
                 raise Forbidden(u'delete access on one or more matching rows in table %s' % table)
 
-        cur.execute("SELECT count(*) AS count FROM (%s) s" % self.sql_get())
+        table = self._path[self._context_index].table
+        victim_table = sql_identifier(random_name('victims_'))
+        primary_keys = [ key for key in table.uniques.values() if key.is_primary_key() ]
+        if primary_keys:
+            # use shortest non-nullable key if available
+            primary_keys.sort(key=lambda k: len(k.columns))
+            mkcols = set(primary_keys[0].columns)
+        else:
+            # use full metakey if there are no non-nullable keys
+            mkcols = set()
+            for key in table.uniques:
+                for col in key:
+                    mkcols.add(col)
+        mkcols = list(mkcols)
+
+        cur.execute("CREATE TEMPORARY TABLE %s AS %s;" % (victim_table, self.sql_get()))
+        cur.execute("CREATE INDEX ON %s (%s);" % (
+            victim_table,
+            ', '.join([ c.sql_name() for c in mkcols])
+        ))
+        cur.execute("ANALYZE %s;" % victim_table)
+        cur.execute("SELECT count(*) AS count FROM %s;" % victim_table)
         cnt = cur.fetchone()[0]
         if cnt == 0:
             raise NotFound('entities matching request path')
-        cur.execute(self.sql_delete())
+        cur.execute(
+            "DELETE FROM %s AS t USING %s AS v WHERE %s;" % (
+                table.sql_name(),
+                victim_table,
+                ' AND '.join([
+                    ("(t.%(c)s = v.%(c)s)" if not c.nullok \
+                     else "(t.%(c)s = v.%(c)s OR t.%(c)s IS NULL AND v.%(c) IS NULL)"
+                    ) % {'c': c.sql_name()}
+                    for c in mkcols
+                ])
+            )
+        )
 
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
