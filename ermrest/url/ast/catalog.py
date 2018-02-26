@@ -20,6 +20,7 @@
 
 import json
 import web
+import psycopg2.extensions
 
 import model
 import data
@@ -226,6 +227,36 @@ class Catalog (Api):
 
         return self.perform(body, post_commit)
 
+    def POST(self, uri):
+        """Perform maintenance tasks on catalog.
+        """
+        def body(conn, cur):
+            self.enforce_right('owner', uri)
+            if web.ctx.ermrest_history_snaptime is not None:
+                raise exception.Forbidden('maintenance of catalog at previous revision')
+            if web.ctx.ermrest_history_snaprange is not None:
+                # should not be possible bug check anyway...
+                raise NotImplementedError('maintenance of catalog with snapshot range')
+            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            self.http_check_preconditions(method='GET')
+            self.emit_headers()
+            return True
+
+        def post_commit(ignore):
+            if 'vacuum' in self.queryopts:
+                web.ctx.ermrest_catalog_pc.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+                web.ctx.ermrest_catalog_pc.cur.execute('VACUUM ANALYZE;')
+                web.ctx.ermrest_catalog_pc.conn.commit()
+                web.ctx.ermrest_catalog_pc.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
+            elif 'analyze' in self.queryopts:
+                web.ctx.ermrest_catalog_pc.cur.execute('ANALYZE;')
+                web.ctx.ermrest_catalog_pc.conn.commit()
+            else:
+                raise exception.BadData('Maintenance query parameters not recognized.')
+            web.ctx.status = '204 No Content'
+            return ''
+
+        return self.perform(body, post_commit)
 
 class Meta (Api):
     """A metadata set of the catalog.
