@@ -126,7 +126,7 @@ SELECT _ermrest.model_version_bump();
            created index.
 
         """
-        if self not in self.table.uniques and self.is_indexable():
+        if frozenset({self}) not in self.table.uniques and self.is_indexable():
             return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
