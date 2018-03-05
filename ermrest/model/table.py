@@ -55,6 +55,7 @@ class Table (object):
     At present, this has a 'name' and a collection of table 'columns'. It
     also has a reference to its 'schema'.
     """
+    tag_indexing_preferences = 'tag:isrd.isi.edu,2018:indexing-preferences'
     
     def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None):
         self.schema = schema

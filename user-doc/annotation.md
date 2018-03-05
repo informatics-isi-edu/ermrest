@@ -64,6 +64,7 @@ here is a quick matrix to locate them.
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
 | [2017 Asset](#2017-asset) | - | - | X | - | - | Describes assets |
+| [2018 Indexing Preferences](#2018-indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
@@ -578,6 +579,29 @@ At present, the Chaise implementation of the asset annotation has the following 
 1. 'generated' column(s) in the `url_pattern` are only supported in the `entry/edit` context and _not_ in the `entry/create` context. If you wish to use 'generated' column(s) in the `url_pattern`, you will need to use the [2016 Visible Columns](#2016-visible-columns) annotation and leave the asset column out of the list of visible columns for its `entry/create` context.
 2. `sha256` is not presently supported.
 3. If `url_pattern` is not available or `browser_upload` is `False` Chaise will show a disabled form field for the asset column. It will still provide the download button in read-only contexts.
+
+### 2018 Indexing Preferences
+
+`tag:isrd.isi.edu,2018:indexing-preferences`
+
+This key indicates that the annotated table or column should follow a different indexing strategy. At the time of writing, this is the only annotation recognized by ERMrest which affects service behavior (all others are opaque key-value storage only affecting clients).
+
+Meaning on different model elements:
+- On tables: requests a table-wide indexing strategy
+- On columns: requests a column-specific indexing strategy (may override table-wide preferences)
+
+Supported JSON payload patterns:
+- `{`... `"btree"`: _preference_ ...`}`: Specifies a preference for PostgreSQL `btree` indexing.
+- `{`... `"trgm"`: _preference_ ...`}`: Specifies a preference for PostgreSQL `pg_trgm` (text tri-gram) indexing.
+
+Supported _preference_ patterns:
+- `true`: An index is desired.
+- `false`: An index is not desired.
+- `null` (or field absent): The default is desired (currently all indexing is enabled by default).
+
+If a column-level annotation sets a _preference_ of `null`, this suppresses any table-wide _preference_ for the same indexing type, requesting built-in service defaults for the column.
+
+This annotation is a hint to ERMrest during table or column creation, when indexes are built. Therefore, administrators SHOULD supply the annotation within table or column creation requests. Manipulation of the annotation on existing tables or columns will not change the indexes which are already present (or absent) on those existing models. However, changes to the table annotation will affect any columns added later, unless their column-creation requests override the table-wide preferences.
 
 ### Context Names
 

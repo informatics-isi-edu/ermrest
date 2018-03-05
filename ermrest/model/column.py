@@ -118,6 +118,24 @@ SELECT _ermrest.model_version_bump();
     def is_indexable(self):
         return str(self.type) != 'json'
 
+    def want_index(self, index_type):
+        """Return True if we prefer to have index, False if not."""
+        def get_prefs(subject):
+            preferences = subject.annotations.get(self.table.tag_indexing_preferences, {})
+            if not isinstance(preferences, dict):
+                web.debug('WARNING: ignoring invalid indexing preferences on %s' % subject)
+                return {}
+            return preferences
+
+        preferences = get_prefs(self.table)
+        preferences.update(get_prefs(self))
+
+        # absent or null preference means use default which is currently True
+        if preferences.get(index_type) is False:
+            return False
+        else:
+            return True
+
     def btree_index_sql(self):
         """Return SQL to construct a single-column btree index or None if not necessary.
 
@@ -126,7 +144,7 @@ SELECT _ermrest.model_version_bump();
            created index.
 
         """
-        if frozenset({self}) not in self.table.uniques and self.is_indexable():
+        if frozenset({self}) not in self.table.uniques and self.is_indexable() and self.want_index('btree'):
             return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
@@ -145,7 +163,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
            column.
 
         """
-        if self.istext():
+        if self.istext() and self.want_index('trgm'):
             return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trgm_ops ) ;
