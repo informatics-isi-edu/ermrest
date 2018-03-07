@@ -60,7 +60,7 @@ here is a quick matrix to locate them.
 | [2016 Immutable](#2016-immutable) | X | X | X | - | - | Immutable model element |
 | [2016 Non Deletable](#2016-non-deletable) | X | X | - | - | - | Non-deletable model element |
 | [2016 App Links](#2016-app-links) | X | X | - | - | - | Intra-Chaise app links |
-| [2016 Table Display](#2016-table-display) | X | X | - | - | - | Table-specific display options |
+| [2016 Table Display](#2016-table-display) | - | X | - | - | - | Table-specific display options |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
 | [2017 Asset](#2017-asset) | - | - | X | - | - | Describes assets |
