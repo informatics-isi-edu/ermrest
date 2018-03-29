@@ -178,7 +178,7 @@ the concept.
 
 `tag:isrd.isi.edu,2016:ignore`
 
-This key is allowed on any number of Schema, Table, or Column model elements. The only part of chaise that is using this annotation is search application. It does not have any effects on other applications (i.e., record, record-edit, and recordset). 
+This key is allowed on any number of Schema, Table, or Column model elements. The only part of chaise that is using this annotation is search application. It does not have any effects on other applications (i.e., record, record-edit, and recordset).
 
 This key was previously specified for these model elements but such use is deprecated:
 
@@ -281,7 +281,16 @@ Supported _columnentry_ patterns:
 
 - _columnname_: A string literal _columnname_ identifies a constituent column of the table. The value of the column SHOULD be presented, possibly with representation guided by other annotations or heuristics.
 - `[` _schemaname_ `,` _constraintname_ `]`: A two-element list of string literal _schemaname_ and _constraintname_ identifies a constituent foreign key of the table. The value of the external entity referenced by the foreign key SHOULD be presented, possibly with representation guided by other annotations or heuristics. If the foreginkey is representing an inbound relationship with the current table, it SHOULD be presented in a tabular format since it can represent multiple rows of data.
+- `{ "source": ` _sourceentry_ `}`:  Defines a pseudo-column based on the given _sourceentry_. For detailed explanation and examples please refer to [here](https://github.com/informatics-isi-edu/ermrestjs/wiki/Pseudo-Column-Logic-&-Heuristics#examples). Other optional attributes that this JSON document can have are:
+  - `markdown_name`: The markdown to use in place of the default heuristics for title of column.
+  - `entity`: If the _sourceentry_ can be treated as entity (the source column is key of the table), setting this attribute to `false` will force the scalar mode.
 
+Supported _sourceentry_ pattern:
+- _columnname_: : A string literal. _columnname_ identifies a constituent column of the table.
+- _path_: An array of _foreign key path_ that ends with a _columnname_ that will be projected. _foreign key path_ is in the following format:
+
+        "`{` _direction_ `:[` *schema name*`,` *constraint name* `]}` "
+    Where _direction_ is either `inbound`, or `outbound`.
 
 Supported _facetlist_ pattern:
 
@@ -290,15 +299,9 @@ Supported _facetlist_ pattern:
 _facetentry_ must be a JSON payload with the following attributes:
 
 Required attributes:
-- `source`: Source of the filter. If it is not specified or is invalid the _facetentry_ will be ignored. It can have any of the following:
+- `source`: Source of the filter. If it is not specified or is invalid the _facetentry_ will be ignored. It has the same pattern as _sourceentry_ defined above.
 
-    <!-- - `*`: Filter on the whole table. This can be used for adding a regular expression filter on the table. -->
-    - _columnname_: : A string literal. _columnname_ identifies a constituent column of the table.
-    - _path_: An array of _foreign key path_ that ends with a _columnname_ that will be projected and filtered. _foreign key path_ is in the following format:
-            "`{` _direction_ `:[` *schema name*`,` *constraint name* `]}` "
-        Where _direction_ is either `inbound`, or `outbound`.
-
-Constraint attributes (optional): 
+Constraint attributes (optional):
 
 You can use these attributes to define default preselected facets (Combination of these attributes are not supported yet, you cannot have both `choices` and `ranges` specified on a facet).
 - `choices`: Discrete choice e.g. maps to a checklist or similar UX. Its value MUST be an array of values.
@@ -525,6 +528,14 @@ For presentation contexts which are not listed in the annotation, or when the an
 Supported _fkeylist_ patterns:
 
 - `[` `[` _schema name_`,` _constraint name_ `]` `,` ... `]`: Present foreign keys with matching _schema name_ and _constraint name_, in the order specified in the list. Ignore constraint names that do not correspond to foreign keys in the catalog. Do not present foreign keys that are not mentioned in the list. These 2-element lists use the same format as each element in the `names` property of foreign keys in the JSON model introspection output of ERMrest. The foreign keys MUST represent inbound relationships to the current table.
+- `{ "source": ` _sourceentry_ `}`:  Defines a pseudo-column based on the given _sourceentry_. For detailed explanation and examples please refer to [here](https://github.com/informatics-isi-edu/ermrestjs/wiki/Pseudo-Column-Logic-&-Heuristics#examples). Other optional attributes that this JSON document can have are:
+  - `markdown_name`: The markdown to use in place of the default heuristics for title of column.
+
+Supported _sourceentry_ pattern in here:
+  - _path_: An array of _foreign key path_ that ends with a _columnname_ that will be projected. _foreign key path_ is in the following format:
+
+          "`{` _direction_ `:[` *schema name*`,` *constraint name* `]}` "
+      Where _direction_ is either `inbound`, or `outbound`.
 
 ### 2016 Table Alternatives
 
@@ -565,7 +576,7 @@ Default heuristics:
 - The `2017 Asset` annotation explicitly indicates that the associated column is the asset location.
 - `url_pattern` MUST be specified for browser upload. If it is not specified or if it produces a null value, the browser upload will be disabled.
 - Column MUST be `text` typed. Otherwise the asset annotation will be ignored.
-- In addition to native columns, the following properties are also available under the annotated column object and can be referred in the _pattern_ e.g. `_URI.md5_hex` where `URI` is the annotated column (notice the [underscore before the column name](https://github.com/informatics-isi-edu/ermrestjs/wiki/Template-and-Markdown-Guide#raw-values)). 
+- In addition to native columns, the following properties are also available under the annotated column object and can be referred in the _pattern_ e.g. `_URI.md5_hex` where `URI` is the annotated column (notice the [underscore before the column name](https://github.com/informatics-isi-edu/ermrestjs/wiki/Template-and-Markdown-Guide#raw-values)).
   - `md5_hex` for hex  
   - `md5_base64` for base64
   - `filename` for filename
