@@ -71,11 +71,13 @@ The _out alias_ is the name given to the computed field. The _function_ is one o
 
 - `min`: the minimum non-NULL value (or NULL)
 - `max`: the maximum non-NULL value (or NULL)
+- `avg`: the average non-NULL value (or NULL)
 - `cnt_d`: the count of distinct non-NULL values
 - `cnt`: the count of non-NULL values
 - `array`: an array containing all values (including NULL)
+- `array_d`: an array containing distinct values (including NULL)
 
-These aggregate functions are evaluated over the set of values projected from the entity set denoted by _path_. The same column resolution rules apply as in other projection lists: a bare _column name_ MUST reference a column of the final entity set while an alias-qualified column name MUST reference a column of a table instance bound to _alias_ in the _path_.
+These aggregate functions are evaluated over the set of values projected from the entity set denoted by _path_. The same column resolution rules apply as in other projection lists: a bare _column name_ MUST reference a column of the final entity set while an alias-qualified column name MUST reference a column of a table instance bound to _alias_ in the _path_. Some aggregate functions are only supported for a subset of available column types.
 
 As a special case, the psuedo-column `*` can be used in several idiomatic forms:
 

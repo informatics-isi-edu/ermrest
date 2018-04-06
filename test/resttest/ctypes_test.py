@@ -155,6 +155,9 @@ class CtypeText (common.ErmrestTest):
     cval = 'one'
     pattern = 'one'
 
+    test_agg_order = True
+    test_agg_array = True
+
     def _table_name(self):
         return 'test_%s' % self.ctype
 
@@ -163,6 +166,13 @@ class CtypeText (common.ErmrestTest):
     
     def _entity_url(self):
         return 'entity/%s' % (self._qual_table_name())
+
+    def _aggfunc_url(self, aggfunc, column):
+        return 'attributegroup/%s/RMB;agg:=%s(%s)' % (
+            self._qual_table_name(),
+            aggfunc,
+            column
+        )
 
     def _pattern_url(self, colname):
         return '%s/%s::regexp::%s' % (
@@ -223,7 +233,44 @@ class CtypeText (common.ErmrestTest):
             expected_count,
             'Column %s should match %s %s times, not %s.\n%s\n' % (colname, self.pattern, expected_count, got_count, r.content)
         )
+
+    def _check_aggfunc(self, aggfunc, column, resultval=None, resultmembers=None):
+        r = self.session.get(self._aggfunc_url(aggfunc, column))
+        self.assertHttp(r, 200, 'application/json')
+        doc = r.json()
+        self.assertEqual(len(doc), 1)
+        if resultval is not None:
+            self.assertEqual(doc[0]['agg'], resultval)
+        if resultmembers is not None:
+            self.assertEqual(sorted(doc[0]['agg']), sorted(resultmembers))
+
+    def test_05a_agg_arrays(self):
+        if not self.test_agg_array:
+            return
+        self._check_aggfunc('array', 'column1', resultmembers=[None, None, self.cval])
+        self._check_aggfunc('array', '*')
+        self._check_aggfunc('array_d', 'column1', resultmembers=[None, self.cval])
+
+        self._check_aggfunc('array', 'column3', resultmembers=[None, [], [self.cval, self.cval]])
+        self._check_aggfunc('array_d', 'column3', resultmembers=[None, [], [self.cval, self.cval]])
+
+    def test_05a_agg_counts(self):
+        self._check_aggfunc('cnt', 'column1', 1)
+        self._check_aggfunc('cnt', '*', 3)
+        self._check_aggfunc('cnt_d', 'column1', 1)
+
+        self._check_aggfunc('cnt', 'column3', 2)
+        self._check_aggfunc('cnt_d', 'column3', 2)
         
+    def test_05a_agg_order(self):
+        if not self.test_agg_order:
+            return
+        self._check_aggfunc('min', 'column1', self.cval)
+        self._check_aggfunc('max', 'column1', self.cval)
+
+        self._check_aggfunc('min', 'column3', [])
+        self._check_aggfunc('max', 'column3', [self.cval, self.cval])
+
     def test_05a_patterns(self):
         self._pattern_check('column1', 1)
         self._pattern_check('column3', 1)
@@ -242,15 +289,44 @@ class CtypeText (common.ErmrestTest):
     def test_07_drop(self):
         self.assertHttp(self.session.delete('schema/%s/table/%s' % (_schema, self._table_name())), 204)
 
+class CtypeSystem (CtypeText):
+    # test aggregates on the system columns once too... just to make sure these domain types don't break
+    def test_05a_agg_arrays(self):
+        self._check_aggfunc('array', 'RID')
+        self._check_aggfunc('array_d', 'RID')
+        self._check_aggfunc('array', 'RCT')
+        self._check_aggfunc('array_d', 'RCT')
+        self._check_aggfunc('array', 'RMB')
+        self._check_aggfunc('array_d', 'RMB')
+
+    def test_05a_agg_counts(self):
+        self._check_aggfunc('cnt', 'RID', 3)
+        self._check_aggfunc('cnt', 'RCT', 3)
+        self._check_aggfunc('cnt', 'RMB', 3)
+
+        self._check_aggfunc('cnt_d', 'RID', 3)
+        self._check_aggfunc('cnt_d', 'RCT', 1)
+        self._check_aggfunc('cnt_d', 'RMB', 1)
+
+    def test_05a_agg_order(self):
+        self._check_aggfunc('min', 'RID')
+        self._check_aggfunc('max', 'RID')
+        self._check_aggfunc('min', 'RCT')
+        self._check_aggfunc('max', 'RCT')
+        self._check_aggfunc('min', 'RMB')
+        self._check_aggfunc('max', 'RMB')
+
 class CtypeBoolean (CtypeText):
     ctype = 'boolean'
-    cval = 'True'
+    cval = True
     pattern = 't'
+    test_agg_order = False
 
 class CtypeJsonb (CtypeText):
     ctype = 'jsonb'
     cval = {"foo": "bar"}
     pattern = 'foo.%2Abar'
+    test_agg_order = False
     
     def _data(self):
         # override because we don't want to deal w/ test suite limitations
@@ -260,6 +336,22 @@ class CtypeJsonb (CtypeText):
             {"sid": 2, "column1": 5, "column2": "value2", "column3": [self.cval, self.cval]},
             {"sid": 3, "column1": 10, "column2": "value3", "column3": []},
         ]
+
+    def test_05a_agg_arrays(self):
+        self._check_aggfunc('array', 'column1', resultmembers=[5, 10, self.cval])
+        self._check_aggfunc('array', '*')
+        self._check_aggfunc('array_d', 'column1', resultmembers=[5, 10, self.cval])
+
+        self._check_aggfunc('array', 'column3', resultmembers=[None, [], [self.cval, self.cval]])
+        self._check_aggfunc('array_d', 'column3', resultmembers=[None, [], [self.cval, self.cval]])
+
+    def test_05a_agg_counts(self):
+        self._check_aggfunc('cnt', 'column1', 3)
+        self._check_aggfunc('cnt', '*', 3)
+        self._check_aggfunc('cnt_d', 'column1', 3)
+
+        self._check_aggfunc('cnt', 'column3', 2)
+        self._check_aggfunc('cnt_d', 'column3', 2)
 
 class CtypeFloat4 (CtypeText):
     ctype = 'float4'
@@ -281,6 +373,8 @@ class CtypeTimestamptz (CtypeText):
     ctype = 'timestamptz'
     cval = '2015-03-11T11:32:56-0000'
     pattern = '56'
+    test_agg_order = False
+    test_agg_array = False
 
 class CtypeTimestamp (CtypeTimestamptz):
     ctype = 'timestamp'
@@ -289,6 +383,8 @@ class CtypeTimestamp (CtypeTimestamptz):
 class CtypeTimetz (CtypeTimestamptz):
     ctype = 'timetz'
     cval = '11:32:56-0000'
+    test_agg_order = False
+    test_agg_array = False
 
 class CtypeTime (CtypeTimestamptz):
     ctype = 'time'
@@ -301,13 +397,18 @@ class CtypeDate (CtypeInt2):
 class CtypeUuid (CtypeInt2):
     ctype = 'uuid'
     cval = '2648a44e-c81d-11e4-b6d7-00221930f5cc'
+    test_agg_order = False
     
 class CtypeInterval (CtypeInt2):
     ctype = 'interval'
     cval = 'P1Y2M3DT4H5M6S'
+    test_agg_order = False
+    test_agg_array = False
 
 class CtypeSerial2 (CtypeInt2):
     ctype = 'serial2'
+    test_agg_order = False
+    test_agg_array = False
 
     def _table_def(self):
         """Don't make arrays of this type."""
@@ -341,6 +442,14 @@ class CtypeSerial2 (CtypeInt2):
             200
         )
 
+    def test_05a_agg_counts(self):
+        self._check_aggfunc('cnt', 'column1', 4)
+        self._check_aggfunc('cnt', '*', 4)
+        self._check_aggfunc('cnt_d', 'column1', 4)
+
+        self._check_aggfunc('cnt', 'column3', 4)
+        self._check_aggfunc('cnt_d', 'column3', 1)
+
     def test_05a_patterns(self):
         self._pattern_check('column1', 1)
         # self._pattern_check('*', ???) this varies due to new timestamp system columns
@@ -366,6 +475,24 @@ class CtypeLongtext (CtypeText):
         doc[2]["column3"] = None
         return doc
     
+    def test_05a_agg_arrays(self):
+        if not self.test_agg_array:
+            return
+        self._check_aggfunc('array', 'column1', resultmembers=[None, None, self.cval])
+        self._check_aggfunc('array', '*')
+        self._check_aggfunc('array_d', 'column1', resultmembers=[None, self.cval])
+
+    def test_05a_agg_counts(self):
+        self._check_aggfunc('cnt', 'column1', 1)
+        self._check_aggfunc('cnt', '*', 3)
+        self._check_aggfunc('cnt_d', 'column1', 1)
+
+    def test_05a_agg_order(self):
+        if not self.test_agg_order:
+            return
+        self._check_aggfunc('min', 'column1', self.cval)
+        self._check_aggfunc('max', 'column1', self.cval)
+
 class CtypeMarkdown (CtypeLongtext):
     ctype = 'markdown'
     cval = '**one**'

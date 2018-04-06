@@ -31,7 +31,7 @@ from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
-from ..model.type import text_type, int8_type, jsonb_type
+from ..model.type import text_type, aggfuncs
 
 def current_request_snaptime(cur):
     """The snaptime produced by this mutation request."""
@@ -1015,25 +1015,6 @@ class AnyPath (object):
     def _sql_get_agg_attributes(self, allow_extra=True):
         """Process attribute lists for aggregation APIs.
         """
-        aggfunc_templates = dict(
-            min='min(%(attr)s)', 
-            max='max(%(attr)s)', 
-            cnt='count(%(attr)s)', 
-            cnt_d='count(DISTINCT %(attr)s)',
-            array='array_to_json(array_agg(%(attr)s))::jsonb'
-            )
-
-        aggfunc_star_templates = dict(
-            cnt='count(*)',
-            array='array_to_json(array_agg(%(attr)s))::jsonb'
-            )
-
-        aggfunc_type_overrides = dict(
-            cnt=int8_type,
-            cnt_d=int8_type,
-            array=jsonb_type,
-        )
-
         aggregates = []
         extras = []
         output_type_overrides = {}
@@ -1045,18 +1026,15 @@ class AnyPath (object):
             sql_attr = sql_identifier(output_name)
 
             if hasattr(attribute, 'aggfunc'):
-                templates = col.is_star_column() and aggfunc_star_templates or aggfunc_templates
+                try:
+                    aggfunc = aggfuncs[attribute.aggfunc](attribute, col, sql_attr)
+                except KeyError as ev:
+                    raise BadSyntax('Unknown aggregate function %s.' % ev)
 
-                if attribute.alias is None:
-                    raise BadSyntax('Aggregated column %s must be given an alias.' % attribute)
-
-                if unicode(attribute.aggfunc) not in templates:
-                    raise BadSyntax('Unknown or unsupported aggregate function "%s" applied to column "%s".' % (attribute.aggfunc, col.name))
-
-                aggregates.append((templates[unicode(attribute.aggfunc)] % dict(attr=sql_attr), sql_attr))
-
-                if attribute.aggfunc in aggfunc_type_overrides:
-                    output_type_overrides[output_name] = aggfunc_type_overrides[attribute.aggfunc]
+                agg_sql, agg_type = aggfunc.sql()
+                aggregates.append((agg_sql, sql_attr))
+                if agg_type is not None:
+                    output_type_overrides[output_name] = agg_type
             elif not allow_extra:
                 raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
             else:

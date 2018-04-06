@@ -383,4 +383,122 @@ class DomainType(Type):
 text_type = mock_type({'typename': 'text', 'length': -1}, readonly=True)
 tsvector_type = mock_type({'typename': 'tsvector', 'length': -1}, readonly=True)
 int8_type = mock_type({'typename': 'int8', 'length': -1}, readonly=True)
+float8_type = mock_type({'typename': 'float8', 'length': -1}, readonly=True)
 jsonb_type = mock_type({'typename': 'jsonb', 'length': -1}, readonly=True)
+
+class AggFunc(object):
+    aggfunc = None
+    aggfunc_sql = None
+    supports_star = False
+    distinct = ''
+    template = '%(aggfunc)s(%(distinct)s %(attr)s::%(btype)s)'
+    output_type = None
+
+    def __init__(self, attribute, col, sql_attr):
+        if attribute.alias is None:
+            raise exception.BadSyntax('Aggregated column %s(%s) must be given an alias.' % (self.aggfunc, attribute))
+        if col.is_star_column() and not self.supports_star:
+            raise exception.BadSyntax('Aggregate function %s not allowed on star column.' % self.aggfunc)
+
+        self.attribute = attribute
+        self.col = col
+        self.sql_attr = sql_attr
+
+    def input_type_remap(self):
+        ctype = self.col.type.sql(basic_storage=True)
+        if ctype == 'json' or self.col.is_star_column():
+            ctype = 'jsonb'
+        return ctype
+
+    def agg_element(self):
+        return self.sql_attr
+
+    def sql(self, template=None):
+        if template is None:
+            template = self.template
+        return (
+            template % {
+                'aggfunc': self.aggfunc_sql if self.aggfunc_sql is not None else self.aggfunc,
+                'distinct': self.distinct,
+                'attr': self.agg_element(),
+                'btype': self.input_type_remap(),
+            },
+            self.output_type
+        )
+
+class AggMin(AggFunc):
+    aggfunc = 'min'
+
+    def __init__(self, attribute, col, sql_attr):
+        ctype = col.type
+        if ctype.is_domain:
+            ctype = ctype.base_type
+        if ctype.is_array:
+            ctype = ctype.base_type
+        if ctype.sql(basic_storage=True) not in {
+                'int2', 'int4', 'int8', 'float4', 'float8', 'numeric',
+                'text', 'timestamptz', 'timestamp', 'date', 'time', 'timetz',
+        }:
+            raise exception.ConflictModel('Aggregate function "%s" not allowed on column %s with type %s.' % (self.aggfunc, col.name, col.type.name))
+        AggFunc.__init__(self, attribute, col, sql_attr)
+
+class AggMax(AggMin):
+    aggfunc = 'max'
+
+class AggAvg(AggFunc):
+    aggfunc = 'avg'
+    output_type = float8_type
+
+    def __init__(self, attribute, col, sql_attr):
+        if col.type.sql(basic_storage=True) not in {'int2', 'int4', 'int8', 'float4', 'float8', 'numeric'}:
+            raise exception.ConflictModel('Aggregate function "avg" not allowed on column %s with type %s.' % (col.name, col.type.name))
+        AggFunc.__init__(self, attribute, col, sql_attr)
+
+class AggCntDistinct(AggFunc):
+    aggfunc = 'cnt_d'
+    aggfunc_sql = 'count'
+    distinct = 'DISTINCT'
+    output_type = int8_type
+
+class AggCnt(AggFunc):
+    aggfunc = 'cnt'
+    aggfunc_sql = 'count'
+    supports_star = True
+    output_type = int8_type
+
+    def sql(self):
+        if self.col.is_star_column():
+            return AggFunc.sql(self, template='count(*)')
+        else:
+            return AggFunc.sql(self)
+
+class AggArray(AggFunc):
+    aggfunc = 'array'
+    supports_star = True
+    template = 'array_to_json(array_agg(%(distinct)s %(attr)s))::jsonb'
+    output_type = jsonb_type
+
+    def agg_element(self):
+        if not self.col.is_star_column():
+            if self.col.type.is_domain and self.col.type.base_type.is_array or self.col.type.is_array:
+                # convert arrays to JSON so we can nest them
+                return 'array_to_json(%s::%s)::jsonb' % (self.sql_attr, self.input_type_remap())
+        return '%s::%s' % (self.sql_attr, self.input_type_remap())
+
+class AggArrayDistinct(AggArray):
+    aggfunc = 'array_d'
+    distinct = 'DISTINCT'
+    supports_star = False
+
+aggfuncs = {
+    aggfunc.aggfunc: aggfunc
+    for aggfunc in [
+            AggMin,
+            AggMax,
+            AggAvg,
+            AggCntDistinct,
+            AggCnt,
+            AggArrayDistinct,
+            AggArray,
+    ]
+}
