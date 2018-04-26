@@ -153,7 +153,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         if pk_colset in pkeys:
             raise ValueError('Duplicate constraint %s collides with %s.' % (
                 constraint_name,
-                pkeys[pk_colset].names,
+                pkeys[pk_colset].constraint_name,
             ))
         pkeys[pk_colset] = pk
 
@@ -208,7 +208,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         if fk_ref_map in fk.references:
             raise ValueError('Duplicate constraint %s collides with %s.' % (
                 constraint_name,
-                fk.references[fk_ref_map].names
+                fk.references[fk_ref_map].constraint_name
             ))
         fk.references[fk_ref_map] = fkr
         return fkr
