@@ -28,18 +28,21 @@ class WebException (web.HTTPError):
     def __init__(self, status, data=u'', headers={}, desc=u'%s'):
         if isinstance(data, str):
             data = data.decode('utf8')
-        data = ('%s\n%s\n' % (status, desc)) % data
-        headers['Content-Type'] = 'text/plain'
+        if data is not None and desc is not None:
+            data = ('%s\n%s\n' % (status, desc)) % data
+            headers['Content-Type'] = 'text/plain'
+        else:
+            data = None
         try:
             web.ctx.ermrest_request_trace(data)
         except:
             pass
-        web.HTTPError.__init__(self, status, headers=headers, data=data)
+        web.HTTPError.__init__(self, status, headers=headers, data=data if data is not None else '')
 
 class NotModified(WebException):
     def __init__(self, data=u'', headers={}):
         status = '304 Not Modified'
-        desc = u'Resource not modified. %s'
+        desc = None
         WebException.__init__(self, status, headers=headers, data=data, desc=desc)
 
 class BadRequest (WebException):
