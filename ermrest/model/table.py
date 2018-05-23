@@ -404,6 +404,13 @@ WHERE "RID" = %s;
             doc['acl_bindings'] = self.dynacls
         return doc
 
+    def skip_cols_dynauthz(self, access_type):
+        return reduce(
+            lambda x, y: x and y,
+            [ not c.dynauthz_restricted(access_type) for c in self.columns_in_order() ],
+            True
+        )
+
     def sql_name(self, dynauthz=None, access_type='select', alias=None, dynauthz_testcol=None, dynauthz_testfkr=None):
         """Generate SQL representing this entity for use as a FROM clause.
 
@@ -459,12 +466,17 @@ WHERE "RID" = %s;
             clauses = get_dynacl_clauses(self if dynauthz_testfkr is None else dynauthz_testfkr, access_type, alias)
 
             if dynauthz:
-                tsql = "(SELECT %s FROM %s %s WHERE (%s))" % (
-                    ', '.join([ c.sql_name_dynauthz(talias, dynauthz=True, access_type=access_type) for c in self.columns_in_order()]),
-                    tsql,
-                    talias,
-                    ' OR '.join(["(%s)" % clause for clause in clauses ]),
-                )
+                skip_col_dynauthz = self.skip_cols_dynauthz(access_type)
+                if ['True'] == clauses and skip_col_dynauthz:
+                    # so use bare table for better query plans
+                    pass
+                else:
+                    tsql = "(SELECT %s FROM %s %s WHERE (%s))" % (
+                        '*' if skip_col_dynauthz else ', '.join([ c.sql_name_dynauthz(talias, dynauthz=True, access_type=access_type) for c in self.columns_in_order()]),
+                        tsql,
+                        talias,
+                        ' OR '.join(["(%s)" % clause for clause in clauses ]),
+                    )
             else:
                 tsql = "(SELECT * FROM %s %s WHERE (%s))" % (
                     tsql,
