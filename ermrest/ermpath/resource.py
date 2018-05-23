@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,12 +26,98 @@ import urllib
 import csv
 import web
 import json
+import re
 
 from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
 from ..model.type import text_type, aggfuncs
+from ..model import predicate
+
+class _FakeEntityElem (object):
+    def __init__(self, pos):
+        self.pos = pos
+
+class _NullEntityElem (object):
+    def sql_table_elem(self, dynauthz=None, access_type='select', prefix='', dynauthz_testcol=None):
+        return ''
+
+    def sql_wheres(self, prefix=''):
+        return []
+
+def get_dynacl_clauses(src, access_type, prefix, dynacls=None):
+    if dynacls is None:
+        dynacls = src.dynacls
+
+    if src.has_right(access_type) is None:
+        clauses = []
+
+        # we have to guard against prefixes not matching our t#t#... idiom
+        # for special case optimizations below
+        prefix_ok = re.match('^(t[0-9]+)+$', prefix)
+        prefix_positions = prefix.split('t')
+        fake_prefix = 't'.join(prefix_positions[0:-1])
+
+        for binding in dynacls.values():
+            if binding is False:
+                continue
+            if not binding.inscope(access_type):
+                continue
+
+            aclpath, col, ctype = binding._compile_projection()
+            aclpath.epath.add_filter(predicate.AclPredicate(binding, col))
+            authzpath = AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
+
+            generic_clause = authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False)
+            redundant_base_elem = aclpath.epath._path[0]
+            assert isinstance(redundant_base_elem.filters[0], predicate.AclBasePredicate)
+
+            if prefix_ok and len(aclpath.epath._path) == 1:
+                # mangle this to simple SQL predicates w/o subquery
+                assert isinstance(_filters[-1], predicate.AclPredicate)
+                del redundant_base_elem.filters[0]
+
+                fake_base_elem = _FakeEntityElem(int(prefix_positions[-1]))
+                def mangle(pred):
+                    if isinstance(pred, (predicate.Predicate, predicate.AclPredicate)):
+                        pred.left_elem = fake_base_elem
+                    elif isinstance(pred, predicate.Negation):
+                        mangle(pred.predicate)
+                    elif isinstance(pred, (predicate.Disjunction, predicate.Conjunction)):
+                        for p in pred:
+                            mangle(p)
+
+                for f in redundant_base_elem.filters:
+                    mangle(f)
+
+                clauses.append(
+                    ' AND '.join([
+                        f.sql_where(None, fake_base_elem, fake_prefix)
+                        for f in redundant_base_elem.filters
+                    ])
+                )
+            elif prefix_ok and len(redundant_base_elem.filters) == 1 \
+                 and aclpath.epath._path[1].context_pos == 0 \
+                 and len([ e for e in aclpath.epath._path if e.context_pos == 0 ]) == 1:
+                # mangle this to avoid unnecessary repetition of base table in subquery
+                joined_elem = aclpath.epath._path[1]
+                joined_elem.add_filter(predicate.AclBaseJoinPredicate(joined_elem.refop))
+                joined_elem.refop = None
+                aclpath.epath._path[0] = _NullEntityElem()
+
+                clause = authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False)
+                clauses.append(clause)
+            else:
+                # fall back on less-optimized code
+                clauses.append(generic_clause)
+
+        if not clauses:
+            clauses = ['False']
+    else:
+        clauses = ['True']
+
+    return clauses
 
 def current_request_snaptime(cur):
     """The snaptime produced by this mutation request."""
@@ -327,8 +413,27 @@ class EntityElem (object):
         """
         alias = '%st%d' % (prefix, self.pos)
         tsql = self.table.sql_name(dynauthz=dynauthz, access_type=access_type, alias=alias, dynauthz_testcol=dynauthz_testcol)
-        if self.pos == 0:
+        if self.refop is None:
             return tsql
+        elif access_type == 'select' \
+             and self.table.skip_cols_dynauthz(access_type) \
+             and self.outer_type in {'left', None} \
+             and dynauthz_testcol is None:
+            # common case where we can lift row-dynauthz into join condition as optimization
+            clauses = get_dynacl_clauses(self.table, 'select', alias)
+            joincond = self.sql_join_condition(prefix)
+            if ['True'] == clauses:
+                pass
+            else:
+                joincond = '(%s) AND (%s)' % (
+                    joincond,
+                    ' OR '.join([ "(%s)" % clause for clause in clauses ]),
+                )
+            return "%s JOIN %s ON (%s)" % (
+                {"left": "LEFT OUTER", None: ""}[self.outer_type],
+                self.table.sql_name(alias=alias),
+                joincond,
+            )
         else:
             return '%s JOIN %s ON (%s)' % (
                 {"left": "LEFT OUTER", "right": "RIGHT OUTER", "full": "FULL OUTER", None: ""}[self.outer_type],

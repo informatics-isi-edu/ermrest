@@ -81,6 +81,19 @@ class AclBasePredicate (object):
         ]
         return ' AND '.join(['(%s)' % clause for clause in clauses ])
 
+class AclBaseJoinPredicate (object):
+    def __init__(self, refop):
+        self.refop = refop
+
+    def validate(self, epath, allow_star=False, enforce_client=True):
+        pass
+
+    def sql_where(self, epath, elem, prefix=None):
+        assert prefix
+        ltname = prefix
+        rtname = '%st%d' % (prefix, elem.pos)
+        return elem.keyref.join_sql(self.refop, ltname, rtname)
+
 class AclPredicate (object):
     def __init__(self, binding, column):
         self.binding = binding

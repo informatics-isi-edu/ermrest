@@ -20,6 +20,7 @@ from .. import ermpath
 from .type import _default_config
 from .name import Name
 from . import predicate
+from ..ermpath.resource import get_dynacl_clauses
 
 # these are in ermpath to avoid recursive imports
 from ..ermpath import current_request_snaptime, current_catalog_snaptime, current_model_snaptime, normalized_history_snaptime, current_history_amendver
@@ -287,7 +288,7 @@ class AclBinding (AltDict):
         else:
             epath.set_base_entity(self.resource, 'base')
 
-        epath.add_filter(predicate.AclBasePredicate())
+        epath.add_filter(predicate.AclBasePredicate(), enforce_client=False)
 
         def compile_join(elem):
             # HACK: this repeats some of the path resolution logic that is tangled in the URL parser/AST code...
@@ -792,24 +793,3 @@ DELETE FROM _ermrest.known_%(restype)s_dynacls WHERE %(where)s;
 
     return helper
 
-def get_dynacl_clauses(src, access_type, prefix, dynacls=None):
-    if dynacls is None:
-        dynacls = src.dynacls
-
-    if src.has_right(access_type) is None:
-        clauses = ['False']
-
-        for binding in dynacls.values():
-            if binding is False:
-                continue
-            if not binding.inscope(access_type):
-                continue
-
-            aclpath, col, ctype = binding._compile_projection()
-            aclpath.epath.add_filter(predicate.AclPredicate(binding, col))
-            authzpath = ermpath.AttributePath(aclpath.epath, [ (True, None, aclpath.epath) ])
-            clauses.append(authzpath.sql_get(limit=1, distinct_on=False, prefix=prefix, enforce_client=False))
-    else:
-        clauses = ['True']
-
-    return clauses
