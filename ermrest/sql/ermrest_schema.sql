@@ -722,7 +722,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.enable_table_history(table_rid text) RETURNS void AS $func$
+CREATE OR REPLACE FUNCTION _ermrest.enable_table_history(table_rid text, heal_existing boolean) RETURNS void AS $func$
 DECLARE
   sname text;
   tname text;
@@ -832,6 +832,12 @@ BEGIN
       || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
   END IF;
 
+  -- skip healing if requested by caller and history table seems superficially active already
+  IF htable_exists AND trigger_exists AND NOT heal_existing
+  THEN
+    RETURN;
+  END IF;
+
   -- seal off open history tuples if we missed a delete or update
   EXECUTE
     'UPDATE _ermrest_history.' || quote_ident(htname) || ' h'
@@ -864,19 +870,32 @@ BEGIN
 END;
 $func$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.enable_table_histories() RETURNS void AS $$
+CREATE OR REPLACE FUNCTION _ermrest.enable_table_history(table_rid text) RETURNS void AS $$
+BEGIN
+  PERFORM _ermrest.enable_table_history(table_rid, False);
+  RETURN;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.enable_table_histories(heal_existing boolean) RETURNS void AS $$
 DECLARE
   looprow record;
 BEGIN
   FOR looprow IN SELECT t."RID" FROM _ermrest.known_tables t
   LOOP
     -- this function is smart enough to skip views and idempotently create history tracking
-    PERFORM _ermrest.enable_table_history(looprow."RID");
+    PERFORM _ermrest.enable_table_history(looprow."RID", heal_existing);
   END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_oid() RETURNS boolean AS $$
+CREATE OR REPLACE FUNCTION _ermrest.enable_table_histories() RETURNS void AS $$
+BEGIN
+  PERFORM _ermrest.enable_table_histories(False);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_oid(heal_existing boolean) RETURNS boolean AS $$
 DECLARE
   model_changed boolean;
   had_changes int;
@@ -1179,14 +1198,19 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
-  PERFORM _ermrest.enable_table_histories();
+  PERFORM _ermrest.enable_table_histories(heal_existing);
 
   RETURN model_changed;
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_oid() RETURNS boolean AS $$
+BEGIN
+  RETURN _ermrest.rescan_introspect_by_oid(False);
+END;
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_name() RETURNS boolean AS $$
+CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_name(heal_existing boolean) RETURNS boolean AS $$
 DECLARE
   model_changed boolean;
   had_changes int;
@@ -1484,9 +1508,15 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
 
-  PERFORM _ermrest.enable_table_histories();
+  PERFORM _ermrest.enable_table_histories(heal_existing);
 
   RETURN model_changed;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_name() RETURNS boolean AS $$
+BEGIN
+  RETURN _ermrest.rescan_introspect_by_name(False);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1510,10 +1540,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION _ermrest.model_change_event(heal_existing boolean) RETURNS void AS $$
+BEGIN
+  PERFORM _ermrest.rescan_introspect_by_name(heal_existing);
+  PERFORM _ermrest.model_version_bump();
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION _ermrest.model_change_event() RETURNS void AS $$
 BEGIN
-  PERFORM _ermrest.rescan_introspect_by_name();
-  PERFORM _ermrest.model_version_bump();
+  PERFORM _ermrest.model_change_event(False);
 END;
 $$ LANGUAGE plpgsql;
 
