@@ -22,6 +22,7 @@
 import cStringIO
 import web
 import tempfile
+import psycopg2
 
 from ..api import Api
 from . import path
@@ -78,11 +79,18 @@ def _GET(handler, uri, dresource, vresource):
         results = None
         
     def body(conn, cur):
-        handler.set_http_etag( vresource.etag(cur) )
-        handler.http_check_preconditions()
-        dresource.add_sort(handler.sort)
-        dresource.add_paging(handler.after, handler.before)
-        return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit)
+        try:
+            conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
+            handler.set_http_etag( vresource.etag(cur) )
+            handler.http_check_preconditions()
+            dresource.add_sort(handler.sort)
+            dresource.add_paging(handler.after, handler.before)
+            return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit)
+        finally:
+            try:
+                conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
+            except:
+                pass
 
     def post_commit(lines):
         handler.emit_headers()
