@@ -729,7 +729,7 @@ RETURNING fkey_rid;
     {"insert", "update"},
     lambda self: self.foreign_key.table
 )
-@keying('pseudo_fkey', {"fkey_rid": ('text', lambda self: self.id)})
+@keying('pseudo_fkey', {"fkey_rid": ('text', lambda self: self.rid)})
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     
@@ -759,7 +759,7 @@ class PseudoKeyReference (object):
         self.comment = comment
 
     def set_comment(self, conn, cur, comment):
-        if self.id:
+        if self.rid:
             cur.execute("""
 UPDATE _ermrest.known_pseudo_fkeys SET comment = %(comment)s WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
@@ -823,7 +823,7 @@ INSERT INTO _ermrest.known_pseudo_fkey_columns (fkey_rid, fk_column_rid, pk_colu
 
     def delete(self, conn, cur):
         self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
-        if self.id:
+        if self.rid:
             cur.execute("""
 DELETE FROM _ermrest.known_pseudo_fkeys WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
