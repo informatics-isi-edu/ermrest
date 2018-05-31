@@ -36,6 +36,7 @@ import traceback
 import psycopg2
 import webauthn2
 from webauthn2.util import context_from_environment
+from webauthn2.rest import get_log_parts, request_trace_json, request_final_json
 from collections import OrderedDict
 
 from .exception import *
@@ -151,41 +152,14 @@ except:
 
 def log_parts():
     """Generate a dictionary of interpolation keys used by our logging template."""
-    now = datetime.datetime.now(pytz.timezone('UTC'))
-    elapsed = (now - web.ctx.ermrest_start_time)
-    client_identity_obj = web.ctx.webauthn2_context and web.ctx.webauthn2_context.client or None
-    parts = dict(
-        elapsed_s = elapsed.seconds, 
-        elapsed_ms = elapsed.microseconds/1000,
-        elapsed = elapsed.seconds + elapsed.microseconds/1000 * 0.001,
-        client_ip = web.ctx.ip,
-        client_identity_obj = client_identity_obj,
-        reqid = web.ctx.ermrest_request_guid
-        )
-    return parts
+    return get_log_parts('ermrest_start_time', 'ermrest_request_guid', 'ermrest_request_content_range', 'ermrest_content_type')
 
 def request_trace(tracedata):
     """Log one tracedata event as part of a request's audit trail.
 
        tracedata: a string representation of trace event data
     """
-    parts = log_parts()
-    try:
-        data = unicode(tracedata)
-    except UnicodeDecodeError:
-        data = str(tracedata).decode('utf-8')
-
-    od = OrderedDict([
-        (k, v) for k, v in [
-            ('elapsed', parts['elapsed']),
-            ('req', parts['reqid']),
-            ('trace', data),
-            ('client', parts['client_ip']),
-            ('user', parts['client_identity_obj']),
-        ]
-        if v
-    ])
-    logger.info( json.dumps(od, separators=(', ', ':')).encode('utf-8') )
+    logger.info( request_trace_json(tracedata, log_parts()) )
 
 def request_init():
     """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
@@ -231,48 +205,16 @@ def request_init():
 
 def request_final():
     """Log final request handler state to finalize a request's audit trail."""
-    parts = log_parts()
     if web.ctx.ermrest_catalog_pc is not None:
         if web.ctx.ermrest_catalog_pc.conn is not None:
             web.ctx.ermrest_request_trace(
                 'ERMrest DB conn LEAK averted in request_final()!?'
             )
             web.ctx.ermrest_catalog_pc.final()
-    session = web.ctx.webauthn2_context.session
-    if session is None or isinstance(session, dict):
-        pass
-    else:
-        session = session.to_dict()
 
-    try:
-        dcctx = web.ctx.env.get('HTTP_DERIVA_CLIENT_CONTEXT', 'null')
-        dcctx = urllib.unquote(dcctx)
-        dcctx = json.loads(dcctx)
-    except:
-        dcctx = None
+    extra = {}
 
-    od = OrderedDict([
-        (k, v) for k, v in [
-            ('elapsed', parts['elapsed']),
-            ('req', parts['reqid']),
-            ('scheme', web.ctx.protocol),
-            ('host', web.ctx.host),
-            ('status', web.ctx.status),
-            ('method', web.ctx.method),
-            ('path', web.ctx.env['REQUEST_URI']),
-            ('range', web.ctx.ermrest_request_content_range),
-            ('type', web.ctx.ermrest_content_type),
-            ('client', parts['client_ip']),
-            ('user', parts['client_identity_obj']),
-            ('referrer', web.ctx.env.get('HTTP_REFERER')),
-            ('agent', web.ctx.env.get('HTTP_USER_AGENT')),
-            ('session', session),
-            ('track', web.ctx.webauthn2_context.tracking),
-            ('dcctx', dcctx),
-        ]
-        if v
-    ])
-    logger.info( json.dumps(od, separators=(', ', ':')).encode('utf-8') )
+    logger.info( request_final_json(log_parts(), extra) )
 
 def web_method():
     """Wrap ERMrest request handler methods with common logic.
