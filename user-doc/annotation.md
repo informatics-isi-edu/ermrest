@@ -351,8 +351,17 @@ Supported JSON payload patterns:
 Supported display _option_ syntax:
 
 - `"markdown_pattern":` _pattern_: The visual presentation of the key SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by key values.
+- `"column_order"`: `[` _columnorder_key_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by key values.
 - `"column_order": false`: Sorting by this key psuedo-column should not be offered.
+
+
+Supported _columnorder_key_ syntax:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column opposite of the order of current sort. For instance if asked to sort the key in descending order, sorting will be based on the ascending values of _columnname_ column.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
+
 
 Key pseudo-column-naming heuristics (use first applicable rule):
 
@@ -388,8 +397,18 @@ Supported JSON payload patterns:
 
 Supported display _option_ syntax:
 
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
+- `"column_order"`: `[` _columnorder_key_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values.
 - `"column_order": false`: Sorting by this foreign key psuedo-column should not be offered.
+
+Supported _columnorder_key_ syntax:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column opposite of the order of current sort.For instance if asked to sort the foreign key in descending order, sorting will be based on the ascending values of _columnname_ column. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
+
+
+
 
 Set-naming heuristics (use first applicable rule):
 
@@ -455,8 +474,16 @@ Supported _option_ syntax:
 
 - `"pre_format"`: _format_: The column value SHOULD be pre-formatted by evaluating the _format_ string with the raw column value as its sole argument. Please refer to [Pre Format Annotation document](https://github.com/informatics-isi-edu/ermrestjs/wiki/Pre-Format-Annotation) for detailed explanation of supported syntax.
 - `"markdown_pattern":` _pattern_: The visual presentation of the column SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column.
+- `"column_order"`: `[` _columnorder_key_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column.
 - `"column_order": false`: Sorting by this column should not be offered.
+
+
+Supported _columnorder_key_ syntax:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column opposite of the order of current sort. For instance if asked to sort the column in descending order, sorting will be based on the ascending values of _columnname_ column.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
 
 All `pre_format` options for all columns in the table SHOULD be evaluated **prior** to any `markdown_pattern`, thus allowing raw data values to be adjusted by each column's _format_ option before they are substituted into any column's _pattern_.
 
@@ -482,7 +509,7 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 
 Supported JSON _option_ payload patterns:
 
-- `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
+- `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys. The given _sortkey_ s will be used as is (_columnorder_ SHOULD not be applied recursivly to this).
 - `"page_size":` `_number_`: The default number of rows to be shown on a page.  
 - `"row_markdown_pattern":` _rowpattern_: Render the row by composing a markdown representation only when `row_markdown_pattern` is non-null.
   - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
@@ -507,7 +534,7 @@ Supported JSON _sortkey_ patterns:
 - `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column in descending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `::desc::` `)`.
 - `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column in ascending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `)`.
 - `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
-- `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
 
 #### 2016 Table Display Settings Hierarchy
 
