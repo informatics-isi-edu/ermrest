@@ -286,8 +286,8 @@ Supported _columnentry_ patterns:
   - `comment`: The tooltip to be used in place of the default heuristics for the column.
   - `entity`: If the _sourceentry_ can be treated as entity (the source column is key of the table), setting this attribute to `false` will force the scalar mode.
   - `aggregate`: The aggregate function that should be used for getting an aggregated result. The available aggregate functions are `min`, `max`, `cnt`, `cnt_d`, and `array`.
-    - `min` and `max` are only applicable in scalar mode.
     - `array` will return ALL the values including duplicates associated with the specified columns. For data types that are sortable (e.g integer, text), the values will be sorted alphabetically or numerically. Otherwise, it displays values in the order that it receives from ERMrest. There is no paging mechanism to limit what's shown in the aggregate column, therefore please USE WITH CARE as it can incur performance overhead and ugly presentation.
+    - Using `array` aggregate in entiy mode will provide an array of row-names instead of just they value of the column.
 
 Supported _sourceentry_ pattern:
 - _columnname_: : A string literal. _columnname_ identifies a constituent column of the table.
