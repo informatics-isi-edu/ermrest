@@ -158,6 +158,10 @@ class CtypeText (common.ErmrestTest):
     test_agg_order = True
     test_agg_array = True
 
+    @property
+    def cval_url(self):
+        return common.urlquote(str(self.cval))
+
     def _table_name(self):
         return 'test_%s' % self.ctype
 
@@ -174,11 +178,12 @@ class CtypeText (common.ErmrestTest):
             column
         )
 
-    def _pattern_url(self, colname):
-        return '%s/%s::regexp::%s' % (
+    def _pattern_url(self, colname, op=None, rval=None):
+        return '%s/%s%s%s' % (
             self._entity_url(),
             colname,
-            self.pattern
+            '::regexp::' if op is None else op,
+            self.pattern if rval is None else rval,
         )
 
     def _table_def(self):
@@ -224,14 +229,14 @@ class CtypeText (common.ErmrestTest):
         )
         self.assertHttp(self.session.put(self._entity_url(), json=self._data()), 200)
 
-    def _pattern_check(self, colname, expected_count):
-        r = self.session.get(self._pattern_url(colname))
+    def _pattern_check(self, colname, expected_count, op=None, rval=None):
+        r = self.session.get(self._pattern_url(colname, op=op, rval=rval))
         self.assertHttp(r, 200, 'application/json')
         got_count = len(r.json())
         self.assertEqual(
             got_count,
             expected_count,
-            'Column %s should match %s %s times, not %s.\n%s\n' % (colname, self.pattern, expected_count, got_count, r.content)
+            'Column %s should %s match %s %s times, not %s.\n%s\n' % (colname, op, self.pattern, expected_count, got_count, r.content)
         )
 
     def _check_aggfunc(self, aggfunc, column, resultval=None, resultmembers=None):
@@ -274,6 +279,7 @@ class CtypeText (common.ErmrestTest):
     def test_05a_patterns(self):
         self._pattern_check('column1', 1)
         self._pattern_check('column3', 1)
+        self._pattern_check('column3', 1, op='=', rval=self.cval_url)
         #self._pattern_check('*', ???)  this varies due to new timestamp system columns
 
     def test_05b_empty_array_input(self):
@@ -328,6 +334,10 @@ class CtypeJsonb (CtypeText):
     pattern = 'foo.%2Abar'
     test_agg_order = False
     
+    @property
+    def cval_url(self):
+        return common.urlquote(json.dumps(self.cval))
+
     def _data(self):
         # override because we don't want to deal w/ test suite limitations
         # SQL NULL vs JSON null vs empty string for JSON vs CSV inputs

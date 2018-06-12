@@ -265,6 +265,19 @@ class EqualPredicate (BinaryPredicate):
         icolname = self.right_expr.validate_attribute_update()
         return tcol, icolname
 
+    def sql_where(self, epath, elem, prefix=''):
+        if self.left_col.type.is_array:
+            # use array-contains operator which is supported by GIN array ops classes
+            return '%st%d.%s @> ARRAY[%s]::%s' % (
+                prefix,
+                self.left_elem.pos,
+                self.left_col.sql_name(),
+                self.right_expr.sql_literal(self.left_col.type.base_type),
+                self.left_col.type.sql(basic_storage=True),
+            )
+        else:
+            return BinaryPredicate.sql_where(self, epath, elem, prefix=prefix)
+
 @op('geq')
 class GreaterEqualPredicate (BinaryOrderedPredicate):
     sqlop = '>='
