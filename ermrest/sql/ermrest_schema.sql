@@ -205,9 +205,14 @@ PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rcb', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmb', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rct', 'timestamptz');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmt', 'timestamptz');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_uri', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_curie', 'text');
 
 -- use as a BEFORE INSERT UPDATE PER ROW trigger...
 CREATE OR REPLACE FUNCTION _ermrest.maintain_row() RETURNS TRIGGER AS $$
+DECLARE
+  colrow RECORD;
+  val text;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
@@ -215,6 +220,40 @@ BEGIN
     NEW."RCT" := now();
     NEW."RMB" := _ermrest.current_client();
     NEW."RMT" := now();
+
+    -- find columns of this row using ermrest_uri or ermrest_curie domains
+    FOR colrow IN
+      SELECT c.*
+      FROM _ermrest.known_schemas s
+      JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
+      JOIN _ermrest.known_columns c ON (t."RID" = c.table_rid)
+      JOIN _ermrest.known_types typ ON (typ."RID" = c.type_rid)
+      JOIN _ermrest.known_schemas s2 ON (s2."RID" = typ.schema_rid)
+      WHERE s.schema_name = TG_TABLE_SCHEMA
+        AND t.table_name = TG_TABLE_NAME
+	AND typ.type_name IN ('ermrest_uri', 'ermrest_curie')
+	AND c.column_name IN ('uri', 'id')
+	AND s2.schema_name = 'public'
+    LOOP
+      -- we can only handle these two standard column names
+      -- because plpgsql doesn't provide computed field access like NEW[colname]
+      IF colrow.column_name = 'uri' THEN
+         val := NEW.uri;
+      ELSIF colrow.column_name = 'id' THEN
+         val := NEW.id;
+      END IF;
+
+      -- check whether supplied value looks like a template containing '{RID}' and expand it
+      IF val ~ '[{]RID[}]' THEN
+         val := regexp_replace(val, '[{]RID[}]', NEW."RID");
+         IF colrow.column_name = 'uri' THEN
+            NEW.uri := val;
+         ELSIF colrow.column_name = 'id' THEN
+            NEW.id := val;
+         END IF;
+      END IF;
+    END LOOP;
+
   ELSEIF TG_OP = 'UPDATE' THEN
     -- do not allow values to change... is this too strict?
     NEW."RID" := OLD."RID";
@@ -1901,6 +1940,7 @@ $$ LANGUAGE SQL;
 CREATE OR REPLACE FUNCTION _ermrest.record_new_table(schema_rid text, tname text) RETURNS text AS $$
 DECLARE
   t_rid text;
+  s_name text;
 BEGIN
   INSERT INTO _ermrest.known_tables (oid, schema_rid, table_name, table_kind, "comment")
   SELECT t.oid, t.schema_rid, t.table_name, t.table_kind, t."comment"
@@ -1916,6 +1956,14 @@ BEGIN
   PERFORM _ermrest.enable_table_history(t_rid);
   PERFORM _ermrest.model_version_bump();
   PERFORM _ermrest.data_change_event(t_rid);
+
+  SELECT s.schema_name INTO s_name
+  FROM _ermrest.known_schemas s
+  WHERE s."RID" = schema_rid;
+
+  EXECUTE 'CREATE TRIGGER ermrest_syscols BEFORE INSERT OR UPDATE ON '
+    || quote_ident(s_name) || '.' || quote_ident(tname)
+    || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest.maintain_row();';
 
   RETURN t_rid;
 END;

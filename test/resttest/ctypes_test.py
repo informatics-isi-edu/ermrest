@@ -149,6 +149,51 @@ class EtypeJson (common.ErmrestTest):
 class EtypeJsonb (EtypeJson):
     etype = 'jsonb'
 
+class VocabCols (common.ErmrestTest):
+    table_name = 'Vocab'
+
+    def _table_def(self):
+        return TableDoc(
+            self.table_name,
+            [
+                RID, RCT, RMT, RCB, RMB,
+                ColumnDoc("id", TypeDoc("ermrest_curie"), nullok=False, default='PREFIX:{RID}'),
+                ColumnDoc("uri", TypeDoc("ermrest_uri"), nullok=False, default='https://server.example.org/id/{RID}'),
+                ColumnDoc("name", Text, nullok=False),
+            ],
+            [ RidKey, KeyDoc(["id"]), KeyDoc(["uri"]) ],
+        )
+
+    def test_01_table(self):
+        self.assertHttp(self.session.post('schema/%s/table' % _schema, json=self._table_def()), 201)
+
+    custom_data = [
+        {"name": "A", "id": "PREFIX2:A", "uri": "https://server2.example.org/id/A"},
+        {"name": "B", "id": "PREFIX2:B", "uri": "https://server2.example.org/id/B"},
+    ]
+
+    def test_02_custom_load(self):
+        self.assertHttp(self.session.post('entity/%s:%s?defaults=RID' % (_schema, self.table_name), json=self.custom_data), 200)
+
+    def test_03_custom_check(self):
+        r = self.session.get('attributegroup/%s:%s/name=A;name=B/name;id,uri@sort(name)' % (_schema, self.table_name))
+        self.assertHttp(r, 200, 'application/json')
+        self.assertEqual(r.json(), self.custom_data)
+
+    default_data = [
+        {"name": "C"},
+        {"name": "D"},
+    ]
+
+    def test_04_default_load(self):
+        self.assertHttp(self.session.post('entity/%s:%s?defaults=RID,id,uri' % (_schema, self.table_name), json=self.default_data), 200)
+
+    def test_05_default_check(self):
+        r = self.session.get('attributegroup/%s:%s/name=C;name=D/name;RID,id,uri@sort(name)' % (_schema, self.table_name))
+        self.assertHttp(r, 200, 'application/json')
+        for row in r.json():
+            self.assertEqual(row['id'], 'PREFIX:%s' % row['RID'])
+            self.assertEqual(row['uri'], 'https://server.example.org/id/%s' % row['RID'])
 
 class CtypeText (common.ErmrestTest):
     ctype = 'text'

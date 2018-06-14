@@ -30,6 +30,8 @@ _default_config = {
         "ermrest_rmb": None,
         "ermrest_rct": None,
         "ermrest_rmt": None,
+        "ermrest_uri": None,
+        "ermrest_curie": None,
         "float4": { "aliases": [ "real" ] },
         "float8": { "aliases": [ "double precision" ] },
         "int2": { "aliases": [ "smallint" ] },

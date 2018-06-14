@@ -25,6 +25,8 @@
         "ermrest_rmb": null,
         "ermrest_rct": null,
         "ermrest_rmt": null,
+	"ermrest_uri": null,
+	"ermrest_curie": null,
         "float4": { "aliases": [ "real" ] },
         "float8": { "aliases": [ "double precision" ] },
         "int2": { "aliases": [ "smallint" ] },

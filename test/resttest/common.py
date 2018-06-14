@@ -69,10 +69,11 @@ def TableDoc(table_name, column_definitions=[], keys=[], foreign_keys=[], annota
         doc['schema_name'] = schema_name
     return doc
 
-def ColumnDoc(column_name, type, annotations={}, nullok=True, acls={}, acl_bindings={}):
+def ColumnDoc(column_name, type, annotations={}, nullok=True, acls={}, acl_bindings={}, default=None):
     return {
         'name': column_name,
         'type': type,
+        'default': default,
         'nullok': nullok,
         'annotations': annotations,
         'acls': acls,
@@ -135,6 +136,8 @@ Ermrest_rct = DomainDoc('ermrest_rct', Timestamptz)
 Ermrest_rmt = DomainDoc('ermrest_rmt', Timestamptz)
 Ermrest_rcb = DomainDoc('ermrest_rcb', Text)
 Ermrest_rmb = DomainDoc('ermrest_rmb', Text)
+Ermrest_uri = DomainDoc('ermrest_uri', Text)
+Ermrest_curie = DomainDoc('ermrest_curie', Text)
 
 RID = ColumnDoc('RID', Ermrest_rid, nullok=False)
 RCT = ColumnDoc('RCT', Ermrest_rct, nullok=False)
