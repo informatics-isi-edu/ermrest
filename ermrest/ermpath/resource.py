@@ -1667,12 +1667,12 @@ class AttributePath (AnyPath):
 
                 if typname == 'date':
                     # date arithmetic produces integer when we wanted interval...
-                    parts['bminv'] = "%(minv)s + '1 day'::interval * (%(maxv)s - %(minv)s) * (%(bucket)s - 1) / %(nbins)s::float4" % parts
-                    parts['bmaxv'] = "%(minv)s + '1 day'::interval * (%(maxv)s - %(minv)s) * %(bucket)s       / %(nbins)s::float4" % parts
+                    parts['bminv'] = "%(minv)s + '1 day'::interval * ((%(maxv)s - %(minv)s) * (%(bucket)s - 1) / %(nbins)s::float4)" % parts
+                    parts['bmaxv'] = "%(minv)s + '1 day'::interval * ((%(maxv)s - %(minv)s) * %(bucket)s       / %(nbins)s::float4)" % parts
                 else:
                     # most arithmetic remains within same type
-                    parts['bminv'] = "%(minv)s + (%(maxv)s - %(minv)s) * (%(bucket)s - 1) / %(nbins)s::float4" % parts
-                    parts['bmaxv'] = "%(minv)s + (%(maxv)s - %(minv)s) * %(bucket)s       / %(nbins)s::float4" % parts
+                    parts['bminv'] = "%(minv)s + (%(maxv)s - %(minv)s) * ((%(bucket)s - 1) / %(nbins)s::float4)" % parts
+                    parts['bmaxv'] = "%(minv)s + (%(maxv)s - %(minv)s) * (%(bucket)s       / %(nbins)s::float4)" % parts
 
                 select = """
 CASE

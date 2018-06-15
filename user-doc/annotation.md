@@ -287,8 +287,8 @@ Supported _columnentry_ patterns:
   - `comment`: The tooltip to be used in place of the default heuristics for the column.
   - `entity`: If the _sourceentry_ can be treated as entity (the source column is key of the table), setting this attribute to `false` will force the scalar mode.
   - `aggregate`: The aggregate function that should be used for getting an aggregated result. The available aggregate functions are `min`, `max`, `cnt`, `cnt_d`, and `array`.
-    - `min` and `max` are only applicable in scalar mode.
     - `array` will return ALL the values including duplicates associated with the specified columns. For data types that are sortable (e.g integer, text), the values will be sorted alphabetically or numerically. Otherwise, it displays values in the order that it receives from ERMrest. There is no paging mechanism to limit what's shown in the aggregate column, therefore please USE WITH CARE as it can incur performance overhead and ugly presentation.
+    - Using `array` aggregate in entiy mode will provide an array of row-names instead of just they value of the column.
 
 Supported _sourceentry_ pattern:
 - _columnname_: : A string literal. _columnname_ identifies a constituent column of the table.
@@ -310,7 +310,7 @@ Constraint attributes (optional):
 
 You can use these attributes to define default preselected facets (Combination of these attributes are not supported yet, you cannot have both `choices` and `ranges` specified on a facet).
 - `choices`: Discrete choice e.g. maps to a checklist or similar UX. Its value MUST be an array of values.
-- `ranges`: Half-open or closed intervals, e.g. maps to a slider or similar UX. Its value MUST be an array of JSON payload, with `min` and `max` attributes.
+- `ranges`: Half-open or closed intervals, e.g. maps to a slider or similar UX. Its value MUST be an array of JSON payload, with `min` and `max` attributes. The `min` and `max` values will translate into inclusive range filters. In order to force exclusive range, you can use `min_exclusive: true`, or `max_exclusive: true`.
 - `not_null`: Match any record that has a value other than `null`. Its value MUST be `true`. If you have this constraint defined in your annotation, other constraints will be ignored (other than `"choice"`: [null]`. In this case both of the filters will be ignored).
 <!-- - `search`: Substring search, e.g. maps to a search box UX. -->
 
@@ -352,8 +352,17 @@ Supported JSON payload patterns:
 Supported display _option_ syntax:
 
 - `"markdown_pattern":` _pattern_: The visual presentation of the key SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by key values.
+- `"column_order"`: `[` _columnorder_key_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by key values.
 - `"column_order": false`: Sorting by this key psuedo-column should not be offered.
+
+
+Supported _columnorder_key_ syntax:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column opposite of the order of current sort. For instance if asked to sort the key in descending order, sorting will be based on the ascending values of _columnname_ column.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
+
 
 Key pseudo-column-naming heuristics (use first applicable rule):
 
@@ -389,8 +398,18 @@ Supported JSON payload patterns:
 
 Supported display _option_ syntax:
 
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
+- `"column_order"`: `[` _columnorder_key_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by foreign key values.
 - `"column_order": false`: Sorting by this foreign key psuedo-column should not be offered.
+
+Supported _columnorder_key_ syntax:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column opposite of the order of current sort.For instance if asked to sort the foreign key in descending order, sorting will be based on the ascending values of _columnname_ column. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
+
+
+
 
 Set-naming heuristics (use first applicable rule):
 
@@ -456,8 +475,16 @@ Supported _option_ syntax:
 
 - `"pre_format"`: _format_: The column value SHOULD be pre-formatted by evaluating the _format_ string with the raw column value as its sole argument. Please refer to [Pre Format Annotation document](https://github.com/informatics-isi-edu/ermrestjs/wiki/Pre-Format-Annotation) for detailed explanation of supported syntax.
 - `"markdown_pattern":` _pattern_: The visual presentation of the column SHOULD be computed by performing [Pattern Expansion](#pattern-expansion) on _pattern_ to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.
-- `"column_order"`: `[` _columnname_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column.
+- `"column_order"`: `[` _columnorder_key_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column.
 - `"column_order": false`: Sorting by this column should not be offered.
+
+
+Supported _columnorder_key_ syntax:
+
+- `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column opposite of the order of current sort. For instance if asked to sort the column in descending order, sorting will be based on the ascending values of _columnname_ column.
+- `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column.
+- `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
 
 All `pre_format` options for all columns in the table SHOULD be evaluated **prior** to any `markdown_pattern`, thus allowing raw data values to be adjusted by each column's _format_ option before they are substituted into any column's _pattern_.
 
@@ -483,7 +510,7 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 
 Supported JSON _option_ payload patterns:
 
-- `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys.
+- `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys. The given _sortkey_ s will be used as is (_columnorder_ SHOULD not be applied recursivly to this).
 - `"page_size":` `_number_`: The default number of rows to be shown on a page.  
 - `"row_markdown_pattern":` _rowpattern_: Render the row by composing a markdown representation only when `row_markdown_pattern` is non-null.
   - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
@@ -508,7 +535,7 @@ Supported JSON _sortkey_ patterns:
 - `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column in descending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `::desc::` `)`.
 - `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column in ascending order. This is equivalent to the ERMrest sort specifier `@sort(` _columnname_ `)`.
 - `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
-- `"` _columnname_ `"`: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
+- _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
 
 #### 2016 Table Display Settings Hierarchy
 
@@ -575,7 +602,7 @@ Supported JSON payload patterns:
 - `{`... `"byte_count_column": ` _column_ ...`}`: The _column_ stores the file size in bytes of the asset. It SHOULD be an integer typed column.
 - `{`... `"md5": ` _column_ | `True` ...`}`: If _column_, then the _column_ stores the checksum generated by the 'md5' cryptographic hash function. It MUST be ASCII/UTF-8 hexadecimal encoded. If `True`, then the client SHOULD generate a 'md5' checksum and communicate it to the asset storage service according to its protocol.
 - `{`... `"sha256": ` _column_ | `True` ...`}`: If _column_, then the _column_ stores the checksum generated by the 'sha256' cryptographic hash function. It MUST be ASCII/UTF-8 hexadecimal encoded. If `True`, then the client SHOULD generate a 'sha256' checksum and communicate it to the asset storage service according to its protocol. See implementation notes below.
-- `{`... `"filename_ext_filter": [` { _filename extension_ [`,` _filename extension_ ]\* } `]` ...`}`: This property specifies a set of _filename extension_ filters for use by upload agents to indicate to the user the acceptable filename patterns. For example, `*.jpg` would indicate that only JPEG files should be selected by the user.
+- `{`... `"filename_ext_filter": [` { _filename extension_ [`,` _filename extension_ ]\* } `]` ...`}`: This property specifies a set of _filename extension_ filters for use by upload agents to indicate to the user the acceptable filename patterns (`.jpg`, `.png`, `.pdf`, ...). For example, `.jpg` would indicate that only JPEG files should be selected by the user.
 
 Default heuristics:
 - The `2017 Asset` annotation explicitly indicates that the associated column is the asset location.
