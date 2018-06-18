@@ -274,7 +274,7 @@ def web_method():
                 except UnsupportedMediaType, e:
                     raise rest.UnsupportedMediaType(e.message)
                 except psycopg2.Error, e:
-                    request_trace(u"Postgres error: %s (%s)" % (e.pgerror.decode('utf8'), e.pgcode))
+                    request_trace(u"Postgres error: %s (%s)" % ((e.pgerror if e.pgerror is not None else 'None').decode('utf8'), e.pgcode))
                     if e.pgcode is not None:
                         if e.pgcode[0:2] == '08':
                             raise rest.ServiceUnavailable('Database connection error.')
