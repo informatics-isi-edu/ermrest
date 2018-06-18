@@ -48,6 +48,7 @@ class Api (object):
         except Exception as te:
             # allow service to function even if this mechanism is broken
             web.debug('Got exception during ermrest_client registration: %s.' % te)
+            web.ctx.ermrest_catalog_pc.conn.rollback()
 
         web.ctx.ermrest_catalog_model = catalog.manager.get_model(
             snapwhen=web.ctx.ermrest_history_snaptime,
