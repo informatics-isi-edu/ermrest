@@ -1969,6 +1969,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_client') IS NULL THEN
+  CREATE TABLE public.ermrest_client (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
+    id text UNIQUE NOT NULL,
+    display_name text,
+    full_name text,
+    email text,
+    client_obj jsonb NOT NULL
+  );
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ermrest_client');
+  INSERT INTO _ermrest.known_table_acls (table_rid, acl, members)
+  VALUES
+    (_ermrest.find_table_rid('public', 'ermrest_client'), 'insert', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ermrest_client'), 'update', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ermrest_client'), 'delete', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ermrest_client'), 'select', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ermrest_client'), 'enumerate', ARRAY[]::text[]);
+END IF;
+
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, comment text) AS $$
   SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.table_rid, sr.comment

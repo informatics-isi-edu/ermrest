@@ -39,12 +39,70 @@ class Api (object):
         self.sort = None
         self.before = None
         self.after = None
+
+        try:
+            self.client_register_body(
+                web.ctx.ermrest_catalog_pc.conn,
+                web.ctx.ermrest_catalog_pc.cur,
+        )
+        except Exception as te:
+            # allow service to function even if this mechanism is broken
+            web.debug('Got exception during ermrest_client registration: %s.' % te)
+
         web.ctx.ermrest_catalog_model = catalog.manager.get_model(
             snapwhen=web.ctx.ermrest_history_snaptime,
             amendver=web.ctx.ermrest_history_amendver
         )
         self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
+
+    def client_register_body(self, conn, cur):
+        client = web.ctx.webauthn2_context.client
+        if type(client) is dict:
+            client_obj = client
+            client = client['id']
+        else:
+            client_obj = { 'id': client }
+
+        if client_obj['id']:
+            parts = {
+                'id': sql_literal(client_obj['id']),
+                'display_name': sql_literal(client_obj.get('display_name')),
+                'full_name': sql_literal(client_obj.get('full_name')),
+                'email': sql_literal(client_obj.get('email')),
+                'client_obj': sql_literal(json.dumps(client_obj)),
+            }
+            cur.execute("""
+SELECT True
+FROM public.ermrest_client
+WHERE id = %(id)s
+  AND display_name IS NOT DISTINCT FROM %(display_name)s
+  AND full_name IS NOT DISTINCT FROM %(full_name)s
+  AND email IS NOT DISTINCT FROM %(email)s
+  AND client_obj IS NOT DISTINCT FROM %(client_obj)s::jsonb
+LIMIT 1;
+""" % parts
+            )
+            if list(cur):
+                # found matching record
+                pass
+            else:
+                cur.execute("""
+INSERT INTO public.ermrest_client (id, display_name, full_name, email, client_obj)
+VALUES (%(id)s, %(display_name)s, %(full_name)s, %(email)s, %(client_obj)s::jsonb)
+ON CONFLICT (id) DO UPDATE
+SET display_name = excluded.display_name,
+    full_name = excluded.full_name,
+    email = excluded.email,
+    client_obj = excluded.client_obj
+RETURNING *;
+""" % parts
+                )
+                # When we are causing a side-effect, commit it before
+                # handling client request.
+                #  1. So its effect is visible to ETag conditional processing
+                #  2. If the request handler resets connection, we don't lose this update
+                conn.commit()
 
     def history_range(self, h_from, h_until):
         if web.ctx.ermrest_history_snaptime is not None:
