@@ -15,7 +15,10 @@ On success, this request yields the new catalog identifier, e.g. `42` in this ex
     Location: /ermrest/catalog/42
     Content-Type: application/json
     
-    {"id": 42}
+    {
+      "id": "42",
+      "snaptime": "2PX-WS30-E58W"
+    }
 
 Typical error response codes include:
 - 404 Not Found
@@ -34,7 +37,13 @@ On success, this request yields a description:
     HTTP/1.1 200 OK
     Content-Type: application/json
     
-    {"id": "42", ...}
+    {
+      "id": "42",
+      "annotations": {
+        "tag:isrd.isi.edu,2018:example": {"value": "my example annotation"}
+      },
+      "snaptime": "2PX-WS30-E58W"
+    }
 
 Typical error response codes include:
 - 404 Not Found
