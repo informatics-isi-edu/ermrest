@@ -9,6 +9,7 @@ _Se = "AclBindingExplicit"
 
 _fkey_T2_T1 = [_Sd, "fkey T2 to T1"]
 _fkey_T3_T1 = [_Se, "fkey T3 to T1"]
+_fkey_T4_T3 = [_Se, "fkey T4 to T3"]
 
 from common import Int8, Text, Timestamptz, \
     RID, RCT, RMT, RCB, RMB, RidKey, \
@@ -221,6 +222,24 @@ class AclBindingT3Fkey (AclBindingT2Fkey):
         }
     }
 
+class AclBindingT4Prune (common.ErmrestTest):
+    initial_dynacls = {
+        'binding1': {
+            'types': ['owner'],
+            'projection': [ {"outbound": _fkey_T4_T3}, 'RCB' ],
+            'projection_type': 'acl',
+            'scope_acl': ['*'],
+        }
+    }
+
+    binding1_url = 'schema/%s/table/T4/acl_binding/binding1' % _Se
+    fkey_url = 'schema/%s/table/T4/foreignkey/t3_id/reference/%s:T3/id' % (_Se, _Se)
+
+    def test_pruning(self):
+        self.assertHttp(self.session.get(self.binding1_url), 200, 'application/json')
+        self.assertHttp(self.session.delete(self.fkey_url), 204)
+        self.assertHttp(self.session.get(self.binding1_url), 404)
+
 _defs = ModelDoc(
     [
         SchemaDoc(
@@ -277,6 +296,18 @@ _defs = ModelDoc(
                         ),
                     ],
                     acl_bindings=AclBindingT3.initial_dynacls,
+                ),
+                TableDoc(
+                    "T4",
+                    [
+                        RID, RCT, RMT, RCB, RMB,
+                        ColumnDoc("t3_id", Int8, nullok=False),
+                    ],
+                    [ RidKey ],
+                    [
+                        FkeyDoc(_Se, "T4", ["t3_id"], _Se, "T3", ["id"], names=[_fkey_T4_T3]),
+                    ],
+                    acl_bindings=AclBindingT4Prune.initial_dynacls,
                 )
             ]
         )

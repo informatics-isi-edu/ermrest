@@ -191,7 +191,7 @@ class DynaclDict (dict):
             result = dict.__getitem__(self, k)
             return result
         except KeyError:
-            raise exception.NotFound(u"dynamic ACL binding %s on %s" % (k, self.subject))
+            raise exception.NotFound(u"dynamic ACL binding %s on %s" % (k, self._subject))
 
     def __setitem__(self, k, v):
         dict.__setitem__(self, k, v)

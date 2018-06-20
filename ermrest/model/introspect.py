@@ -27,7 +27,7 @@ needed by other modules of the ermrest project.
 import web
 
 from .. import exception
-from ..util import table_exists, view_exists, column_exists, sql_literal
+from ..util import table_exists, view_exists, column_exists, sql_literal, sql_identifier
 from .misc import frozendict, annotatable_classes, hasacls_classes, hasdynacls_classes, AclBinding, current_model_snaptime
 from .schema import Model, Schema
 from .type import TypesEngine
@@ -234,6 +234,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         )
 
     # AclBinding constructor needs whole model to validate binding projections...
+    pruned_any = False
     for resourceset, sqlfunc, grpcol in [
             (tables, 'known_table_dynacls', 'table_rid'),
             (columns, 'known_column_dynacls', 'column_rid'),
@@ -254,11 +255,36 @@ GROUP BY a.%(grpcol)s ;
         rows = list(cur) # pre-fetch the result in case we use cursor in constructor code below...
         for rid, dynacls in rows:
             resource = resourceset[rid]
-            resource.dynacls.update({
-                binding_name: AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
-                for binding_name, binding_doc in dynacls.items()
-            })
-
+            new_dynacls = {}
+            for binding_name, binding_doc in dynacls.items():
+                try:
+                    new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
+                except exception.ConflictModel as te:
+                    msg = 'Pruning invalid dynamic ACL binding %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
+                        binding_name,
+                        resource,
+                        te
+                    )
+                    try:
+                        web.ctx.ermrest_request_trace(msg)
+                    except:
+                        web.debug(msg)
+                    cur.execute("""
+DELETE FROM _ermrest.%(binding_table)s
+WHERE %(resource_col)s = %(resource_rid)s
+  AND binding_name = %(binding_name)s;
+SELECT _ermrest.model_version_bump();
+""" % {
+    'binding_table': sql_identifier(sqlfunc),
+    'resource_col': sql_identifier(grpcol),
+    'resource_rid': sql_literal(rid),
+    'binding_name': sql_literal(binding_name),
+})
+                    pruned_any = True
+            resource.dynacls.update(new_dynacls)
+    if pruned_any:
+        cur.connection.commit()
+        raise exception.rest.ServiceUnavailable('Model introspection failed due to a transient condition. Please try again')
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
     model.pg_catalog_schema = model.schemas['pg_catalog']
