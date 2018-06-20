@@ -166,7 +166,14 @@ class TestSession (requests.Session):
         """Mount the statically configured test server, configure a cookiestore."""
         requests.Session.mount(
             self, _server_url + '/',
-            requests.adapters.HTTPAdapter(max_retries=5)
+            requests.adapters.HTTPAdapter(
+                max_retries=requests.packages.urllib3.util.retry.Retry(
+                    connect=5,
+                    read=5,
+                    backoff_factor=1.0,
+                    status_forcelist=[500, 502, 503, 504],
+                )
+            )
         )
 
         self.verify = _verify
