@@ -436,6 +436,13 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
   );
 END IF;
 
+CREATE OR REPLACE FUNCTION _ermrest.pseudo_key_invalidate() RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM _ermrest.known_pseudo_keys k WHERE k."RID" = OLD.key_rid;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_key_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_pseudo_key_columns (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
@@ -447,6 +454,19 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(key_rid, column_rid)
   );
+END IF;
+
+IF COALESCE(
+     (SELECT False
+      FROM information_schema.triggers tg
+      WHERE tg.event_object_schema = '_ermrest'
+        AND tg.event_object_table = 'known_pseudo_key_columns'
+        AND tg.trigger_name = 'pseudo_key_invalidate'
+        AND tg.event_manipulation = 'DELETE'),
+     True) THEN
+  CREATE TRIGGER pseudo_key_invalidate
+    AFTER DELETE ON _ermrest.known_pseudo_key_columns
+    FOR EACH ROW EXECUTE PROCEDURE _ermrest.pseudo_key_invalidate();
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkeys') IS NULL THEN
@@ -496,6 +516,13 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
   );
 END IF;
 
+CREATE OR REPLACE FUNCTION _ermrest.pseudo_fkey_invalidate() RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM _ermrest.known_pseudo_fkeys k WHERE k."RID" = OLD.fkey_rid;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkey_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_pseudo_fkey_columns (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
@@ -508,6 +535,19 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     pk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(fkey_rid, fk_column_rid)
   );
+END IF;
+
+IF COALESCE(
+     (SELECT False
+      FROM information_schema.triggers tg
+      WHERE tg.event_object_schema = '_ermrest'
+        AND tg.event_object_table = 'known_pseudo_fkey_columns'
+        AND tg.trigger_name = 'pseudo_fkey_invalidate'
+        AND tg.event_manipulation = 'DELETE'),
+     True) THEN
+  CREATE TRIGGER pseudo_fkey_invalidate
+    AFTER DELETE ON _ermrest.known_pseudo_fkey_columns
+    FOR EACH ROW EXECUTE PROCEDURE _ermrest.pseudo_fkey_invalidate();
 END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.find_schema_rid(sname text) RETURNS text AS $$
@@ -2061,7 +2101,7 @@ SELECT
   k."comment",
   COALESCE(anno.annotations, '{}'::jsonb) AS annotations
 FROM _ermrest.known_pseudo_keys($1) k
-JOIN (
+LEFT OUTER JOIN (
   SELECT
     kc.key_rid,
     array_agg(kc.column_rid ORDER BY kc.column_rid)::text[] AS column_rids
@@ -2125,7 +2165,7 @@ SELECT
   COALESCE(anno.annotations, '{}'::jsonb) AS annotations,
   COALESCE(acl.acls, '{}'::jsonb) AS acls
 FROM _ermrest.known_fkeys($1) fk
-JOIN (
+LEFT OUTER JOIN (
   SELECT
     fkey_rid,
     array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS fk_column_rids,

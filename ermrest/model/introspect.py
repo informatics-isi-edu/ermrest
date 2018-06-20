@@ -138,6 +138,8 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
     # Introspect uniques / primary key references, aggregated by constraint
     #
     def _introspect_pkey(constraint_name, table_rid, pk_column_rids, pk_comment, pk_factory):
+        if not pk_column_rids:
+            raise ValueError('Key constraint %s lacks any columns.' % constraint_name)
         try:
             pk_cols = [
                 columns[pk_column_rid]
@@ -167,13 +169,34 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         )
 
     cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm(%s);" % sql_literal(snapwhen))
+    pruned_any = False
     for rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
-        _introspect_pkey(
-            constraint_name, 
-            table_rid, column_rids, comment,
-            lambda pk_colset: PseudoUnique(pk_colset, rid, name_pair, comment, annotations)
-        )
+        try:
+            _introspect_pkey(
+                constraint_name,
+                table_rid, column_rids, comment,
+                lambda pk_colset: PseudoUnique(pk_colset, rid, name_pair, comment, annotations)
+            )
+        except ValueError as te:
+            msg = 'Pruning invalid pseudo key %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
+                constraint_name,
+                tables[table_rid],
+                te
+            )
+            try:
+                web.ctx.ermrest_request_trace(msg)
+            except:
+                web.debug(msg)
+            cur.execute("""
+DELETE FROM _ermrest.known_pseudo_keys
+WHERE "RID" = %(rid)s;
+SELECT _ermrest.model_version_bump();
+""" % {
+    'rid': sql_literal(rid),
+})
+            cur.fetchall()
+            pruned_any = True
 
     #
     # Introspect foreign keys references, aggregated by reference constraint
@@ -183,11 +206,17 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             fk_table_rid, fk_column_rids, pk_table_rid, pk_column_rids, fk_comment,
             fkr_factory
     ):
+        if not fk_column_rids or not pk_column_rids:
+            raise ValueError('Foreign key constraint %s lacks any columns.' % constraint_name)
+
         try:
             fk_cols = [ columns[fk_column_rids[i]] for i in range(len(fk_column_rids)) ]
             pk_cols = [ columns[pk_column_rids[i]] for i in range(len(pk_column_rids)) ]
         except KeyError:
             return
+
+        if len(fk_column_rids) != len(pk_column_rids):
+            raise ValueError('Foreign key constraint %s has mismatched column list lengths.' % constraint_name)
 
         fk_colset = frozenset(fk_cols)
         pk_colset = frozenset(pk_cols)
@@ -227,14 +256,33 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
     for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         comment, annotations, acls in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
-        pfkeyrefs[rid] = _introspect_fkr(
-            constraint_name,
-            fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
-            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, rid, name_pair, annotations, comment, acls)
-        )
+        try:
+            pfkeyrefs[rid] = _introspect_fkr(
+                constraint_name,
+                fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
+                lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, rid, name_pair, annotations, comment, acls)
+            )
+        except ValueError as te:
+            msg = 'Pruning invalid pseudo foreign key %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
+                constraint_name,
+                tables[fk_table_rid],
+                te
+            )
+            try:
+                web.ctx.ermrest_request_trace(msg)
+            except:
+                web.debug(msg)
+            cur.execute("""
+DELETE FROM _ermrest.known_pseudo_fkeys
+WHERE "RID" = %(rid)s;
+SELECT _ermrest.model_version_bump();
+""" % {
+    'rid': sql_literal(rid),
+})
+            cur.fetchall()
+            pruned_any = True
 
     # AclBinding constructor needs whole model to validate binding projections...
-    pruned_any = False
     for resourceset, sqlfunc, grpcol in [
             (tables, 'known_table_dynacls', 'table_rid'),
             (columns, 'known_column_dynacls', 'column_rid'),
@@ -280,9 +328,12 @@ SELECT _ermrest.model_version_bump();
     'resource_rid': sql_literal(rid),
     'binding_name': sql_literal(binding_name),
 })
+                    cur.fetchall()
                     pruned_any = True
             resource.dynacls.update(new_dynacls)
+
     if pruned_any:
+        # this fires when we've done any of the pseudo constraint or acl binding DELETE cleanups above...
         cur.connection.commit()
         raise exception.rest.ServiceUnavailable('Model introspection failed due to a transient condition. Please try again')
     # save our private schema in case we want to unhide it later...
