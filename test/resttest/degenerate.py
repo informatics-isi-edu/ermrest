@@ -73,6 +73,76 @@ class LongIdentifiers (common.ErmrestTest):
         self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', 'x' + self.utf8)), 400)
         self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', self.utf8)), 201)
 
+class BadModelDocs (common.ErmrestTest):
+
+    _S = 'public'
+    _T = 'BadTableDoc'
+
+    def _tdef(self, columns=[], keys=[], fkeys=[]):
+        return TableDoc(
+            self._T,
+            [ RID, RCT, RMT, RCB, RMB ] + columns,
+            [ RidKey ] + keys,
+            fkeys,
+            schema_name=self._S,
+        )
+
+    def _keytest(self, key, status=400):
+        try:
+            self.assertHttp(self.session.post('schema/%s/table' % self._S, json=self._tdef(keys=[key])), status)
+        except Exception as te:
+            self.session.delete('schema/%s/table/%s' % (self._S, self._T))
+            raise te
+
+    def test_key_name_nonlist(self):
+        self._keytest( KeyDoc(['RCT'], names=['not a list']) )
+
+    def test_key_name_nonpair(self):
+        self._keytest( KeyDoc(['RCT'], names=[['not', 'a',  'pair']]) )
+
+    def test_key_name_nonlist2(self):
+        self._keytest( KeyDoc(['RCT'], names=[{'not a': 'list'}]) )
+
+    def test_key_name_nontext(self):
+        self._keytest( KeyDoc(['RCT'], names=[['not text', {'not': 'text'}]]) )
+
+    def test_key_col_unknown(self):
+        self._keytest( KeyDoc(['unknown'], names=[['public', 'valid name']]) )
+
+    def test_key_col_nontext(self):
+        self._keytest( KeyDoc([{'not': 'text'}], names=[['public', 'valid name']]) )
+
+    def _fkeytest(self, fkey, status=400):
+        try:
+            self.assertHttp(self.session.post('schema/%s/table' % self._S, json=self._tdef(columns=[ColumnDoc('ref', Text)], fkeys=[fkey])), status)
+        except Exception as te:
+            self.session.delete('schema/%s/table/%s' % (self._S, self._T))
+            raise te
+
+    def test_fkey_name_nonlist(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'], names=['not a list']) )
+
+    def test_fkey_name_nonpair(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'], names=[['not', 'a', 'pair']]) )
+
+    def test_fkey_name_nonlist2(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'], names=[{'not a': 'list'}]) )
+
+    def test_fkey_name_nontext(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'], names=[['not text', {'not': 'text'}]]) )
+
+    def test_fkey_fkcol_unknown(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, ['unknown'], self._S, self._T, ['RID'], names=[[self._S, 'valid name']]), 409 )
+
+    def test_fkey_pkcol_unknown(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['unknown'], names=[[self._S, 'valid name']]), 409 )
+
+    def test_fkey_fkcol_nontext(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, [{'not': 'text'}], self._S, self._T, ['RID'], names=[[self._S, 'valid name']]) )
+
+    def test_fkey_pkcol_nontext(self):
+        self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, [{'not': 'text'}], names=[[self._S, 'valid name']]) )
+
 class ConstraintCollision (common.ErmrestTest):
     _S = 'CollisionSchema'
     _T1 = 'Base'

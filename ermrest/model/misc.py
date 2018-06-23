@@ -95,10 +95,17 @@ class AltDict (dict):
         try:
             if type(k) is str:
                 k = k.decode('utf8')
-            result = dict.__getitem__(self, k)
-            return result
+            return dict.__getitem__(self, k)
         except KeyError:
             raise self._keyerror(k)
+        except TypeError:
+            raise self._keyerror(k)
+
+    def __contains__(self, k):
+        try:
+            return dict.__contains__(self, k)
+        except TypeError:
+            raise exception.BadSyntax('Invalid model element name: %s' % k)
 
     def __setitem__(self, k, v):
         self._validator(k, v)
@@ -142,6 +149,12 @@ class AclDict (dict):
             return dict.__getitem__(self, k)
         except KeyError, e:
             return None
+
+    def __contains__(self, k):
+        try:
+            return dict.__contains__(self, k)
+        except TypeError:
+            raise exception.BadSyntax('Invalid ACL name: %s' % k)
 
     def __setitem__(self, k, v):
         dict.__setitem__(self, k, v)
@@ -192,6 +205,12 @@ class DynaclDict (dict):
             return result
         except KeyError:
             raise exception.NotFound(u"dynamic ACL binding %s on %s" % (k, self._subject))
+
+    def __contains__(self, k):
+        try:
+            return dict.__contains__(self, k)
+        except TypeError:
+            raise exception.BadSyntax('Invalid dynamic ACL binding name: %s' % k)
 
     def __setitem__(self, k, v):
         dict.__setitem__(self, k, v)
