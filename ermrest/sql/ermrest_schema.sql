@@ -978,6 +978,9 @@ CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_oid(heal_existing boole
 DECLARE
   model_changed boolean;
   had_changes int;
+  srid text;
+  new_sname text;
+  new_tname text;
 BEGIN
   model_changed := False;
 
@@ -1094,7 +1097,7 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
-  WITH inserted AS (
+  FOR srid, new_tname IN
     INSERT INTO _ermrest.known_tables (oid, schema_rid, table_name, table_kind, "comment")
     SELECT
       it.oid,
@@ -1105,9 +1108,16 @@ BEGIN
     FROM _ermrest.introspect_tables it
     LEFT OUTER JOIN _ermrest.known_tables kt ON (it.oid = kt.oid)
     WHERE kt.oid IS NULL
-    RETURNING "RID"
-  ) SELECT count(*) INTO had_changes FROM inserted;
-  model_changed := model_changed OR had_changes > 0;
+    RETURNING schema_rid, table_name
+  LOOP
+    model_changed := True;
+    -- for safety, disconnect existing trigger on newly arriving tables
+    -- this addresses a possible inconsistency found when a DBA does 'ALTER ... RENAME ...' unsafely
+    SELECT schema_name INTO new_sname FROM _ermrest.known_schemas WHERE "RID" = srid;
+    EXECUTE
+      'DROP TRIGGER IF EXISTS ermrest_history'
+      ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';' ;
+  END LOOP;
 
   -- sync up known with currently visible columns
   WITH deleted AS (
@@ -1293,6 +1303,9 @@ CREATE OR REPLACE FUNCTION _ermrest.rescan_introspect_by_name(heal_existing bool
 DECLARE
   model_changed boolean;
   had_changes int;
+  srid text;
+  new_sname text;
+  new_tname text;
 BEGIN
   model_changed := False;
 
@@ -1407,7 +1420,7 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
 
-  WITH inserted AS (
+  FOR srid, new_tname IN
     INSERT INTO _ermrest.known_tables (oid, schema_rid, table_name, table_kind, "comment")
     SELECT
       it.oid,
@@ -1416,11 +1429,19 @@ BEGIN
       it.table_kind,
       it."comment"
     FROM _ermrest.introspect_tables it
+    JOIN _ermrest.known_schemas s ON (it.schema_rid = s."RID")
     LEFT OUTER JOIN _ermrest.known_tables kt ON (it.oid = kt.oid)
     WHERE kt.oid IS NULL
-    RETURNING "RID"
-  ) SELECT count(*) INTO had_changes FROM inserted;
-  model_changed := model_changed OR had_changes > 0;
+    RETURNING schema_rid, table_name
+  LOOP
+    model_changed := True;
+    -- for safety, disconnect existing trigger on newly arriving tables
+    -- this addresses a possible inconsistency found when a DBA does 'ALTER ... RENAME ...' unsafely
+    SELECT schema_name INTO new_sname FROM _ermrest.known_schemas WHERE "RID" = srid;
+    EXECUTE
+      'DROP TRIGGER IF EXISTS ermrest_history'
+      ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';' ;
+  END LOOP;
 
   -- sync up known with currently visible columns
   WITH deleted AS (
