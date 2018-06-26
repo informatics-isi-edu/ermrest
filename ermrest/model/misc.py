@@ -117,6 +117,11 @@ class AltDict (dict):
             raise self._keyerror(k)
         return result
 
+    def update(self, d):
+        if not isinstance(d, dict):
+            raise exception.BadData(u'Input %s must be a dictionary.' % json.dumps(d))
+        dict.update(self, d)
+
 class AclDict (dict):
     """Alternative dict that validates keys and returns default."""
     def __init__(self, subject, can_remove=True):
@@ -168,6 +173,8 @@ class AclDict (dict):
         self._digest()
 
     def update(self, d):
+        if not isinstance(d, dict):
+            raise exception.BadData(u'ACL set %s must be a dictionary.' % json.dumps(d))
         dict.update(self, d)
         self._digest()
 
@@ -222,6 +229,8 @@ class DynaclDict (dict):
 
 
     def update(self, d):
+        if not isinstance(d, dict):
+            raise exception.BadData(u'ACL binding set %s must be a dictionary.' % json.dumps(d))
         dict.update(self, d)
         self._digest()
 
@@ -464,6 +473,8 @@ def annotatable(orig_class):
 
     def set_annotations(self, conn, cur, doc):
         """Replace full annotations doc on %s, returning None."""
+        if not isinstance(doc, dict):
+            raise exception.BadData(u'Annotation set %s must be a dictionary.' % json.dumps(doc))
         doc = dict(doc)
         self.delete_annotation(conn, cur, None) # enforced owner rights for us...
         self.annotations.update(doc)
@@ -545,6 +556,8 @@ def hasacls(acls_supported, rights_supported, getparent):
 
     def set_acls(self, cur, doc, anon_mutation_ok=False):
         """Replace full acls doc, returning None."""
+        if not isinstance(doc, dict):
+            raise exception.BadData(u'ACL set input %s must be a dictionary.' % json.dumps(doc))
         doc = dict(doc)
         for aclname in doc.keys():
             if aclname not in self._acls_supported:
@@ -744,6 +757,8 @@ def hasdynacls(dynacl_types_supported):
 
     def set_dynacls(self, cur, doc):
         """Replace full dynacls doc, returning None."""
+        if not isinstance(doc, dict):
+            raise exception.BadData(u'ACL bindings set input %s must be a dictionary.' % json.dumps(doc))
         doc = dict(doc)
         self.delete_dynacl(cur, None) # enforces owner rights for us...
         self.dynacls.update(doc)

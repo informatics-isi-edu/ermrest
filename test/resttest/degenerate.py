@@ -78,21 +78,27 @@ class BadModelDocs (common.ErmrestTest):
     _S = 'public'
     _T = 'BadTableDoc'
 
-    def _tdef(self, columns=[], keys=[], fkeys=[]):
+    def _tdef(self, columns=[], keys=[], fkeys=[], acls={}, annotations={}, acl_bindings={}):
         return TableDoc(
             self._T,
             [ RID, RCT, RMT, RCB, RMB ] + columns,
             [ RidKey ] + keys,
             fkeys,
             schema_name=self._S,
+            acls=acls,
+            annotations=annotations,
+            acl_bindings=acl_bindings,
         )
 
-    def _keytest(self, key, status=400):
+    def _badtable(self, tdef, status=400):
         try:
-            self.assertHttp(self.session.post('schema/%s/table' % self._S, json=self._tdef(keys=[key])), status)
+            self.assertHttp(self.session.post('schema/%s/table' % self._S, json=tdef), status)
         except Exception as te:
             self.session.delete('schema/%s/table/%s' % (self._S, self._T))
             raise te
+
+    def _keytest(self, key, status=400):
+        self._badtable(self._tdef(keys=[key]), status)
 
     def test_key_name_nonlist(self):
         self._keytest( KeyDoc(['RCT'], names=['not a list']) )
@@ -113,11 +119,7 @@ class BadModelDocs (common.ErmrestTest):
         self._keytest( KeyDoc([{'not': 'text'}], names=[['public', 'valid name']]) )
 
     def _fkeytest(self, fkey, status=400):
-        try:
-            self.assertHttp(self.session.post('schema/%s/table' % self._S, json=self._tdef(columns=[ColumnDoc('ref', Text)], fkeys=[fkey])), status)
-        except Exception as te:
-            self.session.delete('schema/%s/table/%s' % (self._S, self._T))
-            raise te
+        self._badtable(self._tdef(columns=[ColumnDoc('ref', Text)], fkeys=[fkey]), status)
 
     def test_fkey_name_nonlist(self):
         self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'], names=['not a list']) )
@@ -142,6 +144,61 @@ class BadModelDocs (common.ErmrestTest):
 
     def test_fkey_pkcol_nontext(self):
         self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, [{'not': 'text'}], names=[[self._S, 'valid name']]) )
+
+    def _bulk_config_test(self, subapi, payload, subject='', status=400):
+        self.assertHttp(
+            self.session.put(
+                ('%s/%s' % (subject, subapi)) if subject else subapi,
+                json=payload
+            ),
+            status
+        )
+
+    _nondicts = [
+        [],
+        ['a'],
+        [[]],
+        '',
+        'a',
+        1,
+        False,
+    ]
+
+    def _bulk_config_nondict(self, subapi, subject=''):
+        for val in self._nondicts:
+            self._bulk_config_test(subapi, val, subject)
+
+    def test_set_acls_nondict(self):
+        self._bulk_config_nondict('acl')
+
+    def test_set_annotations_nondict(self):
+        self._bulk_config_nondict('annotation')
+
+    def test_set_dynacls_nondict(self):
+        self.assertHttp(self.session.post('schema/%s/table' % self._S, json=self._tdef()), 201)
+        self._bulk_config_nondict('acl_binding', 'schema/%s/table/%s' % (self._S, self._T))
+        self.session.delete('schema/%s/table/%s' % (self._S, self._T))
+
+    def _aclstest(self, acls, status=400):
+        self._badtable(self._tdef(acls=acls), status)
+
+    def test_acls_nondict(self):
+        for val in self._nondicts:
+            self._aclstest(val)
+
+    def _annotationstest(self, annotations, status=400):
+        self._badtable(self._tdef(annotations=annotations), status)
+
+    def test_annotations_nondict(self):
+        for val in self._nondicts:
+            self._annotationstest(val)
+
+    def _dynaclstest(self, acl_bindings, status=400):
+        self._badtable(self._tdef(acl_bindings=acl_bindings), status)
+
+    def test_dynacls_nondict(self):
+        for val in self._nondicts:
+            self._dynaclstest(val)
 
 class ConstraintCollision (common.ErmrestTest):
     _S = 'CollisionSchema'
