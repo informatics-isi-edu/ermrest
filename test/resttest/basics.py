@@ -9,6 +9,8 @@ _T2 = 'basictable2'
 _T2b = 'ambiguous2'
 _Tc1 = 'composite1'
 _Tc2 = 'composite2'
+_Tr1 = 'column_removal_a'
+_Tr2 = 'column_removal_b'
 
 from common import Int8, Text, Timestamptz, \
     RID, RCT, RMT, RCB, RMB, RidKey, \
@@ -89,7 +91,33 @@ def defs(S):
                         [
                             FkeyDoc(S, _Tc2, ['id', 'site'], S, _Tc1, ['id', 'site'])
                         ]
-                    )
+                    ),
+                    TableDoc(
+                        _Tr1,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Int8, nullok=False),
+                            ColumnDoc('id2', Int8, nullok=False),
+                            ColumnDoc('name', Int8),
+                        ],
+                        [ RidKey, KeyDoc(['id']), KeyDoc(['id2']) ],
+                        schema_name=_S
+                    ),
+                    TableDoc(
+                        _Tr2,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Int8, nullok=False),
+                            ColumnDoc('t1_id1', Int8, nullok=False),
+                            ColumnDoc('t1_id2', Int8, nullok=False),
+                        ],
+                        [ RidKey, KeyDoc(['id']) ],
+                        [
+                            FkeyDoc(_S, _Tr2, ['t1_id1'], _S, _Tr1, ['id']),
+                            FkeyDoc(_S, _Tr2, ['t1_id2'], _S, _Tr1, ['id']),
+                        ],
+                        schema_name=_S
+                    ),
                 ],
                 {"tag:misd.isi.edu,2015:test0": "value 0"}
             )
@@ -353,6 +381,23 @@ class KeyNameTooLong (ConstraintNameNone):
 class FKeyNameTooLong (ConstraintNameNone):
     fkeynames = [[_S, "mykey", "extra"]]
     status = 400
+
+class ColumnRemoval (common.ErmrestTest):
+    def _delete_col(self, tname, cname):
+        self.assertHttp(self.session.delete('schema/%s/table/%s/column/%s' % (_S, tname, cname)), 204)
+        self.assertHttp(self.session.get('schema/%s/table/%s' % (_S, _Tr1)), 200)
+
+    def test_remove_col(self):
+        self._delete_col(_Tr1, 'name')
+
+    def test_remove_fkey_fcol(self):
+        self._delete_col(_Tr2, 't1_id2')
+
+    def test_remove_fkey_pcol(self):
+        self._delete_col(_Tr2, 't1_id1')
+
+    def test_remove_keycol(self):
+        self._delete_col(_Tr1, 'id2')
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

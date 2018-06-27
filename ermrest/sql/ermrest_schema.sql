@@ -410,6 +410,13 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
   );
 END IF;
 
+CREATE OR REPLACE FUNCTION _ermrest.key_invalidate() RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM _ermrest.known_keys k WHERE k."RID" = OLD.key_rid;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_key_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_key_columns (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
@@ -421,6 +428,19 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(key_rid, column_rid)
   );
+END IF;
+
+IF COALESCE(
+     (SELECT False
+      FROM information_schema.triggers tg
+      WHERE tg.event_object_schema = '_ermrest'
+        AND tg.event_object_table = 'known_key_columns'
+        AND tg.trigger_name = 'key_invalidate'
+        AND tg.event_manipulation = 'DELETE'),
+     True) THEN
+  CREATE TRIGGER key_invalidate
+    AFTER DELETE ON _ermrest.known_key_columns
+    FOR EACH ROW EXECUTE PROCEDURE _ermrest.key_invalidate();
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_keys') IS NULL THEN
@@ -488,6 +508,13 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
   );
 END IF;
 
+CREATE OR REPLACE FUNCTION _ermrest.fkey_invalidate() RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM _ermrest.known_fkeys k WHERE k."RID" = OLD.fkey_rid;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_fkey_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_fkey_columns (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
@@ -500,6 +527,19 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     pk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     UNIQUE(fkey_rid, fk_column_rid)
   );
+END IF;
+
+IF COALESCE(
+     (SELECT False
+      FROM information_schema.triggers tg
+      WHERE tg.event_object_schema = '_ermrest'
+        AND tg.event_object_table = 'known_fkey_columns'
+        AND tg.trigger_name = 'fkey_invalidate'
+        AND tg.event_manipulation = 'DELETE'),
+     True) THEN
+  CREATE TRIGGER fkey_invalidate
+    AFTER DELETE ON _ermrest.known_fkey_columns
+    FOR EACH ROW EXECUTE PROCEDURE _ermrest.fkey_invalidate();
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkeys') IS NULL THEN
