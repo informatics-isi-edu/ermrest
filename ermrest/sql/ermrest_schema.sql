@@ -848,6 +848,7 @@ DECLARE
   htname text;
   htable_exists bool;
   trigger_exists bool;
+  old_exclusion_exists bool;
 BEGIN
   SELECT s.schema_name, t.table_name INTO sname, tname
   FROM _ermrest.known_tables t
@@ -865,18 +866,24 @@ BEGIN
       ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_change();' ;
   END IF;
 
-  SELECT s.schema_name, t.table_name, it.table_name IS NOT NULL, tg.trigger_name IS NOT NULL
-    INTO sname, tname, htable_exists, trigger_exists
+  SELECT s.schema_name, t.table_name, it.relname IS NOT NULL, tg.trigger_name IS NOT NULL, xc.conname IS NOT NULL
+    INTO sname, tname, htable_exists, trigger_exists, old_exclusion_exists
   FROM _ermrest.known_tables t
   JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
-  LEFT OUTER JOIN information_schema.tables it
-    ON (it.table_schema = '_ermrest_history'
-        AND it.table_name = CASE WHEN s.schema_name = '_ermrest' THEN t.table_name ELSE 't' || t."RID" END)
+  JOIN pg_catalog.pg_namespace hs ON (hs.nspname = '_ermrest_history')
+  LEFT OUTER JOIN pg_catalog.pg_class it
+    ON (it.relnamespace = hs.oid
+        AND it.relname = CASE WHEN s.schema_name = '_ermrest' THEN t.table_name ELSE 't' || t."RID" END)
   LEFT OUTER JOIN information_schema.triggers tg
     ON (tg.event_object_schema = s.schema_name
         AND tg.event_object_table = t.table_name
 	AND tg.trigger_name = 'ermrest_history'
 	AND tg.event_manipulation = 'INSERT') -- ignore UPDATE/DELETE that would duplicate table names...
+  LEFT OUTER JOIN pg_catalog.pg_constraint xc
+    ON (xc.conname = it.relname || '_RID_during_excl'
+        AND xc.connamespace = hs.oid
+	AND xc.conrelid = it.oid
+	AND xc.contype = 'x')
   WHERE t."RID" = $1
   AND t.table_kind = 'r'
   AND s.schema_name NOT IN ('pg_catalog')
@@ -900,8 +907,15 @@ BEGIN
       '  during tstzrange NOT NULL,'
       '  "RMB" text,'
       '  rowdata jsonb NOT NULL,'
-      '  EXCLUDE USING GIST ("RID" WITH =, during with &&)'
+      '  UNIQUE("RID", during)'
       ');' ;
+  END IF;
+
+  IF old_exclusion_exists
+  THEN
+    EXECUTE 'ALTER TABLE _ermrest_history.' || quote_ident(htname) ||
+      ' DROP CONSTRAINT ' || quote_ident(htname || '_RID_during_excl') || ','
+      ' ADD CONSTRAINT ' || quote_ident(htname || '_RID_during_idx') || ' UNIQUE ("RID", during) ;' ;
   END IF;
 
   EXECUTE 'COMMENT ON TABLE _ermrest_history.' || quote_ident(htname) || ' IS '
