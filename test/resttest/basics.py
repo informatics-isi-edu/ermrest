@@ -101,7 +101,7 @@ def defs(S):
                             ColumnDoc('name', Int8),
                         ],
                         [ RidKey, KeyDoc(['id']), KeyDoc(['id2']) ],
-                        schema_name=_S
+                        schema_name=S
                     ),
                     TableDoc(
                         _Tr2,
@@ -113,10 +113,10 @@ def defs(S):
                         ],
                         [ RidKey, KeyDoc(['id']) ],
                         [
-                            FkeyDoc(_S, _Tr2, ['t1_id1'], _S, _Tr1, ['id']),
-                            FkeyDoc(_S, _Tr2, ['t1_id2'], _S, _Tr1, ['id']),
+                            FkeyDoc(S, _Tr2, ['t1_id1'], S, _Tr1, ['id']),
+                            FkeyDoc(S, _Tr2, ['t1_id2'], S, _Tr1, ['id']),
                         ],
-                        schema_name=_S
+                        schema_name=S
                     ),
                 ],
                 {"tag:misd.isi.edu,2015:test0": "value 0"}
