@@ -13,7 +13,7 @@ ERMrest is research software, but its core features have proven stable enough to
 
 ## Using ERMrest
 
-As a protocol, the [ERMrest REST API](api-doc/index.md) can be easily accessed by browser-based applications or any basic HTTP client library. Its main features:
+As a protocol, the [ERMrest REST API](docs/api-doc/index.md) can be easily accessed by browser-based applications or any basic HTTP client library. Its main features:
 - Exposes a PostgreSQL RDBMS containing science data.
 - Model neutrality
    - Allows use of natural, domain-specific relational data schema rather than forcing a fixed and generic schema.
@@ -23,7 +23,7 @@ As a protocol, the [ERMrest REST API](api-doc/index.md) can be easily accessed b
    - Set-based single and bulk partial-entity (table cell) read/update (RU);
    - Aggregate and grouped aggregate queries;
    - Convenient ERM _navigation_ to map common relational _inner join_ idioms into URL path structures.
-- Fine-grained [access control lists](user-doc/acls.md) to control client access privileges.
+- Fine-grained [access control lists](docs/user-doc/acls.md) to control client access privileges.
    - Group/role-based permissions
    - Control of granted access methods
       - Model visibility
@@ -55,7 +55,7 @@ ERMrest is developed and tested primarily on the Fedora Linux distribution with 
 
 ### Installation
 
-See [ERMrest Installation (Red Hat derivatives)](user-doc/install-redhat.md).
+See [ERMrest Installation (Red Hat derivatives)](docs/user-doc/install-redhat.md).
 
 ### Operational Model
 
