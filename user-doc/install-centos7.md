@@ -1,20 +1,26 @@
-# ERMrest Installation (CentOS 7)
+# ERMrest Installation (Red Hat derivatives)
 
-This guide provides instructions for installing ERMrest on the CentOS
-7.x Linux distribution. The steps are very similar for a contemporary
-Fedora release, just skipping the EPEL repository and using the
-appropriate Fedora-specific RPMs for PostgreSQL.
+This guide provides instructions for installing ERMrest on a Linux
+distribution from the Red Hat Linux family. We recommend using a
+current Fedora release to get a reasonably modern Apache HTTPD which
+supports the HTTP/2 protocol. Installation on CentOS 7 is similar but
+requires the additional EPEL repository to add third-party
+dependencies included in Fedora but missing from CentOS; in this case,
+your server will only support HTTP/1.1.
+
+In all cases, we recommend using the upstream PostgreSQL binary
+distribution suitable for your OS, to be sure you have the latest
+stable database release for better performance.
 
 ## Prerequisites
 
 ERMrest depends on the following prerequisites:
-- CentOS 7.x
-- EPEL 7 repository
-- PostgreSQL 9.5 or above (9.6 recommended)
+- Currently supported Fedora
+   - Or CentOS 7 and EPEL 7
+- PostgreSQL 9.6 or above (10 recommended)
 - WebAuthn
 
-This guide assumes only that you have installed the CentOS 7.x Linux
-distribution. See http://www.centos.org for more information.
+This guide assumes only that you have installed the [Fedora Linux distribution](https://getfedora.org).
 
 In this document, commands that begin with `#` should be run as root or with
 super user privileges (`sudo`). Commands that begin with `$` may be run as a
@@ -22,33 +28,32 @@ normal user.
 
 ### Extended Packages for Enterprise Linux (EPEL)
 
-Run the following commands to install the EPEL repository.
+If you run an enterprise Linux distribution instead of Fedora, you
+will also need additional third-party software. For CentOS 7, run the
+following commands to install the EPEL repository.
 
 ```
 # rsync -v rsync://mirrors.kernel.org/fedora-epel/7/x86_64/e/epel-release*.rpm .
 # dnf install epel-release*.rpm
 ```
 
-### PostgreSQL 9.5 or above
+### PostgreSQL
 
 PostgreSQL must be installed and configured to operate within the
 [SE-Linux] access control mechanism.  We recommend using the latest
-stable release, i.e. Postgres 9.6 at time of writing.
+stable release, i.e. Postgres 10 at time of writing.
 
-1. Install the PostgreSQL 9.x repository.
+1. Install the PostgreSQL 10 repository.
 
    Check the list of packages for the version of PostgreSQL and your 
    distribution from the list at `http://yum.postgresql.org/`.
 
-   For CentOS 7, use:
-
-   ```
-   # dnf install https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm
-   ```
-   For Fedora 25, use:
+   At time of writing, these are the latest packages for stable Fedora and CentOS, respectively:
    
    ```
-   # dnf install https://download.postgresql.org/pub/repos/yum/9.6/fedora/fedora-25-x86_64/pgdg-fedora96-9.6-3.noarch.rpm
+   # dnf install https://download.postgresql.org/pub/repos/yum/10/fedora/fedora-28-x86_64/pgdg-fedora10-10-4.noarch.rpm
+   ## OR
+   # dnf install https://download.postgresql.org/pub/repos/yum/10/redhat/rhel-7-x86_64/pgdg-centos10-10-4.noarch.rpm
    ```
 
 2. Install the required packages. You may first want to uninstall any
@@ -58,7 +63,7 @@ stable release, i.e. Postgres 9.6 at time of writing.
    ```
    # dnf install policycoreutils-python
    # dnf remove postgresql{,-server}
-   # dnf install postgresql96{,-server,-docs,-contrib}
+   # dnf install postgresql10{,-server,-docs,-contrib}
    ```
 
 3. Add local labeling rules to [SE-Linux] since the files are not where CentOS
@@ -66,33 +71,33 @@ stable release, i.e. Postgres 9.6 at time of writing.
 
   ```
   # semanage fcontext --add --type postgresql_tmp_t "/tmp/\.s\.PGSQL\.[0-9]+.*"
-  # semanage fcontext --add --type postgresql_exec_t "/usr/pgsql-9\.[0-9]/bin/(initdb|postgres)"
-  # semanage fcontext --add --type postgresql_log_t "/var/lib/pgsql/9\.[0-9]/pgstartup\.log"
-  # semanage fcontext --add --type postgresql_db_t "/var/lib/pgsql/9\.[0-9]/data(/.*)?"
+  # semanage fcontext --add --type postgresql_exec_t "/usr/pgsql-[.0-9]+/bin/(initdb|postgres)"
+  # semanage fcontext --add --type postgresql_log_t "/var/lib/pgsql/[.0-9]+/pgstartup\.log"
+  # semanage fcontext --add --type postgresql_db_t "/var/lib/pgsql/[.0-9]+/data(/.*)?"
   # restorecon -rv /var/lib/pgsql/
-  # restorecon -rv /usr/pgsql-9.*
+  # restorecon -rv /usr/pgsql-[.0-9]+
   ```
 
 4. Initialize and enable the `postgresql` service.
 
    ```
-   # /usr/pgsql-9.6/bin/postgresql96-setup initdb
-   # systemctl enable postgresql-9.6.service
-   # systemctl start postgresql-9.6.service
+   # /usr/pgsql-10/bin/postgresql10-setup initdb
+   # systemctl enable postgresql-10.service
+   # systemctl start postgresql-10.service
    ```
 
 5. Verify that postmaster is running under the right SE-Linux context
    `postgresql_t` (though process IDs will vary of course).
 
    ```
-   # ps -eZ | grep postgres
-   system_u:system_r:unconfined_service_t:s0 22188 ? 00:00:00 postgres
-   system_u:system_r:unconfined_service_t:s0 22189 ? 00:00:00 postgres
-   system_u:system_r:unconfined_service_t:s0 22191 ? 00:00:00 postgres
-   system_u:system_r:unconfined_service_t:s0 22192 ? 00:00:00 postgres
-   system_u:system_r:unconfined_service_t:s0 22193 ? 00:00:00 postgres
-   system_u:system_r:unconfined_service_t:s0 22194 ? 00:00:00 postgres
-   system_u:system_r:unconfined_service_t:s0 22195 ? 00:00:00 postgres
+   # ps -Z -U postgres
+   system_u:system_r:unconfined_service_t:s0 22188 ? 00:00:00 postmaster
+   system_u:system_r:unconfined_service_t:s0 22189 ? 00:00:00 postmaster
+   system_u:system_r:unconfined_service_t:s0 22191 ? 00:00:00 postmaster
+   system_u:system_r:unconfined_service_t:s0 22192 ? 00:00:00 postmaster
+   system_u:system_r:unconfined_service_t:s0 22193 ? 00:00:00 postmaster
+   system_u:system_r:unconfined_service_t:s0 22194 ? 00:00:00 postmaster
+   system_u:system_r:unconfined_service_t:s0 22195 ? 00:00:00 postmaster
    ```
 
 6. Permit network connections to the database service.
@@ -116,8 +121,9 @@ If `python-webpy` does not exist in the package repo, install it with `pip`.
 
 ### WebAuthn
 
-[WebAuthn] is a library that provides a small extension to the lightweight
-[web.py] web framework. It must be installed first before installing ERMrest.
+[WebAuthn] is a library that provides a small extension to the
+lightweight [web.py] web framework. It must be installed first before
+installing ERMrest.
 
 1. Download WebAuthn.
 
@@ -129,9 +135,14 @@ If `python-webpy` does not exist in the package repo, install it with `pip`.
 
    ```
    # cd webauthn
+   # make preinstall_centos
    # make install
    # make deploy
    ```
+
+   The `preinstall_centos` target attempts to install prerequisites
+   for Red Hat family distributions. System administrators may prefer
+   to review the Makefile and install packages manually instead.
 
    This will install the WebAuthn Python module under
    `/usr/lib/python2*/site-packages/webauthn2/`. It will also create a
@@ -194,13 +205,20 @@ commands.
 ```
 # cd path/to/ermrest
 # make install [PLATFORM=centos7]
+# make deploy
 # service httpd restart
 ```
 
-The install target updates files under `/usr/lib/python2*/site-packages/ermrest`.
+The `install` target updates files under
+`/usr/lib/python2*/site-packages/ermrest`.  The `deploy` target runs
+idempotent deploy processes which MAY upgrade the database schema in
+existing catalogs. For small changes to service code, the `deploy`
+target is unnecessary; however, it is safe to always run to be sure
+that catalogs are upgraded as necessary to match the newly installed
+service code.
 
-You may want to review `/usr/share/ermrest/ermrest_config.json` and
-`/usr/share/ermrest/wsgi_ermrest.conf` for changes, as these are
+You may want to review `ermrest_config.json` and
+`wsgi_ermrest.conf` in the installation location for changes. These are
 deployed to `/home/ermrest/` and `/etc/httpd/conf.d/`, respectively,
 during fresh installs but will not overwrite deployed configurations
 during an updating install.
@@ -218,7 +236,7 @@ Change the following config file to use different authentication modes:
   "preauth_provider": "database",
 ```
 
-See config example [here](https://github.com/informatics-isi-edu/webauthn/blob/master/samples/database/webauthn2_config.json).
+For more details, see a [webauthn config example](https://github.com/informatics-isi-edu/webauthn/blob/master/samples/database/webauthn2_config.json).
   
 ## Setup User Accounts
 
@@ -241,8 +259,8 @@ against an internal database of usernames and passwords and attributes.
    $ webauthn2-manage passwd root 'your password here'
    ```
 
-   The `admin` attribute has special meaning only because it appears in
-   `~webauthn/webauthn2_config.json` in some ACLs.
+   The `admin` attribute has special meaning only if it appears in ACLs
+   in `~webauthn/webauthn2_config.json` or `~ermrest/ermrest_config.json`.
 
 3. Setup a user account.
 
@@ -257,17 +275,17 @@ A quick sanity check of the above configuration is to login to ERMrest, create
 a catalog, and read its meta properties. The following commands can be run as
 any local user.
 
-1. Login to ERMrest using an 'admin' account previously created with
+1. Login to ERMrest using an `admin` account previously created with
    `ermrest-webauthn-manage`. Do not include the single quotes in the parameter. The following script will create a cookie file named `cookie`.
 
    ```
-   $ curl -k -c cookie -d username=root -d password='your password here' https://$(hostname)/ermrest/authn/session
+   $ curl -k -c cookie -d username=testuser -d password='your password here' https://$(hostname)/ermrest/authn/session
    ```
 
 2. Create a catalog.
 
    ```
-   $ curl -k -b cookie -XPOST https://$(hostname)/ermrest/catalog/
+   $ curl -k -b cookie -X POST https://$(hostname)/ermrest/catalog/
    ```
 
 3. Inspect the catalog metadata. (Readable indentation added here.)
@@ -304,7 +322,6 @@ machines. Contact your local system administrator if you need help
 accomplishing this.
 
 
-[Basic authentication]: https://en.wikipedia.org/wiki/Basic_access_authentication (Basic authentication)
 [SE-Linux]: http://wiki.centos.org/HowTos/SELinux (Security-Enhanced Linux)
 [WebAuthn]: https://github.com/informatics-isi-edu/webauthn (WebAuthn)
 [web.py]:   http://webpy.org (web.py)

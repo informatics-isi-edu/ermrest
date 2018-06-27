@@ -6,7 +6,7 @@ merged into the [ERMrest API docs](../api-doc/index.md) since it is
 now part of the service interface.  What remains here are a few notes
 and sketches pertaining to possible future development.
 
-## Domain queries
+## Proposal for Domain queries
 
 The `"domain_queries"` sub-document on a foreign key will specify an
 ERMrest query URL which shows the set of allowed values for a given
@@ -15,7 +15,7 @@ may encode extra filtering on the domain. Without dynamic ACL
 bindings, the query simply encodes the source of the domain values for
 the foreign-key reference constraint.
 
-### Row-Level Rights Summary
+## Proposal for Row-Level Rights Summary
 
 The `ermrights` virtual column is available on data rows and has the following
 structure in each row:
@@ -72,38 +72,4 @@ Keep in mind, even when all rights seem to allow an operation, the
 subsequent operation may still fail due to either asynchronous changes
 to server state or due to other integrity constraints and operational
 considerations not included in the policy system introspection.
-
-## Usage Scenarios
-
-More illustrations might be helpful. Or, a separate cookbook document?
-
-### Backwards-Compatible Catalog ACLs
-
-To get the same effective behavior as older versions of ERMrest, set
-catalog-level ACLs, leave all other sub-resource ACLs as unconfigured
-`null` values, and do not define any dynamic ACL bindings.
-
-### Sparse Table Restrictions
-
-Starting with a
-[backwards-compatible catalog scenario](#backwards-compatible-catalog-acls),
-set a more limited ACL on one table. This table will now be subject to
-more stringent access requirements than the rest of the catalog.
-
-### Sparse Table Exposure
-
-Starting with a
-[backwards-compatible catalog scenario](#backwards-compatible-catalog-acls),
-set a more inclusive ACL on one table. This table will now be subject
-to less stringent access requirements than the rest of the catalog.
-
-### Sparse Row-Level Restrictions
-
-Starting with a
-[restricted table scenario](#sparse-table-restrictions), make sure the
-table-level ACLs exclude a class of user to whom you wish to grant
-limited row-level rights (dynamic ACLs are only effective if they
-grant extra permissions that are not already granted by a
-data-independent policy). Then, add a dynamic ACL binding which can
-selectively grant access on a row-by-row basis.
 

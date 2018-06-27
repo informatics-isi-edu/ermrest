@@ -1,9 +1,7 @@
 
-# ERMrest Access Control
+# ERMrest Access Control Core Concepts
 
-## Core Concepts
-
-### Catalog Resource Hierarchy
+## Catalog Resource Hierarchy
 
 Policy will be expressed over the hierarchical catalog model, with
 policies attached to specific resources in the following model
@@ -15,7 +13,43 @@ hierarchy (already present in ERMrest catalog introspection):
 			- Column
 			- Constraint
 
-### Access Modes
+This tree decomposition allows for concise expression of many common
+policy idioms while also allowing very specific differentiated policy
+where necessary.
+
+### Usage Scenarios
+
+#### Backwards-Compatible Catalog ACLs
+
+To get the same effective behavior as older versions of ERMrest, set
+catalog-level ACLs, leave all other sub-resource ACLs as unconfigured
+`null` values, and do not define any dynamic ACL bindings. This
+top-level catalog policy applies equally to all catalog content.
+
+#### Sparse Table Restrictions
+
+Starting with a
+[backwards-compatible catalog scenario](#backwards-compatible-catalog-acls),
+set a more limited ACL on one table. This table will now be subject to
+more stringent access requirements than the rest of the catalog.
+
+#### Sparse Table Exposure
+
+Starting with a
+[backwards-compatible catalog scenario](#backwards-compatible-catalog-acls),
+set a more inclusive ACL on one table. This table will now be subject
+to less stringent access requirements than the rest of the catalog.
+
+#### Sparse Row-Level Restrictions
+
+Starting with
+a [restricted table scenario](#sparse-table-restrictions), make sure
+the table-level ACLs exclude a class of user to whom you wish to grant
+limited row-level rights. Then, add a dynamic ACL binding which can
+selectively grant access on a row-by-row basis to these less
+privileged users.
+
+## Access Modes
 
 A number of distinct access modes are defined such that permission can
 be granted or denied for each mode separately. Some modes are short-hand
@@ -51,7 +85,7 @@ values are allowed to be placed into a field. They complement the row
 and column-level access controls which can only consider the current
 values of data rather than the proposed new value.
 
-### Policy Scoping and Resource Dependencies
+## Policy Scoping and Resource Dependencies
 
 A policy attached to a resource will govern access to that
 resource. Because many forms of access depend on multiple resources, a
@@ -73,7 +107,7 @@ enumerable. But, in practice most clients cannot do anything useful
 with the constraint unless it can also see the data, and the presence
 of the useless constraint would only confuse most model-driven clients.
 
-### Data-Dependent Policies
+## Data-Dependent Policies
 
 Some, but not all, fine-grained access decisions involve data values.
 Model-level Access Control Lists (ACLs) support *data-independent*
@@ -101,7 +135,7 @@ result set is *filtered* by the visibility policy. When only static
 viewing policies are in effect, the request will be denied rather than
 returning an empty result set.
 
-### Policy Inheritance and Implication
+## Policy Inheritance and Implication
 
 A resource owner **always owns all sub-resources**. Any sub-resource
 ownership policy can only extend the privilege to more clients but can
@@ -137,7 +171,7 @@ sub-resources.
 	- An invisible schema hides all tables inside it
 	- An invisible table hides all columns inside it
 
-### Model-level ACLs
+## Model-level ACLs
 
 ACLs are distributed throughout the hierarchical model of the catalog.
 
@@ -145,7 +179,7 @@ ACLs are distributed throughout the hierarchical model of the catalog.
 2. The *resource* to which the ACL is attached identifies the scope of the access governed.
 3. The *content* of each ACL is a list of disjunctive matching choices which may include the wildcard `*` matching any client.
 
-#### Catalog ACLs
+### Catalog ACLs
 
 A catalog-level ACL describes what access to permit on the whole
 catalog. Catalogs do not inherit ACLs from elsewhere, so an
@@ -168,7 +202,7 @@ can be assigned to a particular owners group and then the group
 membership can fluctuate due to external management without changing
 the ERMrest ACL content.
 
-#### Schema ACLs
+### Schema ACLs
 
 A schema-level ACL describes what access to permit on the whole
 schema. When not configured locally, the effective schema-level ACL is
@@ -179,7 +213,7 @@ or to `null` if the client is also an owner of the catalog at the time
 of creation; all other schema ACLs are set to `null` if not otherwise
 specified in the request.
 
-#### Table ACLs
+### Table ACLs
 
 A table-level ACL describes what access to permit on the whole
 table. When not configured locally, the effective table-level ACL is
@@ -202,7 +236,7 @@ All static and dynamic table ACLs are disjunctively considered when
 deciding row access. Any access denied decision for data modifying
 requests will continue to raise a `403 Forbidden` response.
 
-#### Column ACLs
+### Column ACLs
 
 A column-level ACL describes what access to permit on the whole
 column. When not configured locally, the effective column-level ACL is
@@ -220,7 +254,7 @@ otherwise be generated in the absence of a static ACL granting read
 access; instead, a `200 OK` response is generated where any denied
 field is replaced with a NULL value.
 
-#### Reference ACLs
+### Reference ACLs
 
 A reference-level ACL describes whether to permit foreign key
 references to be expressed.
@@ -242,7 +276,7 @@ managed on foreign key reference constraints, but their effect is to
 limit what new values can be expressed in the foreign key's
 constituent columns.
 
-### Dynamic ACL Bindings
+## Dynamic ACL Bindings
 
 Dynamic ACL bindings configure sources of ACL content associated with
 each individual tuple or datum, i.e. a query which projects
@@ -265,14 +299,7 @@ changes. Because the ACL storage is within the database and subject to
 data modification APIs, appropriately restrictive policies must be
 defined to protect the stored ACL content.
 
-### Dynamic Defaults
-
-TBD. Provide some remotely manageable mechanism to do basic
-provenance-tracking idioms where we currently need to use SQL
-triggers?  I.e. store a client identity, client object, or some data
-determined indirectly via a query constrained by client attributes?
-
-#### Dynamic Table ACLs
+### Dynamic Table ACLs
 
 A table-level ACL binding describes how to retrieve ACLs which govern
 access to rows of a table.
@@ -286,7 +313,7 @@ access to rows of a table.
         - Row update
         - Row delete
 
-#### Dynamic Column ACLs
+### Dynamic Column ACLs
 
 A column-level ACL binding describes how to retrieve ACLs which govern
 access to fields within rows of a table.
@@ -309,7 +336,7 @@ allows whatever operation the table would allow for that row. The
 column-level policy MAY apply a special binding value of `false` to
 suppress an ACL binding inherited from the table under the same name.
 
-#### Dynamic Reference ACLs
+### Dynamic Reference ACLs
 
 A reference-level ACL binding describes how to retrieve ACLs which
 govern expression of data within fields which are subject to a foreign

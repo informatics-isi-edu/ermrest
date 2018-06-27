@@ -5,10 +5,6 @@
 here has been integrated into the [API docs](../api-docs/index.md). The corresponding 
 content here has been removed to avoid any confusion for future editors.
 
-There is experimental support for history-tracking in ERMrest. This
-feature is a work in progress and requires REST API extensions before
-it is fully realized.
-
 This document summarizes the architectural concepts and implications
 that might impact a DBA or developer looking at the backend
 functionality or interacting with the catalog DB.

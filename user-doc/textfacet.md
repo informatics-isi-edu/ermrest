@@ -1,8 +1,8 @@
 # Deprecated textfacet API
 
 The entire /textfacet API was an undocumented experiment.  It is now
-**deprecated** and will disappear in some future release. The
-implementation was replaced with the new fine-grained ACLs features.
+**DEPRECATED** and will disappear in some future release. The
+original implementation was replaced with the addition of fine-grained ACLs features.
 It provides some transitional backwards-compatibility.
 
 ## Configuring textfacet API
