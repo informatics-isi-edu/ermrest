@@ -1,0 +1,39 @@
+site_name: ERMrest Documentation
+site_description: Documentation for ERMrest web-service codebase in the DERIVA framework.
+theme: readthedocs
+extra_css: 
+  - css/extra.css
+
+
+pages:
+- Welcome to the documentation: ../README.md
+- User Docs:
+    - Installing on Red Hat-derived Linux: user-doc/install-redhat.md
+    - Model Annotation: user-doc/annotation.md
+    - Performance Tuning: user-doc/tuning.md
+    - `ermrest-registry-purge` command: user-doc/ermrest-registry-purge.md
+    - System Table `ermrest_client`: user-doc/ermrest-client-table.md
+    - History Tracking for DBAs and Programmers: user-doc/history-track.md
+- ERMrest API and Service Semantics:
+    - Guide to the ERMrest API: api-doc/index.md
+    - ERMrest Catalog Operations: api-doc/rest-catalog.md
+    - ERMrest Model Resources: api-doc/model/naming.md
+        - ERMrest Model Operations: api-doc/model/rest.md
+    - ERMrest Access Control: api-doc/acl/concepts.md
+        - Static Model-Based Policies: api-doc/acl/static.md
+        - Dynamic Data-Dependent Policies: api-doc/acl/dynamic.md
+	- Client-Specific Rights Summaries: api-doc/acl/rights.md
+    - ERMrest Data Resources: api-doc/data/naming.md
+        - ERMrest Data Operations: api-doc/data/rest.md
+    - ERMrest History Management Resources: api-doc/history/naming.md
+        - ERMrest History Management Operations: api-doc/history/rest.md
+
+markdown_extensions:
+    - toc:
+        permalink: True
+    - admonition:
+
+copyright: Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.
+
+#extra:
+#  support: contact@partners.org
