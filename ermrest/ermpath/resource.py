@@ -1520,6 +1520,7 @@ WHERE %(keymatches)s
                 ])
             )
         )
+        cur.execute("DROP TABLE %s;" % victim_table)
 
     def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
         """Put or update entities depending on allow_existing, allow_missing modes.
