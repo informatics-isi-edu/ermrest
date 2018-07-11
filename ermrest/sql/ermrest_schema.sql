@@ -846,8 +846,11 @@ DECLARE
   sname text;
   tname text;
   htname text;
+  otname text;
+  ntname text;
   htable_exists bool;
-  trigger_exists bool;
+  old_trigger_exists bool;
+  new_trigger_exists bool;
   old_exclusion_exists bool;
 BEGIN
   SELECT s.schema_name, t.table_name INTO sname, tname
@@ -866,19 +869,36 @@ BEGIN
       ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_change();' ;
   END IF;
 
-  SELECT s.schema_name, t.table_name, it.relname IS NOT NULL, tg.trigger_name IS NOT NULL, xc.conname IS NOT NULL
-    INTO sname, tname, htable_exists, trigger_exists, old_exclusion_exists
+  SELECT
+    s.schema_name,
+    t.table_name,
+    it.relname IS NOT NULL,
+    tgo.trigger_name IS NOT NULL,
+    tgn.trigger_name IS NOT NULL,
+    xc.conname IS NOT NULL
+  INTO
+    sname,
+    tname,
+    htable_exists,
+    old_trigger_exists,
+    new_trigger_exists,
+    old_exclusion_exists
   FROM _ermrest.known_tables t
   JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
   JOIN pg_catalog.pg_namespace hs ON (hs.nspname = '_ermrest_history')
   LEFT OUTER JOIN pg_catalog.pg_class it
     ON (it.relnamespace = hs.oid
         AND it.relname = CASE WHEN s.schema_name = '_ermrest' THEN t.table_name ELSE 't' || t."RID" END)
-  LEFT OUTER JOIN information_schema.triggers tg
-    ON (tg.event_object_schema = s.schema_name
-        AND tg.event_object_table = t.table_name
-	AND tg.trigger_name = 'ermrest_history'
-	AND tg.event_manipulation = 'INSERT') -- ignore UPDATE/DELETE that would duplicate table names...
+  LEFT OUTER JOIN information_schema.triggers tgo
+    ON (tgo.event_object_schema = s.schema_name
+        AND tgo.event_object_table = t.table_name
+	AND tgo.trigger_name = 'ermrest_history'
+	AND tgo.event_manipulation = 'INSERT') -- ignore UPDATE/DELETE that would duplicate table names...
+  LEFT OUTER JOIN information_schema.triggers tgn
+    ON (tgn.event_object_schema = s.schema_name
+        AND tgn.event_object_table = t.table_name
+	AND tgn.trigger_name = 'ermrest_history_insert'
+	AND tgn.event_manipulation = 'INSERT') -- ignore UPDATE/DELETE that would duplicate table names...
   LEFT OUTER JOIN pg_catalog.pg_constraint xc
     ON (xc.conname = it.relname || '_RID_during_excl'
         AND xc.connamespace = hs.oid
@@ -897,6 +917,8 @@ BEGIN
   -- use literal table name for internal schema, but table_rid for user-generated data.
   -- we do the same for column names within the history jsonb rowdata blobs below.
   htname := CASE WHEN sname = '_ermrest' THEN tname ELSE 't' || table_rid END;
+  otname := '_ermrest_oldtuples_t' || table_rid;
+  ntname := '_ermrest_newtuples_t' || table_rid;
 
   IF NOT htable_exists
   THEN
@@ -921,52 +943,65 @@ BEGIN
   EXECUTE 'COMMENT ON TABLE _ermrest_history.' || quote_ident(htname) || ' IS '
     || quote_literal('History from ' || now()::text || ' for table ' || quote_ident(sname) || '.' || quote_ident(tname)) || ';';
 
+  IF old_trigger_exists
+  THEN
+    EXECUTE 'DROP TRIGGER ermrest_history ON ' || quote_ident(sname) || '.' || quote_ident(tname) || ';' ;
+  END IF;
+
   EXECUTE
     'CREATE OR REPLACE FUNCTION _ermrest_history.' || quote_ident('maintain_' || htname) || '() RETURNS TRIGGER AS $$'
     'DECLARE'
     '  rowsnap jsonb;'
     'BEGIN'
-    '  IF TG_OP = ''UPDATE'' THEN'
-    '    IF OLD."RMT" < NEW."RMT" THEN'
-    '      UPDATE _ermrest_history.' || quote_ident(htname) || ' t'
-    '      SET during = tstzrange(OLD."RMT", NEW."RMT", ''[)'')'
-    '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
-    '    ELSE'
-    '      DELETE FROM _ermrest_history.' || quote_ident(htname) || ' t'
-    '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
-    '    END IF;'
-    '  END IF;'
-    '  IF TG_OP = ''DELETE'' THEN'
-    '    IF OLD."RMT" < now() THEN'
-    '      UPDATE _ermrest_history.' || quote_ident(htname) || ' t'
-    '      SET during = tstzrange(OLD."RMT", now(), ''[)'')'
-    '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
-    '    ELSE'
-    '      DELETE FROM _ermrest_history.' || quote_ident(htname) || ' t'
-    '      WHERE t."RID" = OLD."RID" AND t.during = tstzrange(OLD."RMT", NULL, ''[)'');'
-    '    END IF;'
+    '  IF TG_OP IN (''UPDATE'', ''DELETE'') THEN'
+    '    DELETE FROM _ermrest_history.' || quote_ident(htname) || ' t'
+    '    USING ' || quote_ident(otname) || ' o'
+    '    WHERE t."RID" = o."RID"'
+    '      AND t.during = tstzrange(o."RMT", NULL, ''[)'')'
+    '      AND o."RMT" >= now();'
+    '    UPDATE _ermrest_history.' || quote_ident(htname) || ' t'
+    '    SET during = tstzrange(o."RMT", now(), ''[)'')'
+    '    FROM ' || quote_ident(otname) || ' o'
+    '    WHERE t."RID" = o."RID"'
+    '      AND t.during = tstzrange(o."RMT", NULL, ''[)'')'
+    '      AND o."RMT" < now();'
     '  END IF;'
     '  IF TG_OP IN (''INSERT'', ''UPDATE'') THEN'
-    '    SELECT jsonb_object_agg(' || CASE WHEN sname = '_ermrest' THEN 'j.k' ELSE 'c."RID"::text' END || ', j.v) INTO rowsnap'
-    '    FROM jsonb_each(to_jsonb(NEW)) j (k, v)'
+    '    INSERT INTO _ermrest_history.' || quote_ident(htname) || ' ("RID", during, "RMB", rowdata)'
+    '    SELECT'
+    '      n."RID",'
+    '      tstzrange(n."RMT", NULL, ''[)''),'
+    '      n."RMB",'
+    '      jsonb_object_agg(' || CASE WHEN sname = '_ermrest' THEN 'j.k' ELSE 'c."RID"::text' END || ', j.v)'
+    '    FROM ' || quote_ident(ntname) || ' n'
+    '    JOIN LATERAL jsonb_each(to_jsonb(n)) j (k, v) ON (True)'
     '    JOIN _ermrest.known_columns c ON (j.k = c.column_name AND c.table_rid = ' || quote_literal(table_rid) || ')'
-    '    WHERE c.column_name NOT IN (''RID'', ''RMT'', ''RMB'');'
-    '    INSERT INTO _ermrest_history.' || quote_ident(htname) || '("RID", during, "RMB", rowdata)'
-    '    VALUES (NEW."RID", tstzrange(NEW."RMT", NULL, ''[)''), NEW."RMB", rowsnap);'
+    '    WHERE c.column_name NOT IN (''RID'', ''RMT'', ''RMB'')'
+    '    GROUP BY n."RID", n."RMB", n."RMT" ;'
     '  END IF;'
     '  RETURN NULL;'
     'END; $$ LANGUAGE plpgsql;' ;
 
-  IF NOT trigger_exists
+  IF NOT new_trigger_exists
   THEN
     EXECUTE
-      'CREATE TRIGGER ermrest_history AFTER INSERT OR UPDATE OR DELETE ON '
-      || quote_ident(sname) || '.' || quote_ident(tname)
-      || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
+      'CREATE TRIGGER ermrest_history_insert AFTER INSERT ON ' || quote_ident(sname) || '.' || quote_ident(tname)
+      || ' REFERENCING NEW TABLE AS ' || quote_ident(ntname)
+      || ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
+
+    EXECUTE
+      'CREATE TRIGGER ermrest_history_update AFTER UPDATE ON ' || quote_ident(sname) || '.' || quote_ident(tname)
+      || ' REFERENCING OLD TABLE AS ' || quote_ident(otname) || ' NEW TABLE AS ' || quote_ident(ntname)
+      || ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
+
+    EXECUTE
+      'CREATE TRIGGER ermrest_history_delete AFTER DELETE ON ' || quote_ident(sname) || '.' || quote_ident(tname)
+      || ' REFERENCING OLD TABLE AS ' || quote_ident(otname)
+      || ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
   END IF;
 
   -- skip healing if requested by caller and history table seems superficially active already
-  IF htable_exists AND trigger_exists AND NOT heal_existing
+  IF htable_exists AND (new_trigger_exists OR old_trigger_exists) AND NOT heal_existing
   THEN
     RETURN;
   END IF;
