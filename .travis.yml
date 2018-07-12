@@ -5,7 +5,7 @@ sudo: required
 dist: trusty
 
 addons:
-  postgresq: "9.6"
+  postgresq: "10"
 
 env:
   global:
@@ -20,9 +20,9 @@ before_install:
   - sudo which python
   - sudo apt-get -y update
   - sudo service postgresql stop
-  - sudo apt-get -y purge postgresql-9.1 postgresql-9.2 postgresql-9.3 postgresql-9.4 postgresql-9.5
-  - sudo service postgresql start 9.6
-  - sudo apt-get -y install libpq-dev postgresql-server-dev-9.6 python-dev
+  - sudo apt-get -y purge postgresql-9.1 postgresql-9.2 postgresql-9.3 postgresql-9.4 postgresql-9.5 postgresql-9.6
+  - sudo service postgresql start 10
+  - sudo apt-get -y install libpq-dev postgresql-server-dev-10 python-dev
   - sudo apt-get -y install apache2 apache2-dev libjson-c-dev ssl-cert libapache2-mod-wsgi python python-dateutil python-ply python-tz
   - sudo apt-get -y purge python-psycopg2
   - sudo pip install web.py
