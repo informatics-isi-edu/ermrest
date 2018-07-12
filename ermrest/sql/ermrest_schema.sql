@@ -215,7 +215,9 @@ DECLARE
   val text;
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
+    IF NEW."RID" IS NULL THEN
+      NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
+    END IF;
     NEW."RCB" := _ermrest.current_client();
     NEW."RCT" := now();
     NEW."RMB" := _ermrest.current_client();
