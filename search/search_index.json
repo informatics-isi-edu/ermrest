@@ -1,54 +1,14 @@
 {
     "docs": [
         {
-            "location": "/../README/", 
-            "text": "ERMrest\n\n\nERMrest\n (rhymes with\n\"earn rest\") is a general relational data storage service for web-based, data-oriented collaboration. It allows general entity-relationship modeling of data resources manipulated by RESTful access methods.\n\n\nStatus\n\n\n\n\nERMrest is research software, but its core features have proven stable enough to use in several production science projects.\n\n\nKnown Issues\n: See our list of \nknown issues\n at GitHub.\n\n\nUsing ERMrest\n\n\nAs a protocol, the \nERMrest REST API\n can be easily accessed by browser-based applications or any basic HTTP client library. Its main features:\n- Exposes a PostgreSQL RDBMS containing science data.\n- Model neutrality\n   - Allows use of natural, domain-specific relational data schema rather than forcing a fixed and generic schema.\n   - Supports schema and data introspection by clients to allow generic presentation of tabular data rather than only hard-coded and domain-specific clients.\n- An expressive set of data access methods\n   - Set-based single and bulk whole-entity (table row) create/read/update/delete (CRUD);\n   - Set-based single and bulk partial-entity (table cell) read/update (RU);\n   - Aggregate and grouped aggregate queries;\n   - Convenient ERM \nnavigation\n to map common relational \ninner join\n idioms into URL path structures.\n- Fine-grained \naccess control lists\n to control client access privileges.\n   - Group/role-based permissions\n   - Control of granted access methods\n      - Model visibility\n      - Schema management\n      - Data retrieval\n      - Data modification\n   - Control of granted access scope\n      - Whole catalog\n      - Single schema\n      - Single table\n      - Single column\n- Multi-tenancy to easily allow multiple \ncatalogs\n, each with its own schema, data content, and policy.\n\n\nOur companion client software for the ERMrest service includes:\n- \nChaise\n suite of browser-based GUI applications\n- \nDeriva-Qt\n Python Qt thick client GUI applications\n- \nDeriva-Py\n Python client APIs\n- \nERMrestJS\n Javascript APIs\n\n\nPrerequisites\n\n\nERMrest is developed and tested primarily on the Fedora Linux distribution with Python 2.7. It has a conventional web service stack:\n- Apache HTTPD\n- mod_wsgi\n- web.py lightweight web framework\n- psycopg2 database driver\n- PostgreSQL\n- \nwebauthn\n security adaptation layer (another product of our group)\n\n\nInstallation\n\n\nSee \nERMrest Installation (Red Hat derivatives)\n.\n\n\nOperational Model\n\n\n\n\nThe HTTPS connection is terminated by Apache HTTPD.\n\n\nThe \nmod_webauthn\n Apache HTTPD module determined authenticated client context for requests\n\n\nThe ERMrest service code executes as the \nermrest\n daemon user\n\n\nThe service configuration is loaded from \n~ermrest/ermrest_config.json\n:\n\n\nCore access control policy for catalog creation.\n\n\nData type presentation.\n\n\nAll dynamic data is stored in the RDBMS.\n\n\nThe catalog's data model\n\n\nThe catalog's fine-grained access control lists\n\n\nThe catalog's data content\n\n\nClient authentication context is retrieved from Apache request environment\n\n\nClient identity\n\n\nClient roles/group membership.\n\n\nCatalog-level authorization of service requests is determined by the service code:\n\n\nACLs retrieved from RDBMS\n\n\nACLs are intersected with authenticated client context.\n\n\nThe RDBMS is accessed using daemon service credentials\n\n\nFine-grained \nstatic\n authorization is handled in service prior to executing SQL\n\n\nFine-grained \ndynamic\n authorization is handled in service by compiling policy checks into SQL\n\n\n\n\nHelp and Contact\n\n\nPlease direct questions and comments to the \nproject issue tracker\n at GitHub.\n\n\nLicense\n\n\nERMrest is made available as open source under the Apache License,\nVersion 2.0. Please see the \nLICENSE file\n for more\ninformation.\n\n\nAbout Us\n\n\nERMrest is developed in the\n\nInformatics group\n\nat the \nUSC Information Sciences Institute\n.", 
+            "location": "/", 
+            "text": "ERMrest Documentation\n\n\nThis site is the home for documentation about ERMrest, the relational database component of the DERIVA framework.", 
             "title": "Welcome to the documentation"
         }, 
         {
-            "location": "/../README/#ermrest", 
-            "text": "ERMrest  (rhymes with\n\"earn rest\") is a general relational data storage service for web-based, data-oriented collaboration. It allows general entity-relationship modeling of data resources manipulated by RESTful access methods.", 
-            "title": "ERMrest"
-        }, 
-        {
-            "location": "/../README/#status", 
-            "text": "ERMrest is research software, but its core features have proven stable enough to use in several production science projects.  Known Issues : See our list of  known issues  at GitHub.", 
-            "title": "Status"
-        }, 
-        {
-            "location": "/../README/#using-ermrest", 
-            "text": "As a protocol, the  ERMrest REST API  can be easily accessed by browser-based applications or any basic HTTP client library. Its main features:\n- Exposes a PostgreSQL RDBMS containing science data.\n- Model neutrality\n   - Allows use of natural, domain-specific relational data schema rather than forcing a fixed and generic schema.\n   - Supports schema and data introspection by clients to allow generic presentation of tabular data rather than only hard-coded and domain-specific clients.\n- An expressive set of data access methods\n   - Set-based single and bulk whole-entity (table row) create/read/update/delete (CRUD);\n   - Set-based single and bulk partial-entity (table cell) read/update (RU);\n   - Aggregate and grouped aggregate queries;\n   - Convenient ERM  navigation  to map common relational  inner join  idioms into URL path structures.\n- Fine-grained  access control lists  to control client access privileges.\n   - Group/role-based permissions\n   - Control of granted access methods\n      - Model visibility\n      - Schema management\n      - Data retrieval\n      - Data modification\n   - Control of granted access scope\n      - Whole catalog\n      - Single schema\n      - Single table\n      - Single column\n- Multi-tenancy to easily allow multiple  catalogs , each with its own schema, data content, and policy.  Our companion client software for the ERMrest service includes:\n-  Chaise  suite of browser-based GUI applications\n-  Deriva-Qt  Python Qt thick client GUI applications\n-  Deriva-Py  Python client APIs\n-  ERMrestJS  Javascript APIs", 
-            "title": "Using ERMrest"
-        }, 
-        {
-            "location": "/../README/#prerequisites", 
-            "text": "ERMrest is developed and tested primarily on the Fedora Linux distribution with Python 2.7. It has a conventional web service stack:\n- Apache HTTPD\n- mod_wsgi\n- web.py lightweight web framework\n- psycopg2 database driver\n- PostgreSQL\n-  webauthn  security adaptation layer (another product of our group)", 
-            "title": "Prerequisites"
-        }, 
-        {
-            "location": "/../README/#installation", 
-            "text": "See  ERMrest Installation (Red Hat derivatives) .", 
-            "title": "Installation"
-        }, 
-        {
-            "location": "/../README/#operational-model", 
-            "text": "The HTTPS connection is terminated by Apache HTTPD.  The  mod_webauthn  Apache HTTPD module determined authenticated client context for requests  The ERMrest service code executes as the  ermrest  daemon user  The service configuration is loaded from  ~ermrest/ermrest_config.json :  Core access control policy for catalog creation.  Data type presentation.  All dynamic data is stored in the RDBMS.  The catalog's data model  The catalog's fine-grained access control lists  The catalog's data content  Client authentication context is retrieved from Apache request environment  Client identity  Client roles/group membership.  Catalog-level authorization of service requests is determined by the service code:  ACLs retrieved from RDBMS  ACLs are intersected with authenticated client context.  The RDBMS is accessed using daemon service credentials  Fine-grained  static  authorization is handled in service prior to executing SQL  Fine-grained  dynamic  authorization is handled in service by compiling policy checks into SQL", 
-            "title": "Operational Model"
-        }, 
-        {
-            "location": "/../README/#help-and-contact", 
-            "text": "Please direct questions and comments to the  project issue tracker  at GitHub.", 
-            "title": "Help and Contact"
-        }, 
-        {
-            "location": "/../README/#license", 
-            "text": "ERMrest is made available as open source under the Apache License,\nVersion 2.0. Please see the  LICENSE file  for more\ninformation.", 
-            "title": "License"
-        }, 
-        {
-            "location": "/../README/#about-us", 
-            "text": "ERMrest is developed in the Informatics group \nat the  USC Information Sciences Institute .", 
-            "title": "About Us"
+            "location": "/#ermrest-documentation", 
+            "text": "This site is the home for documentation about ERMrest, the relational database component of the DERIVA framework.", 
+            "title": "ERMrest Documentation"
         }, 
         {
             "location": "/user-doc/install-redhat/", 
