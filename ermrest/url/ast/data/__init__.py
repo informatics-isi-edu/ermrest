@@ -258,10 +258,10 @@ class Entity (Api):
         """
         return _GET(self, uri, self.epath, self.epath)
 
-    def PUT(self, uri, post_method=False, post_defaults=None):
+    def PUT(self, uri):
         """Perform HTTP PUT of entities.
         """
-        return _PUT(self, uri, lambda args: self.epath.put(*args, allow_existing=not post_method, use_defaults=post_defaults), self.epath)
+        return _PUT(self, uri, lambda args: self.epath.put(*args, allow_existing=True), self.epath)
 
     def POST(self, uri):
         """Perform HTTP POST of entities.
@@ -272,11 +272,8 @@ class Entity (Api):
             defaults = set([ defaults ])
         elif defaults is None:
             defaults = set()
-        else:
-            # defaults is already a set of column names from queryopts
-            # or it is None
-            pass
-        return self.PUT(uri, post_method=True, post_defaults=defaults)
+        # defaults is always a set at this point
+        return _PUT(self, uri, lambda args: self.epath.insert(*args, use_defaults=defaults), self.epath)
 
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
@@ -339,8 +336,7 @@ class AttributeGroup (Api):
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of attribute groups.
         """
-        return _PUT(self, uri, lambda args: self.agpath.put(*args), self.agpath.epath)
-
+        return _PUT(self, uri, lambda args: self.agpath.update(*args), self.agpath.epath)
 
 class Aggregate (Api):
     """A specific aggregate tuple."""

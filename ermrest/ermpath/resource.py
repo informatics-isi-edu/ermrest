@@ -317,7 +317,509 @@ def sort_components(sortvec, is_before):
         return (sortvec, revs_parts, norm_parts)
     else:
         return (sortvec, norm_parts, None)
-        
+
+# used in several functions below
+system_colnames = {'RID','RCT','RMT','RCB','RMB'}
+
+def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, drop_tables=None, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = dict()
+    input_table = random_name("input_data_")
+    input_json_table = None
+    cur.execute(
+        "CREATE TEMPORARY TABLE %s (%s)" % (
+            sql_identifier(input_table),
+            ','.join(
+                [
+                    c.input_ddl(mkcol_aliases.get(c), c.name not in use_defaults)
+                    for c in mkcols
+                ] + [
+                    c.input_ddl(nmkcol_aliases.get(c), c.name not in use_defaults)
+                    for c in nmkcols
+                ]
+            )
+        )
+    )
+    if drop_tables is not None:
+        drop_tables.append(input_table)
+    if in_content_type in [ 'application/x-json-stream' ]:
+        input_json_table = random_name("input_json_")
+        cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(input_json_table))
+        if drop_tables is not None:
+            drop_tables.append(input_json_table)
+    return input_table, input_json_table
+
+def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    """Build up intermediate SQL representations of each JSON record as field lists."""
+    def json_fields(col_name, c):
+        sql_type = c.type.sql(basic_storage=True)
+
+        json_col = c.sql_name(col_name)
+
+        if c.type.is_array:
+            # extract field as JSON and transform to array
+            # since PostgreSQL json_to_recordset fails for native array extraction...
+            # if ELSE clause hits a non-array, we'll have a 400 Bad Request error as before
+            json_proj = """
+(CASE
+ WHEN json_typeof(j->'%(field)s') = 'null'
+   THEN NULL::%(type)s[]
+ ELSE
+   COALESCE((SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->'%(field)s') s (x)), ARRAY[]::%(type)s[])
+ END) AS %(alias)s
+""" % {
+    'type': c.type.base_type.sql(basic_storage=True),
+    'field': col_name,
+    'alias': c.sql_name(col_name),
+}
+        elif sql_type in ['json', 'jsonb']:
+            json_proj = "(j->'%s')::%s AS %s" % (
+                col_name,
+                sql_type,
+                c.sql_name(col_name)
+            )
+        else:
+            json_proj = "(j->>'%s')::%s AS %s" % (
+                col_name,
+                sql_type,
+                c.sql_name(col_name)
+            )
+
+        return json_col, json_proj
+
+    parts = [
+        json_fields(mkcol_aliases.get(c, c.name), c)
+        for c in mkcols
+    ] + [
+        json_fields(nmkcol_aliases.get(c, c.name), c)
+        for c in nmkcols
+    ]
+
+    # split back into json_cols, json_projection lists
+    return zip(*parts)
+
+def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    hdr = csv.reader([ input_data.readline() ]).next()
+
+    inputcol_names = set(
+        [ unicode(mkcol_aliases.get(c, c.name)) for c in mkcols ]
+        + [ unicode(nmkcol_aliases.get(c, c.name)) for c in nmkcols ]
+    )
+    csvcol_names = set()
+    csvcol_names_ordered = []
+    for cn in hdr:
+        cn = cn.decode('utf8')
+        try:
+            inputcol_names.remove(cn)
+            csvcol_names.add(cn)
+            csvcol_names_ordered.append(cn)
+        except KeyError:
+            if cn in csvcol_names:
+                raise BadData('CSV column %s appears more than once.' % cn)
+            else:
+                raise ConflictModel('CSV column %s not recognized.' % cn)
+
+    if inputcol_names:
+        raise BadData('Missing expected CSV column%s: %s.' % (
+            ('' if len(inputcol_names) == 0 else 's'),
+            ', '.join([ sql_identifier(cn) for cn in inputcol_names ])
+        ))
+
+    try:
+        cur.copy_expert(u"""
+COPY %(input_table)s (%(cols)s)
+FROM STDIN WITH (
+    FORMAT csv,
+    HEADER false,
+    DELIMITER ',',
+    QUOTE '"'
+)""" % {
+    'input_table': sql_identifier(input_table),
+    'cols': ','.join([ sql_identifier(cn) for cn in csvcol_names_ordered ])
+},
+            input_data
+        )
+    except psycopg2.DataError, e:
+        raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
+
+def _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    json_cols, json_projection = _build_json_projections(
+        mkcols, nmkcols,
+        mkcol_aliases, nmkcol_aliases
+    )
+    buf = input_data.read().decode('utf8')
+    try:
+        cur.execute(u"""
+INSERT INTO %(input_table)s (%(cols)s)
+SELECT %(cols)s
+FROM (
+  SELECT %(json_projection)s
+  FROM json_array_elements( %(input)s::json )
+    AS rs ( j )
+) s
+""" % {
+    'input_table': sql_identifier(input_table),
+    'cols': u','.join(json_cols),
+    'input': text_type.sql_literal(buf),
+    'json_projection': ','.join(json_projection)
+}
+        )
+    except psycopg2.DataError, e:
+        raise BadData('Bad JSON array input. ' + e.pgerror)
+
+def _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    json_cols, json_projection = _build_json_projections(
+        mkcols, nmkcols,
+        mkcol_aliases, nmkcol_aliases
+    )
+    try:
+        cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
+        cur.execute(u"""
+INSERT INTO %(input_table)s (%(cols)s)
+SELECT %(cols)s
+FROM (
+  SELECT %(json_projection)s
+  FROM %(input_json)s i
+) s
+""" % {
+    'input_table': sql_identifier(input_table),
+    'input_json': sql_identifier(input_json_table),
+    'cols': ','.join(json_cols),
+    'json_projection': ','.join(json_projection),
+}
+        )
+    except psycopg2.DataError, e:
+        raise BadData('Bad JSON stream input. ' + e.pgerror)
+
+def _load_input_data(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type):
+    if in_content_type == 'text/csv':
+        _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    elif in_content_type == 'application/json':
+        _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    elif in_content_type == 'application/x-json-stream':
+        _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    else:
+        raise UnsupportedMediaType('%s input not supported' % in_content_type)
+
+def jsonfix1(sql, c):
+    return '%s::jsonb' % sql if c.type.sql(basic_storage=True) == 'json' else sql
+
+def jsonfix2(sql, c):
+    return '%s::json' % sql if c.type.sql(basic_storage=True) == 'json' else sql
+
+def keymatch(c, aliases, fix1=False):
+    parts = {
+        't': c.sql_name(),
+        'i': c.sql_name(aliases.get(c)),
+    }
+    if fix1:
+        parts['i'] = jsonfix1(parts['i'], c)
+        parts['t'] = jsonfix1(parts['t'], c)
+    sql = 't.%(t)s = i.%(i)s' % parts
+    if c.nullok:
+        sql += ' OR (t.%(t)s IS NULL AND i.%(i)s IS NULL)' % parts
+    return '(%s)' % sql
+
+def preserialize(sql, content_type):
+    if content_type == 'text/csv':
+        # TODO implement and use row_to_csv() stored procedure?
+        pass
+    elif content_type == 'application/json':
+        sql = "WITH q AS (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q.*)), True)::text, '[]') FROM q" % sql
+    elif content_type == 'application/x-json-stream':
+        sql = "WITH q AS (%s) SELECT row_to_json(q.*)::text FROM q" % sql
+    elif content_type in [ dict, tuple ]:
+        pass
+    else:
+        raise NotImplementedError('content_type %s' % content_type)
+    return sql
+
+def _analyze_input_table(cur, input_table, mkcols, mkcol_aliases):
+    """Index and analyze input_table ensuring mkcols uniqueness."""
+    parts = {
+        'input_table': sql_identifier(input_table),
+        'mkcols_idx': ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ][0:32]),
+    }
+    if len(mkcols) > 0:
+        try:
+            cur.execute("CREATE UNIQUE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
+        except psycopg2.IntegrityError as e:
+            raise BadData(u'Multiple input rows share the same unique key information.')
+
+    cur.execute("ANALYZE %s;" % parts['input_table'])
+
+    if len(mkcols) > 32:
+        # index is truncated, so check for collisions via brute-force
+        cur.execute("""
+SELECT True AS is_duplicate
+FROM %(input_table)s
+GROUP BY %(mkcols_idx)s
+HAVING count(*) > 1
+LIMIT 1;
+""" % parts
+        )
+        for row in cur:
+            raise BadData(u'Multiple input rows share the same unique key information.')
+
+def _table_col_fkrs(table):
+    col_fkrs = dict()
+    for fk in table.fkeys.values():
+        for c in fk.columns:
+            if c not in col_fkrs:
+                col_fkrs[c] = set(fk.references.values())
+            else:
+                col_fkrs[c].update(set(fk.references.values()))
+    return col_fkrs
+
+def _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    # 1. accumulate all fkrs into a map  { c: {fkr,...} }
+    col_fkrs = _table_col_fkrs(table)
+    # 2. prune columns from map if column is not affected by request or no input data IS NOT NULL
+    for c in list(col_fkrs):
+        if c in mkcols:
+            alias = mkcol_aliases.get(c)
+        elif c in nmkcols:
+            alias = nmkcol_aliases.get(c)
+        else:
+            # prune this unaffected column
+            del col_fkrs[c]
+            continue
+        cur.execute("SELECT True FROM %s WHERE %s IS NOT NULL LIMIT 1" % (sql_identifier(input_table), c.sql_name(alias)))
+        row = cur.fetchone()
+        if row and row[0]:
+            pass
+        else:
+            del col_fkrs[c]
+    # 3. make mkcol and nmkcol specific maps of affected columns (same fkr may appear in both for composites fkrs)
+    mkcol_fkrs = {
+        c: fkrs
+        for c, fkrs in col_fkrs.items()
+        if c in mkcols
+    }
+    nmkcol_fkrs = {
+        c: fkrs
+        for c, fkrs in col_fkrs.items()
+        if c in nmkcols
+    }
+    return mkcol_fkrs, nmkcol_fkrs
+
+def _enforce_table_update_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    table.enforce_right('update')
+    for c in nmkcols:
+        c.enforce_data_right('update')
+    mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
+        fkr.enforce_right('update')
+
+def _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    table.enforce_right('insert', require_true=True)
+    for c in set(nmkcols).union(set(nmkcols)):
+        c.enforce_data_right('insert', require_true=True)
+    mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    for fkr in set().union(*[ set(fkrs) for fkrs in mkcol_fkrs.values() ]).union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
+        fkr.enforce_right('insert')
+
+def _keymatches(mkcols, mkcol_aliases):
+    return u' AND '.join([ keymatch(c, mkcol_aliases) for c in mkcols ])
+
+def _cols(mkcols, nmkcols, use_defaults):
+    return ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ])
+
+def _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = dict()
+    return ','.join(
+        [jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols if c.name not in use_defaults]
+        + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols if c.name not in use_defaults]
+    )
+
+def _tcols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    return u','.join(
+        [ u'i.%s AS %s' % (jsonfix2(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
+        + [ u't.%s AS %s' % (jsonfix2(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
+    )
+
+def _enforce_input_exists(cur, input_table, table, mkcols, mkcol_aliases):
+    cur.execute("""
+SELECT *
+FROM %(input_table)s i
+LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
+WHERE NOT (%(keymatches)s)
+LIMIT 1;""" % {
+    'input_table': sql_identifier(input_table),
+    'table': table.sql_name(),
+    'keymatches': _keymatches(mkcols, mkcol_aliases),
+}
+    )
+    for row in cur:
+        raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
+
+def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    input_table_sql = sql_identifier(input_table)
+    icols = _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+
+    mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
+        if fkr.has_right('update') is not None:
+            continue
+        fkr_cols = [
+            (
+                (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
+                if fc in nmkcols
+                else (u't.%s' % fc.sql_name())
+            )
+            for fc, uc in fkr.reference_map_frozen
+        ]
+        cur.execute(("""
+SELECT *
+FROM (
+  SELECT %(fkr_cols)s
+  FROM (SELECT %(icols)s FROM %(input_table)s i) i
+  WHERE %(fkr_nonnull)s
+  EXCEPT
+  SELECT %(domain_key_cols)s FROM %(domain_table)s
+) s
+LIMIT 1""") % {
+    'input_table': input_table_sql,
+    'fkr_nonnull': ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
+    'fkrs_cols': ','.join(fkr_cols),
+    'icols': icols,
+    'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
+    'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen ]),
+    }
+        )
+        if cur.rowcount > 0:
+            raise Forbidden(u'update access on foreign key reference %s' % fkr)
+
+def _enforce_table_update_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    input_table_sql = sql_identifier(input_table)
+    keymatches = _keymatches(mkcols, mkcol_aliases)
+    icols = _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+
+    if table.has_right('update') is None:
+        cur.execute(("""
+SELECT i.*
+FROM %(table)s
+JOIN (
+  SELECT %(icols)s FROM %(input_table)s i
+) i
+ON (%(keymatches)s)
+LIMIT 1""") % {
+    'table': table.sql_name(dynauthz=False, access_type='update', alias="t"),
+    'input_table': input_table_sql,
+    'keymatches': keymatches,
+    'icols': icols,
+}
+    )
+        if cur.rowcount > 0:
+            raise Forbidden(u'update access on one or more rows in table %s' % table)
+
+    for c in nmkcols:
+        if c.has_data_right('update') is not None:
+            continue
+        if not c.dynauthz_restricted('update'):
+            continue
+        cur.execute(("""
+SELECT i.*
+FROM %(table)s
+JOIN (
+  SELECT %(icols)s FROM %(input_table)s i
+) i
+ON (%(keymatches)s)
+LIMIT 1""") % {
+    'table': table.sql_name(access_type='update', alias="t", dynauthz_testcol=c),
+    'input_table': input_table_sql,
+    'keymatches': keymatches,
+    'icols': icols,
+}
+        )
+        if cur.rowcount > 0:
+            raise Forbidden(u'update access on column %s for one or more rows' % c)
+
+    mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
+        if fkr.has_right('update') is not None:
+            continue
+        fkr_cols = [
+            (
+                (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
+                if fc in nmkcols
+                else (u't.%s' % fc.sql_name())
+            )
+            for fc, uc in fkr.reference_map_frozen
+        ]
+        cur.execute(("""
+SELECT *
+FROM (
+  SELECT %(fkr_cols)s
+  FROM (SELECT %(icols)s FROM %(input_table)s i) i
+  JOIN %(table)s t ON (%(keymatches)s)
+  WHERE %(fkr_nonnull)s
+  EXCEPT
+  SELECT %(domain_key_cols)s FROM %(domain_table)s
+) s
+LIMIT 1""") % {
+    'table': table.sql_name(),
+    'input_table': input_table_sql,
+    'keymatches': keymatches,
+    'fkr_nonnull': ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
+    'fkrs_cols': ','.join(fkr_cols),
+    'icols': icols,
+    'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
+    'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen ]),
+    }
+        )
+        if cur.rowcount > 0:
+            raise Forbidden(u'update access on foreign key reference %s' % fkr)
+
+def _perform_table_update(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type):
+    cur.execute(
+        preserialize("""
+UPDATE %(table)s t SET %(assigns)s FROM (
+  SELECT %(icols)s FROM %(input_table)s i
+) i
+WHERE %(keymatches)s
+RETURNING %(tcols)s""" % {
+    'table': table.sql_name(),
+    'input_table': sql_identifier(input_table),
+    'keymatches': _keymatches(mkcols, mkcol_aliases),
+    'assigns': u','.join([
+        u"%s = i.%s " % ( c.sql_name(), jsonfix2(c.sql_name(nmkcol_aliases.get(c)), c) )
+        for c in nmkcols
+    ] + [
+        # add these metadata maintenance tasks.  if they are in nmkcols already we'll abort with Forbidden.
+        u"%s = DEFAULT " % table.columns[cname].sql_name()
+        for cname in {'RMT','RMB'}
+        if cname in table.columns
+    ]),
+    'icols': _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases),
+    'tcols': _tcols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases),
+},
+                     content_type
+        )
+    )
+    return list(make_row_thunk(None, cur, content_type)())
+
+def _perform_table_insert(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type, use_defaults, extra_return_cols):
+    cur.execute(
+        preserialize("""
+INSERT INTO %(table)s (%(cols)s)
+SELECT %(icols)s FROM %(input_table)s i
+RETURNING %(rcols)s""" % {
+    'table': table.sql_name(),
+    'input_table': sql_identifier(input_table),
+    'cols': _cols(mkcols, nmkcols, use_defaults),
+    'icols': _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults),
+    'rcols': ','.join([
+        c.sql_name()
+        for c in (mkcols + nmkcols + extra_return_cols)
+    ]),
+},
+                     content_type
+        )
+    )
+    return list(make_row_thunk(None, cur, content_type)())
+
 class EntityElem (object):
     """Wrapper for instance of entity table in path.
 
@@ -712,42 +1214,6 @@ FROM (
         else:
             raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
-        correlating_sql = [
-            "SELECT %(inmkcols)s FROM %(input_table)s",
-            "SELECT %(mkcols)s FROM %(table)s"
-        ]
-        correlating_sql = tuple([
-            sql % dict(
-                table = self.table.sql_name(),
-                inmkcols = ','.join(
-                    [ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]
-                ),
-                mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-                input_table = sql_identifier(input_table)
-            )
-            for sql in correlating_sql
-        ])
-
-        def jsonfix1(sql, c):
-            return '%s::jsonb' % sql if c.type.sql(basic_storage=True) == 'json' else sql
-        
-        def jsonfix2(sql, c):
-            return '%s::json' % sql if c.type.sql(basic_storage=True) == 'json' else sql
-        
-        # reusable parts interpolated into several SQL statements
-        def keymatch(c, aliases, fix1=False):
-            parts = {
-                't': c.sql_name(),
-                'i': c.sql_name(aliases.get(c)),
-            }
-            if fix1:
-                parts['i'] = jsonfix1(parts['i'], c)
-                parts['t'] = jsonfix1(parts['t'], c)
-            sql = 't.%(t)s = i.%(i)s' % parts
-            if c.nullok:
-                sql += ' OR (t.%(t)s IS NULL AND i.%(i)s IS NULL)' % parts
-            return '(%s)' % sql
-
         parts = dict(
             table = self.table.sql_name(),
             input_table = sql_identifier(input_table),
@@ -1058,6 +1524,262 @@ RETURNING %(tcols)s""") % parts
 
             for table in drop_tables:
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
+        except psycopg2.IntegrityError, e:
+            raise ConflictModel('Input data violates model. ' + e.pgerror)
+
+        return results
+
+    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None):
+        """Insert entities.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+           use_defaults: customize entity processing
+              { col, ... } --> use defaults for zero or more columns
+              None --> same as empty set
+
+           Input rows are correlated to stored entities by metakey
+           equivalence.  The metakey for an entity is the union of all
+           its unique keys.  The metakey for a custom update may be a
+           subset of columns and may in fact be a non-unique key.
+
+           Input row data is applied to existing entities by updating
+           the non-metakey columns to match the input.  Input row data
+           is used to insert new entities only when allow_missing is
+           False and attr_update is None.
+
+        """
+        if len(self.filters) > 0:
+            raise BadSyntax('Entity filters not allowed during entity insertion.')
+
+        if not self.table.writable_kind():
+            raise ConflictModel('Entity %s is not writable.' % self.table)
+
+        drop_tables = []
+
+        # we are doing a whole entity request
+        inputcols = self.table.columns_in_order()
+        mkcols = set()
+        for unique in self.table.uniques:
+            for c in unique:
+                mkcols.add(c)
+        nmkcols = [ c for c in inputcols if c not in mkcols and c.name not in system_colnames ]
+        mkcols = [ c for c in inputcols if c in mkcols and c.name not in system_colnames ]
+        mkcol_aliases = dict()
+        nmkcol_aliases = dict()
+        extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
+
+        if use_defaults is None:
+            use_defaults = set()
+
+        use_defaults = set([
+            self.table.columns.get_enumerable(cname).name
+            for cname in use_defaults
+        ] + [
+            # system columns aren't writable so don't make client ask for their defaults explicitly
+            self.table.columns[cname]
+            for cname in system_colnames
+            if cname in self.table.columns
+        ])
+
+        if not set([ c.name for c in mkcols]).union(set([ c.name for c in nmkcols ])).difference(use_defaults):
+            raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
+
+        input_table, input_json_table = _create_temp_input_tables(
+            cur,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases,
+            in_content_type,
+            drop_tables,
+            use_defaults
+        )
+
+        _load_input_data(
+            cur, input_data, input_table, input_json_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases,
+            in_content_type
+        )
+
+        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+
+        _enforce_table_insert_static(
+            cur, self.table, input_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases
+        )
+
+        _enforce_table_insert_dynamic(
+            cur, self.table, input_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases
+        )
+
+        try:
+            results = _perform_table_insert(
+                cur, self.table, input_table,
+                mkcols, nmkcols,
+                mkcol_aliases, nmkcol_aliases,
+                content_type,
+                use_defaults,
+                extra_return_cols
+            )
+
+            for table in drop_tables:
+                cur.execute("DROP TABLE %s" % sql_identifier(table))
+
+        except psycopg2.IntegrityError, e:
+            raise ConflictModel('Input data violates model. ' + e.pgerror)
+
+        return results
+
+    def update(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, attr_update=None, attr_aliases=None):
+        """Update entities.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+           attr_update: customized entity processing
+              mkcols, nmkcols --> use specified metakey and non-metakey columns
+              None --> use entity metakey and non-metakey columns
+
+           attrs_aliases: customized input column naming
+              mkcol_aliases, nmkcol_aliases --> use specific aliasesed for external columns
+              None --> use table column names for external columns
+
+           Input rows are correlated to stored entities by metakey
+           equivalence.  The metakey for a custom update may be a
+           subset of columns and may in fact be a non-unique key.
+
+           Input row data is applied to existing entities by updating
+           the non-metakey columns to match the input.
+
+        """
+        if len(self.filters) > 0:
+            raise BadSyntax('Entity filters not allowed during entity update.')
+
+        if not self.table.writable_kind():
+            raise ConflictModel('Entity %s is not writable.' % self.table)
+
+        if attr_update is None:
+            raise BadSyntax('Entity update requires grouping and target column lists.')
+
+        drop_tables = []
+
+        # caller has configured an attribute update request
+        mkcols, nmkcols = attr_update
+        mkcol_aliases, nmkcol_aliases = attr_aliases if attr_aliases is not None else (dict(), dict())
+
+        input_table, input_json_table = _create_temp_input_tables(
+            cur,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases,
+            in_content_type,
+            drop_tables
+        )
+
+        _load_input_data(
+            cur, input_data, input_table, input_json_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases,
+            in_content_type
+        )
+
+        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+
+        _enforce_table_update_static(
+            cur, self.table, input_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases
+        )
+
+        _enforce_input_exists(cur, input_table, self.table, mkcols, mkcol_aliases)
+
+        # NOTE: we already prefetch the whole result so might as well build incrementally...
+        results = []
+
+        _enforce_table_update_dynamic(
+            cur, self.table, input_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases
+        )
+
+        try:
+            results = _perform_table_update(
+                cur, self.table, input_table,
+                mkcols, nmkcols,
+                mkcol_aliases, nmkcol_aliases,
+                content_type
+            )
+
+            for table in drop_tables:
+                cur.execute("DROP TABLE %s" % sql_identifier(table))
+
         except psycopg2.IntegrityError, e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
 
@@ -1576,7 +2298,104 @@ WHERE %(keymatches)s
             raise BadData("unsupported path length for put")
 
         return self._path[0].put(conn, cur, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults, attr_aliases)
-        
+
+    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None):
+        """Insert entities.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+        """
+        if len(self._path) != 1:
+            raise BadData("unsupported path length for insertion")
+
+        return self._path[0].insert(conn, cur, input_data, in_content_type, content_type, output_file, use_defaults)
+
+    def update(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, attr_update=None, attr_aliases=None):
+        """Update entities.
+
+           conn: sanepg2 connection to catalog
+
+           input_data:
+              x with x.read() --> data will be read
+              iterable --> data will be iterated
+
+           in_content_type:
+              text names of MIME types control deserialization:
+                'text/csv' --> CSV table
+                'application/json' --> JSON array of objects
+                'application/x-json-stream' --> stream of JSON objects
+
+                for MIME types, iterable input will be concatenated to
+                form input byte stream, or read() will be called to
+                fetch byte stream until an empty read() result is
+                received.
+
+              None means input is Python data stream (iter only)
+                dicts will be seen as column: value, ... rows
+                tuples will be seen as value, ... rows
+                other types are erroneous
+
+                for Python data streams, iterable input must yield one
+                row respresentation at a time.  read() is not
+                supported for Python data streams.
+
+                for tuples, values must be ordered according to column
+                ordering in the catalog model.
+
+           content_type and output_file: see documentation for
+              identical feature in get() method of this class. The
+              result being controlled is a representation of each
+              inserted or modified row, including any default values
+              which might have been absent from the input.
+
+           allow_existing: when input rows match existing keys
+              True --> update existing row with input (default)
+              None --> skip input row
+              False --> raise exception
+
+           allow_missing: when input rows do not match existing keys
+              True --> insert input rows (default)
+              None --> skip input row
+              False --> raise exception
+
+        """
+        if len(self._path) != 1:
+            raise BadData("unsupported path length for update")
+
+        return self._path[0].update(conn, cur, input_data, in_content_type, content_type, output_file, attr_update, attr_aliases)
 
 class AttributePath (AnyPath):
     """Hierarchical ERM data access to entity attributes, i.e. table cells.
@@ -1944,7 +2763,7 @@ GROUP BY %(groupkeys)s
 
         return sql
 
-    def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
+    def update(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
         """Update entity attributes.
 
            conn: sanepg2 connection to catalog
@@ -1981,16 +2800,6 @@ GROUP BY %(groupkeys)s
               result being controlled is a representation of each
               inserted or modified row, including any default values
               which might have been absent from the input.
-
-           allow_existing: when input rows match existing keys
-              True --> update existing row with input (default)
-              None --> skip input row
-              False --> raise exception
-
-           allow_missing: when input rows do not match existing keys
-              True --> insert input rows (default)
-              None --> skip input row
-              False --> raise exception
 
         """
         mkcols = set()
@@ -2036,8 +2845,7 @@ GROUP BY %(groupkeys)s
 
         attr_update = (list(mkcols), list(nmkcols))
         attr_aliases = (mkcol_aliases, nmkcol_aliases)
-        return self.epath.put(conn, cur, input_data, in_content_type, content_type, output_file, allow_existing=True, allow_missing=False, attr_update=attr_update, attr_aliases=attr_aliases)
-        
+        return self.epath.update(conn, cur, input_data, in_content_type, content_type, output_file, attr_update=attr_update, attr_aliases=attr_aliases)
 
 class AggregatePath (AnyPath):
     """Hierarchical ERM data access to aggregate row.
