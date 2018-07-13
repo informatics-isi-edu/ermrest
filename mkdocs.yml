@@ -1,8 +1,9 @@
 site_name: ERMrest Documentation
 site_description: Documentation for ERMrest web-service codebase in the DERIVA framework.
 theme: readthedocs
+site_url: https://informatics-isi-edu.github.io/ermrest/
 extra_css: 
-  - css/extra.css
+  - /css/extra.css
 
 
 pages:
