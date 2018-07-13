@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>Static Model-Based Policies - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "Static Model-Based Policies";
+    var mkdocs_page_input_path = "api-doc/acl/static.md";
+    var mkdocs_page_url = "/api-doc/acl/static/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../concepts/">ERMrest Access Control</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">Static Model-Based Policies</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-access-control">ERMrest Access Control</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#static-acl-technical-reference">Static ACL Technical Reference</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>ERMrest API and Service Semantics &raquo;</li>
+        
+      
+    
+    <li>Static Model-Based Policies</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-access-control">ERMrest Access Control<a class="headerlink" href="#ermrest-access-control" title="Permanent link">&para;</a></h1>
+<h2 id="static-acl-technical-reference">Static ACL Technical Reference<a class="headerlink" href="#static-acl-technical-reference" title="Permanent link">&para;</a></h2>
+<h3 id="available-static-acl-names">Available Static ACL Names<a class="headerlink" href="#available-static-acl-names" title="Permanent link">&para;</a></h3>
+<p>Most of the previously described <a href="#access-modes">access modes</a> have a
+corresponding static ACL name associated with them. Some model access rights
+are not separately controlled and instead require full ownership
+rights. This might change in future revisions.</p>
+<p>Because more general access mode rights imply lesser access mode
+rights and sub-resources inherit ACLs, brevity in policy
+configurations can be achieved:
+- A small set of owners need not be repeated in other ACLs
+- Less privileged roles are mentioned only in their corresponding lesser ACLs
+- Sub-resource ACLs can be set to <code>null</code> unless local overrides are needed</p>
+<p>Available ACL names and applicability to specific model elements:</p>
+<table>
+<thead>
+<tr>
+<th>ACL Name</th>
+<th>Catalog</th>
+<th>Schema</th>
+<th>Table</th>
+<th>Column</th>
+<th>Reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>owner</td>
+<td>all access</td>
+<td>all access</td>
+<td>all access</td>
+<td>N/A <em>note1</em></td>
+<td>N/A <em>note1</em></td>
+</tr>
+<tr>
+<td>create</td>
+<td>add schema</td>
+<td>add table</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>select</td>
+<td><em>note2</em></td>
+<td><em>note2</em></td>
+<td>observe row</td>
+<td>observe value</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>insert</td>
+<td><em>note2</em></td>
+<td><em>note2</em></td>
+<td>add row</td>
+<td>set value <em>note3</em></td>
+<td>set value <em>note3</em></td>
+</tr>
+<tr>
+<td>update</td>
+<td><em>note2</em></td>
+<td><em>note2</em></td>
+<td>change row</td>
+<td>set value <em>note3</em></td>
+<td>set value <em>note3</em></td>
+</tr>
+<tr>
+<td>write</td>
+<td><em>note2</em></td>
+<td><em>note2</em></td>
+<td>all data access</td>
+<td>set value <em>note3</em></td>
+<td>set value <em>note3</em></td>
+</tr>
+<tr>
+<td>delete</td>
+<td><em>note2</em></td>
+<td><em>note2</em></td>
+<td>delete row</td>
+<td>N/A</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>enumerate</td>
+<td>introspect</td>
+<td>introspect</td>
+<td>introspect</td>
+<td>introspect</td>
+<td>introspect</td>
+</tr>
+</tbody>
+</table>
+<p>When a new schema is added to a catalog, or a new table is added to a
+schema, the requesting client becomes the owner of the newly added
+element.</p>
+<p>Notes:
+- <code>N/A</code>: The named ACL is not supported on this kind of model element.
+- <em>note1</em>: Columns and references are considered part of the table and so cannot have local ownership settings.
+- <em>note2</em>: Data access ACLs on catalogs and schemas only serve to set inherited access policies for the tables which are sub-resources within those containers respectively. These only have effect if the table does not have a locally configured policy for the same named ACL, and they grant no special access to the catalog or schema itself.
+- <em>note3</em>: The insert/update ACLs on columns and references configure whether values can be supplied during that type of operation on the containing row.</p>
+<p>As described previously, some access rights imply other rights:</p>
+<table>
+<thead>
+<tr>
+<th>ACL Name</th>
+<th>Implies</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>enumerate</td>
+<td></td>
+</tr>
+<tr>
+<td>create</td>
+<td>enumerate</td>
+</tr>
+<tr>
+<td>select</td>
+<td>enumerate</td>
+</tr>
+<tr>
+<td>insert</td>
+<td>enumerate</td>
+</tr>
+<tr>
+<td>update</td>
+<td>select, enumerate</td>
+</tr>
+<tr>
+<td>delete</td>
+<td>select, enumerate</td>
+</tr>
+<tr>
+<td>write</td>
+<td>insert, update, delete, select, enumerate</td>
+</tr>
+<tr>
+<td>owner</td>
+<td>create, insert, update, delete, select, enumerate</td>
+</tr>
+</tbody>
+</table>
+<p>Ownership is inherited even if a sub-resource specifies a locally
+configured owner ACL. The effective owner policy is the disjunction of
+inherited owner and local owner policies. Other locally configured ACLs
+override their respective inherited ACL and so may grant fewer rights
+than would be granted with the inherited policy.</p>
+<h3 id="acl-representation">ACL Representation<a class="headerlink" href="#acl-representation" title="Permanent link">&para;</a></h3>
+<p>The data-independent ACLs are encoded in an <code>"acls"</code> sub-resource of the
+governed resource. This is a hash-map keyed by ACL name. For example,
+a schema resource has a canonical representation as in the following
+example:</p>
+<pre><code>{
+  "schema_name": "My Schema",
+  "comment": "The purpose of My Schema is...",
+  "annotations": ...,
+  "tables": ...,
+  "acls": {
+    "owner": ["some/user/URI"],
+    "select": ["*"]
+  }
+}
+</code></pre>
+<p>This example has locally configured ACLs for the schema owner and
+permits public access to enumerate the schema and select data, but
+inherits other ACLs from the enclosing catalog. For brevity, ACL names
+with <code>null</code> configuration are omitted from the canonical
+representation. Specifying each such ACL name with a literal <code>null</code>
+has the same meaning.</p>
+<h3 id="restrictions-on-wildcard-policies">Restrictions on Wildcard Policies<a class="headerlink" href="#restrictions-on-wildcard-policies" title="Permanent link">&para;</a></h3>
+<p>The wildcard ACL entry <code>"*"</code> matches any client including anonymous
+users. For safety, ERMrest will not accept ACLs containing wildcards
+for ACLs granting mutation privileges. For existing catalogs which may
+have acquired such policies before this safety check was introduced,
+anonymous clients will be rejected for mutation requests, even though
+the existing ACL has a wildcard.</p>
+<p>The wildcard is only permitted for:</p>
+<ol>
+<li>The <code>"enumerate"</code> ACL name, allowing model elements to be seen.</li>
+<li>The <code>"select"</code> ACL name, allowing data to be queried.</li>
+<li>The <code>"insert"</code> and <code>"update"</code> ACL names on foreign key constraints.</li>
+<li>Unlike other resources, foreign keys have a default ACL value of <code>["*"]</code> rather than <code>null</code>. This idiom is preserved for convenience.</li>
+<li>To actually mutate data in the catalog, the client must also have mutation rights on the table row and table columns, so safety is maintained.</li>
+</ol>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../dynamic/" class="btn btn-neutral float-right" title="Dynamic Data-Dependent Policies">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../concepts/" class="btn btn-neutral" title="ERMrest Access Control"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../concepts/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../dynamic/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

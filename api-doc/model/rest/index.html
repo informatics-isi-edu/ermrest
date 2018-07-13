@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>ERMrest Model Operations - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "ERMrest Model Operations";
+    var mkdocs_page_input_path = "api-doc/model/rest.md";
+    var mkdocs_page_url = "/api-doc/model/rest/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../naming/">ERMrest Model Resources</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">ERMrest Model Operations</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-model-operations">ERMrest Model Operations</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#schemata-retrieval">Schemata Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#bulk-schemata-and-table-creation">Bulk Schemata and Table Creation</a></li>
+        
+            <li><a class="toctree-l4" href="#schema-creation">Schema Creation</a></li>
+        
+            <li><a class="toctree-l4" href="#schema-retrieval">Schema Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#schema-deletion">Schema Deletion</a></li>
+        
+            <li><a class="toctree-l4" href="#table-list-retrieval">Table List Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#table-creation">Table Creation</a></li>
+        
+            <li><a class="toctree-l4" href="#table-retrieval">Table Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#table-deletion">Table Deletion</a></li>
+        
+            <li><a class="toctree-l4" href="#column-list-retrieval">Column List Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#column-creation">Column Creation</a></li>
+        
+            <li><a class="toctree-l4" href="#column-retrieval">Column Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#column-deletion">Column Deletion</a></li>
+        
+            <li><a class="toctree-l4" href="#key-list-retrieval">Key List Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#key-creation">Key Creation</a></li>
+        
+            <li><a class="toctree-l4" href="#key-retrieval">Key Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#key-deletion">Key Deletion</a></li>
+        
+            <li><a class="toctree-l4" href="#foreign-key-list-retrieval">Foreign Key List Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#foreign-key-creation">Foreign Key Creation</a></li>
+        
+            <li><a class="toctree-l4" href="#foreign-key-retrieval">Foreign Key Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#foreign-key-deletion">Foreign Key Deletion</a></li>
+        
+            <li><a class="toctree-l4" href="#annotations">Annotations</a></li>
+        
+            <li><a class="toctree-l4" href="#comments">Comments</a></li>
+        
+            <li><a class="toctree-l4" href="#access-control-lists">Access Control Lists</a></li>
+        
+            <li><a class="toctree-l4" href="#access-control-list-bindings">Access Control List Bindings</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>ERMrest API and Service Semantics &raquo;</li>
+        
+      
+    
+    <li>ERMrest Model Operations</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-model-operations">ERMrest Model Operations<a class="headerlink" href="#ermrest-model-operations" title="Permanent link">&para;</a></h1>
+<p>The model operations configure the entity-relationship model that will be used to structure tabular data in the <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest</a> catalog.  The model must be configured before use, but it may continue to be adjusted throughout the lifecycle of the catalog, interleaved with data operations.</p>
+<h2 id="schemata-retrieval">Schemata Retrieval<a class="headerlink" href="#schemata-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a document describing the entire catalog data model using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code></li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation as other content types MAY be returned, including HTML-based user interfaces:</p>
+<pre><code>GET /ermrest/catalog/42/schema HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "schemas": {
+    schema name: schema representation, ...
+  }
+}
+</code></pre>
+<p>Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is a single field <code>schemas</code> which in turn is a sub-object used as a dictionary mapping. Each field name of the sub-object is a <em>schema name</em> and its corresponding value is a <em>schema representation</em> as described in <a href="#schema-retrieval">Schema Retrieval</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="bulk-schemata-and-table-creation">Bulk Schemata and Table Creation<a class="headerlink" href="#bulk-schemata-and-table-creation" title="Permanent link">&para;</a></h2>
+<p>The POST operation can be used to create multiple named schemata and/or tables in a single request by posting a complex JSON document to the same resource used for retrieving all schemata:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema</code></li>
+</ul>
+<p>In this operation, <code>application/json</code> content MUST be provided. The same format returned in schemata retrieval is supported:</p>
+<pre><code>POST /ermrest/catalog/42/schema HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "schemas": {
+    schema name: schema representation, ...
+  }
+}
+</code></pre>
+<p>with this form, each <em>schema name</em> MUST be distinct and available for use as a new schema in the catalog. Each <em>schema representation</em> MAY include multiple fields as described in the <a href="#schema-retrieval">Schema Retrieval</a> documentation. If present, the <code>"schema_name"</code> field MUST match the <em>schema name</em> key of the enclosing document. If present, the <code>"tables"</code> field MAY describe new tables which will also be created as part of the same request.</p>
+<p>Optionally, a batch request list document is also supported:</p>
+<pre><code>POST /ermrest/catalog/42/schema HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+[
+   schema or table representation, ...
+]
+</code></pre>
+<p>In this form, each <em>schema representation</em> is handled as in the preceding form, creating both schema and any nested tables. Each <em>table representation</em> is handled similar to the <a href="#table-creation">Table Creation</a> API, allowing multiple tables to be added to existing schemata. The list of schema and table representations are processed in document order.  With both forms, a set of tables with interdependent foreign key constraints MAY be specified and the service will first create all requested schemata, then all tables, then all foreign key constraints.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 201 Created
+Content-Type: application/json
+
+...new resource representation...
+</code></pre>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 403 Forbidden
+- 409 Conflict
+- 401 Unauthorized</p>
+<p>The request effects are atomic, either applying all elements of the batch change to the catalog model or making no changes at all in the case of failures.</p>
+<h2 id="schema-creation">Schema Creation<a class="headerlink" href="#schema-creation" title="Permanent link">&para;</a></h2>
+<p>The POST operation is used to create new, empty schemata, using a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em></li>
+</ul>
+<p>In this operation, no input is required:</p>
+<pre><code>POST /ermrest/catalog/42/schema/schema_name HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 201 Created
+</code></pre>
+<p>BUG: should be 204 No Content and/or should include Location header for new schema?</p>
+<p>Typical error response codes include:
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="schema-retrieval">Schema Retrieval<a class="headerlink" href="#schema-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a document describing the one schema in the data model using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em></li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "schema_name": schema name,
+  "comment": comment,
+  "annotations": {
+     annotation key: annotation document, ...
+  }
+  "tables": {
+     table name: table representation, ...
+  }
+}
+</code></pre>
+<p>Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is a single object with the following fields:</p>
+<ul>
+<li><code>schema_name</code>: whose value is the <em>schema name</em> addressed in the retrieval request</li>
+<li><code>comment</code>: whose value is a human-readable <em>comment</em> for the schema</li>
+<li><code>annotations</code>: whose value is a sub-object use as a dictionary where each field of the sub-object is an <em>annotation key</em> and its corresponding value a nested object structure representing the <em>annotation document</em> content (as hierarchical content, not as a double-serialized JSON string!)</li>
+<li><code>tables</code>: which is a sub-object used as a dictionary mapping. Each field name of the sub-object is a <em>table name</em> and its corresponding value is a <em>table representation</em> as described in <a href="#table-creation">Table Creation</a>.</li>
+</ul>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="schema-deletion">Schema Deletion<a class="headerlink" href="#schema-deletion" title="Permanent link">&para;</a></h2>
+<p>The DELETE method is used to delete a schema:</p>
+<pre><code>DELETE /ermrest/catalog/42/schema/schema_name HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields a description:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="table-list-retrieval">Table List Retrieval<a class="headerlink" href="#table-list-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a list of tables in one schema using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code></li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation as other content types MAY be returned, including HTML-based user interfaces:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+[
+  table representation, ...
+]
+</code></pre>
+<p>Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is an array where each element is a <em>table representation</em> as described in <a href="#table-creation">Table Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="table-creation">Table Creation<a class="headerlink" href="#table-creation" title="Permanent link">&para;</a></h2>
+<p>The POST operation is used to add a table to an existing schema's table list resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code></li>
+</ul>
+<p>In this operation, the <code>application/json</code> <em>table representation</em> is supplied as input:</p>
+<pre><code>POST /ermrest/catalog/42/schema/schema_name/table HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "schema_name": schema name,
+  "table_name": table name,
+  "comment": table comment,
+  "annotations": {
+    annotation key: annotation document, ...
+  },
+  "column_definitions": [ column representation, ... ],
+  "keys": [ key representation, ... ],
+  "foreign_keys": [ foreign key representation, ... ],
+  "kind": "table"
+}
+</code></pre>
+<p>The input <em>table representation</em> is a long JSON document too verbose to show verbatim in this documentation. Its general structure is a single object with the following fields:</p>
+<ul>
+<li><code>schema_name</code>: whose value is the same <em>schema name</em> addressed in the request URL (optional content in this request)</li>
+<li><code>table_name</code>: whose value is the <em>table name</em> string for the new table</li>
+<li><code>comment</code>: whose value is the human-readable comment string for the new table</li>
+<li><code>annotations</code>: whose value is a sub-object use as a dictionary where each field of the sub-object is an <em>annotation key</em> and its corresponding value a nested object structure representing the <em>annotation document</em> content (as hierarchical content, not as a double-serialized JSON string!)</li>
+<li><code>column_definitions</code>: an array of <em>column representation</em> as described in <a href="#column-creation">Column Creation</a>, interpreted as an ordered list of columns</li>
+<li><code>keys</code>: an array of <em>key representation</em> as described in <a href="#key-creation">Key Creation</a>, interpreted as an unordered set of keys</li>
+<li><code>foreign_keys</code>: an array of <em>foreign key representation</em> as described in <a href="#foreign-key-creation">Foreign Key Creation</a>, interpreted as an unordered set of foreign keys</li>
+<li><code>kind</code>: a string indicating the kind of table</li>
+<li>normally <code>table</code> for a regular mutable table</li>
+<li>the value <code>view</code> MAY be encountered when introspecting existing ERMrest catalogs which may have extended data models not created through the standard ERMrest model management interface; the <code>view</code> kind of table supports data retrieval operations but does not support data creation, update, nor deletion;</li>
+<li>this mechanism MAY be used for future extension so other values SHOULD be detected and the enclosing <em>table representation</em> ignored if a client does not know how to interpret that table kind.</li>
+</ul>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+table representation
+</code></pre>
+<p>where the body content is the same <em>table representation</em> as the request input content, representing the table as created. This response MAY differ from the input content. It is RECOMMENDED that the service generate a newly serialized representation of the newly created table, and this result MAY differ from the request input.</p>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 403 Forbidden
+- 401 Unauthorized
+- 409 Conflict</p>
+<h2 id="table-retrieval">Table Retrieval<a class="headerlink" href="#table-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a document describing one table in the data model using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em></li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table/table_name HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+table representation
+</code></pre>
+<p>The response body is a <em>table representation</em> as described in <a href="#table-creation">Table Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+- 409 Conflict</p>
+<h2 id="table-deletion">Table Deletion<a class="headerlink" href="#table-deletion" title="Permanent link">&para;</a></h2>
+<p>The DELETE method is used to delete a table and all its content:</p>
+<pre><code>DELETE /ermrest/catalog/42/schema/schema_name/table/table_name HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields a description:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+- 409 Conflict</p>
+<h2 id="column-list-retrieval">Column List Retrieval<a class="headerlink" href="#column-list-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a list of columns in one table using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code></li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table/table_name/column HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+[
+  column representation, ...
+]
+</code></pre>
+<p>Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is an array where each element is a <em>column representation</em> as described in <a href="#column-creation">Column Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="column-creation">Column Creation<a class="headerlink" href="#column-creation" title="Permanent link">&para;</a></h2>
+<p>The POST operation is used to add a column to an existing table's column list resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code></li>
+</ul>
+<p>In this operation, the <code>application/json</code> <em>column representation</em> is supplied as input:</p>
+<pre><code>POST /ermrest/catalog/42/schema/schema_name/table/table_name/column HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "name": column name,
+  "type": column type,
+  "default": default value,
+  "nullok": boolean,
+  "comment": column comment,
+  "annotations": {
+    annotation key: annotation document, ...
+  }
+}
+</code></pre>
+<p>The input <em>column representation</em> is a long JSON document too verbose to show verbatim in this documentation. Its general structure is a single object with the following fields:</p>
+<ul>
+<li><code>name</code>: whose value is the <em>column name</em> string for the new column which must be distinct from all existing columns in the table</li>
+<li><code>type</code>: whose value is the <em>column type</em> drawn from a limited set of supported types in ERMrest</li>
+<li><code>default</code>: whose value is an appropriate default value consistent with the <em>column type</em> or the JSON <code>null</code> value to indicate that NULL values should be used (the default when <code>default</code> is omitted from the <em>column representation</em>)</li>
+<li><code>nullok</code>: JSON <code>true</code> if NULL values are allowed or <code>false</code> if NULL values are disallowed in this column (default <code>true</code> if this field is absent in the input column representation)</li>
+<li><code>comment</code>: whose value is the human-readable comment string for the column</li>
+<li><code>annotations</code>: whose value is a sub-object use as a dictionary where each field of the sub-object is an <em>annotation key</em> and its corresponding value a nested object structure representing the <em>annotation document</em> content (as hierarchical content, not as a double-serialized JSON string!)</li>
+</ul>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+column representation
+</code></pre>
+<p>where the body content is the same <em>column representation</em> as the request input content, representing the column  as created. This response MAY differ from the input content. It is RECOMMENDED that the service generate a newly serialized representation of the newly created column, and this result MAY differ from the request input.</p>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="column-retrieval">Column Retrieval<a class="headerlink" href="#column-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a document describing one column in the data model using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code> <em>column name</em></li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table/table_name/column/column_name HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+column representation
+</code></pre>
+<p>The response body is a <em>column representation</em> as described in <a href="#column-creation">Column Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="column-deletion">Column Deletion<a class="headerlink" href="#column-deletion" title="Permanent link">&para;</a></h2>
+<p>The DELETE method is used to remove a column and all its content from a table:</p>
+<pre><code>DELETE /ermrest/catalog/42/schema/schema_name/table/table_name/column/column_name HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields a description:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="key-list-retrieval">Key List Retrieval<a class="headerlink" href="#key-list-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a list of keys in one table using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key/</code></li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table/table_name/key HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+[
+  key representation, ...
+]
+</code></pre>
+<p>Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is an array where each element is a <em>key representation</em> as described in <a href="#key-creation">Key Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="key-creation">Key Creation<a class="headerlink" href="#key-creation" title="Permanent link">&para;</a></h2>
+<p>The POST operation is used to add a key constraint to an existing table's key list resource, or a pseudo-key constraint to a view's key list resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key/</code></li>
+</ul>
+<p>In this operation, the <em>table name</em> MAY be an existing table or view in the named schema, and the <code>application/json</code> <em>key representation</em> is supplied as input:</p>
+<pre><code>POST /ermrest/catalog/42/schema/schema_name/table/table_name/key HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "names": [
+    [ schema name, constraint name ], ...
+   ],
+   "unique_columns": [ column name, ... ],
+   "comment": comment,
+   "annotations": {
+      annotation key: annotation document, ...
+   }
+}
+</code></pre>
+<p>The input <em>key representation</em> is a JSON document with one object with the following fields:</p>
+<ul>
+<li><code>names</code>: an array of <code>[</code> <em>schema name</em> <code>,</code> <em>constraint name</em> <code>]</code> pairs representing names of underlying constraints that enforce this unique key reference pattern.</li>
+<li><code>unique_columns</code> has an array value listing the individual columns that comprise the composite key. The constituent columns are listed by their basic <em>column name</em> strings.</li>
+<li><code>comment</code>: whose value is the human-readable comment string for the key</li>
+<li><code>annotations</code>: whose value is a sub-object use as a dictionary where each field of the sub-object is an <em>annotation key</em> and its corresponding value a nested object structure representing the <em>annotation document</em> content (as hierarchical content, not as a double-serialized JSON string!)</li>
+</ul>
+<p>During key creation, the <code>names</code> field SHOULD have at most one name pair. Other <code>names</code> inputs MAY be ignored by the server. When the <code>names</code> field is omitted, the server MUST assign constraint names of its own choosing. In introspection, the <code>names</code> field represents the actual state of the database and MAY include generalities not controlled by the key creation API:</p>
+<ul>
+<li>ERMrest will refuse to create redundant constraints and SHOULD reject catalogs where such constraints have been defined out of band by the local DBA.</li>
+<li>The chosen <em>schema name</em> for a newly created constraint MAY differ from the one requested by the client.</li>
+<li>The server MAY create the constraint in the same schema as the constrained table</li>
+<li>Pseudo keys are qualified by a special <em>schema name</em> of <code>""</code> which is not a valid SQL schema name.</li>
+<li>Pseudo keys MAY have an integer <em>constraint name</em> assigned by the server.</li>
+</ul>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+key representation
+</code></pre>
+<p>where the body content is the same <em>key representation</em> as the request input content, representing the key as created. This response MAY differ from the input content. It is RECOMMENDED that the service generate a newly serialized representation of the newly created key, and this result MAY differ from the request input.</p>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="key-retrieval">Key Retrieval<a class="headerlink" href="#key-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a document describing one key in the data model using
+a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key/</code> <em>column name</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,... HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+key representation
+</code></pre>
+<p>The response body is a <em>key representation</em> as described in <a href="#key-creation">Key Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="key-deletion">Key Deletion<a class="headerlink" href="#key-deletion" title="Permanent link">&para;</a></h2>
+<p>The DELETE method is used to remove a key constraint from a table or a pseudo-key constraint from a view:</p>
+<pre><code>DELETE /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,... HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields a description:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="foreign-key-list-retrieval">Foreign Key List Retrieval<a class="headerlink" href="#foreign-key-list-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a list of foreign key references in one table using
+a model-level resource name of the following forms:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey</code> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ...</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code> <em>table reference</em></li>
+</ul>
+<p>These names differ in how many constraints are applied to filter the set of retrieved foreign key references:
+1. The list is always constrained to foreign keys stored in <em>schema name</em> : <em>table name</em>
+1. The list MAY be constrained by the composite foreign key <em>column name</em> list of its constituent keys, interpreted as a set of columns
+1. The list MAY be constrained by the <em>table reference</em> of the table containing the composite key or keys referenced by the composite foreign key</p>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table/table_name/foreignkey HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+[
+  foreign key reference representation, ...
+]
+</code></pre>
+<p>Note, this JSON document is usually quite long and too verbose to show verbatim in this documentation. Its general structure is an array where each element is a <em>foreign key reference representation</em> as described in <a href="#foreign-key-creation">Foreign Key Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="foreign-key-creation">Foreign Key Creation<a class="headerlink" href="#foreign-key-creation" title="Permanent link">&para;</a></h2>
+<p>The POST operation is used to add a foreign key reference constraint or pseudo-constraint to an existing table's or view's foreign key list resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code></li>
+</ul>
+<p>In this operation, the <code>application/json</code> <em>foreign key reference representation</em> is supplied as input:</p>
+<pre><code>POST /ermrest/catalog/42/schema/schema_name/table/table_name/foreignkey HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "names": [
+    [ schema name, constraint name ], ...
+  ]
+  "foreign_key_columns": [
+    {
+      "schema_name": schema name,
+      "table_name": table name,
+      "column_name": column name
+    }, ...
+  ]
+  "referenced_columns": [
+    {
+      "schema_name": schema name,
+      "table_name": table name,
+      "column_name": column name
+    }
+  ],
+  "comment": comment,
+  "annotations": {
+    annotation key: annotation document, ...
+  },
+  "on_delete": delete action,
+  "on_update": update action
+}
+</code></pre>
+<p>The input <em>foreign key reference representation</em> is a long JSON document too verbose to show verbatim in this documentation. Its general structure is a single object with the following fields:</p>
+<ul>
+<li><code>names</code>: an array of <code>[</code> <em>schema name</em> <code>,</code> <em>constraint name</em> <code>]</code> pairs representing names of underlying constraints that enforce this foreign key reference pattern. For legacy compatibility this is a list, but it will have at most one member.</li>
+<li><code>foreign_key_columns</code>: an array of column reference objects comprising the composite foreign key, each consisting of a sub-object with the fields:</li>
+<li><code>schema_name</code>: whose value is the same <em>schema name</em> addressed in the request URL (optional content in this request)</li>
+<li><code>table_name</code>: whose value is the same <em>table name</em> addressed in the request URL (optional content in this request)</li>
+<li><code>column_name</code>: whose value names the constituent column of the composite foreign key</li>
+<li><code>referenced_columns</code>: an array of column reference objects comprising the referenced composite key, each consisting of a sub-object with the fields:</li>
+<li><code>schema_name</code>: whose value names the schema in which the referenced table resides</li>
+<li><code>table_name</code>: whose value names the referenced table</li>
+<li><code>column_name</code>: whose value names the constituent column of the referenced key</li>
+<li><code>comment</code>: whose value is the human-readable comment string for the foreign key reference constraint</li>
+<li><code>annotations</code>: whose value is a sub-object used as a dictionary where each field field of the sub-object is an <em>annotation key</em> and its corresponding value a nested object structure representing the <em>annotation document</em> content (as hierarchical content, not as a double-serialized JSON string!)</li>
+<li><code>on_delete</code>: whose <em>delete action</em> value describes what happens when the referenced entity is deleted:</li>
+<li><code>NO ACTION</code> (default) or <code>RESTRICT</code>: the reference is unchanged and an integrity violation will block the change to the referenced table. The difference between these two actions is only evident to local SQL clients who ERMrest.</li>
+<li><code>CASCADE</code>: the referencing entities will also be deleted along with the referenced entity.</li>
+<li><code>SET NULL</code>: the referencing foreign key will be set to NULL when the referenced entity disappears.</li>
+<li><code>SET DEFAULT</code>: the referencing foreign key will be set to column-level defaults when the referenced entity disappears.</li>
+<li><code>on_Update</code>: whose <em>update action</em> value describes what happens when the referenced entity's key is modified:</li>
+<li><code>NO ACTION</code> (default) or <code>RESTRICT</code>: the reference is unchanged and an integrity violation will block the change to the referenced table. The difference between these two actions is only evident to local SQL clients who ERMrest.</li>
+<li><code>CASCADE</code>: the referencing foreign key will be set to the new key value of the referenced entity.</li>
+<li><code>SET NULL</code>: the referencing foreign key will be set to NULL when the referenced key value is changed.</li>
+<li><code>SET DEFAULT</code>: the referencing foreign key will be set to column-level defaults when the referenced key value is changed.</li>
+</ul>
+<p>During foreign key creation, the <code>names</code> field SHOULD have at most one name pair. Other <code>names</code> inputs MAY be ignored by the server. When the <code>names</code> field is omitted, the server MUST assign constraint names of its own choosing. In introspection, the <code>names</code> field represents the actual state of the database and MAY include generalities not controlled by the foreign key creation REST API:</p>
+<ul>
+<li>ERMrest will refuse to create redundant constraints and SHOULD reject catalogs where such constraints have been defined out of band by the local DBA.</li>
+<li>The chosen <em>schema name</em> for a newly created constraint MAY differ from the one requested by the client.</li>
+<li>The server MAY create the constraint in the same schema as the referencing table, regardless of client request.</li>
+<li>Pseudo foreign keys are qualified by a special <em>schema name</em> of <code>""</code> which is not a valid SQL schema name.</li>
+<li>Pseudo foreign keys MAY have an integer <em>constraint name</em> assigned by the server.</li>
+</ul>
+<p>The two column arrays MUST have the same length and the order is important in that the two composite keys are mapped to one another element-by-element, so the first column of the composite foreign key refers to the first column of the composite referenced key, etc. In the <code>referenced_columns</code> list, the <em>schema name</em> and <em>table name</em> values MUST be identical for all referenced columns. If both referencing and referenced <em>table name</em> refer to tables, a real constraint is created; if either referencing or referenced <em>table name</em> refer to a view, a pseudo-constraint is created instead.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+foreign key reference representation
+</code></pre>
+<p>where the body content is the same <em>foreign key reference representation</em> as the request input content, representing the constraint as created. This response MAY differ from the input content. It is RECOMMENDED that the service generate a newly serialized representation of the newly created constraint, and this result MAY differ from the request input.</p>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="foreign-key-retrieval">Foreign Key Retrieval<a class="headerlink" href="#foreign-key-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve a document describing one foreign key constraint in the data model using a model-level resource name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code> <em>table reference</em> <code>/</code> <em>key column</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET /ermrest/catalog/42/schema/schema_name/table/table_name/foreignkey/column_name,.../reference/table-reference/key_column,... HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+foreign key reference representation
+</code></pre>
+<p>The response body is a <em>foreign key reference representation</em> as described in <a href="#foreign-key-creation">Foreign Key Creation</a>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="foreign-key-deletion">Foreign Key Deletion<a class="headerlink" href="#foreign-key-deletion" title="Permanent link">&para;</a></h2>
+<p>The DELETE method is used to remove a foreign key constraint from a table using any of the foreign key list or foreign key resource name forms:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey</code> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ...</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code> <em>table reference</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code> <em>table reference</em> <code>/</code> <em>key column</em> <code>,</code> ...</li>
+</ul>
+<p>These names differ in how many constraints are applied to filter the set of retrieved foreign key references:</p>
+<ol>
+<li>The list is always constrained to foreign keys stored in <em>schema name</em> : <em>table name</em></li>
+<li>The list MAY be constrained by the composite foreign key <em>column name</em> list of its constituent keys, interpreted as a set of columns</li>
+<li>The list MAY be constrained by the <em>table reference</em> of the table containing the composite key or keys referenced by the composite foreign key</li>
+<li>The list MAY be constrained by the composite referenced key <em>key column</em> list</li>
+</ol>
+<p>This example uses a completely specified foreign key constraint name:</p>
+<pre><code>DELETE /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,.../reference/table_reference/key_column,... HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields a description:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>The effect is to delete all foreign key constraints from the table matching the resource name used in the request.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="annotations">Annotations<a class="headerlink" href="#annotations" title="Permanent link">&para;</a></h2>
+<p>Annotations are generic sub-resources available within multiple <em>subject</em> resources. The possible <em>subject</em> resources are:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ]</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code> <em>column name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key/</code> <em>column name</em> <code>,</code> ... </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... </li>
+</ul>
+<p>And the annotation sub-resources are named by appending <code>/annotation/</code> to the <em>subject</em> resource as described in the following operations.</p>
+<h3 id="annotation-list-retrieval">Annotation List Retrieval<a class="headerlink" href="#annotation-list-retrieval" title="Permanent link">&para;</a></h3>
+<p>The GET operation is used to retrieve a document describing a set of annotations on one subject resource:</p>
+<ul>
+<li><em>subject</em> <code>/annotation/</code></li>
+</ul>
+<p>For annotation retrieval, the optional <code>@</code> <em>revision</em> qualifier is allowed on the <em>cid</em> of the subject.</p>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET subject/annotation/ HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  annotation key: annotation document, ...
+}
+</code></pre>
+<p>Its general structure is a single object containing the <code>annotations</code> dictionary from the enclosing <em>subject</em> resource. Each field of the object is an <em>annotation key</em> and its corresponding value is the nested <em>annotation document</em> content.</p>
+<p>Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="annotation-creation">Annotation Creation<a class="headerlink" href="#annotation-creation" title="Permanent link">&para;</a></h3>
+<p>The PUT operation is used to add or replace a single annotation:</p>
+<ul>
+<li><em>subject</em> <code>/annotation/</code> <em>annotation key</em></li>
+</ul>
+<p>For annotation creation, the <code>@</code> <em>revision</em> qualifier is <em>not allowed</em> on the <em>cid</em> of the subject.</p>
+<p>In this operation, the <code>application/json</code> <em>annotation document</em> is supplied as input:</p>
+<pre><code>PUT subject/annotation/annotation_key HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+annotation document
+</code></pre>
+<p>The input <em>annotation document</em> is a arbitrary JSON payload appropriate to the chosen <em>annotation key</em>.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 201 Created
+</code></pre>
+<p>or:</p>
+<pre><code>HTTP/1.1 200 OK
+</code></pre>
+<p>without any response body. The <code>200</code> response indicates the <em>annotation document</em> replaces a previous one, while <code>201</code> responses indicate that a new <em>annotation key</em> has been added to the parent resource.</p>
+<p>Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="annotation-bulk-update">Annotation Bulk Update<a class="headerlink" href="#annotation-bulk-update" title="Permanent link">&para;</a></h3>
+<p>The PUT operation can also replace the whole annotation list at once:</p>
+<ul>
+<li><em>subject</em> <code>/annotation</code></li>
+</ul>
+<p>For annotation bulk update, the <code>@</code> <em>revision</em> qualifier is <em>not allowed</em> on the <em>cid</em> of the subject.</p>
+<p>In this operation, the <code>application/json</code> <em>annotation list</em> is supplied as input to specify all <em>annotation key</em> and <em>annotation document</em> values at once:</p>
+<pre><code>PUT subject/annotation HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+{
+  annotation key: annotation document, ...
+}
+</code></pre>
+<p>This operation completely replaces any existing annotations, including dropping any which were present under an <em>annotation key</em> not specified in the bulk input list. This is most useful to an administrator who is intentionally clearing stale annotation content.</p>
+<p>Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="annotation-retrieval">Annotation Retrieval<a class="headerlink" href="#annotation-retrieval" title="Permanent link">&para;</a></h3>
+<p>The GET operation is used to retrieve a document describing one annotation using a model-level resource name of the form:</p>
+<ul>
+<li><em>subject</em> <code>/annotation/</code> <em>annotation key</em></li>
+</ul>
+<p>For annotation retrieval, the optional <code>@</code> <em>revision</em> qualifier is allowed on the <em>cid</em> of the subject.</p>
+<p>In this operation, content-negotiation SHOULD be used to select the <code>application/json</code> representation:</p>
+<pre><code>GET subject/annotation/annotation_key HTTP/1.1
+Host: www.example.com
+Accept: application/json
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+annotation document
+</code></pre>
+<p>Its general structure is a single object containing <em>annotation document</em> content associated with <em>annotation key</em>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="annotation-deletion">Annotation Deletion<a class="headerlink" href="#annotation-deletion" title="Permanent link">&para;</a></h3>
+<p>The DELETE method is used to delete an annotation using a model-level resource name of the form:</p>
+<ul>
+<li><em>subject</em> <code>/annotation/</code> <em>annotation key</em></li>
+</ul>
+<p>For annotation deletion, the <code>@</code> <em>revision</em> qualifier is <em>not allowed</em> on the <em>cid</em> of the subject.</p>
+<p>The request does not require content-negotiation since there is no response representation:</p>
+<pre><code>DELETE subject/annotation/annotation_key HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields a description:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="comments">Comments<a class="headerlink" href="#comments" title="Permanent link">&para;</a></h2>
+<p>Comments are generic sub-resources available within multiple <em>subject</em> resources. The possible <em>subject</em> resources are:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code> <em>column name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key/</code> <em>column name</em> <code>,</code> ... </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... </li>
+</ul>
+<p>And the comment sub-resources are named by appending <code>/comment</code> to the <em>subject</em> resource as described in the following operations.</p>
+<h3 id="comment-creation">Comment Creation<a class="headerlink" href="#comment-creation" title="Permanent link">&para;</a></h3>
+<p>The PUT operation is used to add or replace a single comment:</p>
+<ul>
+<li><em>subject</em> <code>/comment</code></li>
+<li><em>subject</em> <code>/comment/</code></li>
+</ul>
+<p>For comment creation, the optional <code>@</code> <em>revision</em> qualifier is <em>not allowed</em> on the <em>cid</em> of the subject.</p>
+<p>In this operation, the <code>text/plain</code> <em>comment text</em> is supplied as input:</p>
+<pre><code>POST subject/comment/ HTTP/1.1
+Host: www.example.com
+Content-Type: text/plain
+
+comment text
+</code></pre>
+<p>The input <em>comment text</em> is a arbitrary UTF-8 text payload.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+</code></pre>
+<p>without any response body.</p>
+<p>Typical error response codes include:
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="comment-retrieval">Comment Retrieval<a class="headerlink" href="#comment-retrieval" title="Permanent link">&para;</a></h3>
+<p>The GET operation is used to retrieve a document describing one comment using a model-level resource name of the form:</p>
+<ul>
+<li><em>subject</em> <code>/comment</code></li>
+</ul>
+<p>For comment retrieval, the optional <code>@</code> <em>revision</em> qualifier is allowed on the <em>cid</em> of the subject.</p>
+<p>In this operation, content-negotiation is not necessary:</p>
+<pre><code>GET subject/comment HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/plain
+
+comment text
+</code></pre>
+<p>Its general structure is raw <em>comment text</em>.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="comment-deletion">Comment Deletion<a class="headerlink" href="#comment-deletion" title="Permanent link">&para;</a></h3>
+<p>The DELETE method is used to delete an comment using a model-level resource name of the form:</p>
+<ul>
+<li><em>subject</em> <code>/comment</code></li>
+</ul>
+<p>For comment deletion, the optional <code>@</code> <em>revision</em> qualifier is <em>not allowed</em> on the <em>cid</em> of the subject.</p>
+<p>The request does not require content-negotiation since there is no response representation:</p>
+<pre><code>DELETE subject/comment HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields a description:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="access-control-lists">Access Control Lists<a class="headerlink" href="#access-control-lists" title="Permanent link">&para;</a></h2>
+<p>Access control lists (ACLs) are generic sub-resources available within multiple <em>subject</em> resources. The possible <em>subject</em> resources are:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ]</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code> <em>column name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... </li>
+</ul>
+<p>And the ACL sub-resources are named by appending <code>/acl</code> to the <em>subject</em> resource as described in the following operations.</p>
+<h3 id="access-control-lists-retrieval">Access Control Lists Retrieval<a class="headerlink" href="#access-control-lists-retrieval" title="Permanent link">&para;</a></h3>
+<p>The GET method is used to get a summary of all access control (ACL)
+lists:</p>
+<pre><code>GET subject/acl HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields the ACL content as an object with one value list for each named ACL:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "owner": ["user1", "group2"],
+  "select": ["*"],
+  "update": [],
+  "delete": [],
+  "insert": [],
+  "enumerate": []
+}
+</code></pre>
+<p>White-space is added above for readability. This legacy representation is likely to change in future revisions.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="bulk-access-control-list-update">Bulk Access Control List Update<a class="headerlink" href="#bulk-access-control-list-update" title="Permanent link">&para;</a></h3>
+<p>The PUT method can be used to reconfigure all access control lists on a single <em>subject</em> resource at once:</p>
+<pre><code>PUT subject/acl HTTP/1.1
+Content-Type: application/json
+
+{
+  "owner": ["user1", "group2"],
+  "select": ["*"],
+  "update": [],
+  "delete": [],
+  "insert": [],
+  "enumerate": []
+}
+</code></pre>
+<p>The previous configuration of the <em>subject</em> access control lists is completely replaced. When <em>subject</em> is a whole catalog, absent ACL names are interpreted as implicitly present with value <code>[]</code>. When <em>subject</em> is any other mode sub-resource, absent ACL names are interpreted as implicitly present with the value <code>null</code>.</p>
+<p>On success, this request produces no content:</p>
+<pre><code>204 No Content
+</code></pre>
+<h3 id="access-control-list-creation">Access Control List Creation<a class="headerlink" href="#access-control-list-creation" title="Permanent link">&para;</a></h3>
+<p>The PUT method is used to set the state of a specific access control list (the <code>owner</code> ACL in this example):</p>
+<pre><code>PUT subject/acl/owner HTTP/1.1
+Content-Type: application/json
+
+["user1", "group2"]
+</code></pre>
+<p>On success, this request produces no content:</p>
+<pre><code>204 No Content
+</code></pre>
+<h3 id="access-control-list-retrieval">Access Control List Retrieval<a class="headerlink" href="#access-control-list-retrieval" title="Permanent link">&para;</a></h3>
+<p>The GET method is used to get the state of a specific access control list (the <code>owner</code> ACL in this example):</p>
+<pre><code>GET subject/acl/owner HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields the ACL content as a value list:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+["user1", "group2"]
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="access-control-list-bindings">Access Control List Bindings<a class="headerlink" href="#access-control-list-bindings" title="Permanent link">&para;</a></h2>
+<p>Access control list bindings (ACL bindings) are generic sub-resources available within multiple <em>subject</em> resources. The possible <em>subject</em> resources are:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code> <em>column name</em> </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... </li>
+</ul>
+<p>And the ACL binding sub-resources are named by appending <code>/acl_binding</code> to the <em>subject</em> resource as described in the following operations.</p>
+<h3 id="access-control-list-bindings-retrieval">Access Control List Bindings Retrieval<a class="headerlink" href="#access-control-list-bindings-retrieval" title="Permanent link">&para;</a></h3>
+<p>The GET method is used to get a summary of all access control list bindings:</p>
+<pre><code>GET subject/acl_binding HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields the ACL content as an object with one value list for each named ACL:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "my_example_binding": {
+    "types": ["owner"],
+    "projection": "My Owner Column",
+    "projection_type": "acl"
+  },
+  "my_example_binding2": {
+    "types": ["select"],
+    "projection": [{"filter": "Is Public", "operand": true}, "Is Public"],
+    "projection_type": "nonnull"
+  }
+}
+</code></pre>
+<p>White-space is added above for readability. This legacy representation is likely to change in future revisions.</p>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="bulk-access-control-list-binding-update">Bulk Access Control List Binding Update<a class="headerlink" href="#bulk-access-control-list-binding-update" title="Permanent link">&para;</a></h3>
+<p>The PUT method can be used to reconfigure all access control list bindings on a single <em>subject</em> resource at once:</p>
+<pre><code>PUT subject/acl HTTP/1.1
+Content-Type: application/json
+
+{
+  "my_example_binding": {
+    "types": ["owner"],
+    "projection": "My Owner Column",
+    "projection_type": "acl"
+  },
+  "my_example_binding2": {
+    "types": ["select"],
+    "projection": [{"filter": "Is Public", "operand": true}, "Is Public"],
+    "projection_type": "nonnull"
+  }
+}
+</code></pre>
+<p>The previous configuration of access control list bindings on <em>subject</em> is completely replaced.</p>
+<p>On success, this request produces no content:</p>
+<pre><code>204 No Content
+</code></pre>
+<h3 id="access-control-list-binding-creation">Access Control List Binding Creation<a class="headerlink" href="#access-control-list-binding-creation" title="Permanent link">&para;</a></h3>
+<p>The PUT method is used to set the state of a specific access control list binding:</p>
+<pre><code>PUT subject/acl_binding/my_example_binding HTTP/1.1
+Content-Type: application/json
+
+{
+  "types": ["owner"],
+  "projection": "My Owner Column",
+  "projection_type": "acl"
+}
+</code></pre>
+<p>On success, this request produces no content:</p>
+<pre><code>204 No Content
+</code></pre>
+<h3 id="access-control-list-binding-retrieval">Access Control List Binding Retrieval<a class="headerlink" href="#access-control-list-binding-retrieval" title="Permanent link">&para;</a></h3>
+<p>The GET method is used to get the state of a specific access control list binding:</p>
+<pre><code>GET subject/acl_binding/my_example_binding HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, this request yields the ACL content as a value list:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "types": ["owner"],
+  "projection": "My Owner Column",
+  "projection_type": "acl"
+}
+</code></pre>
+<p>Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../../acl/concepts/" class="btn btn-neutral float-right" title="ERMrest Access Control">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../naming/" class="btn btn-neutral" title="ERMrest Model Resources"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../naming/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../../acl/concepts/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>ERMrest History Management Operations - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "ERMrest History Management Operations";
+    var mkdocs_page_input_path = "api-doc/history/rest.md";
+    var mkdocs_page_url = "/api-doc/history/rest/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">ERMrest History Management Operations</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-history-operations">ERMrest History Operations</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#history-range-discovery">History Range Discovery</a></li>
+        
+            <li><a class="toctree-l4" href="#history-range-truncation">History Range Truncation</a></li>
+        
+            <li><a class="toctree-l4" href="#amend-historical-acls">Amend Historical ACLs</a></li>
+        
+            <li><a class="toctree-l4" href="#amend-historical-acl-bindings">Amend Historical ACL Bindings</a></li>
+        
+            <li><a class="toctree-l4" href="#amend-historical-annotations">Amend Historical Annotations</a></li>
+        
+            <li><a class="toctree-l4" href="#redact-historical-attributes">Redact Historical Attributes</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>Client-Specific Rights Summaries &raquo;</li>
+        
+      
+    
+    <li>ERMrest History Management Operations</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-history-operations">ERMrest History Operations<a class="headerlink" href="#ermrest-history-operations" title="Permanent link">&para;</a></h1>
+<p>The <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest</a> history operations manipulate history storage in the catalog.</p>
+<h2 id="history-range-discovery">History Range Discovery<a class="headerlink" href="#history-range-discovery" title="Permanent link">&para;</a></h2>
+<p>A simple GET request can discover the shape of history:</p>
+<pre><code>GET /ermrest/catalog/N/history/,
+Host: www.example.com
+</code></pre>
+<p>a successful response:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "amendver": null,
+  "snaprange": [
+    "2PV-1QEH-93Z6", 
+    "2PX-WS30-E58W"
+  ]
+}
+</code></pre>
+<p>The two values in the <code>snaprange</code> field represent an earliest and
+latest snapshot identifier known to the catalog. The <code>amendver</code> will
+indicate the latest amendment identifier for this range, if any
+history mutation has occurred. A <code>null</code> value for <code>amendver</code> indicates
+that the snapshots have not been modified administratively.</p>
+<p>A narrower boundary can also be queried to find out whether that particular
+range of history has been amended:</p>
+<pre><code>GET /ermrest/catalog/N/history/2PV-1QEH-FFFF,2PX-WS30-0000
+Host: www.example.com
+</code></pre>
+<p>this will return a similar response but the <code>snaprange</code> and <code>amendver</code> fields
+will only describe history within the requested range:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "amendver": null, 
+  "snaprange": [
+    "2PV-1QEM-D9T0", 
+    "2PX-WS1Y-R5H0"
+  ]
+}
+</code></pre>
+<h2 id="history-range-truncation">History Range Truncation<a class="headerlink" href="#history-range-truncation" title="Permanent link">&para;</a></h2>
+<p>A single, bulk request can irreversibly truncate catalog history:</p>
+<pre><code>DELETE /ermrest/catalog/N/history/,2PV-1QEH-93Z6
+Host: www.example.com
+</code></pre>
+<p>All historical model and data content with a death time before or
+equal to the provided <em>until</em> boundary, <code>2Pv-1QEH-93Z6</code> in this
+example, time will be discarded. This can be used to implement a data
+retention horizon and to reclaim storage resources.</p>
+<h2 id="amend-historical-acls">Amend Historical ACLs<a class="headerlink" href="#amend-historical-acls" title="Permanent link">&para;</a></h2>
+<p>A collection of ACL resources can be mutated over a <em>time span</em>:</p>
+<pre><code>PUT /ermrest/catalog/N/history/2PV-1QEH-93Z6,2PX-WS30-E58W/acl
+Host: www.example.com
+Content-Type: application/json
+
+{"owner": ["admin1", "admin2"], "select": ["*"]}
+</code></pre>
+<p>In this example, the catalog-level ACLs applicable to all snapshots
+within the given range <em>from</em> to <em>until</em> are set to the input value.
+Using the subject-qualified URL format for individual model elements,
+ACLs on other parts of the model may also be amended:</p>
+<pre><code>PUT /ermrest/catalog/N/history/2PV-1QEH-93Z6,2PX-WS30-E58W/acl/mRID
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "owner": ["admin1", "admin2"],
+  "select": ["*"]
+}
+</code></pre>
+<h2 id="amend-historical-acl-bindings">Amend Historical ACL Bindings<a class="headerlink" href="#amend-historical-acl-bindings" title="Permanent link">&para;</a></h2>
+<p>A collection of ACL binding resources can be mutated over a <em>time span</em>:</p>
+<pre><code>PUT /ermrest/catalog/N/history/2PV-1QEH-93Z6,2PX-WS30-E58W/acl_binding/mRID
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "My Binding": {
+    "types": ["owner"], 
+    "projection": "RCB",
+    "projection_type": "acl",
+    "scope_acl": ["registered-users-group"]
+  }
+}
+</code></pre>
+<p>The effect of this operation will be to destructively overwrite the
+effective ACL bindings for all revisions whose lifetimes are wholly
+enclosed within the time span.</p>
+<h2 id="amend-historical-annotations">Amend Historical Annotations<a class="headerlink" href="#amend-historical-annotations" title="Permanent link">&para;</a></h2>
+<p>A collection of annotation resources can be mutated over a <em>time span</em>:</p>
+<pre><code>PUT /ermrest/catalog/N/history/2PV-1QEH-93Z6,2PX-WS30-E58W/annotation
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "tag:misd.isi.edu,2015:display": {"show_nulls": true},
+  "tag:isrd.isi.edu,2018:indexing-preferences": {"btree": true}
+}
+</code></pre>
+<p>The effect of this operation will be to destructively overwrite the
+effective annotations for all revisions whose lifetimes are wholly
+enclosed within the time span. The preceding example amends catalog-level
+annotations, but annotations may also be amended on individual model
+elements in the history:</p>
+<pre><code>PUT /ermrest/catalog/N/history/2PV-1QEH-93Z6,2PX-WS30-E58W/annotation/mRID
+Host: www.example.com
+Content-Type: application/json
+
+{
+  "tag:misd.isi.edu,2015:display": {"show_nulls": true},
+  "tag:isrd.isi.edu,2018:indexing-preferences": {"btree": true}
+}
+</code></pre>
+<h2 id="redact-historical-attributes">Redact Historical Attributes<a class="headerlink" href="#redact-historical-attributes" title="Permanent link">&para;</a></h2>
+<p>Specific attributes can be redacted over a <em>time span</em>:</p>
+<pre><code>DELETE /ermrest/catalog/N/history/2PV-1QEH-93Z6,2PX-WS30-E58W/attribute/cRID
+Host: www.example.com
+</code></pre>
+<p>The effect of this operation is to redact (set NULL) all values of the
+column whose RID is <em>CRID</em> for all tuple revisions whose lifetimes are
+wholly enclosed within the time span. The enclosing table is implicit
+because <em>CRID</em> uniquely identifies one column within the whole model.</p>
+<p>More selective redaction can be made by a limited filter syntax:</p>
+<pre><code>DELETE /ermrest/catalog/N/history/2PV-1QEH-93Z6,2PX-WS30-E58W/attribute/cRID/fRID=X
+Host: www.example.com
+</code></pre>
+<p>Here, only tuples with the given filter column whose RID is <em>fRID</em>
+matches a given value <em>X</em> are redacted.  More rich filtering syntax
+may be considered in future enhancements to ERMrest. This syntax is
+sufficient to target one row by its actual <code>RID</code> or all rows with a
+certain <em>bad value</em> <em>X</em> in the column being redacted.</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="../naming/" class="btn btn-neutral" title="ERMrest History Management Resources"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../naming/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

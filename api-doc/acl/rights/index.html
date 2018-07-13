@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>Rights Summaries - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "Rights Summaries";
+    var mkdocs_page_input_path = "api-doc/acl/rights.md";
+    var mkdocs_page_url = "/api-doc/acl/rights/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class=" current">
+                    
+    <a class="current" href="./">Rights Summaries</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-access-control">ERMrest Access Control</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#access-decision-introspection">Access Decision Introspection</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>Client-Specific Rights Summaries &raquo;</li>
+        
+      
+    
+    <li>Rights Summaries</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-access-control">ERMrest Access Control<a class="headerlink" href="#ermrest-access-control" title="Permanent link">&para;</a></h1>
+<h2 id="access-decision-introspection">Access Decision Introspection<a class="headerlink" href="#access-decision-introspection" title="Permanent link">&para;</a></h2>
+<p>Because many user-interfaces benefit from anticipating policy
+decisions and customizing the options presented to the user, ERMrest
+exposes decision information summarizing the effects of currently
+active policy. These rights summaries take into account the requesting
+client's privileges.</p>
+<p>The decision information is presented in different ways depending
+on the resource and access mode:</p>
+<ol>
+<li>An invisible catalog will raise an access error for all access requests.</li>
+<li>An invisible model element will be omitted from the catalog introspection response and raise an error for all direct access or dependent access requests (i.e. a client guessing at model elements not shown in the introspection).<ul>
+<li>Schemas can be entirely hidden.</li>
+<li>Tables can be entirely hidden.</li>
+<li>Columns can be entirely hidden.</li>
+<li>Keys and foreign keys will be hidden if their constituent columns disallow data selection.</li>
+</ul>
+</li>
+<li>Some access rights will be advertised on model elements in the introspection document.</li>
+<li>An invisible row or datum will be filtered during queries (both for data retrieval and queries in support of data-modifying requests).</li>
+<li>Datum-specific access rights will be advertised on retrieved data rows.</li>
+<li>Datum-specific expression rights will be advertised on foreign key reference constraints as a filtered domain query.</li>
+</ol>
+<h3 id="static-rights-summary">Static Rights Summary<a class="headerlink" href="#static-rights-summary" title="Permanent link">&para;</a></h3>
+<p>The <code>"rights"</code> sub-resources appear throughout the schema
+introspection document to describe the requesting client's rights. The
+following illustrates where these rights are distributed on sub-resources:</p>
+<pre><code>{
+  "rights": {
+    "owner": bool,
+    "create": bool
+  },
+  "schemas": {
+    "S": {
+      "rights": {
+        "owner": bool,
+        "create": bool
+      },
+      "tables": {
+        "T": {
+          "rights": {
+            "owner": bool,
+            "insert": bool,
+            "update": bool,
+            "delete": bool,
+            "select": bool
+          },
+          "column_definitions": [
+            {
+              "name": "C",
+              "rights": {
+                "insert": bool,
+                "update": bool,
+                "delete": bool,
+                "select": bool
+              }
+            },
+            ...
+          ],
+          "foreign_keys": [
+            {
+              "domain_queries": {
+                "insert": url,
+                "update": url
+              },
+              ...
+            },
+            ...
+          ]
+        },
+        ...
+      }
+    },
+    ...
+  }
+}
+</code></pre>
+<p>Model enumeration access is not indicated through the <code>"rights"</code>
+sub-document. Rather, a model element which does not grant enumeration
+will be omitted from the catalog introspection results. The rights
+sub-document does not include fields for all ACLs which may be present
+on a given model element, but only for the subset of actual access
+modes which apply to the model element itself. E.g. data access modes
+can be configured globally on catalogs or schemas, but they only grant
+actual access rights for operations applied to tables or columns.</p>
+<h3 id="row-level-rights-summary">Row-Level Rights Summary<a class="headerlink" href="#row-level-rights-summary" title="Permanent link">&para;</a></h3>
+<p>When dynamic ACL bindings are in effect, the static rights described
+in the preceding section MAY replace the boolean <code>true</code> or <code>false</code>
+access right decision with <code>null</code> meaning the decision cannot be
+statically determined. In this case, a row-level rights summary can
+be consulted to understand access rights on existing data.</p>
+<h3 id="predicting-access-decisions">Predicting Access Decisions<a class="headerlink" href="#predicting-access-decisions" title="Permanent link">&para;</a></h3>
+<p>To predict whether a given request will be permitted, all of the
+static and row-level rights summaries must be consulted together:</p>
+<ol>
+<li>All involved model resources must be visible in the enumerated model document.</li>
+<li>The operation must be allowed by all involved model resources</li>
+<li>Model rights must allow model access operations</li>
+<li>Static data-access rights must not disallow data access operations<ul>
+<li>Affected table or tables must not disallow access in rights advertised on table</li>
+<li>Affected column or columns must not disallow access in rights advertised on columns</li>
+</ul>
+</li>
+<li>Row-dependent access rights must not disallow access on existing data</li>
+<li>Affected rows must be visible in a query</li>
+<li>Affected row rights must not disallow data modification operations</li>
+</ol>
+<p>Keep in mind, even when all rights seem to allow an operation, the
+subsequent operation may still fail due to either asynchronous changes
+to server state or due to other integrity constraints and operational
+considerations not included in the policy system introspection.</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../../data/naming/" class="btn btn-neutral float-right" title="ERMrest Data Resources">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../dynamic/" class="btn btn-neutral" title="Dynamic Data-Dependent Policies"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../dynamic/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../../data/naming/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

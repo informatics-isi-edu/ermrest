@@ -1,8 +1,0 @@
-
-# Recipes for CentOS 7.x
-
-$(VARLIBDIR):
-	mkdir -p $(VARLIBDIR)
-
-httpd_restart: force
-	systemctl stop httpd > /dev/null 2>&1 && systemctl start httpd > /dev/null 2>&1

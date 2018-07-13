@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>ERMrest Data Resources - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "ERMrest Data Resources";
+    var mkdocs_page_input_path = "api-doc/data/naming.md";
+    var mkdocs_page_url = "/api-doc/data/naming/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../acl/rights/">Rights Summaries</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">ERMrest Data Resources</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-data-resource-naming">ERMrest Data Resource Naming</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#entity-names">Entity Names</a></li>
+        
+            <li><a class="toctree-l4" href="#attribute-names">Attribute Names</a></li>
+        
+            <li><a class="toctree-l4" href="#aggregate-names">Aggregate Names</a></li>
+        
+            <li><a class="toctree-l4" href="#attribute-group-names">Attribute Group Names</a></li>
+        
+            <li><a class="toctree-l4" href="#attribute-binning">Attribute Binning</a></li>
+        
+            <li><a class="toctree-l4" href="#data-paths">Data Paths</a></li>
+        
+            <li><a class="toctree-l4" href="#filter-language">Filter Language</a></li>
+        
+            <li><a class="toctree-l4" href="#sort-modifier">Sort Modifier</a></li>
+        
+            <li><a class="toctree-l4" href="#paging-modifiers">Paging Modifiers</a></li>
+        
+            <li><a class="toctree-l4" href="#accept-query-parameter">Accept Query Parameter</a></li>
+        
+            <li><a class="toctree-l4" href="#download-query-parameter">Download Query Parameter</a></li>
+        
+            <li><a class="toctree-l4" href="#defaults-query-parameter">Defaults Query Parameter</a></li>
+        
+            <li><a class="toctree-l4" href="#limit-query-parameter">Limit Query Parameter</a></li>
+        
+            <li><a class="toctree-l4" href="#data-paging">Data Paging</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>Client-Specific Rights Summaries &raquo;</li>
+        
+      
+    
+    <li>ERMrest Data Resources</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-data-resource-naming">ERMrest Data Resource Naming<a class="headerlink" href="#ermrest-data-resource-naming" title="Permanent link">&para;</a></h1>
+<p>The <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest</a> data resource names always have a common structure:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/</code> <em>api</em> <code>/</code> <em>path</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/</code> <em>api</em> <code>/</code> <em>path</em> <em>suffix</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/</code> <em>api</em> <code>/</code> <em>path</em> <em>suffix</em> <code>?</code> <em>query parameters</em></li>
+</ul>
+<p>where the components in this structure are:</p>
+<ul>
+<li><em>service</em>: the ERMrest service endpoint such as <code>https://www.example.com/ermrest</code>.</li>
+<li><em>cid</em>: the catalog identifier for one dataset such as <code>42</code>.</li>
+<li><em>revision</em>: (optional) timestamp identifying a snapshot of the catalog to query.</li>
+<li><em>api</em>: the API or data resource space identifier such as <code>entity</code>, <code>attribute</code>, <code>attributegroup</code>, or <code>aggregate</code>.</li>
+<li><em>path</em>: the data path which identifies one filtered entity set with optional joined context.</li>
+<li><em>suffix</em>: additional content that depends on the <em>api</em></li>
+<li>the group keys associated with <code>attributegroup</code> resources</li>
+<li>the projection associated with <code>attribute</code>, <code>attributegroup</code>, and <code>aggregate</code> resources</li>
+<li>the <code>@sort(...)</code> modifier to order results of queries</li>
+<li>the <code>@before(...)</code> or <code>@after(...)</code> modifier to select a paging position within sorted results</li>
+<li><em>query parameters</em>: optional parameters which may affect interpretation of the data name</li>
+<li>the <code>limit</code> parameter to define query result paging length</li>
+<li>the <code>accept</code> parameter to override HTTP <code>Accept</code> header for content negotiation</li>
+<li>the <code>defaults</code> parameter to modify the behavior of POST operations to the <code>entity</code> API</li>
+</ul>
+<h2 id="entity-names">Entity Names<a class="headerlink" href="#entity-names" title="Permanent link">&para;</a></h2>
+<p>The <code>entity</code> resource space denotes whole entities using names of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em></li>
+</ul>
+<p>The primary naming convention, without query parameters, denotes the final entity set referenced by <em>path</em>, as per the <a href="#data-paths">data path rules</a>. The denoted entity set has the same tuple structure as the final table instance in <em>path</em> and may be a subset of the entities based on joining and filtering criteria encoded in <em>path</em>. The set of resulting tuples are distinct according to the key definitions of that table instance, i.e. any joins in the path may be used to filter out rows but do not cause duplicate rows.</p>
+<h2 id="attribute-names">Attribute Names<a class="headerlink" href="#attribute-names" title="Permanent link">&para;</a></h2>
+<p>The <code>attribute</code> resource space denotes projected attributes of entities using names of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attribute/</code> <em>path</em> <code>/</code> <em>column reference</em> <code>,</code> ...</li>
+</ul>
+<p>The <em>path</em> is interpreted identically to the <code>entity</code> resource space. However, rather than denoting a set of whole entities, the <code>attribute</code> resource space denotes specific fields <em>projected</em> from that set of entities.  The projected <em>column reference</em> list elements can be in one of several forms:</p>
+<ul>
+<li>[ <em>out alias</em> <code>:=</code> ] <em>column name</em></li>
+<li>A field is projected from the final table instance of <em>path</em>.</li>
+<li>An optional <em>out alias</em> can be assigned to rename the output column, and by default the output column will be named by the unqualified <em>column name</em>.</li>
+<li><code>*</code></li>
+<li>A wildcard that expands to all of the columns from the final table instance of <em>path</em>.</li>
+<li>The output columns are automatically named by their unqualified column names.</li>
+<li>[ <em>out alias</em> <code>:=</code> ] <em>alias</em> <code>:</code> <em>column name</em></li>
+<li>A field is projected from a table instance bound to <em>alias</em> in <em>path</em>.</li>
+<li>An optional <em>out alias</em> can be assigned to rename the output column, and by default the output column will be named by the unqualified <em>column name</em>.</li>
+<li><em>alias</em> <code>:</code> <code>*</code></li>
+<li>A wildcard that expands to all of the columns from a table instance bound to <em>alias</em> in <em>path</em>.</li>
+<li>The output columns are automatically named by their <em>alias</em> qualified column names to prevent collisions between the multiple wildcard-expansions that are possible within one complex <em>path</em>. If a projection <code>A:*</code> is used for a table instance with a column named <code>foo</code> in it, the output data will then have a column with the literal name <code>A:foo</code>. Special attention must be paid when trying to reference such columns using the <a href="#sort-modifier">sort modifier</a>, as this modifier uses the output name <code>A:foo</code> as a user-supplied literal and therefore the <code>:</code> must be escaped as in <code>@sort(A%3Afoo)</code>.</li>
+</ul>
+<p>Like in the <code>entity</code> resource space, joined tables may cause filtering but not duplication of rows in the final entity set. Thus, when projecting fields from aliased table instances in <em>path</em>, values are arbitrarily selected from one of the joined contextual rows if more than one such row was joined to the same final entity.</p>
+<h2 id="aggregate-names">Aggregate Names<a class="headerlink" href="#aggregate-names" title="Permanent link">&para;</a></h2>
+<p>The <code>aggregate</code> resource space denotes computed (global) aggregates using names of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/aggregate/</code> <em>path</em> <code>/</code> <em>aggregate</em> <code>,</code> ...</li>
+</ul>
+<p>The <em>path</em> is interpreted slightly differently than in the <code>attribute</code> resource space. Rather than denoting a set of entities drawn from the final table instance in <em>path</em>, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of intermediate records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to a single <em>aggregate</em> tuple. The computed <em>aggregate</em> tuple elements can be in one of several forms:</p>
+<ul>
+<li><em>out alias</em> <code>:=</code> <em>function</em> <code>(</code> <em>column name</em> <code>)</code></li>
+<li><em>out alias</em> <code>:=</code> <em>function</em> <code>(*)</code></li>
+<li><em>out alias</em> <code>:=</code> <em>function</em> <code>(</code> <em>in alias</em> <code>:</code> <em>column name</em> <code>)</code></li>
+<li><em>out alias</em> <code>:=</code> <em>function</em> <code>(</code> <em>in alias</em> <code>:</code> <code>*</code> <code>)</code></li>
+</ul>
+<p>The <em>out alias</em> is the name given to the computed field. The <em>function</em> is one of a limited set of aggregate functions supported by ERMrest:</p>
+<ul>
+<li><code>min</code>: the minimum non-NULL value (or NULL)</li>
+<li><code>max</code>: the maximum non-NULL value (or NULL)</li>
+<li><code>avg</code>: the average non-NULL value (or NULL)</li>
+<li><code>cnt_d</code>: the count of distinct non-NULL values</li>
+<li><code>cnt</code>: the count of non-NULL values</li>
+<li><code>array</code>: an array containing all values (including NULL)</li>
+<li><code>array_d</code>: an array containing distinct values (including NULL)</li>
+</ul>
+<p>These aggregate functions are evaluated over the set of values projected from the entity set denoted by <em>path</em>. The same column resolution rules apply as in other projection lists: a bare <em>column name</em> MUST reference a column of the final entity set while an alias-qualified column name MUST reference a column of a table instance bound to <em>alias</em> in the <em>path</em>. Some aggregate functions are only supported for a subset of available column types.</p>
+<p>As a special case, the psuedo-column <code>*</code> can be used in several idiomatic forms:</p>
+<ul>
+<li><code>cnt(*)</code>: a count of entities rather than of non-NULL values is computed</li>
+<li><code>array(</code><em>alias</em><code>:*)</code>: an array of records rather than an array of values is computed</li>
+</ul>
+<p>TODO: document other variants?</p>
+<h2 id="attribute-group-names">Attribute Group Names<a class="headerlink" href="#attribute-group-names" title="Permanent link">&para;</a></h2>
+<p>The <code>attributegroup</code> resource space denotes groups of entities by arbitrary grouping keys and computed (group-level) aggregates using names of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ...</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ... <code>;</code> <em>aggregate</em> <code>,</code> ...</li>
+</ul>
+<p>The <em>path</em> is interpreted slightly differently than in the <code>attribute</code> resource space. Rather than denoting a set of entities drawn from the final table instance in <em>path</em>, it denotes a set of entity combinations, meaning that there is a potential for a combinatoric number of records depending on how path entity elements are linked. This denoted set of entity combinations is reduced to groups where each group represents a set of entities sharing the same <em>group key</em> tuple, and optional <em>aggregate</em> list elements are evaluated over this set of entities to produce a group-level aggregate value.</p>
+<p>The <em>group key</em> list elements use the same notation as the <em>column reference</em> elements in the <code>attribute</code> resource space. The <em>aggregate</em> list elements use the same notation as the <em>aggregate</em> elements in the <code>aggregate</code> resource space or the <em>column reference</em> elements in the <code>attribute</code> resource space. An <em>aggregate</em> using <em>column reference</em> notation denotes an example value chosen from an arbitrary member of each group.</p>
+<h2 id="attribute-binning">Attribute Binning<a class="headerlink" href="#attribute-binning" title="Permanent link">&para;</a></h2>
+<p>In order to group numerical values into bins, e.g. for histogram presentation, a special <em>binning</em> operator is allowed in attribute or group key projections in place of a bare column reference:</p>
+<ul>
+<li><code>bin(</code> <em>column name</em> <code>;</code> <em>nbins</em> <code>;</code> <em>minval</em> <code>;</code> <em>maxval</em> <code>)</code></li>
+<li><code>bin(</code> <em>in alias</em> <code>:</code> <em>column name</em> <code>;</code> <em>nbins</em> <code>;</code> <em>minval</em> <code>;</code> <em>maxval</em> <code>)</code></li>
+</ul>
+<p>The binning operator determines which bucket the value in <em>column name</em> belongs to, dividing the requested range from <em>minval</em> (inclusive) to <em>maxval</em> (exclusive) into <em>nbins</em> equal-width intervals. The result is always a three-element JSON array <code>[</code> <em>bucket</em> <code>,</code> <em>lower</em> <code>,</code> <em>upper</em> <code>]</code> describing the bucket.</p>
+<ul>
+<li><em>bucket</em>: The bin number which the value falls into.</li>
+<li><code>null</code>: The <code>null</code> bin captures all NULL values.</li>
+<li>0: The zero bin captures all values below the requested range.</li>
+<li>1: The first bin in the requested range.</li>
+<li><em>nbins</em>: The last bin in the requested range.</li>
+<li><em>nbins</em> + 1: The final bin captures all values above the requested range.</li>
+<li><em>lower</em>: The lower bound (inclusive) of the bin, or <code>null</code>.</li>
+<li><em>upper</em>: The upper bound (exclusive) of the bin, or <code>null</code>.</li>
+</ul>
+<p>If the client does not wish to consider NULL or out-of-range values, they MAY include an appropriate filter to exclude those rows from the query.</p>
+<p>A useful idiom is to use binning as a group-key in the <code>attributegroup</code> API with <code>cnt(*)</code> to count all matching rows within each bin. The results will be sparse: only bins with a non-zero row count will appear as grouped output rows. The sort modifier MAY be applied to the binning group key.</p>
+<h3 id="supported-column-types-for-binning">Supported Column Types for Binning<a class="headerlink" href="#supported-column-types-for-binning" title="Permanent link">&para;</a></h3>
+<p>The binning operator is only supported for certain basic column storage types:</p>
+<ul>
+<li><code>date</code></li>
+<li><code>float4</code>, <code>float8</code></li>
+<li><code>int2</code>, <code>int4</code>, <code>int8</code></li>
+<li><code>numeric</code></li>
+<li><code>timestamptz</code>, <code>timestamp</code></li>
+</ul>
+<h2 id="data-paths">Data Paths<a class="headerlink" href="#data-paths" title="Permanent link">&para;</a></h2>
+<p>ERMrest introduces a general path-based syntax for naming data resources with idioms for navigation and filtering of entity sets. The <em>path</em> element of the data resource name always denotes a set of entities or joined entities.  The path must be interpreted from left to right in order to understand its meaning. The denoted entity set is understood upon reaching the right-most element of the path and may be modified by the resource space or <em>api</em> under which the path occurs.</p>
+<h3 id="path-root">Path Root<a class="headerlink" href="#path-root" title="Permanent link">&para;</a></h3>
+<p>A path always starts with a direct table reference:</p>
+<ul>
+<li><em>table name</em></li>
+<li><em>schema name</em> <code>:</code> <em>table name</em></li>
+</ul>
+<p>which must already be defined in the catalog under the corresponding model resource:</p>
+<ul>
+<li><code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em></li>
+</ul>
+<p>The unqualified <em>table name</em> MAY be used in a path if it is the only occurrence of that table name across all schemata in the catalog, i.e. only if it is unambiguous.</p>
+<p>A path consisting of only one table reference denotes the entities within that table.</p>
+<h3 id="path-filters">Path Filters<a class="headerlink" href="#path-filters" title="Permanent link">&para;</a></h3>
+<p>A filter element can augment a path with a filter expression:</p>
+<ul>
+<li><em>parent path</em> <code>/</code> <em>filter</em></li>
+</ul>
+<p>after which the combined path denotes a filtered subset of the entities denoted by <em>parent path</em> where the <em>filter</em> expressed in the <a href="#filter-language">filter language</a> evaluates to a true value.  The accumulative affect of several filter path elements is a logical conjunction of all the filtering criteria in those elements. It is also intuitive to think of a chain of filter elements as a filtering pipeline or sieve, each eliminating data which does not match the filter criteria.</p>
+<h3 id="entity-links">Entity Links<a class="headerlink" href="#entity-links" title="Permanent link">&para;</a></h3>
+<p>An entity link element can augment a path with an additional related or joined table:</p>
+<ul>
+<li><em>parent path</em> <code>/</code> <em>table name</em></li>
+<li><em>parent path</em> <code>/</code> <em>schema name</em> <code>:</code> <em>table name</em></li>
+</ul>
+<p>as in the path root, <em>table name</em> may be explicitly schema qualified or left unqualified if it is unambiguous within the catalog. In order for this basic table link element to be valid, there must be at least one foreign-key relationship linking the entity set denoted by <em>parent path</em> and the table denoted by <em>table name</em>. The links may point in either direction, i.e. the <em>parent path</em> entity set may contain foreign keys which reference <em>table name</em> or <em>table name</em> may contain foreign keys which reference the <em>parent path</em> entities.</p>
+<p>When there are multiple possible linkages to choose from, the link is formed using the disjunction of all applicable link conditions.</p>
+<h4 id="linkage-by-foreign-key-endpoint">Linkage by Foreign-Key Endpoint<a class="headerlink" href="#linkage-by-foreign-key-endpoint" title="Permanent link">&para;</a></h4>
+<p>A more precise entity link element can choose one link condition by identifying an endpoint of the linkage as a set of columns:</p>
+<ul>
+<li><em>parent path</em> <code>/(</code> <em>column name</em> <code>,</code> ... <code>)</code></li>
+<li><em>parent path</em> <code>/(</code> <em>table name</em> <code>:</code> <em>column name</em> <code>,</code> ... <code>)</code></li>
+<li><em>parent path</em> <code>/(</code> <em>schema name</em> <code>:</code> <em>table name</em> <code>:</code> <em>column name</em> <code>,</code> ... <code>)</code></li>
+</ul>
+<p>This set of columns MUST comprise either a primary key or a foreign key which unambiguously identifies a single possible linkage between the <em>parent path</em> and a single possible linked entity table. As a convenience, the <em>schema name</em> and <em>table name</em> need not be repeated for additional <em>column name</em> elements in the list after the first one; each unqualified <em>column name</em> will be resolved against the same table as the first <em>column name</em> in the sequence.</p>
+<p>The resolution procedure for these column sets is as follows:</p>
+<ol>
+<li>First column resolution:</li>
+<li>Each bare <em>column name</em> MUST be a column of the entity set denoted by <em>parent path</em>;</li>
+<li>Each qualified name pair <em>table name</em> <code>:</code> <em>column name</em> MUST be a column in a table instance within <em>parent path</em> if <em>table name</em> is bound as an alias in <em>parent path</em> (see following sub-section on table instance aliases);</li>
+<li>Each qualified name pair <em>table name</em> <code>:</code> <em>column name</em> MUST be a column in a table known unambiguously by <em>table name</em> if <em>table name</em> is not bound as an alias in <em>parent path</em>;</li>
+<li>Each qualified name triple <em>schema name</em> <code>:</code> <em>table name</em> <code>:</code> <em>column name</em> MUST be a column within a table in the catalog.</li>
+<li>Endpoint resolution:</li>
+<li>All columns in the column set MUST resolve to the same table in the catalog or the same table instance in the <em>parent path</em>;</li>
+<li>When a sequence of more than one <em>column name</em> is presented, the second and subsequent column names MAY be unqualified and are resolved first to the table associated with the first (possibly qualified) <em>column name</em> in the sequence.</li>
+<li>The set of columns MUST comprise either a foreign key or a key in their containing table but not both.</li>
+<li>Link resolution:</li>
+<li>If the endpoint is a key or foreign key in a table in the catalog, that endpoint MUST unambiguously participate in exactly one link between that table and the entity set denoted by <em>parent path</em>;</li>
+<li>If the endpoint is a key or foreign key of a table instance in <em>parent path</em> (whether referenced by alias-qualified or unqualified column names), that endpoint MUST unambiguously participate in exactly one link between that table instance and exactly one table in the catalog.</li>
+</ol>
+<p>The path extended with an entity link element denotes the entities of a new table drawn from the catalog and joined to the existing entities in <em>parent path</em>, with the default entity context of the extended path being the newly joined (i.e. right-most) table instance.</p>
+<h4 id="linkage-by-explicit-column-mapping">Linkage by Explicit Column Mapping<a class="headerlink" href="#linkage-by-explicit-column-mapping" title="Permanent link">&para;</a></h4>
+<p>When one endpoint is not sufficient to unambiguously select path linkage, a fully explicit join condition can be specified as a sequence of left-hand columns which are equated to a corresponding sequence of right-hand columns:</p>
+<ul>
+<li><em>parent path</em> <code>/(</code> <em>left column name</em> <code>,</code> ... <code>)=(</code> <em>right table name</em> <code>:</code> <em>right column name</em> <code>,</code> ... <code>)</code></li>
+<li><em>parent path</em> <code>/(</code> <em>left column name</em> <code>,</code> ... <code>)=(</code> <em>right schema name</em> <code>:</code> <em>right table name</em> <code>:</code> <em>right column name</em> <code>,</code> ... <code>)</code></li>
+</ul>
+<p>This notation requires that the <em>left hand column</em> list resolve from <em>parent path</em> and the <em>right hand column</em> list resolve from a table found in the model. This notation resolves the first and subsequent columns of each list as per the preceding column resolution rule. However, it relaxes the other endpoint and link resolution rules. Because it fully expresses an unambiguous join condition, it does not require a corresponding foreign key reference link to be found in the catalog model.  For a hypothetical join condition:</p>
+<ul>
+<li><em>parent path</em> <code>/(L1,L2,L3)=(T:R1,R2,R3)</code></li>
+</ul>
+<p>The indicated join condition corresponds to the SQL <code>L1 = T.R1 AND L2 = T.R2 AND L3 = T.R3</code>. Each positional <em>left column</em> and <em>right column</em> MUST have compatible types in order for their values to be tested for equality.</p>
+<h4 id="outer-join-linkage-by-column-mapping">Outer-Join Linkage by Column Mapping<a class="headerlink" href="#outer-join-linkage-by-column-mapping" title="Permanent link">&para;</a></h4>
+<p>With the preceding notation, an optional join type is also allowed as a prefix to the column mapping notation:</p>
+<ul>
+<li><em>parent path</em> <code>/left(</code> <em>left columns</em> ... <code>)=(</code> <em>right columns</em> ... <code>)</code></li>
+<li><em>parent path</em> <code>/right(</code> <em>left columns</em> ... <code>)=(</code> <em>right columns</em> ... <code>)</code></li>
+<li><em>parent path</em> <code>/full(</code> <em>left columns</em> ... <code>)=(</code> <em>right columns</em> ... <code>)</code></li>
+</ul>
+<p>These three keywords <code>left</code>, <code>right</code>, and <code>full</code> denote a "left outer join", "right outer join", or "full outer join", respectively. When no such keyword is present, the default join type is an "inner join". Presently, the outer-join modes are only available with fully explicit column mapping notation.</p>
+<h3 id="table-instance-aliases">Table Instance Aliases<a class="headerlink" href="#table-instance-aliases" title="Permanent link">&para;</a></h3>
+<p>The root element or an entity link element may be decorated with an alias prefix:</p>
+<ul>
+<li><em>alias</em> <code>:=</code> <em>table name</em></li>
+<li><em>parent path</em> <code>/</code> <em>alias</em> <code>:=</code> <em>table name</em></li>
+<li><em>parent path</em> <code>/</code> <em>alias</em> <code>:=(</code> <em>column name</em>, ... <code>)</code></li>
+</ul>
+<p>This denotes the same entity set as the plain element but also binds the <em>alias</em> as a way to reference a particular table instance from other path elements to the right of the alias binding. All aliases bound in a single path must be distinct. The alias can form a convenient short-hand to avoid repeating long table names, and also enables expression of more complex concepts not otherwise possible.</p>
+<h3 id="path-context-reset">Path Context Reset<a class="headerlink" href="#path-context-reset" title="Permanent link">&para;</a></h3>
+<p>A path can be modified by resetting its denoted entity context:</p>
+<ul>
+<li><em>parent path</em> <code>/$</code> <em>alias</em></li>
+</ul>
+<p>where <em>alias name</em> MUST be a table instance alias already bound by an element within <em>parent path</em>.</p>
+<p>This has no effect on the overall joining structure nor filtering of the <em>parent path</em> but changes the denoted entity set to be that of the aliased table instance. It also changes the column resolution logic to attempt to resolve unqualified column names within the aliased table instance rather than right-most entity link element within <em>parent path</em>.</p>
+<p>A path can chain a number of entity link elements from left to right to form long, linear joining structures. With the use of path context resets, a path can also form tree-shaped joining structures, i.e. multiple chains of links off a single ancestor table instance within the <em>parent path</em>.  It can also be used to "invert" a tree to have several joined structures augmenting the final entity set denoted by the whole path.</p>
+<h2 id="filter-language">Filter Language<a class="headerlink" href="#filter-language" title="Permanent link">&para;</a></h2>
+<p>The <a href="#path-filters">filter element</a> of data paths uses a general filter language described here. There are unary and binary filter predicates, logical combinations, negation, and parenthetic grouping. Together, these language elements allow arbitrarily complex boolean logic functions to be expressed directly, in <a href="#conjunctive-normal-form">conjunctive normal form</a>, or in <a href="#disjunctive-normal-form">disjunctive normal form</a>.</p>
+<p>The operator precedence is as follows:</p>
+<ol>
+<li>Parenthetic grouping overrides precedence, causing the expression inside the parenthetic group to be evaluated and its result used as the value of the parenthetic group.</li>
+<li>Negation has the highest precedence, negating the immediately following predicate or parenthetic group.</li>
+<li>Conjunction using the <code>&amp;</code> operator has the next highest precedence, combining adjacent parenthetic groups, negated predicates, predicates, and conjunctions.</li>
+<li>Disjunction using the <code>;</code> operator has the next highest precedence, combining adjacent parenthetic groups, negated predicates, predicated, conjunctions, and disjunctions.</li>
+<li>The path separator <code>/</code> has the lowest precedence, adding complete logical expressions to a path.</li>
+</ol>
+<h3 id="unary-filter-predicate">Unary Filter Predicate<a class="headerlink" href="#unary-filter-predicate" title="Permanent link">&para;</a></h3>
+<p>A unary predicate has the form:</p>
+<ul>
+<li><em>column reference</em> <em>operator</em></li>
+</ul>
+<p>There is currently only one unary operator, <code>::null::</code>, which evaluates True if and only if the column is NULL for the row being tested.</p>
+<h3 id="binary-filter-predicate">Binary Filter Predicate<a class="headerlink" href="#binary-filter-predicate" title="Permanent link">&para;</a></h3>
+<p>A binary predicate as the form:</p>
+<ul>
+<li><em>column reference</em> <em>operator</em> <em>literal value</em></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>operator</th>
+<th>meaning</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>=</code></td>
+<td>column equals value</td>
+<td></td>
+</tr>
+<tr>
+<td><code>::lt::</code></td>
+<td>column less than value</td>
+<td></td>
+</tr>
+<tr>
+<td><code>::leq::</code></td>
+<td>column less than or equal to value</td>
+<td></td>
+</tr>
+<tr>
+<td><code>::gt::</code></td>
+<td>column greater than value</td>
+<td></td>
+</tr>
+<tr>
+<td><code>::geq::</code></td>
+<td>column greater than or equal to value</td>
+<td></td>
+</tr>
+<tr>
+<td><code>::regexp::</code></td>
+<td>column matches regular expression value</td>
+<td>also allowed on <code>*</code> free-text psuedo column</td>
+</tr>
+<tr>
+<td><code>::ciregexp::</code></td>
+<td>column matches regular expression value case-insensitively</td>
+<td>also allowed on <code>*</code> free-text psuedo column</td>
+</tr>
+<tr>
+<td><code>::ts::</code></td>
+<td>column matches text-search query value</td>
+<td>also allowed on <code>*</code> free-text psuedo column</td>
+</tr>
+</tbody>
+</table>
+<h3 id="negated-filter">Negated Filter<a class="headerlink" href="#negated-filter" title="Permanent link">&para;</a></h3>
+<p>Any predicate or parenthetic filter may be prefixed with the <code>!</code> negation operator to invert its logical value:</p>
+<ul>
+<li><code>!</code> <em>predicate</em></li>
+<li><code>!</code> <code>(</code> <em>logical expression</em> <code>)</code></li>
+</ul>
+<p>The negation operator has higher precedence than conjunctive or disjunctive operators, meaning it negates the nearest predicate or parenthetic expression on the right-hand side before logical operators apply.</p>
+<h3 id="parenthetic-filter">Parenthetic Filter<a class="headerlink" href="#parenthetic-filter" title="Permanent link">&para;</a></h3>
+<p>Any predicate, conjunction, or disjunction may be wrapped in parentheses to override any implicit precedence for logical composition:</p>
+<ul>
+<li><code>(</code> <em>logical expression</em> <code>)</code></li>
+</ul>
+<h3 id="conjunctive-filter">Conjunctive Filter<a class="headerlink" href="#conjunctive-filter" title="Permanent link">&para;</a></h3>
+<p>A conjunction (logical AND) uses the <code>&amp;</code> separator: </p>
+<ul>
+<li><em>predicate</em> <code>&amp;</code> <em>conjunction</em></li>
+<li><em>predicate</em> <code>&amp;</code> <em>predicate</em></li>
+<li><em>predicate</em> <code>&amp;</code> <code>!</code> <em>predicate</em></li>
+<li><em>predicate</em> <code>&amp;</code> <code>(</code> <em>logical expression</em> <code>)</code></li>
+<li><em>predicate</em> <code>&amp;</code> <code>!</code> <code>(</code> <em>logical expression</em> <code>)</code></li>
+</ul>
+<p>Individual filter elements in the path are also conjoined (logical AND), but the path separator <code>/</code> cannot appear in a parenthetic group. </p>
+<h3 id="disjunctive-filter">Disjunctive Filter<a class="headerlink" href="#disjunctive-filter" title="Permanent link">&para;</a></h3>
+<p>A disjunction (logical OR) uses the <code>;</code> separator:</p>
+<ul>
+<li><em>predicate</em> <code>;</code> <em>disjunction</em></li>
+<li><em>predicate</em> <code>;</code> <em>conjunction</em></li>
+<li><em>predicate</em> <code>;</code> <em>predicate</em></li>
+<li><em>predicate</em> <code>;</code> <code>!</code> <em>predicate</em></li>
+<li><em>predicate</em> <code>;</code> <code>(</code> <em>logical expression</em> <code>)</code></li>
+<li><em>predicate</em> <code>;</code> <code>!</code> <code>(</code> <em>logical expression</em> <code>)</code></li>
+</ul>
+<h3 id="conjunctive-normal-form">Conjunctive Normal Form<a class="headerlink" href="#conjunctive-normal-form" title="Permanent link">&para;</a></h3>
+<p>A filter in conjunctive normal form (CNF) is a conjunction of disjunctions over a set of possibly negated predicate terms. To write a CNF filter in a data resource name, use a sequence of filter path elements, separated by <code>/</code>, to express the top-level conjunction.  Use the disjunction separator <code>;</code> and optional negation prefix <code>!</code> on individual predicate terms in each disjunctive clause.</p>
+<h3 id="disjunctive-normal-form">Disjunctive Normal Form<a class="headerlink" href="#disjunctive-normal-form" title="Permanent link">&para;</a></h3>
+<p>A filter in disjunctive normall form (DNF) is a disjunction of conjunctions over a set of possibly negated predicate terms. To write a DNF filter in a data resource name, use a single filter path element using the <code>;</code> separator to express the top-level disjunction. Use the conjunction separator <code>&amp;</code> and optional negation prefix <code>!</code> on individual predicate terms in each conjunctive clause.</p>
+<h2 id="sort-modifier">Sort Modifier<a class="headerlink" href="#sort-modifier" title="Permanent link">&para;</a></h2>
+<p>An optional sorting modifier can modify the ordering of elements in the set-based resources denoted by <code>entity</code>, <code>attribute</code>, and <code>attributegroup</code> resource names. This modifier applies sorting based on output columns available in the set-based resource representation and may increase service cost significantly. The modifier has the form:</p>
+<ul>
+<li><code>@sort(</code> <em>output column</em> <code>,</code> ... <code>)</code></li>
+<li><code>@sort(</code> <em>output column</em> <code>::desc::</code> <code>,</code> ... <code>)</code></li>
+</ul>
+<p>where the optional <code>::desc::</code> direction indicator can apply a descending sort to that sort key to override the default ascending sort order. ERMrest by default sorts equivalently to the SQL sort order <code>ASC NULLS LAST</code> (ascending, with NULLs after non-NULLs) and switches to <code>DESC NULLS FIRST</code> (descending, with NULLs before non-NULLs) when the <code>::desc::</code> direction is selected.</p>
+<p>The list of sort keys goes left-to-right from primary to secondary etc.  The individual <em>output column</em> names are user-supplied values and therefore must be URL-escaped if they contain any special characters, including the <code>:</code> character in implicitly named output columns introduced using the <em>alias</em> <code>:</code> <code>*</code> wildcard syntax in projected <a href="#attribute-names">attribute names</a> or <a href="#aggregate-names">aggregate names</a>.</p>
+<p>The modifier appears as an optional suffix to data names, but before any query parameters in the URL:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code></li>
+<li>Each <em>sort key</em> MUST be a column name in the denoted entities since no column renaming is supported in <code>entity</code> resources.</li>
+<li>The sort modifies the order of the entity records in the external representation.</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attribute/</code> <em>path</em> <code>/</code> <em>projection</em> <code>,</code> ... <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code></li>
+<li>Each <em>sort key</em> MUST refer to a column in the external representation, i.e. after any renaming has been applied.</li>
+<li>The sort modifies the order of the entity records in the external representation.</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ... <code>;</code> <em>projection</em> <code>,</code> ... <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code></li>
+<li>Each <em>sort key</em> MUST refer to a column in the external representation, i.e. after any renaming has been applied.</li>
+<li>The sort modifies the order of the group records in the external representation, i.e. groups are sorted after aggregation has occurred. Sorting by a <em>projection</em> value means sorting by a computed aggregate or an arbitrarily chosen example value when projecting bare columns.</li>
+</ul>
+<p>The sort modifier is only meaningful on retrieval requests using the <code>GET</code> method described in <a href="#data-operations">Data Operations</a>.</p>
+<h2 id="paging-modifiers">Paging Modifiers<a class="headerlink" href="#paging-modifiers" title="Permanent link">&para;</a></h2>
+<p>Optional paging modifiers can designate results that come <em>before</em> or <em>after</em> a designated page key in a sorted sequence. A page key is a vector of values taken from a row that falls outside the page, with one component per field in the sort modifier.</p>
+<p>The modifier MUST be accompanied by a sort modifier to define the ordering of rows in the result set as well as the ordering of fields of the page key vector. The paging modifiers support a special symbol <code>::null::</code> to represent a NULL column value in a page key. For determinism, page keys SHOULD include a non-null, unique key as the least significant key.</p>
+<p>Supported combinations:</p>
+<table>
+<thead>
+<tr>
+<th><code>@after(...)</code></th>
+<th><code>@before(...)</code></th>
+<th><code>?limit</code></th>
+<th>Result set</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>K1</em></td>
+<td>absent</td>
+<td>absent</td>
+<td>All records <em>after</em> <em>K1</em></td>
+</tr>
+<tr>
+<td><em>K1</em></td>
+<td>absent</td>
+<td><em>N</em></td>
+<td>First records <em>after</em> <em>K1</em> limited by page size</td>
+</tr>
+<tr>
+<td><em>K1</em></td>
+<td><em>K2</em></td>
+<td><em>N</em></td>
+<td>First records <em>after</em> <em>K1</em> limited by page size or <em>K2</em> whichever is smaller</td>
+</tr>
+<tr>
+<td><em>K1</em></td>
+<td><em>K2</em></td>
+<td>absent</td>
+<td>All records <em>between</em> <em>K1</em> and <em>K2</em></td>
+</tr>
+<tr>
+<td>absent</td>
+<td><em>K2</em></td>
+<td><em>N</em></td>
+<td>Last records <em>before</em> <em>K2</em> limited by page size</td>
+</tr>
+</tbody>
+</table>
+<h3 id="before-modifier">Before Modifier<a class="headerlink" href="#before-modifier" title="Permanent link">&para;</a></h3>
+<p>The <code>@before</code> modifier designates a result set of rows immediately antecedent to the encoded page key, unless combined with the <code>@after</code> modifier:</p>
+<ul>
+<li><code>@sort(</code> <em>output column</em> ...<code>)@before(</code> <code>,</code> ... <code>)</code> (i.e. empty string)</li>
+<li><code>@sort(</code> <em>output column</em> ...<code>)@before(</code> <em>value</em> <code>,</code> ... <code>)</code> (i.e. literal string)</li>
+<li><code>@sort(</code> <em>output column</em> ...<code>)@before(</code> <code>::null::</code> <code>,</code> ... <code>)</code> (i.e. NULL)</li>
+</ul>
+<p>For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come <em>immediately before</em> the page key according to the sorted sequence semantics (including ascending/descending direction). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.</p>
+<p>The <code>@before</code> modifier MUST be combined with the <code>@after</code> modifier and/or the <code>?limit=N</code> query parameter.</p>
+<h3 id="after-modifier">After Modifier<a class="headerlink" href="#after-modifier" title="Permanent link">&para;</a></h3>
+<p>The <code>@after</code> modifier designates a result set of rows immediately subsequent to the encoded page key:</p>
+<ul>
+<li><code>@sort(</code> <em>output column</em> ...<code>)@after(</code> <code>,</code> ... <code>)</code> (i.e. empty string)</li>
+<li><code>@sort(</code> <em>output column</em> ...<code>)@after(</code> <em>value</em> <code>,</code> ... <code>)</code> (i.e. literal string)</li>
+<li><code>@sort(</code> <em>output column</em> ...<code>)@after(</code> <code>::null::</code> <code>,</code> ... <code>)</code> (i.e. NULL)</li>
+</ul>
+<p>For each comma-separated output column named in the sort modifier, the corresponding comma-separated value represents a component in the page key vector. The denoted result MUST only include rows which come <em>immediately after</em> the page key according to the sorted sequence semantics (including ascending/descending direction). This means that at the time of evaluation, no rows exist between the returned set and the row identified by the page key vector.</p>
+<p>The <code>@after</code> modifier MAY be combined with the <code>@before</code> modifier and/or the <code>?limit=N</code> query parameter.</p>
+<h2 id="accept-query-parameter">Accept Query Parameter<a class="headerlink" href="#accept-query-parameter" title="Permanent link">&para;</a></h2>
+<p>An optional <code>accept</code> query parameter can override the <code>Accept</code> HTTP header and content-negotiation in data access:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> ... <code>?accept=</code> <em>t</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attribute/</code> <em>path</em> <code>/</code> <em>projection</em>  ... <code>?accept=</code> <em>t</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em>  <code>;</code> <em>projection</em>  ... <code>?accept=</code> <em>t</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/aggregate/</code> <em>path</em> <code>/</code> <em>projection</em> ... <code>?accept=</code> <em>t</em></li>
+</ul>
+<p>If the specified MIME content-type <em>t</em> is one of those supported by the data API, it is selected in preference to normal content-negotiation rules. Otherwise, content-negotiation proceeds as usual. Two short-hand values are recognized:</p>
+<ul>
+<li><code>accept=csv</code> is interpreted as <code>accept=text%2Fcsv</code></li>
+<li><code>accept=json</code> is interpreted as <code>accept=application%2Fjson</code></li>
+</ul>
+<p>Note that the content-type <em>t</em> MUST be URL-escaped to protect the <code>/</code> character unless using the short-hands above.</p>
+<h2 id="download-query-parameter">Download Query Parameter<a class="headerlink" href="#download-query-parameter" title="Permanent link">&para;</a></h2>
+<p>An optional <code>download</code> query parameter can activate a <code>Content-Disposition: attachment</code> response header for GET operations on data resources.</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> ... <code>?download=</code> <em>bn</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attribute/</code> <em>path</em> <code>/</code> <em>projection</em>  ... <code>?download=</code> <em>bn</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em>  <code>;</code> <em>projection</em>  ... <code>?download=</code> <em>bn</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/aggregate/</code> <em>path</em> <code>/</code> <em>projection</em> ... <code>?download=</code> <em>bn</em></li>
+</ul>
+<p>The specified file base-name <em>bn</em> MUST be non-empty and SHOULD NOT include a file-extension suffix to indicate the download file type. The <em>bn</em>, when URL-decoded, MUST be a valid UTF-8 string. The service SHOULD append an appropriate suffix based on the negotiated response content type, e.g. <code>.json' or</code>.csv`.</p>
+<p>As an example:</p>
+<pre><code>GET /ermrest/catalog/1/entity/MyTable?download=My%20File
+</code></pre>
+<p>will produce a response like:</p>
+<pre><code>200 OK
+Content-Type: application/json
+Content-Length: 3
+Content-Disposition: attachment; download*=UTF-8''My%20File.json
+
+[]
+</code></pre>
+<p>which the browser will interpret to suggest a local filename such as <code>My File.json</code>.</p>
+<h2 id="defaults-query-parameter">Defaults Query Parameter<a class="headerlink" href="#defaults-query-parameter" title="Permanent link">&para;</a></h2>
+<p>An optional <code>defaults</code> query parameter can be used with the <code>POST</code> operation on the <code>entity</code> API:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>schema name</em> <code>:</code> <em>table name</em> <code>?defaults=</code> <em>column name</em> <code>,</code> ...</li>
+</ul>
+<p>A list of one or more <em>column name</em> indicates columns of the target table which should be populated using server-assigned defaults values, ignoring any values provided by the client. See the <a href="../rest/#entity-creation-with-defaults">Entity Creation with Defaults</a> operation documentation for more explanation.</p>
+<h2 id="limit-query-parameter">Limit Query Parameter<a class="headerlink" href="#limit-query-parameter" title="Permanent link">&para;</a></h2>
+<p>An optional <code>limit</code> query parameter can truncate the length of set-based resource representations denoted by <code>entity</code>, <code>attribute</code>, and <code>attributegroup</code> resource names:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> <code>?limit=</code> <em>n</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code> <code>?limit=</code> <em>n</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attribute/</code> <em>path</em> <code>/</code> <em>projection</em> <code>,</code> ... <code>?limit=</code> <em>n</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attribute/</code> <em>path</em> <code>/</code> <em>projection</em> <code>,</code> ... <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code> <code>?limit=</code> <em>n</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ... <code>;</code> <em>projection</em> <code>,</code> ... <code>?limit=</code> <em>n</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ... <code>;</code> <em>projection</em> <code>,</code> ... <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code> <code>?limit=</code> <em>n</em></li>
+</ul>
+<p>If the set denoted by the resource name (without the limit modifier) has <em>k</em> elements, the denoted limited subset will have <em>n</em> members if <em>n</em> &lt; <em>k</em> and will otherwise have all <em>k</em> members. When combined with a sort modifier, the first <em>n</em> members will be returned, otherwise an arbitrary subset will be chosen.</p>
+<p>The <code>limit</code> query parameter is only meaningful on retrieval requests using the <code>GET</code> method described in <a href="#data-operations">Data Operations</a>.</p>
+<h2 id="data-paging">Data Paging<a class="headerlink" href="#data-paging" title="Permanent link">&para;</a></h2>
+<p>The <a href="#sort-modifier">sort modifier</a>, <a href="#limit-query-parameter">limit parameter</a>, and <a href="#paging-modifiers">paging modifers</a> can be combined to express paged access to set-based data resources:</p>
+<ol>
+<li>The sort order defines a stable sequence of set elements.</li>
+<li>The paging modifiers select set elements following (or preceding) the last-visited element.</li>
+<li>The limit parameter defines the number of set elements in the retrieved page.</li>
+</ol>
+<p>This allows sequential paging or scrolling of large result sets with reversing/rewind to earlier pages. Because ERMrest supports concurrent retrieval and modification of data resources by multiple clients, it is not sensible to randomly access set elements by stream position offsets (whether by element or page count) because you might skip or repeat elements if preceding elements have been inserted or removed from the sequence in between page requests. </p>
+<p>A client can choose an arbitrary application-oriented sort order with paging. However, the client SHOULD include row-level unique key material in the sort and page key to avoid hazards of missing rows that have identical sorting rank due to non-unique page keys. This can be achieved by appending unique key columns to the application sort as the lowest precedence sort criteria, i.e. sort first by an interesting but non-unique property and then finally break ties by a unique serial ID or similar property.</p>
+<ol>
+<li>Fetch first page:</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code> <code>?limit=</code> <em>n</em></li>
+<li>Fetch subsequent page by encoding a page key projected from the <strong>last</strong> row of the preceding page:</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code> <code>@after(</code> <em>limit value</em> <code>,</code> ...<code>)</code> <code>?limit=</code> <em>n</em></li>
+<li>Fetch antecedent page by encoding a page key projected from the <strong>first</strong> row of the subsequent page:</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em> <code>@sort(</code> <em>sort key</em> <code>,</code> ... <code>)</code> <code>@before(</code> <em>limit value</em> <code>,</code> ...<code>)</code> <code>?limit=</code> <em>n</em></li>
+</ol>
+<p>Realize that a sequence of forward and backward page requests through a dataset might not land on the same page boundaries on both visits!</p>
+<ul>
+<li>Rows might be inserted during a traversal. An inserted row MAY appear in the traversal or MAY be skipped depending on where it falls in the sorted sequence.</li>
+<li>Rows might be deleted during a traversal. A deleted row MAY appear in the traversal or MAY be skipped depending on where it falls in the sorted sequence.</li>
+<li>Rows might be mutated such that they change positions in the sorted sequence during a traversal. A mutated table row contains one tuple of data before the mutation and another tuple of data after. A single traversal concurrent with that mutation MAY encounter zero, one, or two copies of the row depending on where they fall in the sorted sequence.</li>
+</ul>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../rest/" class="btn btn-neutral float-right" title="ERMrest Data Operations">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../../acl/rights/" class="btn btn-neutral" title="Rights Summaries"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../../acl/rights/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../rest/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

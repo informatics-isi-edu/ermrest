@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>ERMrest History Management Resources - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "ERMrest History Management Resources";
+    var mkdocs_page_input_path = "api-doc/history/naming.md";
+    var mkdocs_page_url = "/api-doc/history/naming/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">ERMrest History Management Resources</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-history-resource-naming">ERMrest History Resource Naming</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#history-range">History Range</a></li>
+        
+            <li><a class="toctree-l4" href="#historical-acls">Historical ACLs</a></li>
+        
+            <li><a class="toctree-l4" href="#historical-acl-bindings">Historical ACL Bindings</a></li>
+        
+            <li><a class="toctree-l4" href="#historical-annotations">Historical Annotations</a></li>
+        
+            <li><a class="toctree-l4" href="#historical-attributes">Historical Attributes</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>Client-Specific Rights Summaries &raquo;</li>
+        
+      
+    
+    <li>ERMrest History Management Resources</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-history-resource-naming">ERMrest History Resource Naming<a class="headerlink" href="#ermrest-history-resource-naming" title="Permanent link">&para;</a></h1>
+<p>The <a href="https://github.com/informatics-isi-edu/ermrest">ERMrest</a> history resource names have a common root
+relative to an identified catalog:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em></li>
+</ul>
+<p>where the components in this URL structure are:</p>
+<ul>
+<li><em>service</em>: the ERMrest service endpoint such as <code>https://www.example.com/ermrest</code>.</li>
+<li><em>cid</em>: the catalog identifier for one dataset such as <code>42</code>.</li>
+<li><em>from</em>: a lower bound snapshot identifier for a history range, such as as <code>2NJ-6ZXW-FDFE</code></li>
+<li><em>until</em>: an upper bound snapshot identifier for a history range, such as <code>2PY-1MC0-VMZ2</code></li>
+</ul>
+<p>In some history resources, either or both of <em>from</em> and <em>until</em> MAY be
+the empty string in order to express a partially bound
+interval. However, for history amendment, the effective <em>until</em>
+boundary MUST be clamped by the implementation to only affect <em>dead</em>
+storage. In other words, history amendment operation cannot affect
+<em>live</em> catalog state.</p>
+<h2 id="history-range">History Range<a class="headerlink" href="#history-range" title="Permanent link">&para;</a></h2>
+<p>The historical range of the catalog is named as:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/,</code></li>
+</ul>
+<p>This is the root history with neither upper or lower bound specified in
+the URL.</p>
+<h2 id="historical-acls">Historical ACLs<a class="headerlink" href="#historical-acls" title="Permanent link">&para;</a></h2>
+<p>Historical ACL resources are named as:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em> <code>/acl</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em> <code>/acl/</code> <em>RID</em></li>
+</ul>
+<p>The first form names the set of catalog ACLs, while the second form
+names a set of model-element ACLs for a specific subject identified by
+its static <code>RID</code> property. Subjects identified by <em>RID</em> may be:</p>
+<ul>
+<li>One schema</li>
+<li>One table</li>
+<li>One column</li>
+<li>One foreign key</li>
+</ul>
+<h2 id="historical-acl-bindings">Historical ACL Bindings<a class="headerlink" href="#historical-acl-bindings" title="Permanent link">&para;</a></h2>
+<p>Historical ACL binding resources are named as:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em> <code>/acl_binding/</code> <em>RID</em></li>
+</ul>
+<p>This URL names a set of model-element ACL bindings for a specific subject
+identified by its static <code>RID</code> property. Subjects identified by <em>RID</em> may
+be:</p>
+<ul>
+<li>One table</li>
+<li>One column</li>
+<li>One foreign key</li>
+</ul>
+<h2 id="historical-annotations">Historical Annotations<a class="headerlink" href="#historical-annotations" title="Permanent link">&para;</a></h2>
+<p>Historical annotation resources are named as:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em> <code>/annotation</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em> <code>/annotation/</code> <em>RID</em></li>
+</ul>
+<p>The first form names the set of catalog annotations, while the second
+form names a set of model-element annotations for a specific subject
+identified by its static <code>RID</code> property. Subjects identified by <em>RID</em> may
+be:</p>
+<ul>
+<li>One schema</li>
+<li>One table</li>
+<li>One column</li>
+<li>One key</li>
+<li>One foreign key</li>
+</ul>
+<h2 id="historical-attributes">Historical Attributes<a class="headerlink" href="#historical-attributes" title="Permanent link">&para;</a></h2>
+<p>Historical attribute resources are named as:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em> <code>/attribute/</code> <em>cRID</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/history/</code> <em>from</em> <code>,</code> <em>until</em> <code>/attribute/</code> <em>cRID</em> <code>/</code> <em>fRID</em> <code>=</code> <em>val</em></li>
+</ul>
+<p>These URLs name a set of attributes (values) bound to the column
+identified by <em>cRID</em> which is the static <code>RID</code> property of one column
+definition in the model. The first form names attributes for <strong>all</strong>
+entity snapshots within the historical interval. The second form is
+further restricted to only entities matching a simple value test
+where another filtering column identified by <em>fRID</em> is bound to
+the provided static value <em>val</em>.</p>
+<p>The second, filtering, form of historical attribute URL supports
+several idioms:</p>
+<ol>
+<li>By using an <em>fRID</em> corresponding to the <code>RID</code> column and a <em>val</em>
+   corresponding to one record ID, any column of a specific entity
+   can be addressed.</li>
+<li>By using an <em>fRID</em> and <em>cRID</em> corresponding to the <code>RID</code> of a data
+   column, all entities with the same <em>val</em> can be addressed.</li>
+</ol>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../rest/" class="btn btn-neutral float-right" title="ERMrest History Management Operations">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../../data/rest/" class="btn btn-neutral" title="ERMrest Data Operations"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../../data/rest/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../rest/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

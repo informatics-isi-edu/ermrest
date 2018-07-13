@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../img/favicon.ico">
+  <title>History Tracking for DBAs and Programmers - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/highlight.css">
+  <link href="../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "History Tracking for DBAs and Programmers";
+    var mkdocs_page_input_path = "user-doc/history-track.md";
+    var mkdocs_page_url = "/user-doc/history-track/";
+  </script>
+  
+  <script src="../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">History Tracking for DBAs and Programmers</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-history-tracking">ERMrest History Tracking</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#overview-of-design">Overview of Design</a></li>
+        
+            <li><a class="toctree-l4" href="#accessing-data-history-within-sql">Accessing Data History within SQL</a></li>
+        
+            <li><a class="toctree-l4" href="#accessing-model-history-within-sql">Accessing Model History within SQL</a></li>
+        
+            <li><a class="toctree-l4" href="#future-work">Future Work?</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>User Docs &raquo;</li>
+        
+      
+    
+    <li>History Tracking for DBAs and Programmers</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-history-tracking">ERMrest History Tracking<a class="headerlink" href="#ermrest-history-tracking" title="Permanent link">&para;</a></h1>
+<p><strong>NOTE</strong>: The majority of interface documentation previously found
+here has been integrated into the <a href="../api-docs/index.md">API docs</a>. The corresponding 
+content here has been removed to avoid any confusion for future editors.</p>
+<p>This document summarizes the architectural concepts and implications
+that might impact a DBA or developer looking at the backend
+functionality or interacting with the catalog DB.</p>
+<h2 id="overview-of-design">Overview of Design<a class="headerlink" href="#overview-of-design" title="Permanent link">&para;</a></h2>
+<ol>
+<li>We now use timestamps as catalog version IDs instead of PostgreSQL transaction IDs</li>
+<li>All writes by ERMrest use <em>serializable</em> isolation level</li>
+<li>Timestamps are stable across dump/restore events</li>
+<li>The system clock must be monotonically increasing (even across dump/restore events)</li>
+<li>These can appear in URL for historical query and in ETag content for cache management</li>
+<li>The introspected catalog model is reified in tables managed by ERMrest</li>
+<li>These tables assign persistent <code>RID</code> and other system columns to PostgreSQL model elements</li>
+<li><code>RID</code> assignments are stable across dump/restore events</li>
+<li>Runtime introspection can dump the state of these tables quickly</li>
+<li>Runtime model changes incrementally adjust these tables</li>
+<li>Stored procedures can update these tables for en masse model changes by a local DBA<ul>
+<li>One procedure syncs by OID for incremental changes including model element renaming</li>
+<li>One procedure syncs by name for OID instability including dump/restore or DBA-driven replacement of model elements</li>
+</ul>
+</li>
+<li>All model-augmenting tables are refactored in terms of <code>RID</code> subjects instead of various composite keys<ul>
+<li>Annotations</li>
+<li>ACLs</li>
+<li>ACL bindings</li>
+</ul>
+</li>
+<li>We add an internal <code>_ermrest_history</code> schema to each catalog</li>
+<li>We add internal tables to <code>_ermrest_history</code> corresponding to other tables in catalog</li>
+<li>History tables track tuple content generically<ul>
+<li>keyed by composite (<code>RID</code>, <code>during</code>)</li>
+<li><code>RID</code> corresponds to the same <code>RID</code> from the tracked table</li>
+<li><code>during</code> is an interval <code>[RMT1,NULL)</code> when tuples are born or <code>[RMT1,RMT2)</code> when tuples have already died</li>
+<li><code>RMB</code> corresponds to the same <code>RMB</code> from the tracked table (in case we want to show changes by client later...)</li>
+</ul>
+</li>
+<li>System tables from <code>_ermrest</code> are mapped in a simplified fashion by name to allow bootstrapping<ul>
+<li>Table <code>_ermrest_history.foo</code> tracks table <code>_ermrest.foo</code></li>
+<li>Tuple data is stored in a JSON blob with field <code>X</code> tracking column with name <code>X</code></li>
+</ul>
+</li>
+<li>User tables from other schemas are mapped in a generic fashion by <code>RID</code><ul>
+<li>Table <code>_ermrest_history.tXYZ</code> tracks table with <code>RID</code> <code>XYZ</code></li>
+<li>Tuple data is stored in a JSON blob with field <code>ABC</code> tracking a column with <code>RID</code> <code>ABC</code></li>
+<li>System columns <code>RID</code>, <code>RMT</code>, and <code>RMB</code> are lifted out of the JSON blob</li>
+</ul>
+</li>
+<li>We add triggers to automate data management</li>
+<li>One trigger <em>before</em> insert or update manages system column values</li>
+<li>One trigger <em>after</em> insert or update tracks tuples aka versions of rows</li>
+<li>The service can query historical content at a given time or live content</li>
+<li>Regular mutation transactions are tracked:</li>
+<li><code>_ermrest.model_modified</code>: when any part of the model was changed and by who</li>
+<li><code>_ermrest.table_modified</code>: when individual table's content was changed and by who</li>
+<li>Most recent transactions are tracked for quickly determining <em>current</em> version of catalog:</li>
+<li><code>_ermrest.model_last_modified</code>: when any part of the model was last changed and by who</li>
+<li><code>_ermrest.table_last_modified</code>: when individual table's content was last changed and by who</li>
+</ol>
+<h2 id="accessing-data-history-within-sql">Accessing Data History within SQL<a class="headerlink" href="#accessing-data-history-within-sql" title="Permanent link">&para;</a></h2>
+<p>To access historical data for a history-tracked table with table
+<code>RID</code>=<code>T1</code> and column <code>RID</code>=(<code>C1</code>, <code>C2</code>, ... <code>Ck</code>) at timestamp <code>V1</code>,
+we can use a query similar to this:</p>
+<pre><code>SELECT
+  t."RID" AS "RID",
+  d."Cx" AS "RCT",
+  lower(t.during) AS "RMT",
+  d."Cy" AS "RMT",
+  t."RMB",
+  d."C1" AS "Column name 1",
+  d."C2" AS "Column name 2",
+  ...
+  d."Ck" AS "Column name k"
+FROM _ermrest_history.tT1 t,
+LATERAL jsonb_to_record(t.rowdata) d("C1" type1, "C2" type2, ... "Ck" typek)
+WHERE t.during @&gt; V1::timestamptz;
+</code></pre>
+<p>This approach allows us to handle three difference scenarios that can
+occur during the history of the user data table:</p>
+<ol>
+<li>A new column added after the table acquires data can implicitly add
+   columns with <code>NULL</code> value without generating new storage
+   tuples. The expansion of the JSON <code>rowdata</code> blob will fill in the
+   missing NULL values.</li>
+<li>An existing column deleted after the table acquires data can
+   implicitly drop columns without generating new storage tuples. The
+   expansion of the JSON <code>rowdata</code> blob will ignore extra values.</li>
+<li>Renaming an existing column after the table acquires data can
+   implicitly rename fields without generating new storage tuples. The
+   expansion of the JSON <code>rowdata</code> blob will map the persistent
+   column-level <code>RID</code> to the currently active column name.</li>
+</ol>
+<h3 id="special-case-handling-of-json">Special-case Handling of JSON<a class="headerlink" href="#special-case-handling-of-json" title="Permanent link">&para;</a></h3>
+<p>The preceding example to query a user data history table is sufficient
+for basic column types like integers, text, and
+numbers. Unfortunately, the PostgreSQL JSON support has some
+asymmetries and requires special case handling of those columns. We
+can pack them into the <code>rowdata</code> JSON blobs using a generic method in
+our history-tracking trigger functions, but we must unpack them
+differently:</p>
+<pre><code>SELECT
+  t."RID" AS "RID",
+  d."Cx" AS "RCT",
+  lower(t.during) AS "RMT",
+  d."Cy" AS "RMT",
+  t."RMB",
+  d."C1" AS "Column name 1",
+  t.rowdata-&gt;"C2" AS "Column name 2", -- json or jsonb column extraction
+  ...
+  d."Ck" AS "Column name k"
+FROM _ermrest_history.tT1 t,
+LATERAL jsonb_to_record(t.rowdata) d("C1" type1, "C3" type3, ... "Ck" typek)
+WHERE t.during @&gt; V1::timestamptz;
+</code></pre>
+<p>This example differs only in the extraction of the <code>C2</code> field. The
+<code>jsonb_to_record()</code> procedure would fail to round-trip the JSON
+value. Instead, we explicitly project that value directly from the raw
+<code>rowdata</code> blob while using the procedure to structure the other
+non-JSON values.</p>
+<h2 id="accessing-model-history-within-sql">Accessing Model History within SQL<a class="headerlink" href="#accessing-model-history-within-sql" title="Permanent link">&para;</a></h2>
+<p>As implied by the preceding, we need to be able to reconstruct the
+table definition which was in effect at the time of the data revision
+we wish to query. We do this by making the same sort of query to
+history-tracking tables for the reified model storage. Model history
+tracking tables use their actual table and column names instead of
+being indirected through RIDs, because we know ERMrest will not rename
+these features over time.</p>
+<p>For convenience, we've wrapped these introspection queries into stored
+procedures parameterized by the catalog version timestamp.</p>
+<pre><code>-- raw introspection example w/o history awareness
+SELECT * FROM _ermrest.known_tables;
+
+-- equivalent introspection example w/ history awareness
+SELECT * FROM _ermrest.known_tables(V1::timestamptz);
+</code></pre>
+<h2 id="future-work">Future Work?<a class="headerlink" href="#future-work" title="Permanent link">&para;</a></h2>
+<h3 id="indexing-of-history">Indexing of history<a class="headerlink" href="#indexing-of-history" title="Permanent link">&para;</a></h3>
+<h3 id="something-view-like-which-is-compatible-with-history">Something view-like which is compatible with history<a class="headerlink" href="#something-view-like-which-is-compatible-with-history" title="Permanent link">&para;</a></h3>
+<h3 id="audit-ux-support">Audit UX support<a class="headerlink" href="#audit-ux-support" title="Permanent link">&para;</a></h3>
+<h3 id="asynchronous-change-monitoring-support">Asynchronous change-monitoring support<a class="headerlink" href="#asynchronous-change-monitoring-support" title="Permanent link">&para;</a></h3>
+<h3 id="longitudinal-history-retrieval">Longitudinal History Retrieval<a class="headerlink" href="#longitudinal-history-retrieval" title="Permanent link">&para;</a></h3>
+<p>Do we want to retrieve existing versions within a time range? These
+would be collective resources providing an array of documents with
+their own <code>[from,until)</code> intervals which chain together to span the
+whole range of the request. Each document would have its own
+configuration content.</p>
+<ul>
+<li><code>GET /ermrest/catalog/N/history/from,until/acl/RID</code></li>
+<li>Content example: <code>{"from": T1, "until": T2, "acls": {aclname: members, ...}}</code></li>
+<li><code>GET /ermrest/catalog/N/history/from,until/acl_binding/RID</code></li>
+<li>Content example: <code>{"from": T1, "until": T2, "acl_bindings": {bindingname: binding, ...}}</code></li>
+<li><code>GET /ermrest/catalog/N/history/from,until/annotation/RID</code></li>
+<li>Content example: <code>{"from": T1, "until": T2, "annotations": {key: annotation_value, ...}}</code></li>
+<li><code>GET /ermrest/catalog/N/history/from,until/attribute/CRID/FRID=X</code></li>
+<li>Content example: <code>{"from": T1, "until": T2, "tuple": {CRID: Y}}</code></li>
+<li><code>GET /ermrest/catalog/N/history/from,until/entity/TRID/FRID=X</code></li>
+<li>Content example: <code>{"from": T1, "until": T2, "tuple": {CRID: value, ...}}</code></li>
+</ul>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../../api-doc/" class="btn btn-neutral float-right" title="Guide to the ERMrest API">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../ermrest-client-table/" class="btn btn-neutral" title="System Table `ermrest_client`"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../ermrest-client-table/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../../api-doc/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/require.js"></script>
+      <script src="../../search/search.js"></script>
+
+</body>
+</html>

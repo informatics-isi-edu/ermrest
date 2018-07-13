@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../img/favicon.ico">
+  <title>ermrest-registry-purge command - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/highlight.css">
+  <link href="../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "ermrest-registry-purge command";
+    var mkdocs_page_input_path = "user-doc/ermrest-registry-purge.md";
+    var mkdocs_page_url = "/user-doc/ermrest-registry-purge/";
+  </script>
+  
+  <script src="../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../tuning/">Performance Tuning</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">ermrest-registry-purge command</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-registry-purge">ermrest-registry-purge</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#synopsis">Synopsis</a></li>
+        
+            <li><a class="toctree-l4" href="#description">Description</a></li>
+        
+            <li><a class="toctree-l4" href="#options">Options</a></li>
+        
+            <li><a class="toctree-l4" href="#exit-status">Exit Status</a></li>
+        
+            <li><a class="toctree-l4" href="#examples">Examples</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>User Docs &raquo;</li>
+        
+      
+    
+    <li>ermrest-registry-purge command</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-registry-purge">ermrest-registry-purge<a class="headerlink" href="#ermrest-registry-purge" title="Permanent link">&para;</a></h1>
+<p>ermrest-registry-purge -- purge ERMrest catalogs</p>
+<h2 id="synopsis">Synopsis<a class="headerlink" href="#synopsis" title="Permanent link">&para;</a></h2>
+<pre><code>ermrest-registry-purge [-dfh] [-a|i INTERVAL] [-z DIR]
+</code></pre>
+
+<h2 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h2>
+<p>ermrest-registry-purge purges ERMrest catalogs. The command will run database
+utilities to drop databases and remove entries from the ERMrest registry of
+catalogs. Optionally, it will force disconnect of client connections and/or
+archive databases before dropping them. By default, it purges any deleted
+database, but it includes options to purge all catalogs or to purge only
+catalogs that are at least as old as a given age.</p>
+<h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
+<p>ermrest-registry-purge accepts the following command-line arguments: </p>
+<p><code>-a</code>
+    Purges all catalogs, not just those that have been deleted.</p>
+<p><code>-d</code>
+    Dry run. Identify but do not purge catalogs that match selection criteria.</p>
+<p><code>-f</code>
+    Force disconnect of clients before attempting purges.</p>
+<p><code>-h</code>
+    Show help about this command and exit.</p>
+<p><code>-i INTERVAL</code>
+    Only purge catalogs that were deleted prior to <em>INTERVAL</em>, where <em>INTERVAL</em>
+    is a valid PostgreSQL timestamp interval such as '1 week', '2 years',
+    '24 hours', '31 days', etc.</p>
+<p><code>-q</code>
+    Executes quietly. By default, the command prints a line for each catalog
+    that is being purged.</p>
+<p><code>-z DIR</code>
+    Archive the catalog as a file in <em>DIR</em>. The archive filename includes the 
+    catalog identifier, the database name, and the seconds since epoch. The
+    file contains the complete <em>SQL</em> commands required to recreate the catalog.
+    The format of the archive file is <em>gzip</em> compressed plain text.</p>
+<h2 id="exit-status">Exit Status<a class="headerlink" href="#exit-status" title="Permanent link">&para;</a></h2>
+<p>ermrest-registry-purge returns 0 to the shell if it finished normally or 1 if a
+usage error occurs.</p>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<p>To purge all deleted catalogs:</p>
+<pre><code># ermrest-registry-purge
+</code></pre>
+
+<p>To purge all deleted catalogs that were deleted at least 7 days ago:</p>
+<pre><code># ermrest-registry-purge -i '7 days'
+</code></pre>
+
+<p>To purge all deleted catalogs that were deleted at least 1 year ago and archive
+them to /home/ermrest/backups:</p>
+<pre><code># ermrest-registry-purge -i '1 year' -z /home/ermrest/backups
+</code></pre>
+
+<p>To purge all deleted catalogs that were deleted at least 1 hour ago and
+force client disconnect:</p>
+<pre><code># ermrest-registry-purge -f -i '1 hour'
+</code></pre>
+
+<p>To purge all catalogs, even those that have not been deleted, and force
+disconnect:</p>
+<pre><code># ermrest-registry-purge -a -f
+</code></pre>
+
+<p>To do a <em>dry run</em> that will <em>not</em> purge any catalogs:</p>
+<pre><code># ermrest-registry-purge -d
+</code></pre>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../ermrest-client-table/" class="btn btn-neutral float-right" title="System Table `ermrest_client`">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../tuning/" class="btn btn-neutral" title="Performance Tuning"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../tuning/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../ermrest-client-table/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/require.js"></script>
+      <script src="../../search/search.js"></script>
+
+</body>
+</html>

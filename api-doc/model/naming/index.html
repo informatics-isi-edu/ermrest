@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>ERMrest Model Resources - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "ERMrest Model Resources";
+    var mkdocs_page_input_path = "api-doc/model/naming.md";
+    var mkdocs_page_url = "/api-doc/model/naming/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">ERMrest Model Resources</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-model-resource-naming">ERMrest Model Resource Naming</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#catalog-names">Catalog Names</a></li>
+        
+            <li><a class="toctree-l4" href="#generic-model-sub-resources">Generic Model Sub-Resources</a></li>
+        
+            <li><a class="toctree-l4" href="#schema-names">Schema Names</a></li>
+        
+            <li><a class="toctree-l4" href="#schema-names_1">Schema Names</a></li>
+        
+            <li><a class="toctree-l4" href="#table-names">Table Names</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>ERMrest API and Service Semantics &raquo;</li>
+        
+      
+    
+    <li>ERMrest Model Resources</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-model-resource-naming">ERMrest Model Resource Naming<a class="headerlink" href="#ermrest-model-resource-naming" title="Permanent link">&para;</a></h1>
+<p>Unlike general web architecture, <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest</a> expects clients to understand the URL internal structure and permits (or even encourages) reflection on URL content to understand how one resource name relates to another. To support introspection and management, the data model of a catalog is exposed as a set of model-level resources. These model elements also influence the <a href="../../data/naming/">naming of data resources</a>.</p>
+<h2 id="catalog-names">Catalog Names<a class="headerlink" href="#catalog-names" title="Permanent link">&para;</a></h2>
+<p>The ERMrest model resources belong to a catalog resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ]</li>
+</ul>
+<p>where the components of this root path are:</p>
+<ul>
+<li><em>service</em>: the ERMrest service endpoint such as <code>https://www.example.com/ermrest</code>.</li>
+<li><em>cid</em>: the catalog identifier for one dataset such as <code>42</code>.</li>
+<li><em>revision</em>: (optional) timestamp identifying a historical snapshot of the catalog.</li>
+</ul>
+<p>The catalog resource has a representation which provides basic information about it including access control lists.</p>
+<p>In general, the optional <code>@</code> <em>revision</em> modifier allows reference and
+read-only retrieval of historical resource representations. Only the
+latest, <em>live</em> catalog represented by <em>cid</em> without a <em>revision</em>
+supports mutation.</p>
+<h2 id="generic-model-sub-resources">Generic Model Sub-Resources<a class="headerlink" href="#generic-model-sub-resources" title="Permanent link">&para;</a></h2>
+<p>A number of different resource types in the model hierarchy all
+support sub-resources with very similar interfaces. Rather than
+describing each sub-resource independently, we summarize them here.</p>
+<h3 id="annotations">Annotations<a class="headerlink" href="#annotations" title="Permanent link">&para;</a></h3>
+<p>Annotations are reified as sub-resources:</p>
+<ul>
+<li><em>subject</em> <code>/annotation/</code> <em>annotation key</em></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Subject Kind</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#catalog-names">catalog</a></td>
+<td>Annotations about whole catalog</td>
+</tr>
+<tr>
+<td><a href="#schema-names">schema</a></td>
+<td>Annotations about one named schema</td>
+</tr>
+<tr>
+<td><a href="#table-names">table</a></td>
+<td>Annotations about one named table</td>
+</tr>
+<tr>
+<td><a href="#column-names">column</a></td>
+<td>Annotations about one named column</td>
+</tr>
+<tr>
+<td><a href="#key-names">key</a></td>
+<td>Annotations about one key constraint</td>
+</tr>
+<tr>
+<td><a href="#foreign-key-names">foreign key</a></td>
+<td>Annotations about one foreign key constraint</td>
+</tr>
+</tbody>
+</table>
+<p>Each keyed annotation has a simple representation which is a machine-readable document in <code>application/json</code> format. The expected content and interpretation of the JSON document is externally defined and associated with the <em>annotation key</em> which SHOULD be a URL (escaped with standard URL-encoding before embedding in this annotation name URL). The purpose of the <em>annotation key</em> is to allow different user communities to organize their own annotation standards without ambiguity.</p>
+<p>Additionally, a composite resource summarizes all existing annotations on one annotated resource, for convenient discovery and bulk retrieval:</p>
+<ul>
+<li><em>annotated resource</em> <code>/annotation</code></li>
+<li><em>annotated resource</em> <code>/annotation/</code></li>
+</ul>
+<h3 id="comments">Comments<a class="headerlink" href="#comments" title="Permanent link">&para;</a></h3>
+<p>Comments are reified as a sub-resources:</p>
+<ul>
+<li><em>subject</em> <code>/comment</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Subject Kind</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#schema-names">schema</a></td>
+<td>Comment about one named schema</td>
+</tr>
+<tr>
+<td><a href="#table-names">table</a></td>
+<td>Comment about one named table</td>
+</tr>
+<tr>
+<td><a href="#column-names">column</a></td>
+<td>Comment about one named column</td>
+</tr>
+<tr>
+<td><a href="#key-names">key</a></td>
+<td>Comment about one key constraint</td>
+</tr>
+<tr>
+<td><a href="#foreign-key-names">foreign key</a></td>
+<td>Comment about one foreign key constraint</td>
+</tr>
+</tbody>
+</table>
+<p>This resource has a simple representation which is just human readable text in <code>text/plain</code> format.</p>
+<h3 id="acls">ACLs<a class="headerlink" href="#acls" title="Permanent link">&para;</a></h3>
+<p>Access control lists (ACLs) are reified as sub-resources:</p>
+<ul>
+<li><em>subject</em> <code>/acl/</code> <em>acl name</em></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Subject Kind</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#catalog-names">catalog</a></td>
+<td>ACLs granting access to whole catalog</td>
+</tr>
+<tr>
+<td><a href="#schema-names">schema</a></td>
+<td>ACLs granting access to one named schema</td>
+</tr>
+<tr>
+<td><a href="#table-names">table</a></td>
+<td>ACLs granting access to one named table</td>
+</tr>
+<tr>
+<td><a href="#column-names">column</a></td>
+<td>ACLs granting access to one named column</td>
+</tr>
+<tr>
+<td><a href="#foreign-key-names">foreign key</a></td>
+<td>ACLs granting access to one foreign key constraint</td>
+</tr>
+</tbody>
+</table>
+<p>Each keyed ACL has a simple representation which is a machine-readable array of authorized client attribute strings or a <code>null</code> value in <code>application/json</code> format.</p>
+<h3 id="acl-bindings">ACL Bindings<a class="headerlink" href="#acl-bindings" title="Permanent link">&para;</a></h3>
+<p>Dynamic access control list bindings (ACL bindings) are reified as sub-resources:</p>
+<ul>
+<li><em>subject</em> <code>/acl_binding/</code> <em>binding name</em></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Subject Kind</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#table-names">table</a></td>
+<td>ACL bindings granting access to one named table</td>
+</tr>
+<tr>
+<td><a href="#column-names">column</a></td>
+<td>ACL bindings granting access to one named column</td>
+</tr>
+<tr>
+<td><a href="#foreign-key-names">foreign key</a></td>
+<td>ACL bindings granting access to one foreign key constraint</td>
+</tr>
+</tbody>
+</table>
+<p>Each keyed ACL binding has a simple representation which is a machine-readable object or a <code>false</code> value in <code>application/json</code> format.</p>
+<h2 id="schema-names">Schema Names<a class="headerlink" href="#schema-names" title="Permanent link">&para;</a></h2>
+<p>The ERMrest model resources are named under a root collection of schemata for a particular catalog:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code></li>
+</ul>
+<p>where the components of this root path are:</p>
+<ul>
+<li><em>service</em>: the ERMrest service endpoint such as <code>https://www.example.com/ermrest</code>.</li>
+<li><em>cid</em>: the catalog identifier for one dataset such as <code>42</code>.</li>
+<li><em>revision</em>: (optional) timestamp identifying a historical snapshot of the catalog schemata.</li>
+</ul>
+<p>This root schemata resource has a representation which summarizes the entire data model of the catalog as a single document.</p>
+<h2 id="schema-names_1">Schema Names<a class="headerlink" href="#schema-names_1" title="Permanent link">&para;</a></h2>
+<p>Each schema or namespace of tables in a particular catalog is reified as a model-level resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em></li>
+</ul>
+<p>This named schema resource has a representation which summarizes the data model of all tables qualified by the <em>schema name</em> namespace.</p>
+<h2 id="table-names">Table Names<a class="headerlink" href="#table-names" title="Permanent link">&para;</a></h2>
+<p>Each table is reified as a model-level resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em></li>
+</ul>
+<p>This named table resource has a representation which summarizes its data model including columns, keys, and foreign keys. Within data resource names, a table may be referenced by <em>table name</em> only if that name is unique within the catalog or by a fully qualified <em>schema name</em> <code>:</code> <em>table name</em>. Concrete examples of such names might be <code>table1</code> or <code>schema1:table1</code>.</p>
+<h3 id="column-names">Column Names<a class="headerlink" href="#column-names" title="Permanent link">&para;</a></h3>
+<p>Each column is reified as a model-level resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/column/</code> <em>column name</em></li>
+</ul>
+<p>This named column resource has a representation which summarizes its data model including name and type. Within data resource names, a column may be referenced by:</p>
+<ul>
+<li><em>column name</em> when resolving within an implicit table context;</li>
+<li><em>table alias</em> : <em>column name</em> when resolving against a context where <em>table alias</em> has been bound as an alias to a specific table instance;</li>
+<li><em>table name</em> : <em>column name</em> when resolving against the model and <em>table name</em> is unique within the catalog;</li>
+<li><em>schema name</em> : <em>table name</em> : <em>column name</em> when resolving against the model and <em>table name</em> might otherwise be ambiguous.</li>
+</ul>
+<h3 id="key-names">Key Names<a class="headerlink" href="#key-names" title="Permanent link">&para;</a></h3>
+<p>Each (composite) key constraint is reified as a model-level resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key/</code> <em>column name</em> <code>,</code> ...</li>
+</ul>
+<p>This named constraint has a representation which summarizes its set of constituent key columns. The meaning of a key constraint is that the combination of listed columns must be a unique identifier for rows in the table, i.e. no two rows can share the same combination of values for those columns.</p>
+<p>ERMrest also supports pseudo-keys on views, which allow the uniqueness properties of views to be asserted both for clients introspecting the catalog model and for ERMrest itself to reason about queries on the view. Psuedo-keys are chosen automatically when an authorized client creates a key constraint on a view, while real database constraints are used when the client creates a key constraint on a table.</p>
+<ul>
+<li><em>NOTE</em> pseudo-keys are advisory, <em>not enforced</em> in the database, and <em>not validated</em> by ERMrest. A client SHOULD NOT assert inaccurate psuedo-key constraints as it could mislead other clients who introspect the schema or lead to unexpected query results as ERMrest formulates relational queries assuming the constraints are true.</li>
+<li>Future ERMrest releases MAY enforce validation on psuedo-keys so clients SHOULD NOT depend on the ability to create inaccurate psuedo-constraints.</li>
+</ul>
+<p>Additionally, a composite resource summarizes all existing key constraints on one table for convenient discovery and bulk retrieval:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/key/</code></li>
+</ul>
+<h3 id="foreign-key-names">Foreign Key Names<a class="headerlink" href="#foreign-key-names" title="Permanent link">&para;</a></h3>
+<p>Each (composite) foreign key constraint is reified as a model-level resource:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code> <em>table reference</em> <code>/</code> <em>key column</em> <code>,</code> ...</li>
+</ul>
+<p>This named constraint has a representation which summarizes its set of constituent foreign key columns, another referenced table, and the set of key columns that form the composite key being referenced in that other table, including the mapping of each foreign key <em>column name</em> to each composite key <em>key column</em>. The <em>table reference</em> can be a qualified table name, e.g. <code>schema1:table1</code> or an unqualified table name, e.g. <code>table1</code>.  The meaning of this constraint is that each combination of non-NULL values in <em>schema name</em>:<em>table name</em> MUST reference an existing combination of values forming a composite key for a row in <em>table reference</em>.</p>
+<p>ERMrest also supports pseudo-foreign keys on views, which allow the reference links of views to be asserted both for clients introspecting the catalog model and for ERMrest itself to reason about queries on the view. Psuedo-foreign keys are chosen automatically when an authorized client creates a foreign key constraint on a view or referencing a view, while real database constraints are used when the client creates a foreign key constraint on a table referencing another table.</p>
+<ul>
+<li><em>NOTE</em> pseudo-foreign keys are advisory, <em>not enforced</em> in the database, and <em>not validated</em> by ERMrest. A client SHOULD NOT assert inaccurate psuedo-foreign key constraints as it could mislead other clients who introspect the schema or lead to unexpected query results as ERMrest formulates relational queries assuming the constraints are true.</li>
+<li>Future ERMrest releases MAY enforce validation on psuedo-foreign keys so clients SHOULD NOT depend on the ability to create inaccurate psuedo-constraints.</li>
+</ul>
+<p>Additionally, a composite resource summarizes all foreign key constraints on one table for discovery and bulk retrieval purposes:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code></li>
+</ul>
+<p>Additionally, a composite resource summarizes all foreign key constraints involving one composite foreign key <em>column name</em> list:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ...</li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference</code></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code></li>
+</ul>
+<p>Finally, a composite resource summarizes all foreign key constraints involving one composite foreign key <em>column name</em> list and one <em>table reference</em>:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/schema/</code> <em>schema name</em> <code>/table/</code> <em>table name</em> <code>/foreignkey/</code> <em>column name</em> <code>,</code> ... <code>/reference/</code> <em>table reference</em></li>
+</ul>
+<p>(While highly unusual, it is possible to express more than one foreign key constraint from the same composite foreign key <em>column name</em> list to different composite key <em>key column</em> lists in the same or different <em>table reference</em> tables.)</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../rest/" class="btn btn-neutral float-right" title="ERMrest Model Operations">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../../rest-catalog/" class="btn btn-neutral" title="ERMrest Catalog Operations"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../../rest-catalog/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../rest/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

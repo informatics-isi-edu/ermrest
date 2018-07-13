@@ -1,8 +1,0 @@
-
-# Recipes for Ubuntu 12.04
-
-$(VARLIBDIR):
-	mkdir -p $(VARLIBDIR)
-
-httpd_restart: force
-	service apache2 stop > /dev/null 2>&1 && service apache2 start > /dev/null 2>&1

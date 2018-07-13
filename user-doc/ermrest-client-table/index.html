@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../img/favicon.ico">
+  <title>System Table `ermrest_client` - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/highlight.css">
+  <link href="../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "System Table `ermrest_client`";
+    var mkdocs_page_input_path = "user-doc/ermrest-client-table.md";
+    var mkdocs_page_url = "/user-doc/ermrest-client-table/";
+  </script>
+  
+  <script src="../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">System Table `ermrest_client`</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-client-table">ERMrest client table</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#extensibility-and-localization">Extensibility and Localization</a></li>
+        
+            <li><a class="toctree-l4" href="#conservative-default-policy">Conservative default policy</a></li>
+        
+            <li><a class="toctree-l4" href="#interface-guarantees">Interface Guarantees</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>User Docs &raquo;</li>
+        
+      
+    
+    <li>System Table `ermrest_client`</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-client-table">ERMrest client table<a class="headerlink" href="#ermrest-client-table" title="Permanent link">&para;</a></h1>
+<p>The <code>ermrest_client</code> table in the <code>public</code> schema is created
+automatically in newly created catalogs and is also added to existing
+catalogs when <code>ermrest-deploy</code> upgrades a system.</p>
+<p>The rows of this table are automatically maintained by ERMrest,
+recording basic client information as each new authenticated client is
+encountered. No attempt is made to purge records.</p>
+<p>At time of writing, this contains these columns:</p>
+<ul>
+<li><code>id</code>: The <code>text</code> unique identifier of the client (possibly a URI).</li>
+<li><code>display_name</code>: A more human-readable <code>text</code> representation of the
+  client identity (possibly a domain-qualified username which looks
+  similar to an email address).</li>
+<li><code>full_name</code>: The human-readable <code>text</code> name of the client.</li>
+<li><code>email</code>: A <code>text</code> email address to contact the client.</li>
+<li><code>client_obj</code>: A <code>jsonb</code> object containing client metadata.</li>
+</ul>
+<p>The <code>id</code> field is the primary key and cannot be NULL.  Each of the
+other fields MAY be NULL, depending on what information is available
+from the configured webauthn2 identity provider.</p>
+<p>The set of columns is a pragmatic choice, intended to reflect stable
+client information which may be helpful when interpreting provenance
+metadata and which is usually present in deployed systems. For
+performance reasons, we do not wish to have high-resolution temporal
+information such as access or expiration times, as these would cause
+too many database updates in what are otherwise read-only ERMrest
+requests.</p>
+<h2 id="extensibility-and-localization">Extensibility and Localization<a class="headerlink" href="#extensibility-and-localization" title="Permanent link">&para;</a></h2>
+<p>The DBA is allowed to add additional human-managed columns to the
+<code>ermrest_client</code> table. These columns MUST have a properly configured
+default value and/or allow NULL values so that ERMrest can insert
+newly discovered clients while only configuring the subset of columns
+which it understands.  Failure to do so may render the service
+inoperative until this problem is rectified.</p>
+<p>The DBA is also allowed to customize access control policies for
+this table. It is impossible to hide the table from catalog owners,
+but less privileged users need not be aware of it.</p>
+<h2 id="conservative-default-policy">Conservative default policy<a class="headerlink" href="#conservative-default-policy" title="Permanent link">&para;</a></h2>
+<p>When the table is introduced into a catalog, it is assigned a
+default table-level policy:</p>
+<pre><code>{
+  "insert": [],
+  "update": [],
+  "delete": [],
+  "select": [],
+  "enumerate": []
+}
+</code></pre>
+<p>This effectively hides the table from clients who are not owners of
+the whole catalog or the <code>public</code> schema.  A catalog administrator MAY
+subsequently modify these policies to make content visible to clients
+where appropriate.</p>
+<h2 id="interface-guarantees">Interface Guarantees<a class="headerlink" href="#interface-guarantees" title="Permanent link">&para;</a></h2>
+<p>The set of columns included in the table are based on the currently
+known information from webauthn.  ERMrest requires the columns to be
+present for correct function.</p>
+<p>A future version of ERMrest MAY:</p>
+<ol>
+<li>Change the set of properties in the <code>client_obj</code> field</li>
+<li>Extend the list of client metadata columns</li>
+<li>Include additional columns when creating the table</li>
+<li>Add columns to existing table instances in ermrest-deploy</li>
+<li>Shorten the list of client metadata columns</li>
+<li>Omit obsolete columns when creating the table</li>
+<li>Ignore obsolete columns when operating on existing tables</li>
+</ol>
+<p>The DBA is also allowed to mutate the <code>ermrest_client</code> table contents
+to import knowledge about clients who have not yet been discovered by
+the ERMrest service logic. However, when ERMrest encounters a client
+corresponding to such an entry, it will automatically mutate the
+columns it understands to reflect all the latest client metadata
+obtained from the webauthn identity providers.</p>
+<p>Therefore, it is not recommended that users be given access to modify
+those fields, as they will become confused or frustrated when values
+revert to the webauthn-established values.</p>
+<p>Likewise, the DBA is allowed to purge stale entries from the
+<code>ermrest_client</code> table, but catalog access by a purged client will
+automatically reinsert their information.  If a DBA wishes to hide
+certain clients' information from the userbase, a dynamic ACL binding
+should be defined to control access to individual rows while allowing
+corresponding rows to be present for each active client.</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../history-track/" class="btn btn-neutral float-right" title="History Tracking for DBAs and Programmers">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../ermrest-registry-purge/" class="btn btn-neutral" title="ermrest-registry-purge command"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../ermrest-registry-purge/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../history-track/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/require.js"></script>
+      <script src="../../search/search.js"></script>
+
+</body>
+</html>

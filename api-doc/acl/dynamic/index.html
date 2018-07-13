@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>Dynamic Data-Dependent Policies - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "Dynamic Data-Dependent Policies";
+    var mkdocs_page_input_path = "api-doc/acl/dynamic.md";
+    var mkdocs_page_url = "/api-doc/acl/dynamic/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../static/">Static Model-Based Policies</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">Dynamic Data-Dependent Policies</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-access-control">ERMrest Access Control</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#dynamic-acl-binding-technical-reference">Dynamic ACL Binding Technical Reference</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>ERMrest API and Service Semantics &raquo;</li>
+        
+      
+    
+    <li>Dynamic Data-Dependent Policies</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-access-control">ERMrest Access Control<a class="headerlink" href="#ermrest-access-control" title="Permanent link">&para;</a></h1>
+<h2 id="dynamic-acl-binding-technical-reference">Dynamic ACL Binding Technical Reference<a class="headerlink" href="#dynamic-acl-binding-technical-reference" title="Permanent link">&para;</a></h2>
+<h3 id="available-dynamic-acl-types">Available Dynamic ACL Types<a class="headerlink" href="#available-dynamic-acl-types" title="Permanent link">&para;</a></h3>
+<p>Some of the previously described <a href="#access-modes">access modes</a> have a
+corresponding dynamic ACL type associated with them. Because dynamic ACLs
+are for data-dependent access, they have more restrictive applicability:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Mode</th>
+<th>Implies</th>
+<th>Supported Resources</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>owner</td>
+<td>Write data</td>
+<td>insert, update, delete, select</td>
+<td>table, column, reference</td>
+</tr>
+<tr>
+<td>insert</td>
+<td>Insert data</td>
+<td></td>
+<td>reference</td>
+</tr>
+<tr>
+<td>update</td>
+<td>Modify data</td>
+<td></td>
+<td>table, column, reference</td>
+</tr>
+<tr>
+<td>delete</td>
+<td>Delete data</td>
+<td></td>
+<td>table, column</td>
+</tr>
+<tr>
+<td>select</td>
+<td>View data</td>
+<td></td>
+<td>table, column</td>
+</tr>
+</tbody>
+</table>
+<p>Table and column-level dynamic ACLs are only applicable to access
+requests against existing database content. Insertion of new rows can
+only be granted by a static policy. However, reference-level dynamic
+ACLs can grant or deny the ability to specify specific foreign keys 
+even during row insertion.</p>
+<p>Dynamic data rights do not imply model access. Model access must be
+determined in a data-independent manner in order to even pose an
+access request which might be granted by dynamic access rights.</p>
+<h3 id="dynamic-acl-binding-representation">Dynamic ACL Binding Representation<a class="headerlink" href="#dynamic-acl-binding-representation" title="Permanent link">&para;</a></h3>
+<p>The data-dependent ACL bindings are encoded in an <code>"acl_bindings"</code>
+sub-resource of the governed resource. This is a hash-map keyed by ACL
+binding name. For example, a table resource has a canonical
+representation as in the following example:</p>
+<pre><code>{
+  "schema_name": "My Schema",
+  "table_name": "My Table",
+  "kind": "table",
+  "comment": "The purpose of My Table is...",
+  "annotations": ...,
+  "column_definitions": ...,
+  "keys": ...,
+  "foreign_keys": ...,
+  "acls": {
+    "write": ["some/curator/URI"]
+  },
+  "acl_bindings": {
+    "My Binding": {
+      "types": ["owner"],
+      "projection": "Managed By",
+      "projection_type": "acl",
+      "scope_acl": ["registered-users-group"]
+    }
+  }
+}
+</code></pre>
+<p>This example has an explicitly set, data-independent curator group who
+can modify all rows in the table, while other data-independent ACLs
+are inherited from the enclosing schema. A dynamic ACL binding called
+<code>My Row Owners</code> specifies that an ACL stored in the <code>Managed By</code>
+column of the table grants <code>owner</code> dynamic access type for individual
+rows. The representation uses an array for the <code>type</code> so that multiple
+access modes can be more easily configured without having to repeat
+the same projection many times. This binding has a scoping ACL such
+that only members of the <code>registered-users-group</code> can acquire these
+row-level rights.</p>
+<h4 id="inheritence-and-false-binding">Inheritence and False Binding<a class="headerlink" href="#inheritence-and-false-binding" title="Permanent link">&para;</a></h4>
+<p>As a convenience, columns effectively inherit the ACL bindings of
+their table. A column whose <code>"acl_bindings"</code> document is empty will
+permit all operations that the table would allow for each row. To
+grant fewer writes, the column-level <code>"acl_bindings"</code> MUST override
+the named bindings inherited from the table.</p>
+<ul>
+<li>Replacement: the column MAY provide a different binding document under the same binding name.</li>
+<li>Suppression: the column MAY provide a literal <code>false</code> value instead of a binding document.</li>
+</ul>
+<h4 id="projection-document">Projection Document<a class="headerlink" href="#projection-document" title="Permanent link">&para;</a></h4>
+<p>The <code>"projection"</code> field of the ACL binding is a document representing
+a parsed <em>abstract syntax tree</em> for an attribute query fragment. The
+general form of the ACL document is an array of path elements:</p>
+<ul>
+<li><code>[</code> <em>element</em> <code>,</code> ... <code>,</code> <em>column</em> <code>]</code></li>
+</ul>
+<p>This corresponds to the serialized query fragment <code>element/.../column</code>
+to project ACL content from an implicit base entity context using the
+ERMrest <code>/attribute/base</code> API.  The final <em>column</em> MUST be a string
+literal naming a column in the effective entity-path context. Each
+anterior <em>element</em> MAY use one of the following sub-document
+structures:</p>
+<ul>
+<li><code>{ "context":</code> <em>leftalias</em> <code>,</code> <em>direction</em> <code>:</code> <em>fkeyname</em>  <code>, "alias":</code> <em>rightalias</em> <code>}</code><ul>
+<li>Links a new table instance to the existing path via inner join</li>
+<li>The left-hand path context is the table instance named by <em>leftalias</em> or the immediately preceding path context if <em>leftalias</em> is <code>null</code> or absent.<ul>
+<li>The alias <code>"base"</code> is implicitly bound to the base table to which this ACL is bound.</li>
+</ul>
+</li>
+<li>The joining condition is determined by the named foreign key constraint <em>fkeyname</em> where one end is tied to the left-hand path context and the other to the newly added table instance.</li>
+<li>The <em>direction</em> of the joining condition is <code>"inbound"</code> or <code>"outbound"</code> and MUST be specified.</li>
+<li>The <em>rightalias</em> string literal is bound to the new table instance unless it is <code>null</code> or absent.<ul>
+<li>The alias <code>"base"</code> is reserved and cannot be bound as a <em>rightalias</em>.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><code>{ "and": [</code> <em>filter</em> <code>,</code> ... <code>], "negate":</code> <em>negate</em> <code>}</code><ul>
+<li>A logical conjunction of multiple <em>filter</em> clauses is applied to the query to constrain matching rows.</li>
+<li>The logical result is negated only if <em>negate</em> is <code>true</code>.</li>
+<li>Each <em>filter</em> clause may be a terminal filter element, conjunction, or disjunction.</li>
+</ul>
+</li>
+<li><code>{ "or": [</code> <em>filter</em> <code>,</code> ... <code>], "negate":</code> <em>negate</em> <code>}</code><ul>
+<li>A logical disjunction of multiple <em>filter</em> clauses is applied to the query to constrain matching rows.</li>
+<li>The logical result is negated only if <em>negate</em> is <code>true</code>.</li>
+<li>Each <em>filter</em> clause may be a terminal filter element, conjunction, or disjunction.</li>
+</ul>
+</li>
+<li><code>{ "filter": [</code> <em>leftalias</em> <code>,</code> <em>column</em> <code>], "operand":</code> <em>value</em> <code>, "operator":</code> <em>operator</em> <code>, "negate":</code> <em>negate</em> <code>}</code><ul>
+<li>An individual filter <em>element</em> is applied to the query or individual <em>filter</em> clauses participate in a conjunction or disjunction.</li>
+<li>The filter constrains a named <em>column</em> in the table named by <em>leftalias</em> or the current path context if <em>leftalias</em> is <code>null</code>.</li>
+<li>The <em>operator</em> specifies the constraint operator via one of the valid operator names in the ERMrest REST API.</li>
+<li>The <em>value</em> specifies the constant operand for a binary constraint operator.</li>
+<li>The logical result of the constraint is negated only if <em>negate</em> is <code>true</code>.</li>
+</ul>
+</li>
+</ul>
+<p>Many fields may be omitted from the above structures to allow concise
+projection documents:</p>
+<ul>
+<li>Many <code>null</code> or absent values have a default semantics defined:<ul>
+<li><em>leftalias</em> is omitted to get a default path-based entity context</li>
+<li><em>rightalias</em> is omitted if no alias binding is required</li>
+<li><em>negate</em> is omitted for normal (non-negated) logical decisions</li>
+<li><em>operator</em> is omitted for regular <code>"="</code> equality comparisons</li>
+<li><em>value</em> is omitted when the unary <code>"::null::"</code> operator is used</li>
+</ul>
+</li>
+<li>A few fields are required to be present with a non-null value<ul>
+<li><em>direction</em> and <em>fkeyname</em> MUST always be present in link documents.</li>
+<li><em>filter</em> MUST always be present in conjunction and disjunction documents.</li>
+<li><em>column</em> MUST always be present in filter clauses.</li>
+<li><em>value</em> MUST always be present with each binary <em>operator</em> including the default <code>"="</code></li>
+</ul>
+</li>
+<li>Two syntactic short-hands are allowed for bare column names:<ul>
+<li>An single-element projection <code>[</code> <em>column</em> <code>]</code> MAY omit the array and specify just the string literal <em>column</em>.</li>
+<li>An unqualified filter column <code>[ null,</code> <em>column</em> <code>]</code> MAY omit the array and specify just the string literal <em>column</em>.</li>
+</ul>
+</li>
+</ul>
+<h4 id="effective-acl-projection-query">Effective ACL Projection Query<a class="headerlink" href="#effective-acl-projection-query" title="Permanent link">&para;</a></h4>
+<p>The <a href="#projection-document">projection document</a> assumes that a <em>base
+row query</em> similar to <code>/ermrest/catalog/N/attribute/Base/key=X/</code> will
+be formulated by the system, and the projection document describes the
+suffix necessary to turn this into an ACL projection query. E.g. in
+the <a href="#dynamic-acl-binding-representation">dynamic ACL example</a> above,
+the projection string <code>"Managed%20By"</code> names a column <code>Managed By</code>
+could be appended to a base-row URL to form a complete ACL projection
+query URL:</p>
+<pre><code>/ermrest/catalog/N/attribute/My%20Schema:My20Table/key=X/Managed%20By
+</code></pre>
+<p>For more complicated projection documents, there is a similar
+mechanical transformation which can produce an effective ACL
+projection query. The supported projection language covers a subset of
+all possible query URLs.</p>
+<h4 id="projection-types">Projection Types<a class="headerlink" href="#projection-types" title="Permanent link">&para;</a></h4>
+<p>Zero or one rows MAY be returned as the query result. Several
+projected column types are supported, and more than one projection
+type is supported. See the following matrix:</p>
+<table>
+<thead>
+<tr>
+<th>Projected Column Type</th>
+<th>Supported <code>"projection_type"</code></th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text[]</code></td>
+<td><code>acl</code> (default)</td>
+<td>The projected array is interpreted as ACL content.</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td><code>acl</code> (default)</td>
+<td>The projected text is interpreted as if it were an array containing the single value.</td>
+</tr>
+<tr>
+<td><em>any</em></td>
+<td><code>nonnull</code></td>
+<td>A non-null projected value is interpreted as a <code>true</code> authorization decision.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>nonnull</code> projection type is supported by all column types. The
+<code>acl</code> projection type is only supported for the projected column types
+shown above.</p>
+<h4 id="scoping-acls">Scoping ACLs<a class="headerlink" href="#scoping-acls" title="Permanent link">&para;</a></h4>
+<p>The <code>"scope_acl"</code> field of each ACL binding document restricts the set
+of clients for whom the data-dependent privileges may be granted. If a
+client's attributes do not match this scoping ACL, the effective
+permissions for the client are the same as if this ACL binding were
+absent from the system.</p>
+<p>If <code>"scope_acl"</code> is omitted during binding creation, a default scoping
+ACL value of <code>["*"]</code> is configured. This provides backwards
+compatibility with older policies used in earlier versions of ERMrest,
+where all ACL bindings were evaluated for all clients.</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../rights/" class="btn btn-neutral float-right" title="Rights Summaries">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../static/" class="btn btn-neutral" title="Static Model-Based Policies"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../static/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../rights/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>

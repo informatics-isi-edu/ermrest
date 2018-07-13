@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../img/favicon.ico">
+  <title>Model Annotation - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../css/highlight.css">
+  <link href="../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "Model Annotation";
+    var mkdocs_page_input_path = "user-doc/annotation.md";
+    var mkdocs_page_url = "/user-doc/annotation/";
+  </script>
+  
+  <script src="../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">Model Annotation</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#model-annotation">Model Annotation</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#notation-and-usage">Notation and Usage</a></li>
+        
+            <li><a class="toctree-l4" href="#annotations">Annotations</a></li>
+        
+            <li><a class="toctree-l4" href="#pattern-expansion">Pattern Expansion</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../api-doc/acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/naming/">ERMrest Data Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/data/rest/">ERMrest Data Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../api-doc/history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>User Docs &raquo;</li>
+        
+      
+    
+    <li>Model Annotation</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="model-annotation">Model Annotation<a class="headerlink" href="#model-annotation" title="Permanent link">&para;</a></h1>
+<p>This document defines a set of annotations we suggest may be useful in
+combination with ERMrest. We define a set of <em>annotation keys</em>, any
+associated JSON <em>annotation values</em>, and their semantics. Communities
+may use these conventions to modify their interpretation of ERMrest
+catalog content.</p>
+<p>These annotations do not affect the behavior of the ERMrest service
+itself but merely inform clients about intended use beyond that
+captured in the entity-relationship model. Further, as described in
+the <a href="../../api-doc/">REST API docs</a>, the annotation system is
+openly extensible so communities MAY use other annotation keys not
+described here; in those cases, the community SHOULD publish similar
+documentation on their use and interpretation.</p>
+<h2 id="notation-and-usage">Notation and Usage<a class="headerlink" href="#notation-and-usage" title="Permanent link">&para;</a></h2>
+<p>Each annotation key is defined in a section of this document and shown
+as a literal string.  We prepend a date in each key name and promise
+not to modify the semantics of an existing annotation key, once
+published to GitHub. We may publish typographical or other small
+textual clarifications, but if we need to change the proposed
+semantics we will define a new key with a different date and/or key
+text. We will follow the date stamp conventions from
+<a href="http://www.faqs.org/rfcs/rfc4151.html">RFC 4151</a> which allow for
+abbreviated ISO dates such as <code>2015</code>, <code>2015-01</code>, and <code>2015-01-01</code>.</p>
+<h3 id="example-to-set-annotation">Example to Set Annotation<a class="headerlink" href="#example-to-set-annotation" title="Permanent link">&para;</a></h3>
+<p>This example sets the
+<a href="#2015-display">2015 Display</a> annotation:</p>
+<pre><code>PUT /ermrest/catalog/1/schema/MainContent/annotation/tag%3Amisd.isi.edu%2C2015%3Adisplay HTTP/1.1
+Host: www.example.com
+Content-Type: application/json
+
+{"name": "Main Content"}
+</code></pre>
+<p>TBD changes to propose for ERMrest:</p>
+<ol>
+<li>Allow non-escaped characters in the annotation key since it is the final field of the URL and does not have a parsing ambiguity?</li>
+<li>Allow an empty (0 byte) request body to represent the same thing as JSON <code>null</code>?</li>
+</ol>
+<h2 id="annotations">Annotations<a class="headerlink" href="#annotations" title="Permanent link">&para;</a></h2>
+<p>Some annotations are supported on multiple types of model element, so
+here is a quick matrix to locate them.</p>
+<table>
+<thead>
+<tr>
+<th>Annotation</th>
+<th>Schema</th>
+<th>Table</th>
+<th>Column</th>
+<th>Key</th>
+<th>FKR</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#2015-display">2015 Display</a></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>Display options</td>
+</tr>
+<tr>
+<td><a href="#2015-vocabulary">2015 Vocabulary</a></td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>Table as a vocabulary list</td>
+</tr>
+<tr>
+<td><a href="#2016-table-alternatives">2016 Table Alternatives</a></td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>_</td>
+<td>_</td>
+<td>Table abstracts another table</td>
+</tr>
+<tr>
+<td><a href="#2016-column-display">2016 Column Display</a></td>
+<td>-</td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>Column-specific display options</td>
+</tr>
+<tr>
+<td><a href="#2017-key-display">2017 Key Display</a></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>Key augmentation</td>
+</tr>
+<tr>
+<td><a href="#2016-foreign-key">2016 Foreign Key</a></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>X</td>
+<td>Foreign key augmentation</td>
+</tr>
+<tr>
+<td><a href="#2016-generated">2016 Generated</a></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>Generated model element</td>
+</tr>
+<tr>
+<td><a href="#2016-ignore">2016 Ignore</a></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>Ignore model element</td>
+</tr>
+<tr>
+<td><a href="#2016-immutable">2016 Immutable</a></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>Immutable model element</td>
+</tr>
+<tr>
+<td><a href="#2016-non-deletable">2016 Non Deletable</a></td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>Non-deletable model element</td>
+</tr>
+<tr>
+<td><a href="#2016-app-links">2016 App Links</a></td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>Intra-Chaise app links</td>
+</tr>
+<tr>
+<td><a href="#2016-table-display">2016 Table Display</a></td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>Table-specific display options</td>
+</tr>
+<tr>
+<td><a href="#2016-visible-columns">2016 Visible Columns</a></td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>Column visibility and presentation order</td>
+</tr>
+<tr>
+<td><a href="#2016-visible-foreign-keys">2016 Visible Foreign Keys</a></td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>Foreign key visibility and presentation order</td>
+</tr>
+<tr>
+<td><a href="#2017-asset">2017 Asset</a></td>
+<td>-</td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>Describes assets</td>
+</tr>
+<tr>
+<td><a href="#2018-indexing-preferences">2018 Indexing Preferences</a></td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>Specify database indexing preferences</td>
+</tr>
+</tbody>
+</table>
+<p>For brevity, the annotation keys are listed above by their section
+name within this documentation. The actual key URI follows the form
+<code>tag:misd.isi.edu,</code> <em>date</em> <code>:</code> <em>key</em> where the <em>key</em> part is
+lower-cased with hyphens replacing whitespace. For example, the
+<code>2015 Display</code> annotation key URI is actually
+<code>tag:misd.isi.edu,2015:display</code>.</p>
+<h3 id="2015-display">2015 Display<a class="headerlink" href="#2015-display" title="Permanent link">&para;</a></h3>
+<p><code>tag:misd.isi.edu,2015:display</code></p>
+<p>This key is allowed on any number of schemas, tables,
+columns, and keys. This annotation indicates display options for the indicated
+element and its nested model elements.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>{</code>... <code>"name":</code> <em>name</em> ...<code>}</code>: The <em>name</em> to use in place of the model element's original name.</li>
+<li><code>{</code>... <code>"markdown_name"</code>: <em>markdown</em> <code>}</code>: The <em>markdown</em> to use in place of the model element's original name.</li>
+<li><code>{</code>... <code>"name_style":</code> <code>{</code> <code>"underline_space"</code>: <em>uspace</em> <code>,</code> <code>"title_case":</code> <em>tcase</em> <code>,</code> <code>"markdown"</code>: <em>render</em> <code>}</code> ...<code>}</code>: Element name conversion instructions.</li>
+<li><code>{</code>... <code>"show_nulls":</code> <code>{</code> <em>ncontext</em> <code>:</code> <em>nshow</em> <code>,</code> ... <code>}</code>: How to display NULL data values.</li>
+</ul>
+<p>Supported JSON <em>uspace</em> patterns:</p>
+<ul>
+<li><code>true</code>: Convert underline characters (<code>_</code>) into space characters in model element names.</li>
+<li><code>false</code>: Leave underline characters unmodified (this is also the default if the setting is completely absent).</li>
+</ul>
+<p>Supported JSON <em>tcase</em> patterns:</p>
+<ul>
+<li><code>true</code>: Convert element names to "title case" meaning the first character of each word is capitalized and the rest are lower cased regardless of model element name casing. Word separators include white-space, hyphen, and underline characters.</li>
+<li><code>false</code>: Leave character casing unmodified (this is also the default if the setting is completely absent).</li>
+</ul>
+<p>Supported JSON <em>render</em> patterns:</p>
+<ul>
+<li><code>true</code>: Interpret the model element's actual name as a Markdown string. This MAY include rendering visually in applications with such capability.</li>
+<li><code>false</code>: Present the model element's actual name verbatim (this is also the default if the setting is completely absent).</li>
+</ul>
+<p>Supported JSON <em>nshow</em> patterns:</p>
+<ul>
+<li><code>true</code> (or <code>""</code>): Show NULL values as an empty field.</li>
+<li><code>"</code> <em>marker</em> <code>"</code> (a quoted string literal): For any string literal <em>marker</em>, display the marker text value in place of NULLs.</li>
+<li><code>false</code>: Completely eliminate the field if feasible in the presentation.</li>
+</ul>
+<p>See <a href="#context-names">Context Names</a> section for the list of supported JSON <em>ncontext</em> patterns.</p>
+<h4 id="2015-display-settings-hierarchy">2015 Display Settings Hierarchy<a class="headerlink" href="#2015-display-settings-hierarchy" title="Permanent link">&para;</a></h4>
+<ul>
+<li>The <code>"name"</code> and <code>"markdown_name"</code> setting applies <em>only</em> to the model element which is annotated. They bypass the <code>name_style</code> controls which only apply to actual model names.</li>
+<li>The <code>"markdown_name"</code> setting takes precedence if both are specified.</li>
+<li>The <code>"name_style"</code> setting applies to the annotated model element and is also the default for any nested element.</li>
+<li>The <code>"show_nulls"</code> settings applies to the annotated model element and is also the default for any nested element.</li>
+<li>The annotation is allowed on schemas in order to set the default for all tables in the schema.</li>
+<li>Each <em>ncontext</em> <code>:</code> <em>nshow</em> instruction overrides the inherited instruction for the same <em>ncontext</em> while still deferring to the inherited annotation for any unspecified <em>ncontext</em>. The <code>"*"</code> wildcard <em>ncontext</em> allows masking of any inherited instruction.</li>
+<li>A global default is assumed: <code>{</code>... <code>"show_nulls": { "detailed": false, "*": true</code> ... <code>}</code></li>
+</ul>
+<p>This annotation provides an override guidance for Chaise applications using a hierarchical scoping mode:</p>
+<ol>
+<li>Column-level name</li>
+<li>Column-level name_style.</li>
+<li>Table-level name_style.</li>
+<li>Schema-level name_style.</li>
+</ol>
+<p>Note:
+- An explicit setting of <code>null</code> will turn <em>off</em> inheritence and restore default behavior for that modele element and any of its nested elements.
+- The name_style has to be derived separately for each field e.g. one can set <code>underline_space=true</code> at the schema-level and doesn't have to set this again.   </p>
+<h3 id="2015-vocabulary">2015 Vocabulary<a class="headerlink" href="#2015-vocabulary" title="Permanent link">&para;</a></h3>
+<p><code>tag:misd.isi.edu,2015:vocabulary</code></p>
+<p>This key is allowed on any number of tables in the model, where the
+table contains at least one key comprised of a single textual
+column. A vocabulary table is one where each row represents a term or
+concept in a controlled vocabulary.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>null</code> or <code>{}</code>: Default heuristics apply.</li>
+<li><code>{</code>... <code>"uri":</code> <em>uri</em> ...<code>}</code>: The <em>uri</em> indicates the global identifier of the controlled vocabulary. The <em>uri</em> MAY be a resolvable URL.</li>
+<li><code>{</code>... <code>"term":</code> <em>column</em> ...<code>}</code>: The named <em>column</em> stores the preferred textual representation of the term. The referenced column MUST comprise a single-column key for the table.</li>
+<li><code>{</code>... <code>"id":</code> <em>column</em> ...<code>}</code>: The named <em>column</em> stores the preferred compact identifier for the term, which MAY be textual or numeric. The referenced column MUST comprise a single-column key for the table.</li>
+<li><code>{</code>... <code>"internal":</code> [<em>column</em>, ...] ...<code>}</code>: The one or more named <em>columns</em> store internal identifiers for the term, used for efficient normalized storage in the database but not meaningful to typical users. The referenced columns MUST each comprise a single-column key for the table.</li>
+<li><code>{</code>... <code>"description":</code> <em>column</em> ...<code>}</code>: The named <em>column</em> stores a longer textual representation of the term or concept. The referenced column SHOULD comprise a single-column key for the table.</li>
+</ul>
+<h4 id="heuristics">Heuristics<a class="headerlink" href="#heuristics" title="Permanent link">&para;</a></h4>
+<ol>
+<li>In the absence of an <code>internal</code> assertion, assume all keys are potentially meaningful to users.</li>
+<li>In the absence of a <code>term</code> assertion</li>
+<li>Try to find a single-column key named <code>term</code></li>
+<li>Try to find a single-column key named <code>name</code></li>
+<li>If no term column is found table SHOULD NOT be interpreted as a vocabulary.</li>
+<li>In the absence of an <code>id</code> assertion</li>
+<li>Try to find a column named <code>id</code></li>
+<li>Try to find an unambiguous single-column numeric key</li>
+<li>If no <code>id</code> column is found, use the term column as the preferred compact identifier.</li>
+<li>In the absence of a <code>description</code> assertion</li>
+<li>Try to find a column named <code>description</code></li>
+<li>If no description column is found, proceed as if there is no description or use some other detailed or composite view of the table rows as a long-form presentation.</li>
+</ol>
+<p>In the preceding, an "unambiguous" key means that there is only one
+key matching the specified type and column count.</p>
+<p>The preferred compact identifier is more often used in dense table
+representations, technical search, portable data interchange, or
+expert user scenarios, while the preferred textual representation is
+often used in prose, long-form presentations, tool tips, or other
+scenarios where a user may need more natural language understanding of
+the concept.</p>
+<h3 id="2016-ignore">2016 Ignore<a class="headerlink" href="#2016-ignore" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:ignore</code></p>
+<p>This key is allowed on any number of Schema, Table, or Column model elements. The only part of chaise that is using this annotation is search application. It does not have any effects on other applications (i.e., record, record-edit, and recordset).</p>
+<p>This key was previously specified for these model elements but such use is deprecated:</p>
+<ul>
+<li>Column (use <a href="#2016-visible-columns">2016 Visible Columns</a> instead)</li>
+<li>Foreign Key (use <a href="#2016-visible-foreign-keys">2016 Visible Foreign Keys</a> instead)</li>
+</ul>
+<p>This annotation indicates that the annotated model element should be ignored in typical model-driven user interfaces, with the presentation behaving as if the model element were not present. The JSON payload contextualizes the user interface mode or modes which should ignore the model element.</p>
+<p>Supported JSON payload patterns:
+- <code>null</code> or <code>true</code>: Ignore in any presentation context. <code>null</code> is equivalent to <code>tag:misd.isi.edu,2015:hidden</code> for backward-compatibility.
+- <code>[]</code> or <code>false</code>: Do <strong>not</strong> ignore in any presentation context.
+- <code>[</code> <em>context</em> <code>,</code> ... <code>]</code>: Ignore <strong>only</strong> in specific listed contexts, otherwise including the model element as per default heuristics. See <a href="#context-names">Context Names</a> section for the list of supported <em>context</em> names.</p>
+<p>This annotation provides an override guidance for Chaise applications
+using a hierarchical scoping mode:</p>
+<ol>
+<li>Hard-coded default behavior in Chaise codebase.</li>
+<li>Server-level configuration in <code>chaise-config.js</code> on web server overrides hard-coded default.</li>
+<li>Schema-level annotation overrides server-level or codebase behaviors.</li>
+<li>Table-level annotation overrides schema-level, server-level, or codebase behaviors.</li>
+<li>Annotations on the column or foreign key reference levels override table-level, schema-level, server-level, or codebase behaviors.</li>
+</ol>
+<h3 id="2016-app-links">2016 App Links<a class="headerlink" href="#2016-app-links" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:app-links</code></p>
+<p>This key is allowed on any number of schemas or tables in the
+model. It is used to indicate which application in the Chaise suite
+should be used for presentation in different context.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>{</code> ... <em>context</em> <code>:</code> <em>app name</em> <code>,</code> ... <code>}</code>: An <em>app name</em> to be linked to in a different <em>context</em> name.</li>
+<li><em>app name</em> is one of the following chaise apps:<ul>
+<li><code>tag:isrd.isi.edu,2016:chaise:record</code>,</li>
+<li><code>tag:isrd.isi.edu,2016:chaise:record-two</code>,</li>
+<li><code>tag:isrd.isi.edu,2016:chaise:viewer</code>,</li>
+<li><code>tag:isrd.isi.edu,2016:chaise:search</code>,</li>
+<li><code>tag:isrd.isi.edu,2016:chaise:recordset</code></li>
+</ul>
+</li>
+<li><code>{</code> ... <em>context1</em> <code>:</code> <em>context2</em> <code>,</code> ... <code>}</code>: Configure <em>context1</em> to use the same <em>app name</em> configured for <em>context2</em>.</li>
+</ul>
+<p>See <a href="#context-names">Context Names</a> section for the list of supported <em>context</em> names.</p>
+<p>This annotation provides an override guidance for Chaise applications
+using a hierarchical scoping mode:</p>
+<ol>
+<li>Hard-coded default behavior in Chaise codebase:</li>
+<li><code>detailed</code> <code>:</code> <code>tag:isrd.isi.edu,2016:chaise:record</code>,</li>
+<li><code>compact</code> <code>:</code> <code>tag:isrd.isi.edu,2016:chaise:resultset</code></li>
+<li>Server-level configuration in <code>chaise-config.js</code> on web server overrides hard-coded default.</li>
+<li>Schema-level annotation overrides server-level or codebase behaviors.</li>
+<li>Table-level annotation overrides schema-level, server-level, or codebase behaviors.</li>
+</ol>
+<h3 id="2016-immutable">2016 Immutable<a class="headerlink" href="#2016-immutable" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:immutable</code></p>
+<p>This key indicates that the values for a given model element may not be mutated
+(changed) once set. This key is allowed on any number of columns, tables, and schemas. There is no
+content for this key.</p>
+<h3 id="2016-generated">2016 Generated<a class="headerlink" href="#2016-generated" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:generated</code></p>
+<p>This key indicates that the values for a given model element will be generated by
+the system. This key is allowed on any number of columns, tables and schemas.
+There is no content for this key.</p>
+<h3 id="2016-non-deletable">2016 Non Deletable<a class="headerlink" href="#2016-non-deletable" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:non-deletable</code></p>
+<p>This key indicates that the schema or table is non-deletable. This key is allowed
+on any number tables and schemas. There is no content for this key.</p>
+<h3 id="2016-visible-columns">2016 Visible Columns<a class="headerlink" href="#2016-visible-columns" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:visible-columns</code></p>
+<p>This key indicates that the presentation order and visibility for
+columns in a table, overriding the defined table structure.</p>
+<p>Supported JSON payload pattern:</p>
+<ul>
+<li><code>{</code> ... <em>context</em> <code>:</code> <em>columnlist</em> <code>,</code> ... <code>}</code>: A separate <em>columnlist</em> can be specified for any number of <em>context</em> names.</li>
+<li><code>{</code> ... <em>context1</em> <code>:</code> <em>context2</em> <code>,</code> ... <code>}</code>: Configure <em>context1</em> to use the same <em>columnlist</em> configured for <em>context2</em>.</li>
+<li><code>{</code> ... <code>"filter": { "and": [</code> <em>facetlist</em> <code>,</code> ... <code>]} }</code> : Configure list of facets to be displayed.</li>
+</ul>
+<p>For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available columns SHOULD be presented in their defined order unless the application has guidance from other sources.</p>
+<p>See <a href="#context-names">Context Names</a> section for the list of supported <em>context</em> names.</p>
+<p>Supported <em>columnlist</em> patterns:</p>
+<ul>
+<li><code>[</code> ... <em>columnentry</em> <code>,</code> ... <code>]</code>: Present content corresponding to each <em>columnentry</em>, in the order specified in the list. Ignore listed <em>columnentry</em> values that do not correspond to content from the table. Do not present table columns that are not specified in the list.</li>
+</ul>
+<p>Supported <em>columnentry</em> patterns:</p>
+<ul>
+<li><em>columnname</em>: A string literal <em>columnname</em> identifies a constituent column of the table. The value of the column SHOULD be presented, possibly with representation guided by other annotations or heuristics.</li>
+<li><code>[</code> <em>schemaname</em> <code>,</code> <em>constraintname</em> <code>]</code>: A two-element list of string literal <em>schemaname</em> and <em>constraintname</em> identifies a constituent foreign key of the table. The value of the external entity referenced by the foreign key SHOULD be presented, possibly with representation guided by other annotations or heuristics. If the foreginkey is representing an inbound relationship with the current table, it SHOULD be presented in a tabular format since it can represent multiple rows of data.</li>
+<li><code>{ "source":</code> <em>sourceentry</em> <code>}</code>:  Defines a pseudo-column based on the given <em>sourceentry</em>. For detailed explanation and examples please refer to <a href="https://github.com/informatics-isi-edu/ermrestjs/wiki/Pseudo-Column-Logic-&amp;-Heuristics#examples">here</a>. Other optional attributes that this JSON document can have are:</li>
+<li><code>markdown_name</code>: The markdown to use in place of the default heuristics for title of column.</li>
+<li><code>comment</code>: The tooltip to be used in place of the default heuristics for the column.</li>
+<li><code>entity</code>: If the <em>sourceentry</em> can be treated as entity (the source column is key of the table), setting this attribute to <code>false</code> will force the scalar mode.</li>
+<li><code>aggregate</code>: The aggregate function that should be used for getting an aggregated result. The available aggregate functions are <code>min</code>, <code>max</code>, <code>cnt</code>, <code>cnt_d</code>, and <code>array</code>.<ul>
+<li><code>array</code> will return ALL the values including duplicates associated with the specified columns. For data types that are sortable (e.g integer, text), the values will be sorted alphabetically or numerically. Otherwise, it displays values in the order that it receives from ERMrest. There is no paging mechanism to limit what's shown in the aggregate column, therefore please USE WITH CARE as it can incur performance overhead and ugly presentation.</li>
+<li>Using <code>array</code> aggregate in entiy mode will provide an array of row-names instead of just they value of the column.</li>
+</ul>
+</li>
+</ul>
+<p>Supported <em>sourceentry</em> pattern:
+- <em>columnname</em>: : A string literal. <em>columnname</em> identifies a constituent column of the table.
+- <em>path</em>: An array of <em>foreign key path</em> that ends with a <em>columnname</em> that will be projected. <em>foreign key path</em> is in the following format:</p>
+<pre><code>    "`{` _direction_ `:[` *schema name*`,` *constraint name* `]}` "
+Where _direction_ is either `inbound`, or `outbound`.
+</code></pre>
+<p>Supported <em>facetlist</em> pattern:</p>
+<ul>
+<li><code>[</code> ... <em>facetentry</em> <code>,</code> ... <code>]</code>: Present content corresponding to each <em>facetentry</em>, in the order specified in the list. Ignore invalid listed <em>facetentry</em>. Do not present other facets that are not specified in the list.</li>
+</ul>
+<p><em>facetentry</em> must be a JSON payload with the following attributes:</p>
+<p>Required attributes:
+- <code>source</code>: Source of the filter. If it is not specified or is invalid the <em>facetentry</em> will be ignored. It has the same pattern as <em>sourceentry</em> defined above.</p>
+<p>Constraint attributes (optional):</p>
+<p>You can use these attributes to define default preselected facets (Combination of these attributes are not supported yet, you cannot have both <code>choices</code> and <code>ranges</code> specified on a facet).
+- <code>choices</code>: Discrete choice e.g. maps to a checklist or similar UX. Its value MUST be an array of values.
+- <code>ranges</code>: Half-open or closed intervals, e.g. maps to a slider or similar UX. Its value MUST be an array of JSON payload, with <code>min</code> and <code>max</code> attributes. The <code>min</code> and <code>max</code> values will translate into inclusive range filters. In order to force exclusive range, you can use <code>min_exclusive: true</code>, or <code>max_exclusive: true</code>.
+- <code>not_null</code>: Match any record that has a value other than <code>null</code>. Its value MUST be <code>true</code>. If you have this constraint defined in your annotation, other constraints will be ignored (other than <code>"choice"</code>: [null]<code>. In this case both of the filters will be ignored).
+&lt;!-- -</code>search`: Substring search, e.g. maps to a search box UX. --&gt;</p>
+<p>Configuration attributes (optional):
+- <code>markdown_name</code>: The markdown to use in place of the default heuristics for facet title.
+- <code>entity</code>: If the facet can be treated as entity (the column that is being used for facet is key of the table), setting this attribute to <code>false</code> will force the facet to show scalar mode.
+- <code>open</code>: Setting this attribute to <code>true</code>, will force the facet to open by default.
+- <code>bar_plot</code>: This attribute is meant to be an object of properties that control the display of the histogram. Setting this attribute to <code>false</code> will force the histogram to not be shown in the facet in the facet panel. If unspecified, default is <code>true</code> (or show the histogram).
+- <code>ux_mode</code>: <code>choices</code> or <code>ranges</code>. If a multi-modal facet control UX is available, it will specify the default UX mode that should be used (If <code>ux_mode</code> is defined, the other type of constraint will not be displayed even if you have defined it in the annotation).</p>
+<p><code>bar_plot</code> attributes (optional):
+- <code>n_bins</code>: Used to define the number of bins the histogram uses to fetch and display data. If undefined, default is 30 bins.</p>
+<p>The following is an example of visible-columns annotation payload for defining facets. You can find more examples in <a href="https://github.com/informatics-isi-edu/ermrestjs/wiki/Facet-Examples">here</a>.</p>
+<pre><code>&quot;filter&quot;: {
+    &quot;and&quot; : [
+        {&quot;source&quot;: &quot;column&quot;, &quot;ranges&quot;: [{&quot;min&quot;: 1}, {&quot;min&quot;:5, &quot;max&quot;:10}] ,&quot;markdown_name&quot;: &quot;**col**&quot;},
+        {&quot;source&quot;: [{&quot;outbound&quot;: [&quot;S&quot;, &quot;FK2&quot;]}, &quot;id&quot;], &quot;choices&quot;: [1, 2]},
+        {&quot;source&quot;: [{&quot;inbound&quot;: [&quot;S&quot;, &quot;FK1&quot;]}, {&quot;outbound&quot;: [&quot;S&quot;, &quot;FK2&quot;]}, &quot;term&quot;], &quot;entity&quot;: false}
+    ]
+}
+</code></pre>
+
+<h3 id="2017-key-display">2017 Key Display<a class="headerlink" href="#2017-key-display" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2017:key-display</code></p>
+<p>This key allows augmentation of a unique key constraint
+with additional presentation information.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>{</code> <em>context</em><code>:</code> <em>option</em> ...<code>}</code>: Apply each <em>option</em> to the presentation of referenced content for any number of <em>context</em> names.</li>
+</ul>
+<p>Supported display <em>option</em> syntax:</p>
+<ul>
+<li><code>"markdown_pattern":</code> <em>pattern</em>: The visual presentation of the key SHOULD be computed by performing <a href="#pattern-expansion">Pattern Expansion</a> on <em>pattern</em> to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.</li>
+<li><code>"column_order"</code>: <code>[</code> <em>columnorder_key</em> ... <code>]</code>: An alternative sort method to apply when a client wants to semantically sort by key values.</li>
+<li><code>"column_order": false</code>: Sorting by this key psuedo-column should not be offered.</li>
+</ul>
+<p>Supported <em>columnorder_key</em> syntax:</p>
+<ul>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": true }</code>: Sort according to the values in the <em>columnname</em> column opposite of the order of current sort. For instance if asked to sort the key in descending order, sorting will be based on the ascending values of <em>columnname</em> column.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": false }</code>: Sort according to the values in the <em>columnname</em> column.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>}</code>: If omitted, the <code>"descending"</code> field defaults to <code>false</code> as per above.</li>
+<li><em>columnname</em>: A bare <em>columnname</em> is a short-hand for <code>{ "column":</code> <em>columnname</em> <code>}</code>.</li>
+</ul>
+<p>Key pseudo-column-naming heuristics (use first applicable rule):</p>
+<ol>
+<li>Use key name specified by <a href="#2015-display">2015 Display</a> if <code>name</code> attribute is specified.</li>
+<li>For simple keys, use effective name of sole constituent column considering <a href="#2015-display">2015 Display</a> and column name from model.</li>
+<li>Other application-specific defaults might be considered (non-normative examples):</li>
+<li>Anonymous pseudo-column may be applicable in some presentations</li>
+<li>A fixed name such as <code>Key</code></li>
+<li>The effective table name</li>
+<li>A composite name formed by joining the effective names of each constituent column of a composite key</li>
+</ol>
+<p>Key sorting heuristics (use first applicable rule):</p>
+<ol>
+<li>Use the key's display <code>column_order</code> option, if present.</li>
+<li>Determine sort based on constituent column, only if key is non-composite.</li>
+<li>Otherwise, disable sort for psuedo-column.</li>
+</ol>
+<p>The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.</p>
+<h3 id="2016-foreign-key">2016 Foreign Key<a class="headerlink" href="#2016-foreign-key" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:foreign-key</code></p>
+<p>This key allows augmentation of a foreign key reference constraint
+with additional presentation information.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>{</code> ... <code>"from_name":</code> <em>fname</em> ... <code>}</code>: The <em>fname</em> string is a preferred name for the set of entities containing foreign key references described by this constraint.</li>
+<li><code>{</code> ... <code>"to_name":</code> <em>tname</em> ... <code>}</code>: The <em>tname</em> string is a preferred name for the set of entities containing keys described by this constraint.</li>
+<li><code>{</code> ... <code>"display": {</code> <em>context</em><code>:</code> <em>option</em> ...<code>}</code> ... <code>}</code>: Apply each <em>option</em> to the presentation of referenced content for any number of <em>context</em> names.</li>
+<li><code>{</code> ... <code>"domain_filter_pattern":</code> <em>pattern</em> ...<code>}</code>: The <em>pattern</em> yields a <em>filter</em> via <a href="#pattern-expansion">Pattern Expansion</a>. The <em>filter</em> is a URL substring using the ERMrest filter language, which can be applied to the referenced table. The <em>filter</em> MUST NOT use any</li>
+</ul>
+<p>Supported display <em>option</em> syntax:</p>
+<ul>
+<li><code>"column_order"</code>: <code>[</code> <em>columnorder_key</em> ... <code>]</code>: An alternative sort method to apply when a client wants to semantically sort by foreign key values.</li>
+<li><code>"column_order": false</code>: Sorting by this foreign key psuedo-column should not be offered.</li>
+</ul>
+<p>Supported <em>columnorder_key</em> syntax:</p>
+<ul>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": true }</code>: Sort according to the values in the <em>columnname</em> column opposite of the order of current sort.For instance if asked to sort the foreign key in descending order, sorting will be based on the ascending values of <em>columnname</em> column. <em>columnname</em> can be the name of any columns from the table that the foreign key is referring to.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": false }</code>: Sort according to the values in the <em>columnname</em> column.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>}</code>: If omitted, the <code>"descending"</code> field defaults to <code>false</code> as per above.</li>
+<li><em>columnname</em>: A bare <em>columnname</em> is a short-hand for <code>{ "column":</code> <em>columnname</em> <code>}</code>. <em>columnname</em> can be the name of any columns from the table that the foreign key is referring to.</li>
+</ul>
+<p>Set-naming heuristics (use first applicable rule):</p>
+<ol>
+<li>A set of "related entities" make foreign key reference to a presentation context:</li>
+<li>The <em>fname</em> is a preferred name for the related entity set.</li>
+<li>The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.</li>
+<li>The name of the table can be composed with other contextual information, e.g. "Tablename having columnname = value".</li>
+<li>To name a set of "related entities" linked to a presentation context by an association table:</li>
+<li>The <em>tname</em> of the foreign key from association table to related entities is a preferred name for the related entity set.</li>
+<li>The name of the table containing the related entities may be an appropriate name for the set, particularly if the table has no other relationship to the context.</li>
+</ol>
+<p>Foreign key sorting heuristics (use first applicable rule):</p>
+<ol>
+<li>Use the foreign key's display <code>column_order</code> option, if present.</li>
+<li>Use the referenced table display <code>row_order</code> option, if present.</li>
+<li>Determine sort based on constituent column, only if foreign key is non-composite.</li>
+<li>Otherwise, disable sort for psuedo-column.</li>
+</ol>
+<p>The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.</p>
+<p>Domain value presentation heuristics:</p>
+<ol>
+<li>If <em>pattern</em> expands to <em>filter</em> and forms a valid filter string, present filtered results as domain values.<ul>
+<li>With <em>filter</em> <code>F</code>, the effective domain query would be <code>GET /ermrest/catalog/N/entity/S:T/F</code> or equivalent.</li>
+<li>The <em>filter</em> SHOULD be validated according to the syntax summary below.</li>
+<li>If a server response suggests the filter is invalid, an application SHOULD retry as if the <em>pattern</em> is not present.</li>
+</ul>
+</li>
+<li>If <em>filter</em> is not a valid filter string, proceed as if <em>pattern</em> is not present.</li>
+<li>If <em>pattern</em> is not present, present unfiltered results.</li>
+</ol>
+<p>Supported <em>filter</em> language is the subset of ERMrest query path syntax
+allowed in a single path element:</p>
+<ul>
+<li>Grouping: <code>(</code> <em>filter</em> <code>)</code></li>
+<li>Disjunction: <em>filter</em> <code>;</code> <em>filter</em></li>
+<li>Conjunction: <em>filter</em> <code>&amp;</code> <em>filter</em></li>
+<li>Negation: <code>!</code> <em>filter</em></li>
+<li>Unary predicates: <em>column</em> <code>::null::</code></li>
+<li>Binary predicates: <em>column</em> <em>op</em> <em>value</em></li>
+<li>Equality: <code>=</code></li>
+<li>Inequality: <code>::gt::</code>, <code>::lt::</code>, <code>::geq::</code>, <code>::leq::</code></li>
+<li>Regular expressions: <code>::regexp::</code>, <code>::ciregexp::</code></li>
+</ul>
+<p>Notably, <em>filters</em> MUST NOT contain the path divider <code>/</code> nor any other
+reserved syntax not summarized above. All <em>column</em> names and <em>value</em>
+literals MUST be URL-escaped to protect any special characters. All
+<em>column</em> names MUST match columns in the referenced table and MUST NOT
+be qualified with table instance aliases.</p>
+<h3 id="2016-column-display">2016 Column Display<a class="headerlink" href="#2016-column-display" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:column-display</code></p>
+<p>This key allows specification of column data presentation options at the column level of the model.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>{</code> ... <em>context</em> <code>:</code> <code>{</code> <em>option</em> ... <code>}</code> ... <code>}</code>: Apply each <em>option</em> to the presentation of column values in the given <em>context</em>.</li>
+<li><code>{</code> ... <em>context1</em> <code>:</code> <em>context2</em> ... <code>}</code>: Short-hand to allow <em>context1</em> to use the same options configured for <em>context2</em>.</li>
+</ul>
+<p>See <a href="#context-names">Context Names</a> section for the list of supported <em>context</em> names.</p>
+<p>Supported <em>option</em> syntax:</p>
+<ul>
+<li><code>"pre_format"</code>: <em>format</em>: The column value SHOULD be pre-formatted by evaluating the <em>format</em> string with the raw column value as its sole argument. Please refer to <a href="https://github.com/informatics-isi-edu/ermrestjs/wiki/Pre-Format-Annotation">Pre Format Annotation document</a> for detailed explanation of supported syntax.</li>
+<li><code>"markdown_pattern":</code> <em>pattern</em>: The visual presentation of the column SHOULD be computed by performing <a href="#pattern-expansion">Pattern Expansion</a> on <em>pattern</em> to obtain a markdown-formatted text value which MAY be rendered using a markdown-aware renderer.</li>
+<li><code>"column_order"</code>: <code>[</code> <em>columnorder_key</em> ... <code>]</code>: An alternative sort method to apply when a client wants to semantically sort by this column.</li>
+<li><code>"column_order": false</code>: Sorting by this column should not be offered.</li>
+</ul>
+<p>Supported <em>columnorder_key</em> syntax:</p>
+<ul>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": true }</code>: Sort according to the values in the <em>columnname</em> column opposite of the order of current sort. For instance if asked to sort the column in descending order, sorting will be based on the ascending values of <em>columnname</em> column.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": false }</code>: Sort according to the values in the <em>columnname</em> column.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>}</code>: If omitted, the <code>"descending"</code> field defaults to <code>false</code> as per above.</li>
+<li><em>columnname</em>: A bare <em>columnname</em> is a short-hand for <code>{ "column":</code> <em>columnname</em> <code>}</code>.</li>
+</ul>
+<p>All <code>pre_format</code> options for all columns in the table SHOULD be evaluated <strong>prior</strong> to any <code>markdown_pattern</code>, thus allowing raw data values to be adjusted by each column's <em>format</em> option before they are substituted into any column's <em>pattern</em>.</p>
+<p>The <code>column_order</code> annotation SHOULD always provide a meaningful semantic sort for the presented column content. <code>column_order</code> MAY be present because the preferred semantic sort may differ from a lexicographic sort of the storage column, e.g. a secondary "rank" column might provide a better order for coded values in the annotated storage column.</p>
+<p>Column sorting heuristics (use first applicable rule):</p>
+<ol>
+<li>Use the column's display <code>column_order</code> option, if present.</li>
+<li>Sort by presented column value.</li>
+</ol>
+<p>The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.</p>
+<h3 id="2016-table-display">2016 Table Display<a class="headerlink" href="#2016-table-display" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:table-display</code></p>
+<p>This key allows specification of table presentation options at the table or schema level of the model.</p>
+<ul>
+<li><code>{</code> ... <em>context</em> <code>:</code> <code>{</code> <em>option</em> ... <code>}</code> ... <code>}</code>: Apply each <em>option</em> to the presentation of table content in the given <em>context</em>.</li>
+<li><code>{</code> ... <em>context1</em> <code>:</code> <em>context2</em> ... <code>}</code>: Short-hand to allow <em>context1</em> to use the same options configured for <em>context2</em>.</li>
+</ul>
+<p>See <a href="#context-names">Context Names</a> section for the list of supported <em>context</em> names.</p>
+<p>Supported JSON <em>option</em> payload patterns:</p>
+<ul>
+<li><code>"row_order":</code> <code>[</code> <em>sortkey</em> ... <code>]</code>: The list of one or more <em>sortkey</em> defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys. The given <em>sortkey</em> s will be used as is (<em>columnorder</em> SHOULD not be applied recursivly to this).</li>
+<li><code>"page_size":</code> <code>_number_</code>: The default number of rows to be shown on a page.  </li>
+<li><code>"row_markdown_pattern":</code> <em>rowpattern</em>: Render the row by composing a markdown representation only when <code>row_markdown_pattern</code> is non-null.</li>
+<li>Expand <em>rowpattern</em> to obtain a markdown representation of each row via <a href="#pattern-expansion">Pattern Expansion</a>. The pattern has access to column values <strong>after</strong> any processing implied by <a href="#2016-column-display">2016 Column Display</a>.</li>
+<li><code>"separator_markdown":</code> <em>separator</em>: Insert <em>separator</em> markdown text between each expanded <em>rowpattern</em> when presenting row sets. (Default new-line <code>"\n"</code>.)</li>
+<li>Ignore if <code>"row_markdown_pattern"</code> is not also configured.</li>
+<li><code>"prefix_markdown":</code> <em>prefix</em>: Insert <em>prefix</em> markdown before the first <em>rowpattern</em> expansion when presenting row sets. (Default empty string <code>""</code>.)</li>
+<li>Ignore if <code>"row_markdown_pattern"</code> is not also configured.</li>
+<li><code>"suffix_markdown":</code> <em>suffix</em>: Insert <em>suffix</em> markdown after the last <em>rowpattern</em> expansion when presenting row sets. (Default empty string <code>""</code>.)</li>
+<li>Ignore if <code>"row_markdown_pattern"</code> is not also configured.</li>
+<li><code>"module":</code> <em>module</em>: Activate <em>module</em> to present the entity set. The string literal <em>module</em> name SHOULD be one that Chaise associates with a table-presentation plug-in.</li>
+<li><code>"module_attribute_path":</code> <em>pathsuffix</em>: Configure the data source for activated <em>module</em>. Ignore if <em>module</em> is not configured or not understood.</li>
+<li>If <em>pathsuffix</em> is omitted, use the ERMrest <code>/entity/</code> API and a data path denoting the desired set of entities.</li>
+<li>If <em>pathsuffix</em> is specified, use the ERMrest <code>/attribute/</code> API and append <em>pathsuffix</em> to a data path denoting the desired set of entities and which binds <code>S</code> as the table alias for this entire entity set.<ul>
+<li>The provided <em>pathsuffix</em> MUST provide the appropriate projection-list to form a valid <code>/attribute/</code> API URI.</li>
+<li>The <em>pathsuffix</em> MAY join additional tables to the path and MAY project from these tables as well as the table bound to the <code>S</code> table alias.</li>
+<li>The <em>pathsuffix</em> SHOULD reset the path context to <code>$S</code> if it has joined other tables.</li>
+</ul>
+</li>
+</ul>
+<p>It is not meaningful to use both <code>row_markdown_pattern</code> and <code>module</code> in for the same <em>context</em>. If both are specified, it is RECOMMENDED that the application prefer the <code>module</code> configuration and ignore the markdown instructions.</p>
+<p>Supported JSON <em>sortkey</em> patterns:</p>
+<ul>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": true }</code>: Sort according to the values in the <em>columnname</em> column in descending order. This is equivalent to the ERMrest sort specifier <code>@sort(</code> <em>columnname</em> <code>::desc::</code> <code>)</code>.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>, "descending": false }</code>: Sort according to the values in the <em>columnname</em> column in ascending order. This is equivalent to the ERMrest sort specifier <code>@sort(</code> <em>columnname</em> <code>)</code>.</li>
+<li><code>{ "column":</code> <em>columnname</em> <code>}</code>: If omitted, the <code>"descending"</code> field defaults to <code>false</code> as per above.</li>
+<li><em>columnname</em>: A bare <em>columnname</em> is a short-hand for <code>{ "column":</code> <em>columnname</em> <code>}</code>.</li>
+</ul>
+<h4 id="2016-table-display-settings-hierarchy">2016 Table Display Settings Hierarchy<a class="headerlink" href="#2016-table-display-settings-hierarchy" title="Permanent link">&para;</a></h4>
+<p>The table display settings apply only to tables, but MAY be annotated at the schema level to set a schema-wide default, if appropriate in a particular model. Any table-level specification of these settings will override the behavior for that table. These settings on other model elements are meaningless and ignored.</p>
+<p>For hierarchically inheritable settings, an explicit setting of <code>null</code> will turn <em>off</em> inheritence and restore default behavior for that model element and any of its nested elements.</p>
+<h3 id="2016-visible-foreign-keys">2016 Visible Foreign Keys<a class="headerlink" href="#2016-visible-foreign-keys" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:visible-foreign-keys</code></p>
+<p>This key indicates that the presentation order and visibility for
+foreign keys referencing a table, useful when presenting "related entities".</p>
+<p>Supported JSON payload pattern:</p>
+<ul>
+<li><code>{</code> ... <em>context</em> <code>:</code> <em>fkeylist</em> <code>,</code> ... <code>}</code>: A separate <em>fkeylist</em> can be specified for any number of <em>context</em> names.</li>
+<li><code>{</code> ... <em>context1</em> <code>:</code> <em>context2</em> ... <code>}</code>: Short-hand to allow <em>context1</em> to use the same fkeylist configured for <em>context2</em>.</li>
+</ul>
+<p>For presentation contexts which are not listed in the annotation, or when the annotation is entirely absent, all available foreign keys SHOULD be presented unless the application has guidance from other sources. See <a href="#context-names">Context Names</a> section for the list of supported <em>context</em> names.</p>
+<p>Supported <em>fkeylist</em> patterns:</p>
+<ul>
+<li><code>[</code> <code>[</code> <em>schema name</em><code>,</code> <em>constraint name</em> <code>]</code> <code>,</code> ... <code>]</code>: Present foreign keys with matching <em>schema name</em> and <em>constraint name</em>, in the order specified in the list. Ignore constraint names that do not correspond to foreign keys in the catalog. Do not present foreign keys that are not mentioned in the list. These 2-element lists use the same format as each element in the <code>names</code> property of foreign keys in the JSON model introspection output of ERMrest. The foreign keys MUST represent inbound relationships to the current table.</li>
+<li><code>{ "source":</code> <em>sourceentry</em> <code>}</code>:  Defines a pseudo-column based on the given <em>sourceentry</em>. For detailed explanation and examples please refer to <a href="https://github.com/informatics-isi-edu/ermrestjs/wiki/Pseudo-Column-Logic-&amp;-Heuristics#examples">here</a>. Other optional attributes that this JSON document can have are:</li>
+<li><code>markdown_name</code>: The markdown to use in place of the default heuristics for title of column.</li>
+</ul>
+<p>Supported <em>sourceentry</em> pattern in here:
+  - <em>path</em>: An array of <em>foreign key path</em> that ends with a <em>columnname</em> that will be projected. <em>foreign key path</em> is in the following format:</p>
+<pre><code>      "`{` _direction_ `:[` *schema name*`,` *constraint name* `]}` "
+  Where _direction_ is either `inbound`, or `outbound`.
+</code></pre>
+<h3 id="2016-table-alternatives">2016 Table Alternatives<a class="headerlink" href="#2016-table-alternatives" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2016:table-alternatives</code></p>
+<p>This key indicates that the annotated table (e.g. the base storage table) has abstracted views/tables that should be used as <em>alternataive</em> tables in different contexts. This means that they both represent the same <em>entity set</em> but
+the alternative one has modified the representation of each entity in some way.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>{</code> ... <em>context</em> <code>:</code> [ <em>sname</em>, <em>tname</em>] <code>,</code> ... <code>}</code>: The table identified by <em>sname</em>:<em>tname</em> is an alternative table to be used instead of the annoted table in the specified context.</li>
+</ul>
+<p>A alternative table or view which abstracts another table <em>SHOULD</em> have a non-null (psuedo) primary key which is also a foreign key to the base storage table. The base storage table is the one bearing this annotation. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.</p>
+<p>See <a href="#context-names">Context Names</a> section for the list of supported <em>context</em> names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the <code>detailed</code> or <code>compact</code> context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the <code>detailed</code> or <code>compact</code> abstraction but only offer editing or data-entry controls on the fields available from the base storage table.</p>
+<h3 id="2017-asset">2017 Asset<a class="headerlink" href="#2017-asset" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2017:asset</code></p>
+<p>This key indicates that the annotated column stores asset locations. An <em>asset</em> is a generic, fixed-length octet-stream of data, i.e. a "file" or "object" which can be stored, retrieved, and interpreted by consumers.</p>
+<p>An asset <em>location</em> is a <em>globally unique</em> and <em>resolvable</em> string, used to reference and retrieve the identified asset either directly or indirectly through a resolution service. For example, an HTTP URL is both globally unique and resolvable. In the case of a relative URL, the client should resolve the URL within the context from which it was retrieved. Persistent identifier schemes MAY be used such as MINID, DOI, ARK, or PURL. It is up to client tooling to recognize and resolve identifiers in such schemes.</p>
+<p>A new asset location may be specified via a pattern to induce a prospective asset location based on known metadata values, i.e. to normalize where to upload and store a new asset in a data-submission process. Only meaningful where clients can request creation of new assets with a desired location.</p>
+<p>Supported JSON payload patterns:</p>
+<ul>
+<li><code>{</code>... <code>"url_pattern":</code> <em>pattern</em> ...<code>}</code>: A desired upload location can be derived by <a href="#pattern-expansion">Pattern Expansion</a> on <em>pattern</em>. This attribute is required for browser upload and if it is not specified the client will not provide the browser upload feature. See implementation notes below.</li>
+<li><code>{</code>... <code>"browser_upload":</code> <code>False</code> ... <code>}</code>: If <code>url_pattern</code> is availale and valid browser upload feature will be enabled. If you want to force disabling this feature set it to <code>False</code>.</li>
+<li><code>{</code>... <code>"filename_column":</code> <em>column</em> ...<code>}</code>: The <em>column</em> stores the filename of the asset.</li>
+<li><code>{</code>... <code>"byte_count_column":</code> <em>column</em> ...<code>}</code>: The <em>column</em> stores the file size in bytes of the asset. It SHOULD be an integer typed column.</li>
+<li><code>{</code>... <code>"md5":</code> <em>column</em> | <code>True</code> ...<code>}</code>: If <em>column</em>, then the <em>column</em> stores the checksum generated by the 'md5' cryptographic hash function. It MUST be ASCII/UTF-8 hexadecimal encoded. If <code>True</code>, then the client SHOULD generate a 'md5' checksum and communicate it to the asset storage service according to its protocol.</li>
+<li><code>{</code>... <code>"sha256":</code> <em>column</em> | <code>True</code> ...<code>}</code>: If <em>column</em>, then the <em>column</em> stores the checksum generated by the 'sha256' cryptographic hash function. It MUST be ASCII/UTF-8 hexadecimal encoded. If <code>True</code>, then the client SHOULD generate a 'sha256' checksum and communicate it to the asset storage service according to its protocol. See implementation notes below.</li>
+<li><code>{</code>... <code>"filename_ext_filter": [</code> { <em>filename extension</em> [<code>,</code> <em>filename extension</em> ]* } <code>]</code> ...<code>}</code>: This property specifies a set of <em>filename extension</em> filters for use by upload agents to indicate to the user the acceptable filename patterns (<code>.jpg</code>, <code>.png</code>, <code>.pdf</code>, ...). For example, <code>.jpg</code> would indicate that only JPEG files should be selected by the user.</li>
+</ul>
+<p>Default heuristics:
+- The <code>2017 Asset</code> annotation explicitly indicates that the associated column is the asset location.
+- <code>url_pattern</code> MUST be specified for browser upload. If it is not specified or if it produces a null value, the browser upload will be disabled.
+- Column MUST be <code>text</code> typed. Otherwise the asset annotation will be ignored.
+- In addition to native columns, the following properties are also available under the annotated column object and can be referred in the <em>pattern</em> e.g. <code>_URI.md5_hex</code> where <code>URI</code> is the annotated column (notice the <a href="https://github.com/informatics-isi-edu/ermrestjs/wiki/Template-and-Markdown-Guide#raw-values">underscore before the column name</a>).
+  - <code>md5_hex</code> for hex<br />
+  - <code>md5_base64</code> for base64
+  - <code>filename</code> for filename
+  - <code>size</code> for size in bytes
+- Nothing may be inferred without additional payload patterns present.</p>
+<p>Protocol-specific metadata retrieval MAY be applied once an asset location is known. How to present or reconcile contradictions in metadata found in multiple sources is beyond the scope of this specification.
+- Some applications may treat ERMrest data as prefetched or cached metadata.
+- Some applications may treat ERMrest data as authoritative metadata registries.
+- Some location schemes may define authoritative metadata resolution procedures.</p>
+<p>At present, the Chaise implementation of the asset annotation has the following limitations:
+1. 'generated' column(s) in the <code>url_pattern</code> are only supported in the <code>entry/edit</code> context and <em>not</em> in the <code>entry/create</code> context. If you wish to use 'generated' column(s) in the <code>url_pattern</code>, you will need to use the <a href="#2016-visible-columns">2016 Visible Columns</a> annotation and leave the asset column out of the list of visible columns for its <code>entry/create</code> context.
+2. <code>sha256</code> is not presently supported.
+3. If <code>url_pattern</code> is not available or <code>browser_upload</code> is <code>False</code> Chaise will show a disabled form field for the asset column. It will still provide the download button in read-only contexts.</p>
+<h3 id="2018-indexing-preferences">2018 Indexing Preferences<a class="headerlink" href="#2018-indexing-preferences" title="Permanent link">&para;</a></h3>
+<p><code>tag:isrd.isi.edu,2018:indexing-preferences</code></p>
+<p>This key indicates that the annotated table or column should follow a different indexing strategy. At the time of writing, this is the only annotation recognized by ERMrest which affects service behavior (all others are opaque key-value storage only affecting clients).</p>
+<p>Meaning on different model elements:
+- On tables: requests a table-wide indexing strategy
+- On columns: requests a column-specific indexing strategy (may override table-wide preferences)</p>
+<p>Supported JSON payload patterns:
+- <code>{</code>... <code>"btree"</code>: <em>preference</em> ...<code>}</code>: Specifies a preference for PostgreSQL <code>btree</code> indexing.
+- <code>{</code>... <code>"trgm"</code>: <em>preference</em> ...<code>}</code>: Specifies a preference for PostgreSQL <code>pg_trgm</code> (text tri-gram) indexing.</p>
+<p>Supported <em>preference</em> patterns:
+- <code>true</code>: An index is desired.
+- <code>false</code>: An index is not desired.
+- <code>null</code> (or field absent): The default is desired (currently all indexing is enabled by default).</p>
+<p>If a column-level annotation sets a <em>preference</em> of <code>null</code>, this suppresses any table-wide <em>preference</em> for the same indexing type, requesting built-in service defaults for the column.</p>
+<p>This annotation is a hint to ERMrest during table or column creation, when indexes are built. Therefore, administrators SHOULD supply the annotation within table or column creation requests. Manipulation of the annotation on existing tables or columns will not change the indexes which are already present (or absent) on those existing models. However, changes to the table annotation will affect any columns added later, unless their column-creation requests override the table-wide preferences.</p>
+<h3 id="context-names">Context Names<a class="headerlink" href="#context-names" title="Permanent link">&para;</a></h3>
+<p>List of <em>context</em> names that are used in ermrest:
+- <code>"compact"</code>: Any compact, tabular presentation of data from multiple entities.
+  - <code>"compact/brief"</code>: A limited compact, tabular presentation of data from multiple entities to be shown under the <code>detailed</code> context. In this context, only a page of data will be shown with a link to the access the <code>compact</code> context for more detail.<br />
+  - <code>"compact/select"</code>: A sub-context of <code>compact</code> that is used for selecting entities, e.g. when prompting the user for choosing a foreign key value.
+- <code>"detailed"</code>: Any detailed read-only, entity-level presentation context.
+- <code>"entry"</code>: Any data-entry presentation context, i.e. when prompting the user for input column values.
+  - <code>"entry/edit"</code>: A sub-context of <code>entry</code> that only applies to editing existing resources.
+  - <code>"entry/create"</code>: A sub-context of <code>entry</code> that only applies to creating new resources.
+- <code>"filter"</code>: Any data-filtering control context, i.e. when prompting the user for column constraints or facets.
+- <code>"row_name"</code>: Any abbreviated title-like presentation context.
+  - <code>"row_name/title"</code>: A sub-context of <code>row_name</code> that only applies to title of page.
+  - <code>"row_name/compact"</code>: A sub-context of <code>row_name</code> that only applies to compact, tabluar presentation of a row (When a foreignkey value is displayed in a tabular presentation).
+  - <code>"row_name/detailed"</code>: A sub-context of <code>row_name</code> that only applies to entity-level presentation of a row (When a foreignkey value is displayed in the entity-level page).
+- <code>"*"</code>: A default to apply for any context not matched by a more specific context name.</p>
+<p>If more than one <em>context</em> name in the annotation payload matches, the <em>options</em> should be combined in the following order (first occurrence wins):</p>
+<ol>
+<li>Prefer <em>option</em> set in matching contexts with exact matching context name.</li>
+<li>Prefer <em>option</em> set in matching contexts with longest matching prefix, e.g. an option for <code>entry</code> can match application context <code>entry/edit</code> or <code>entry/create</code>.</li>
+<li>Use default <em>option</em> set in context <code>*</code>.</li>
+</ol>
+<p>The following matrix illustrates which context is meaningful in which annotation.</p>
+<table>
+<thead>
+<tr>
+<th>Annotation</th>
+<th>compact</th>
+<th>compact/brief</th>
+<th>compact/select</th>
+<th>detailed</th>
+<th>entry</th>
+<th>entry/edit</th>
+<th>entry/create</th>
+<th>filter</th>
+<th>row_name</th>
+<th>*</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#2015-display">2015 Display</a></td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+</tr>
+<tr>
+<td><a href="#2016-ignore">2016 Ignore</a></td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+</tr>
+<tr>
+<td><a href="#2016-visible-columns">2016 Visible Columns</a></td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+</tr>
+<tr>
+<td><a href="#2016-column-display">2016 Column Display</a></td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+</tr>
+<tr>
+<td><a href="#2016-table-display">2016 Table Display</a></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+</tr>
+<tr>
+<td><a href="#2016-visible-foreign-keys">2016 Visible Foreign Keys</a></td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+</tr>
+<tr>
+<td><a href="#2016-table-alternatives">2016 Table Alternatives</a></td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+<td>X</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>X</td>
+<td>-</td>
+<td>X</td>
+</tr>
+</tbody>
+</table>
+<h2 id="pattern-expansion">Pattern Expansion<a class="headerlink" href="#pattern-expansion" title="Permanent link">&para;</a></h2>
+<p>When deriving a field value from a <em>pattern</em>, the <em>pattern</em> MAY contain markers for substring replacements of the form <code>{{column name}}</code> or <code>{{{ column name}}}</code> where <code>column name</code> MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same <em>pattern</em>.</p>
+<p>For example, a <em>column</em> may have a <a href="#2016-column-display"><code>tag:isrd.isi.edu,2016:column-display</code></a> annotation containing the following payload:</p>
+<pre><code>{
+   &quot;*&quot; : {
+       &quot;markdown_pattern&quot;: &quot;[{{{title}}}](https://dev.isrd.isi.edu/chaise/search?name={{{_name}}})&quot;
+   }
+}
+</code></pre>
+
+<p>A web user agent that consumes this annotation and the related table data would likely display the following as the value of the column:</p>
+<pre><code>&lt;p&gt;
+    &lt;img src=&quot;https://dev.isrd.isi.edu/chaise/search?name=col%20name&quot; alt=&quot;Title of Image&quot;&gt;
+&lt;/p&gt;
+</code></pre>
+
+<p>For detailed explanation on template and markdown language please refer to <a href="https://github.com/informatics-isi-edu/ermrestjs/wiki/Template-and-Markdown-Guide">Template and Markdown Guide</a>.</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../tuning/" class="btn btn-neutral float-right" title="Performance Tuning">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../install-redhat/" class="btn btn-neutral" title="Installing on Red Hat-derived Linux"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../install-redhat/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../tuning/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/require.js"></script>
+      <script src="../../search/search.js"></script>
+
+</body>
+</html>

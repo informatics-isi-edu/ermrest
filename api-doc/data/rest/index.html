@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  
+  <link rel="shortcut icon" href="../../../img/favicon.ico">
+  <title>ERMrest Data Operations - ERMrest Documentation</title>
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../../../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../../../css/highlight.css">
+  <link href="../../../css/extra.css" rel="stylesheet">
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "ERMrest Data Operations";
+    var mkdocs_page_input_path = "api-doc/data/rest.md";
+    var mkdocs_page_url = "/api-doc/data/rest/";
+  </script>
+  
+  <script src="../../../js/jquery-2.1.1.min.js"></script>
+  <script src="../../../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../../../js/highlight.pack.js"></script> 
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+	<ul class="current">
+	  
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">User Docs</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/install-redhat/">Installing on Red Hat-derived Linux</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/annotation/">Model Annotation</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/tuning/">Performance Tuning</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-registry-purge/">ermrest-registry-purge command</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/ermrest-client-table/">System Table `ermrest_client`</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../../user-doc/history-track/">History Tracking for DBAs and Programmers</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">ERMrest API and Service Semantics</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../">Guide to the ERMrest API</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/naming/">ERMrest Model Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../model/rest/">ERMrest Model Operations</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/concepts/">ERMrest Access Control</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/static/">Static Model-Based Policies</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../acl/dynamic/">Dynamic Data-Dependent Policies</a>
+                </li>
+    </ul>
+	    </li>
+          
+            <li class="toctree-l1">
+		
+    <span class="caption-text">Client-Specific Rights Summaries</span>
+    <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../../acl/rights/">Rights Summaries</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../naming/">ERMrest Data Resources</a>
+                </li>
+                <li class=" current">
+                    
+    <a class="current" href="./">ERMrest Data Operations</a>
+    <ul class="subnav">
+            
+    <li class="toctree-l3"><a href="#ermrest-data-operations">ERMrest Data Operations</a></li>
+    
+        <ul>
+        
+            <li><a class="toctree-l4" href="#entity-creation">Entity Creation</a></li>
+        
+            <li><a class="toctree-l4" href="#entity-update">Entity Update</a></li>
+        
+            <li><a class="toctree-l4" href="#entity-retrieval">Entity Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#entity-deletion">Entity Deletion</a></li>
+        
+            <li><a class="toctree-l4" href="#attribute-retrieval">Attribute Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#attribute-deletion">Attribute Deletion</a></li>
+        
+            <li><a class="toctree-l4" href="#attribute-group-retrieval">Attribute Group Retrieval</a></li>
+        
+            <li><a class="toctree-l4" href="#attribute-group-update">Attribute Group Update</a></li>
+        
+            <li><a class="toctree-l4" href="#aggregate-retrieval">Aggregate Retrieval</a></li>
+        
+        </ul>
+    
+
+    </ul>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
+                </li>
+                <li class="">
+                    
+    <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+	    </li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    
+      
+        
+          <li>Client-Specific Rights Summaries &raquo;</li>
+        
+      
+    
+    <li>ERMrest Data Operations</li>
+    <li class="wy-breadcrumbs-aside">
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="ermrest-data-operations">ERMrest Data Operations<a class="headerlink" href="#ermrest-data-operations" title="Permanent link">&para;</a></h1>
+<p>The <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest</a> data operations manipulate tabular data structured according to the existing entity-relationship model already configured as schemata resources in the catalog.</p>
+<p>In the following examples, we illustrate the use of specific data formats. However, content negotiation allows any of the supported tabular data formats to be used in any request or response involving tabular data.</p>
+<h2 id="entity-creation">Entity Creation<a class="headerlink" href="#entity-creation" title="Permanent link">&para;</a></h2>
+<p>The POST operation is used to create new entity records in a table, using an <code>entity</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>table name</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>schema name</em> <code>:</code> <em>table name</em></li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:</p>
+<pre><code>POST /ermrest/catalog/42/entity/schema_name:table_name HTTP/1.1
+Host: www.example.com
+Content-Type: text/csv
+Accept: text/csv
+
+column1,column2
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. It is an error for any existing key in the stored table to match any key in the input data, as this would denote the creation of multiple rows with the same keys.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+column1,column2
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="entity-creation-with-defaults">Entity Creation with Defaults<a class="headerlink" href="#entity-creation-with-defaults" title="Permanent link">&para;</a></h3>
+<p>The POST operation is also used to create new entity records in a table where some values are assigned default values, using an entity resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>table name</em> <code>?defaults=</code> <em>column name</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>schema name</em> <code>:</code> <em>table name</em> <code>?defaults=</code> <em>column name</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:</p>
+<pre><code>POST /ermrest/catalog/42/entity/schema_name:table_name?defaults=column1 HTTP/1.1
+Host: www.example.com
+Content-Type: text/csv
+Accept: text/csv
+
+column1,column2
+1,foo
+1,bar
+1,baz
+1,bof
+</code></pre>
+<p>The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. If multiple columns are to be set to defaults, they are provided as a comma-separated list of column names on the right-hand-side of the <code>accept=...</code> query parameter binding.</p>
+<p>All columns should still be present in the input. However, the values for the column (or columns) named in the <code>defaults</code> query parameter will be ignored and server-assigned values generated instead. It is an error for any existing key in the stored table to match any key in the input data, as this would denote the creation of multiple rows with the same keys.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+column1,column2
+4,foo
+5,bar
+6,baz
+7,bof
+</code></pre>
+<p>In this example, a presumed <code>serial4</code> type used for <code>column1</code> would lead to a sequence of serial numbers being issued for the default column.</p>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="entity-update">Entity Update<a class="headerlink" href="#entity-update" title="Permanent link">&para;</a></h2>
+<p>The PUT operation is used to update entity records in a table, using an <code>entity</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>table name</em></li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>schema name</em> <code>:</code> <em>table name</em></li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:</p>
+<pre><code>PUT /ermrest/catalog/42/entity/schema_name:table_name HTTP/1.1
+Host: www.example.com
+Content-Type: text/csv
+Accept: text/csv
+
+column1,column2
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. Any input row with keys matching an existing stored row will cause an update of non-key columns to match the input row.  Any input row with keys not matching an existing stored row will cause creation of a new row.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+column1,column2
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="entity-retrieval">Entity Retrieval<a class="headerlink" href="#entity-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve entity records, using an <code>entity</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/entity/</code> <em>path</em></li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are allowed, for example:</p>
+<pre><code>GET /ermrest/catalog/42/entity/table1/column1=value1/table2/column2=value2 HTTP/1.1
+Host: www.example.com
+Accept: text/csv
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+column1,column2
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>Each result row will correspond to an entity in the entity set denoted by <em>path</em>. This will be a filtered subset of entities from the table instance context of <em>path</em> considering all filtering and joining criteria.</p>
+<p>Typical error response codes include:
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="entity-deletion">Entity Deletion<a class="headerlink" href="#entity-deletion" title="Permanent link">&para;</a></h2>
+<p>The DELETE operation is used to delete entity records, using an <code>entity</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/entity/</code> <em>path</em></li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are allowed.</p>
+<pre><code>DELETE /ermrest/catalog/42/entity/table1/column1=value1/table2/column2=value2 HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>The result of the operation is that each of the entity records denoted by <em>path</em> are deleted from the catalog. This operation only (directly) affects the right-most table instance context of <em>path</em>. Additional joined entity context may be used to filter the set of affected rows, but none of the contextual table instances are targeted by deletion. However, due to constraints configured in the model, it is possible for a deletion to cause side-effects in another table, e.g. deletion of entities with key values causing foreign key references to those entities to also be processed by a cascading delete or update.</p>
+<p>Typical error response codes include:
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="attribute-retrieval">Attribute Retrieval<a class="headerlink" href="#attribute-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve projected attribute records, using an <code>attribute</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attribute/</code> <em>path</em> <code>/</code> <em>projection</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are allowed and projection can draw values from any entity element of <em>path</em>, for example:</p>
+<pre><code>GET /ermrest/catalog/42/attribute/A:=table1/column1=value1/table2/column2=value2/x:=A:column1,y:=column3 HTTP/1.1
+Host: www.example.com
+Accept: text/csv
+</code></pre>
+<p>where output column <code>x</code> is drawn from column <code>column1</code> of the <code>table1</code> table instance aliased with <code>A</code>, while output column <code>y</code> is drawn from column <code>column3</code> of the <code>table2</code> table instance context of <em>path</em>.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+x,y
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>Each result row will correspond to an entity in the entity set denoted by <em>path</em> but the result row will be populated with the specified projection values rather than the denoted entity fields. This will be a filtered subset of entities from the table instance context of <em>path</em> considering all filtering and joining criteria.</p>
+<p>Typical error response codes include:
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="attribute-deletion">Attribute Deletion<a class="headerlink" href="#attribute-deletion" title="Permanent link">&para;</a></h2>
+<p>The DELETE operation is used to clear attributes to their default value (usually NULL), using an <code>attribute</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/attribute/</code> <em>path</em> <code>/</code> <em>target</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are allowed but only attributes from the <em>path</em> entity context can be specified as the target for deletion, rather than the generalized projection possible with retrieval.</p>
+<pre><code>DELETE /ermrest/catalog/42/attribute/table1/column1=value1/table2/column2=value2/column3 HTTP/1.1
+Host: www.example.com
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 204 No Content
+</code></pre>
+<p>The result of the operation is that each of the entity records denoted by <em>path</em> are modified in the catalog, changing their <em>target</em> columns to default value (usually <code>NULL</code> or whatever default value is configured for that column in the model). This operation only (directly) affects the right-most table instance context of <em>path</em>. Additional joined entity context may be used to filter the set of affected rows, but none of the contextual table instances are targeted by deletion. However, due to constraints configured in the model, it is possible for a deletion to cause side-effects in another table, e.g. modification of key values causing foreign key references to those entities to also be processed by a cascading update.</p>
+<p>Typical error response codes include:
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="attribute-group-retrieval">Attribute Group Retrieval<a class="headerlink" href="#attribute-group-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve projected attribute group records, using an <code>attributegroup</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ... </li>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ... <code>;</code> <em>projection</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are allowed, for example:</p>
+<pre><code>GET /ermrest/catalog/42/attributegroup/A:=table1/column1=value1/table2/column2=value2/y:=column3;x:=A:cnt(column1),z:=A:column1 HTTP/1.1
+Host: www.example.com
+Accept: text/csv
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+y,x,z
+foo,2,1
+bar,1,3
+baz,1,4
+</code></pre>
+<p>Each result row will correspond to a distinct <em>group key</em> tuple existing in the joined records denoted by <em>path</em> and the result row will be populated with the <em>group key</em> tuple and additional <em>projection</em> values. Unlike the <code>entity</code> and <code>attribute</code> resource spaces which have outputs corresponding to entities in the context of <em>path</em>, the <code>attributegroup</code> resource space changes the semantics of <em>path</em> to denote a permutation set of joined rows based on all the entity-relationship linkages between the elements of <em>path</em>; this permutation set is further sub-setted by any filters in <em>path</em>.</p>
+<p>Typical error response codes include:
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h2 id="attribute-group-update">Attribute Group Update<a class="headerlink" href="#attribute-group-update" title="Permanent link">&para;</a></h2>
+<p>The PUT operation is used to update attributes in a table, using an <code>attributegroup</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> <code>/attributegroup/</code> <em>path</em> <code>/</code> <em>group key</em> <code>,</code> ... <code>;</code> <em>target</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are not allowed:</p>
+<pre><code>PUT /ermrest/catalog/42/attributegroup/table/column1;column2 HTTP/1.1
+Host: www.example.com
+Content-Type: text/csv
+Accept: text/csv
+
+column1,column2
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>The input data MUST NOT have more than one row with the same <em>group key</em> tuple of values. Any input row with <em>group key</em> columns matching an existing stored row will cause an update of <em>target</em> columns to match the input row.  Any input row with <em>group key</em> columns not matching an existing stored row will cause an error.</p>
+<p>On success, the response contains updated row information:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+column1,column2
+1,foo
+2,foo
+3,bar
+4,baz
+</code></pre>
+<p>TODO: clarify the meaning of this result content.</p>
+<p>Typical error response codes include:
+- 400 Bad Request
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+<h3 id="attribute-group-update-with-renaming">Attribute Group Update with Renaming<a class="headerlink" href="#attribute-group-update-with-renaming" title="Permanent link">&para;</a></h3>
+<p>As with retrieval of attribute groups, update supports renaming of stored columns within the external representation, so that it is even possible to rewrite the key columns as in this example:</p>
+<pre><code>PUT /ermrest/catalog/42/attributegroup/table1/original:=column1;replacement:=column1 HTTP/1.1
+Host: www.example.com
+Content-Type: text/csv
+Accept: text/csv
+
+original,replacement
+foo,foo-prime
+bar,bar-prime
+baz,baz-prime
+</code></pre>
+<p>Here, the stored rows with <code>column1</code> matching values in <code>original</code> of the input will have <code>column1</code> rewritten to the corresponding value in <code>replacement</code>.</p>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+original,replacement
+foo,foo-prime
+bar,bar-prime
+baz,baz-prime
+</code></pre>
+<h2 id="aggregate-retrieval">Aggregate Retrieval<a class="headerlink" href="#aggregate-retrieval" title="Permanent link">&para;</a></h2>
+<p>The GET operation is used to retrieve projected aggregates, using an <code>aggregate</code> resource data name of the form:</p>
+<ul>
+<li><em>service</em> <code>/catalog/</code> <em>cid</em> [ <code>@</code> <em>revision</em> ] <code>/aggregate/</code> <em>path</em> <code>/</code> <em>projection</em> <code>,</code> ...</li>
+</ul>
+<p>In this operation, complex entity paths with filter and linked entity elements are allowed, for example:</p>
+<pre><code>GET /ermrest/catalog/42/aggregate/A:=table1/column1=value1/table2/column2=value2/y:=cnt_d(column2),x:=A:cnt(column1),z:=A:column1 HTTP/1.1
+Host: www.example.com
+Accept: text/csv
+</code></pre>
+<p>On success, the response is:</p>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: text/csv
+
+y,x,z
+3,4,1
+</code></pre>
+<p>A single result row will summarize the joined records denoted by <em>path</em> and the result row will be populated with <em>projection</em> values. Like the <code>attributegroup</code> resource space, the <code>aggregate</code> resource space changes the semantics of <em>path</em> to denote a permutation set of joined rows based on all the entity-relationship linkages between the elements of <em>path</em>; this permutation set is further sub-setted by any filters in <em>path</em> and then reduced to a single aggregate summary value by <em>projection</em> values using an aggregate function or by choosing an arbitrary example value for <em>projection</em> values referencing a bare column.</p>
+<p>Typical error response codes include:
+- 409 Conflict
+- 403 Forbidden
+- 401 Unauthorized</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../../history/naming/" class="btn btn-neutral float-right" title="ERMrest History Management Resources">Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../naming/" class="btn btn-neutral" title="ERMrest Data Resources"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+      <p>Copyright &copy; 2018 <a href="http://github.com/informatics-isi-edu/ermrest">ERMrest Project</a>.</p>
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+      
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+      
+        <span><a href="../naming/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../../history/naming/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+    <script>var base_url = '../../..';</script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/require.js"></script>
+      <script src="../../../search/search.js"></script>
+
+</body>
+</html>
