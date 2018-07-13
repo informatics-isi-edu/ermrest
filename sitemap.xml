@@ -1,92 +1,92 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-     <loc>/user-doc/install-redhat/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/user-doc/install-redhat/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/user-doc/annotation/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/user-doc/annotation/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/user-doc/tuning/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/user-doc/tuning/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/user-doc/ermrest-registry-purge/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/user-doc/ermrest-registry-purge/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/user-doc/ermrest-client-table/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/user-doc/ermrest-client-table/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/user-doc/history-track/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/user-doc/history-track/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/rest-catalog/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/rest-catalog/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/model/naming/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/model/naming/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/model/rest/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/model/rest/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/acl/concepts/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/acl/concepts/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/acl/static/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/acl/static/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/acl/dynamic/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/acl/dynamic/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/acl/rights/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/acl/rights/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/data/naming/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/data/naming/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/data/rest/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/data/rest/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/history/naming/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/history/naming/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>/api-doc/history/rest/</loc>
+     <loc>https://informatics-isi-edu.github.io/ermrest/api-doc/history/rest/</loc>
      <lastmod>2018-07-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
