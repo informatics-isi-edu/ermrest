@@ -603,21 +603,49 @@ def _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkc
     }
     return mkcol_fkrs, nmkcol_fkrs
 
-def _enforce_table_update_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
-    table.enforce_right('update')
+def _enforce_table_access_static(cur, access, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, require_tc=False):
+    table.enforce_right(access, require_true=require_tc)
     for c in nmkcols:
-        c.enforce_data_right('update')
+        c.enforce_data_right(access, require_true=require_tc)
     mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
     for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
-        fkr.enforce_right('update')
+        fkr.enforce_right(access)
+
+def _enforce_table_update_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    _enforce_table_access_static(cur, 'update', table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
 
 def _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
-    table.enforce_right('insert', require_true=True)
-    for c in set(nmkcols).union(set(nmkcols)):
-        c.enforce_data_right('insert', require_true=True)
-    mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
-    for fkr in set().union(*[ set(fkrs) for fkrs in mkcol_fkrs.values() ]).union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
-        fkr.enforce_right('insert')
+    _enforce_table_access_static(cur, 'insert', table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, require_tc=True)
+
+def _enforce_table_upsert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+    """Raise access error or return will_insert boolean determination from input_table."""
+    if nmkcols:
+        # treat as static update and conditionally check for static insert rights below...
+        _enforce_table_update_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    else:
+        # treat as static insert since no update is possible
+        _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+
+    if nmkcols:
+        cur.execute("""
+SELECT %(icols)s
+FROM %(input_table)s i
+LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
+WHERE COALESCE(NOT (%(keymatches)s), True)
+LIMIT 1""" % {
+    'input_table': sql_identifier(input_table),
+    'table': table.sql_name(),
+    'icols': _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases),
+    'keymatches': _keymatches(mkcols, mkcol_aliases),
+}
+        )
+        if cur.rowcount > 0:
+            _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+            return True
+        else:
+            return False
+    else:
+        return True
 
 def _keymatches(mkcols, mkcol_aliases):
     return u' AND '.join([ keymatch(c, mkcol_aliases) for c in mkcols ])
@@ -763,7 +791,7 @@ LIMIT 1""") % {
     'input_table': input_table_sql,
     'keymatches': keymatches,
     'fkr_nonnull': ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
-    'fkrs_cols': ','.join(fkr_cols),
+    'fkr_cols': ','.join(fkr_cols),
     'icols': icols,
     'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
     'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen ]),
@@ -771,6 +799,13 @@ LIMIT 1""") % {
         )
         if cur.rowcount > 0:
             raise Forbidden(u'update access on foreign key reference %s' % fkr)
+
+def _enforce_table_upsert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, will_insert):
+    if nmkcols:
+        _enforce_table_update_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+
+    if will_insert:
+        _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
 
 def _perform_table_update(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type):
     cur.execute(
@@ -800,12 +835,16 @@ RETURNING %(tcols)s""" % {
     )
     return list(make_row_thunk(None, cur, content_type)())
 
-def _perform_table_insert(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type, use_defaults, extra_return_cols):
+def _perform_table_insert(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type, use_defaults, extra_return_cols, only_nonmatch=False):
     cur.execute(
-        preserialize("""
+        preserialize(("""
 INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s FROM %(input_table)s i
-RETURNING %(rcols)s""" % {
+""" + ("""
+LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
+WHERE COALESCE(NOT %(keymatches)s, True)
+""" if only_nonmatch else "") + """
+RETURNING %(rcols)s""") % {
     'table': table.sql_name(),
     'input_table': sql_identifier(input_table),
     'cols': _cols(mkcols, nmkcols, use_defaults),
@@ -814,11 +853,17 @@ RETURNING %(rcols)s""" % {
         c.sql_name()
         for c in (mkcols + nmkcols + extra_return_cols)
     ]),
+    'keymatches': _keymatches(mkcols, mkcol_aliases),
 },
                      content_type
         )
     )
     return list(make_row_thunk(None, cur, content_type)())
+
+def _perform_table_upsert(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type, use_defaults, extra_return_cols):
+    results1 = _perform_table_update(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type)
+    results2 = _perform_table_insert(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type, use_defaults, extra_return_cols, only_nonmatch=True)
+    return results1, results2
 
 class EntityElem (object):
     """Wrapper for instance of entity table in path.
@@ -943,8 +988,8 @@ class EntityElem (object):
                 self.sql_join_condition(prefix)
             )
 
-    def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
-        """Put or update entities depending on allow_existing, allow_missing modes.
+    def upsert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None):
+        """Insert or update entities.
 
            conn: sanepg2 connection to catalog
 
@@ -981,33 +1026,16 @@ class EntityElem (object):
               inserted or modified row, including any default values
               which might have been absent from the input.
 
-           allow_existing: when input rows match existing keys
-              True --> update existing row with input (default)
-              None --> skip input row
-              False --> raise exception
-
-           allow_missing: when input rows do not match existing keys
-              True --> insert input rows (default)
-              None --> skip input row
-              False --> raise exception
-
-           attr_update: customized entity processing
-              mkcols, nmkcols --> use specified metakey and non-metakey columns
-              None --> use entity metakey and non-metakey columns
-
            use_defaults: customize entity processing
               { col, ... } --> use defaults
               None --> use input values
 
            Input rows are correlated to stored entities by metakey
            equivalence.  The metakey for an entity is the union of all
-           its unique keys.  The metakey for a custom update may be a
-           subset of columns and may in fact be a non-unique key.
+           its unique keys.
 
            Input row data is applied to existing entities by updating
-           the non-metakey columns to match the input.  Input row data
-           is used to insert new entities only when allow_missing is
-           False and attr_update is None.
+           the non-metakey columns to match the input.
 
         """
         if len(self.filters) > 0:
@@ -1016,518 +1044,101 @@ class EntityElem (object):
         if not self.table.writable_kind():
             raise ConflictModel('Entity %s is not writable.' % self.table)
         
-        input_table = random_name("input_data_")
-        input_json_table = random_name("input_json_")
-
         drop_tables = []
-        system_colnames = {'RID','RCT','RMT','RCB','RMB'}
 
-        if attr_update is not None:
-            # caller has configured an attribute update request
-            # input table has key columns followed by non-key columns
-            mkcols, nmkcols = attr_update
-            extra_return_cols = []
-            if attr_aliases is not None:
-                mkcol_aliases, nmkcol_aliases = attr_aliases
-            else:
-                mkcol_aliases = dict()
-                nmkcol_aliases = dict()
-        else:
-            # we are doing a whole entity request
-            # input table has columns in same order as entity table
-            inputcols = self.table.columns_in_order()
-            mkcols = set()
-            for unique in self.table.uniques:
-                for c in unique:
-                    mkcols.add(c)
-            nmkcols = [ c for c in inputcols if c not in mkcols and c.name not in system_colnames ]
-            mkcols = [ c for c in inputcols if c in mkcols and c.name not in system_colnames ]
-            mkcol_aliases = dict()
-            nmkcol_aliases = dict()
-            extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
+        # we are doing a whole entity request
+        inputcols = self.table.columns_in_order()
+        mkcols = set()
+        for unique in self.table.uniques:
+            for c in unique:
+                mkcols.add(c)
+        nmkcols = [ c for c in inputcols if c not in mkcols and c.name not in system_colnames ]
+        mkcols = [ c for c in inputcols if c in mkcols and c.name not in system_colnames ]
+        mkcol_aliases = dict()
+        nmkcol_aliases = dict()
+        extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
 
-        if use_defaults is not None:
-            use_defaults = set([
-                self.table.columns.get_enumerable(cname).name
-                for cname in use_defaults
-            ] + [
-                # system columns aren't writable so don't make client ask for their defaults explicitly
-                self.table.columns[cname]
-                for cname in system_colnames
-                if cname in self.table.columns
-            ])
-        else:
-            if len(mkcols) == 0:
-                raise ConflictModel('PUT not supported on entities without key constraints.')
+        if use_defaults is None:
+            use_defaults = set()
 
-        # create temporary table
-        cur.execute(
-            "CREATE TEMPORARY TABLE %s (%s)" % (
-                sql_identifier(input_table),
-                ','.join(
-                    [
-                        c.input_ddl(mkcol_aliases.get(c), use_defaults is None or c.name not in use_defaults)
-                        for c in mkcols
-                    ] + [
-                        c.input_ddl(nmkcol_aliases.get(c), use_defaults is None or c.name not in use_defaults)
-                        for c in nmkcols
-                    ]
-                )
-            )
-        )
-        drop_tables.append( input_table )
-        if in_content_type in [ 'application/x-json-stream' ]:
-            cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(input_json_table))
-            drop_tables.append( input_json_table )
-        
-        # build up intermediate SQL representations of each JSON record as field lists
-        # this is used in both JSON-related input data branches below, so lifted up here to share...
-        json_cols = []
-        json_projection = []
+        use_defaults = set([
+            self.table.columns.get_enumerable(cname).name
+            for cname in use_defaults
+        ] + [
+            # system columns aren't writable so don't make client ask for their defaults explicitly
+            self.table.columns[cname]
+            for cname in system_colnames
+            if cname in self.table.columns
+        ])
 
-        def json_field(col_name, c):
-            if col_name is None:
-                col_name = c.name
-            
-            json_cols.append(c.sql_name(col_name))
-            sql_type = c.type.sql(basic_storage=True)
-            
-            if c.type.is_array:
-                # extract field as JSON and transform to array
-                # since PostgreSQL json_to_recordset fails for native array extraction...
-                # if ELSE clause hits a non-array, we'll have a 400 Bad Request error as before
-                json_projection.append("""
-(CASE
- WHEN json_typeof(j->'%(field)s') = 'null'
-   THEN NULL::%(type)s[]
- ELSE
-   COALESCE((SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->'%(field)s') s (x)), ARRAY[]::%(type)s[])
- END) AS %(alias)s
-""" % dict(
-    type=c.type.base_type.sql(basic_storage=True),
-    field=col_name,
-    alias=c.sql_name(col_name)
-)
-                )
-            elif sql_type in ['json', 'jsonb']:
-                json_projection.append("(j->'%s')::%s AS %s" % (
-                    col_name,
-                    sql_type,
-                    c.sql_name(col_name)
-                ))
-            else:
-                json_projection.append("(j->>'%s')::%s AS %s" % (
-                    col_name,
-                    sql_type,
-                    c.sql_name(col_name)
-                ))
-                        
-        for c in mkcols:
-            json_field(mkcol_aliases.get(c), c)
-                        
-        for c in nmkcols:
-            json_field(nmkcol_aliases.get(c), c)
-                    
-        # copy input data to temp table
-        if in_content_type == 'text/csv':
-            hdr = csv.reader([ input_data.readline() ]).next()
-
-            inputcol_names = set(
-                [ unicode(mkcol_aliases.get(c, c.name)) for c in mkcols ]
-                + [ unicode(nmkcol_aliases.get(c, c.name)) for c in nmkcols ]
-                )
-            csvcol_names = set()
-            csvcol_names_ordered = []
-            for cn in hdr:
-                cn = cn.decode('utf8')
-                try:
-                    inputcol_names.remove(cn)
-                    csvcol_names.add(cn)
-                    csvcol_names_ordered.append(cn)
-                except KeyError:
-                    if cn in csvcol_names:
-                        raise BadData('CSV column %s appears more than once.' % cn)
-                    else:
-                        raise ConflictModel('CSV column %s not recognized.' % cn)
-
-            try:
-                cur.copy_expert(
-                """
-COPY %s (%s) 
-FROM STDIN WITH (
-    FORMAT csv, 
-    HEADER false, 
-    DELIMITER ',', 
-    QUOTE '"'
-)""" % (
-    sql_identifier(input_table),
-    ','.join([ sql_identifier(cn) for cn in csvcol_names_ordered ])
-),
-                    input_data
-                )
-            except psycopg2.DataError, e:
-                raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
-
-        elif in_content_type == 'application/json':
-            buf = input_data.read().decode('utf8')
-            try:
-                cur.execute( 
-                u"""
-INSERT INTO %(input_table)s (%(cols)s)
-SELECT %(cols)s 
-FROM (
-  SELECT %(json_projection)s 
-  FROM json_array_elements( %(input)s::json )
-    AS rs ( j )
-) s
-""" % dict( 
-    input_table = sql_identifier(input_table),
-    cols = u','.join(json_cols),
-    input = text_type.sql_literal(buf),
-    json_projection=','.join(json_projection)
-)
-                )
-            except psycopg2.DataError, e:
-                raise BadData('Bad JSON array input. ' + e.pgerror)
-
-        elif in_content_type == 'application/x-json-stream':
-            try:
-                cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
-                cur.execute(
-                """
-INSERT INTO %(input_table)s (%(cols)s)
-SELECT %(cols)s
-FROM (
-  SELECT %(json_projection)s
-  FROM %(input_json)s i
-) s
-""" % dict(
-    input_table = sql_identifier(input_table),
-    input_json = sql_identifier(input_json_table),
-    cols = ','.join(json_cols),
-    json_projection=','.join(json_projection)
-)
-                )
-            except psycopg2.DataError, e:
-                raise BadData('Bad JSON stream input. ' + e.pgerror)
-
-        else:
-            raise UnsupportedMediaType('%s input not supported' % in_content_type)
-
-        parts = dict(
-            table = self.table.sql_name(),
-            input_table = sql_identifier(input_table),
-            assigns = u','.join([
-                u"%s = i.%s " % ( c.sql_name(), jsonfix2(c.sql_name(nmkcol_aliases.get(c)), c) )
-                for c in nmkcols
-            ] + [
-                # add these metadata maintenance tasks.  if they are in nmkcols already we'll abort with Forbidden.
-                u"%s = DEFAULT " % self.table.columns[cname].sql_name()
-                for cname in {'RMT','RMB'}
-                if cname in self.table.columns
-            ]),
-            keymatches = u' AND '.join([ keymatch(c, mkcol_aliases) for c in mkcols ]),
-            keymatches_j1 = u' AND '.join([ keymatch(c, mkcol_aliases, fix1=True) for c in mkcols ]),
-            cols = ','.join([ c.sql_name() for c in (mkcols + nmkcols) if use_defaults is None or c.name not in use_defaults ]),
-            emkcols = ','.join([ jsonfix1('e.%s' % c.sql_name(), c) for c in mkcols ]),
-            icols = ','.join(
-                [jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols]
-                + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols]
-            ),
-            mkcols = ','.join([ c.sql_name() for c in mkcols ]),
-            # limit input table index to 32 cols to protect against PostgresQL limit... just runs a slower correlation query here instead...
-            mkcols_idx = ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ][0:32]),
-            nmkcols = ','.join([ c.sql_name() for c in nmkcols ]),
-            tcols = u','.join(
-                [ u'i.%s AS %s' % (jsonfix2(c.sql_name(mkcol_aliases.get(c)), c), c.sql_name(mkcol_aliases.get(c))) for c in mkcols ]
-                + [ u't.%s AS %s' % (jsonfix2(c.sql_name(), c), c.sql_name(nmkcol_aliases.get(c))) for c in nmkcols ]
-            )
+        input_table, input_json_table = _create_temp_input_tables(
+            cur,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases,
+            in_content_type,
+            drop_tables,
+            use_defaults
         )
 
-        if len(mkcols) > 0:
-            try:
-                cur.execute("CREATE UNIQUE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
-            except psycopg2.IntegrityError as e:
-                raise BadData(u'Multiple input rows share the same unique key information.')
-        cur.execute("ANALYZE %s;" % sql_identifier(input_table))
+        _load_input_data(
+            cur, input_data, input_table, input_json_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases,
+            in_content_type
+        )
 
-        # -- pre-checks for restricted fkey write scenarios
-        # 1. accumulate all fkrs into a map  { c: {fkr,...} }
-        nonnull_fkey_col_fkrs = dict()
-        for fk in self.table.fkeys.values():
-            for c in fk.columns:
-                if c not in nonnull_fkey_col_fkrs:
-                    nonnull_fkey_col_fkrs[c] = set(fk.references.values())
-                else:
-                    nonnull_fkey_col_fkrs[c].update(set(fk.references.values()))
+        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
 
-        # 2. prune columns from map if column is not affected by request or no input data IS NOT NULL
-        for c in list(nonnull_fkey_col_fkrs):
-            if c in mkcols:
-                alias = mkcol_aliases.get(c)
-            elif c in nmkcols:
-                alias = nmkcol_aliases.get(c)
-            else:
-                # prune this unaffected column
-                del nonnull_fkey_col_fkrs[c]
-                continue
-            cur.execute("SELECT True FROM %s WHERE %s IS NOT NULL LIMIT 1" % (parts['input_table'], c.sql_name(alias)))
-            row = cur.fetchone()
-            if row and row[0]:
-                pass
-            else:
-                del nonnull_fkey_col_fkrs[c]
+        will_insert = _enforce_table_upsert_static(
+            cur, self.table, input_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases
+        )
 
-        # 3. make mkcol and nmkcol specific maps of affected columns (same fkr may appear in both for composites fkrs)
-        nonnull_mkcol_fkrs = dict()
-        nonnull_nmkcol_fkrs = dict()
-        nonnull_fkrs = dict()
-        for c, fkrs in nonnull_fkey_col_fkrs.items():
-            nonnull_fkrs[c] = fkrs
-            if c in mkcols:
-                nonnull_mkcol_fkrs[c] = fkrs
-            elif c in nmkcols:
-                nonnull_nmkcol_fkrs[c] = fkrs
+        if will_insert:
+            if not set([ c.name for c in mkcols]).union(set([ c.name for c in nmkcols ])).difference(use_defaults):
+                raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
 
-        del nonnull_fkey_col_fkrs
+        _enforce_table_upsert_dynamic(
+            cur, self.table, input_table,
+            mkcols, nmkcols,
+            mkcol_aliases, nmkcol_aliases,
+            will_insert
+        )
 
-        # do static enforcement before we start analyzing data
-        if allow_existing and nmkcols:
-            # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
-            self.table.enforce_right('update')
-            for c in nmkcols:
-                c.enforce_data_right('update')
-            for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
-                fkr.enforce_right('update')
-        elif allow_missing:
-            # static checks for pure insert case
-            self.table.enforce_right('insert', require_true=True)
-            for c in set(mkcols).union(set(nmkcols)):
-                c.enforce_data_right('insert', require_true=True)
-            for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_fkrs.values() ]):
-                fkr.enforce_right('insert')
-
-        if allow_missing is False:
-            cur.execute("""
-SELECT *
-FROM %(input_table)s i
-LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
-WHERE NOT (%(keymatches)s)
-LIMIT 1;""" % parts)
-            for row in cur:
-                raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
-
-        def preserialize(sql):
-            if content_type == 'text/csv':
-                # TODO implement and use row_to_csv() stored procedure?
-                pass
-            elif content_type == 'application/json':
-                sql = "WITH q AS (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q.*)), True)::text, '[]') FROM q" % sql
-            elif content_type == 'application/x-json-stream':
-                sql = "WITH q AS (%s) SELECT row_to_json(q.*)::text FROM q" % sql
-            elif content_type in [ dict, tuple ]:
-                pass
-            else:
-                raise NotImplementedError('content_type %s' % content_type)
-            #web.debug(sql)
-            return sql
-
-        # NOTE: we already prefetch the whole result so might as well build incrementally...
-        results = []
-
-        # we cannot use a held cursor here because upsert_sql modifies the DB
         try:
-            if allow_existing:
-                if nmkcols:
-                    # if nmkcols is empty, so will be assigns... UPSERT reverts to idempotent INSERT
-                    if self.table.has_right('update') is None:
-                        # need to enforce dynamic ACLs
-                        parts2 = dict(parts)
-                        parts2['table'] = self.table.sql_name(dynauthz=False, access_type='update', alias="t")
-                        cur.execute(("""
-SELECT i.*
-FROM %(table)s
-JOIN (
-  SELECT %(icols)s FROM %(input_table)s i
-) i
-ON (%(keymatches)s)
-LIMIT 1""") % parts2
-                        )
-                        if cur.rowcount > 0:
-                            raise Forbidden(u'update access on one or more rows in table %s' % self.table)
-
-                    for c in nmkcols:
-                        if c.has_data_right('update') is None and c.dynauthz_restricted('update'):
-                            # need to enforce dynamic ACLs
-                            parts2 = dict(parts)
-                            parts2['table'] = self.table.sql_name(access_type='update', alias="t", dynauthz_testcol=c)
-                            sql = ("""
-SELECT i.*
-FROM %(table)s
-JOIN (
-  SELECT %(icols)s FROM %(input_table)s i
-) i
-ON (%(keymatches)s)
-LIMIT 1""") % parts2
-                            #web.debug(sql)
-                            cur.execute(sql)
-                            if cur.rowcount > 0:
-                                raise Forbidden(u'update access on column %s for one or more rows' % c)
-
-                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_nmkcol_fkrs.values() ]):
-                        if fkr.has_right('update') is None:
-                            # need to enforce dynamic ACLs
-                            fkr_cols = [
-                                (
-                                    (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
-                                    if fc in nmkcols
-                                    else (u't.%s' % fc.sql_name())
-                                )
-                                for fc, uc in fkr.reference_map_frozen
-                            ]
-                            sql = ("""
-SELECT *
-FROM (
-  SELECT %(fkr_cols)s
-  FROM (SELECT %(icols)s FROM %(input_table)s i) i
-  JOIN %(table)s t ON (%(keymatches)s)
-  WHERE %(fkr_nonnull)s
-  EXCEPT
-  SELECT %(domain_key_cols)s FROM %(domain_table)s
-) s
-LIMIT 1""") % dict(
-    table = parts['table'],
-    input_table = parts['input_table'],
-    icols = parts['icols'],
-    keymatches = parts['keymatches'],
-    fkr_cols = ','.join(fkr_cols),
-    fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
-    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
-    domain_key_cols = ','.join([
-        u'd.%s' % uc.sql_name()
-        for fc, uc in fkr.reference_map_frozen
-    ]),
-)
-                            #web.debug(sql)
-                            cur.execute(sql)
-                            if cur.rowcount > 0:
-                                raise Forbidden(u'update access on foreign key reference %s' % fkr)
-
-                    cur.execute(
-                        preserialize(("""
-UPDATE %(table)s t SET %(assigns)s FROM (
-  SELECT %(icols)s FROM %(input_table)s i
-) i
-WHERE %(keymatches)s
-RETURNING %(tcols)s""") % parts
-                        )
-                    )
-
-                    results.extend(make_row_thunk(None, cur, content_type)())
-
-                if allow_missing is None:
-                    raise NotImplementedError("EntityElem.put allow_existing=%s allow_missing=%s" % (allow_existing, allow_missing))
-            else:
-                assert allow_missing
-
-            if allow_missing:
-                # only check for insert rights if there are non-matching row keys
-                cur.execute(("""
-SELECT %(icols)s
-FROM %(input_table)s i
-""" + ("""
-LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
-WHERE COALESCE(NOT (%(keymatches)s), True)
-""" if use_defaults is None else "") + """
-LIMIT 1""") % parts
-                )
-                if cur.rowcount > 0:
-                    self.table.enforce_right('insert', require_true=True)
-
-                    for c in set(mkcols).union(set(nmkcols)):
-                        c.enforce_data_right('insert', require_true=True)
-
-                    for fkr in set().union(*[ set(fkrs) for fkrs in nonnull_fkrs.values() ]):
-                        fkr.enforce_right('insert')
-                        if fkr.has_right('insert') is None:
-                            # need to enforce dynamic ACLs
-                            fkr_cols = [
-                                (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
-                                for fc, uc in fkr.reference_map_frozen
-                            ]
-                            sql = ("""
-SELECT *
-FROM (
-  SELECT %(fkr_cols)s
-  FROM (SELECT %(icols)s FROM %(input_table)s i) i
-  WHERE %(fkr_nonnull)s
-  EXCEPT
-  SELECT %(domain_key_cols)s FROM %(domain_table)s
-) s
-LIMIT 1""") % dict(
-    input_table = parts['input_table'],
-    icols = parts['icols'],
-    fkr_cols = ','.join(fkr_cols),
-    fkr_nonnull = ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
-    domain_table = fkr.unique.table.sql_name(dynauthz=True, access_type='insert', alias='d', dynauthz_testfkr=fkr),
-    domain_key_cols = ','.join([
-        u'd.%s' % uc.sql_name()
-        for fc, uc in fkr.reference_map_frozen
-    ]),
-)
-                            #web.debug(sql)
-                            cur.execute(sql)
-                            if cur.rowcount > 0:
-                                raise Forbidden(u'insert access on foreign key reference %s' % fkr)
-
-                if not parts['cols']:
-                    raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
-
-                parts.update(
-                    icols = ','.join(
-                        ['i.%s' % c.sql_name(mkcol_aliases.get(c)) for c in mkcols if use_defaults is None or c.name not in use_defaults]
-                        + ['i.%s' % c.sql_name(nmkcol_aliases.get(c)) for c in nmkcols if use_defaults is None or c.name not in use_defaults]
-                    ),
-                    tcols = ','.join([
-                        c.sql_name()
-                        for c in (mkcols + nmkcols + extra_return_cols)
-                    ])
-                )
-                sql = ("""
-INSERT INTO %(table)s (%(cols)s)
-SELECT %(icols)s FROM %(input_table)s i
-""" + ("""
-LEFT OUTER JOIN %(table)s t ON (%(keymatches_j1)s)
-WHERE COALESCE(NOT (%(keymatches_j1)s), True)
-""" if use_defaults is None else "") + """
-RETURNING %(tcols)s""") % parts
-
-                cur.execute(preserialize(sql))
-                new_results = list(make_row_thunk(None, cur, content_type)())
-
-                if content_type == 'application/json':
-                    if not results:
-                        pass
-                    elif results == ['[]\n']:
-                        results = []
-                    elif new_results == ['[]\n']:
-                        new_results = []
-                    else:
-                        # we need to splice together two serialized JSON arrays...
-                        assert results[-1][-2:] == ']\n'
-                        assert new_results[0][0] == '['
-                        results[-1] = results[-1][:-2] # remote closing ']\n'
-                        results.append(',\n') # add separator
-                        new_results[0] = new_results[0][1:] # remove opening '['
-
-                results.extend(new_results)
+            results1, results2 = _perform_table_upsert(
+                cur, self.table, input_table,
+                mkcols, nmkcols,
+                mkcol_aliases, nmkcol_aliases,
+                content_type,
+                use_defaults,
+                extra_return_cols
+            )
 
             for table in drop_tables:
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
+
         except psycopg2.IntegrityError, e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
 
-        return results
+        if content_type == 'application/json':
+            if not results1:
+                pass
+            elif results1 == ['[]\n']:
+                results1 = []
+            elif results2 == ['[]\n']:
+                results2 = []
+            else:
+                # we need to splice together two serialized JSON arrays...
+                assert results1[-1][-2:] == ']\n'
+                assert results2[0][0] == '['
+                results1[-1] = results1[-1][:-2] # remote closing ']\n'
+                results1.append(',\n') # add separator
+                results2[0] = results2[0][1:] # remove opening '['
+
+        results1.extend(results2)
+        return results1
 
     def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None):
         """Insert entities.
@@ -2244,8 +1855,8 @@ WHERE %(keymatches)s
         )
         cur.execute("DROP TABLE %s;" % victim_table)
 
-    def put(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, allow_existing=True, allow_missing=True, attr_update=None, use_defaults=None, attr_aliases=None):
-        """Put or update entities depending on allow_existing, allow_missing modes.
+    def upsert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
+        """Insert oro update entities.
 
            conn: sanepg2 connection to catalog
 
@@ -2263,7 +1874,7 @@ WHERE %(keymatches)s
                 form input byte stream, or read() will be called to
                 fetch byte stream until an empty read() result is
                 received.
- 
+
               None means input is Python data stream (iter only)
                 dicts will be seen as column: value, ... rows
                 tuples will be seen as value, ... rows
@@ -2282,22 +1893,11 @@ WHERE %(keymatches)s
               inserted or modified row, including any default values
               which might have been absent from the input.
 
-           allow_existing: when input rows match existing keys
-              True --> update existing row with input (default)
-              None --> skip input row
-              False --> raise exception
-
-           allow_missing: when input rows do not match existing keys
-              True --> insert input rows (default)
-              None --> skip input row
-              False --> raise exception
-
         """
-        
         if len(self._path) != 1:
             raise BadData("unsupported path length for put")
 
-        return self._path[0].put(conn, cur, input_data, in_content_type, content_type, output_file, allow_existing, allow_missing, attr_update, use_defaults, attr_aliases)
+        return self._path[0].upsert(conn, cur, input_data, in_content_type, content_type, output_file)
 
     def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None):
         """Insert entities.

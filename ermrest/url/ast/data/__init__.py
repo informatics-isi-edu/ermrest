@@ -261,7 +261,7 @@ class Entity (Api):
     def PUT(self, uri):
         """Perform HTTP PUT of entities.
         """
-        return _PUT(self, uri, lambda args: self.epath.put(*args, allow_existing=True), self.epath)
+        return _PUT(self, uri, lambda args: self.epath.upsert(*args), self.epath)
 
     def POST(self, uri):
         """Perform HTTP POST of entities.
