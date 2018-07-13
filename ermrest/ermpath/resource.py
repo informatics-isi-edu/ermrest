@@ -858,7 +858,27 @@ RETURNING %(rcols)s""") % {
                      content_type
         )
     )
-    return list(make_row_thunk(None, cur, content_type)())
+    results = list(make_row_thunk(None, cur, content_type)())
+    if table.columns['RID'] not in use_defaults:
+        # try to avoid RID sequence conflicts when users insert values
+        cur.execute("""
+SELECT
+  max(_ermrest.urlb32_decode("RID")),
+  nextval('_ermrest.rid_seq')
+FROM %(table)s
+""" % {
+    'table': table.sql_name(),
+}
+        )
+        max_stored, next_issued = cur.fetchone()
+        if max_stored > next_issued:
+            cur.execute("""
+SELECT setval('_ermrest.rid_seq', %(newval)s)
+""" % {
+    'newval': sql_literal(max_stored),
+}
+            )
+    return results
 
 def _perform_table_upsert(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type, use_defaults, extra_return_cols):
     results1 = _perform_table_update(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type)
@@ -1140,7 +1160,7 @@ class EntityElem (object):
         results1.extend(results2)
         return results1
 
-    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None):
+    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None, non_defaults=None):
         """Insert entities.
 
            conn: sanepg2 connection to catalog
@@ -1182,15 +1202,15 @@ class EntityElem (object):
               { col, ... } --> use defaults for zero or more columns
               None --> same as empty set
 
-           Input rows are correlated to stored entities by metakey
-           equivalence.  The metakey for an entity is the union of all
-           its unique keys.  The metakey for a custom update may be a
-           subset of columns and may in fact be a non-unique key.
+           non_defaults: customize entity processing
+              { col, ... } --> use input data for zero or more columns
+              None --> same as empty set
 
-           Input row data is applied to existing entities by updating
-           the non-metakey columns to match the input.  Input row data
-           is used to insert new entities only when allow_missing is
-           False and attr_update is None.
+           If a column is named in both use_defaults and non_defaults,
+           the latter takes precedence. In practice, the non_defaults
+           parameter is only necessary to reverse built-in implicit
+           defaulting behavior for system columns like RID, RCT, or
+           RCB.
 
         """
         if len(self.filters) > 0:
@@ -1207,8 +1227,16 @@ class EntityElem (object):
         for unique in self.table.uniques:
             for c in unique:
                 mkcols.add(c)
-        nmkcols = [ c for c in inputcols if c not in mkcols and c.name not in system_colnames ]
-        mkcols = [ c for c in inputcols if c in mkcols and c.name not in system_colnames ]
+        nmkcols = [
+            c
+            for c in inputcols
+            if c not in mkcols and (c.name not in system_colnames or c.name in non_defaults)
+        ]
+        mkcols = [
+            c
+            for c in inputcols
+            if c in mkcols and (c.name not in system_colnames or c.name in non_defaults)
+        ]
         mkcol_aliases = dict()
         nmkcol_aliases = dict()
         extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
@@ -1216,14 +1244,19 @@ class EntityElem (object):
         if use_defaults is None:
             use_defaults = set()
 
+        if non_defaults is None:
+            non_defaults = set()
+
         use_defaults = set([
             self.table.columns.get_enumerable(cname).name
             for cname in use_defaults
+            if cname not in non_defaults
         ] + [
             # system columns aren't writable so don't make client ask for their defaults explicitly
             self.table.columns[cname]
             for cname in system_colnames
-            if cname in self.table.columns
+            # but allow them to suppress this using nondefaults param...
+            if cname in self.table.columns and cname not in non_defaults
         ])
 
         if not set([ c.name for c in mkcols]).union(set([ c.name for c in nmkcols ])).difference(use_defaults):
@@ -1899,7 +1932,7 @@ WHERE %(keymatches)s
 
         return self._path[0].upsert(conn, cur, input_data, in_content_type, content_type, output_file)
 
-    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None):
+    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None, non_defaults=None):
         """Insert entities.
 
            conn: sanepg2 connection to catalog
@@ -1941,7 +1974,7 @@ WHERE %(keymatches)s
         if len(self._path) != 1:
             raise BadData("unsupported path length for insertion")
 
-        return self._path[0].insert(conn, cur, input_data, in_content_type, content_type, output_file, use_defaults)
+        return self._path[0].insert(conn, cur, input_data, in_content_type, content_type, output_file, use_defaults, non_defaults)
 
     def update(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, attr_update=None, attr_aliases=None):
         """Update entities.

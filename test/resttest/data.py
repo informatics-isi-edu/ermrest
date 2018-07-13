@@ -50,7 +50,13 @@ class BasicKey (common.ErmrestTest):
         [ {"name": "unreferenced3"} ],
         [ {} ],
     ]
-    
+
+    _set_RID = [
+        {"RID": "AAAAA2", "id": 162, "name": "custom RID AAAAA2"},
+        {"RID": "AAAAA4", "id": 164, "name": "custom RID AAAAA4"},
+        {"RID": "AAAAA6", "id": 166, "name": "custom RID AAAAA6"},
+    ]
+
     def test_data_0_post(self):
         self.assertHttp(self.session.post("entity/%s:%s" % (_S, self.table), json=self._initial), 200)
 
@@ -66,6 +72,15 @@ class BasicKey (common.ErmrestTest):
     def test_data_4_badnull(self):
         for x in self._badnulls:
             self.assertHttp(self.session.put("entity/%s:%s" % (_S, self.table), json=x), 409)
+
+    def test_data_5_set_RID(self):
+        self.assertHttp(self.session.post("entity/%s:%s?nondefaults=RID" % (_S, self.table), json=self._set_RID), 200)
+        r = self.session.get("attributegroup/%s:%s/name::regexp::custom/RID;id,name@sort(RID)" % (_S, self.table))
+        self.assertHttp(r, 200, 'application/json')
+        self.assertEqual(r.json(), self._set_RID)
+
+    def test_data_6_badsyscol(self):
+        self.assertHttp(self.session.post("entity/%s:%s?nondefaults=RMT" % (_S, self.table), json=[]), 403)
 
     def test_download(self):
         r = self.session.get('entity/%s:%s?download=%s' % (_S, self.table, self.table))
@@ -97,6 +112,8 @@ class CompositeKey (BasicKey):
         [ {"id": None, "last_update": "2010-01-01", "name": "FooN", "site": 1} ],
         [ {"last_update": "2010-01-01", "name": "FooN", "site": 1} ],
     ]
+
+    _set_RID = [] # this inherited test won't work with this table, so prune it
 
 class DataLoad (common.ErmrestTest):
     table = _T2b

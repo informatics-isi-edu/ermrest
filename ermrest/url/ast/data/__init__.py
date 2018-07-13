@@ -266,14 +266,16 @@ class Entity (Api):
     def POST(self, uri):
         """Perform HTTP POST of entities.
         """
-        defaults = self.queryopts.get('defaults')
-        if defaults and type(defaults) is not set:
-            # defaults is a single column name from queryopts
-            defaults = set([ defaults ])
-        elif defaults is None:
-            defaults = set()
-        # defaults is always a set at this point
-        return _PUT(self, uri, lambda args: self.epath.insert(*args, use_defaults=defaults), self.epath)
+        def prepare_defaults(k):
+            defaults = self.queryopts.get(k)
+            if defaults and type(defaults) is not set:
+                # defaults is a single column name from queryopts
+                defaults = set([ defaults ])
+            elif defaults is None:
+                defaults = set()
+            # defaults is always a set at this point
+            return defaults
+        return _PUT(self, uri, lambda args: self.epath.insert(*args, use_defaults=prepare_defaults('defaults'), non_defaults=prepare_defaults('nondefaults')), self.epath)
 
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.

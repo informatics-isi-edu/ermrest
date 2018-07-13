@@ -26,6 +26,8 @@ In this operation, complex entity paths with filter and linked entity elements a
 
 The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. It is an error for any existing key in the stored table to match any key in the input data, as this would denote the creation of multiple rows with the same keys.
 
+For convenience, the ERMrest system columns (`RID`, `RCT`, `RMT`, `RCB`, `RMB`) are implicitly supplied with default values during entity creation.
+
 On success, the response is:
 
     HTTP/1.1 200 OK
@@ -49,6 +51,7 @@ The POST operation is also used to create new entity records in a table where so
 
 - _service_ `/catalog/` _cid_ `/entity/` _table name_ `?defaults=` _column name_
 - _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?defaults=` _column name_ `,` ...
+- _service_ `/catalog/` _cid_ `/entity/` _table name_ `?defaults=` _column name_ `&nondefaults=` _column name_ `,` ...
 
 In this operation, complex entity paths with filter and linked entity elements are not allowed.  The request input includes all columns of the table, thus supplying full entity records of data:
 
@@ -63,9 +66,11 @@ In this operation, complex entity paths with filter and linked entity elements a
     1,baz
     1,bof
 
-The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. If multiple columns are to be set to defaults, they are provided as a comma-separated list of column names on the right-hand-side of the `accept=...` query parameter binding.
+The input data MUST observe the table definition including column names and types, uniqueness constraints for key columns, and validity of any foreign key references. If multiple columns are to be set to defaults, they are provided as a comma-separated list of column names on the right-hand-side of the `defaults=...` query parameter binding.
 
 All columns should still be present in the input. However, the values for the column (or columns) named in the `defaults` query parameter will be ignored and server-assigned values generated instead. It is an error for any existing key in the stored table to match any key in the input data, as this would denote the creation of multiple rows with the same keys.
+
+For convenience, the ERMrest system columns (`RID`, `RCT`, `RMT`, `RCB`, `RMB`) are implicitly supplied with default values during entity creation, even if they are not listed in the `defaults` query parameter. The optional `nondefaults` query parameter can be used to suppress this implicit behavior, e.g. to allow a client to import or relocate table content from another catalog while preserving its originally assigned `RID` values.
 
 On success, the response is:
 
