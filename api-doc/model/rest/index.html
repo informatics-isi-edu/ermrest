@@ -36,7 +36,7 @@
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
       <div class="wy-side-nav-search">
-        <a href="../../../user-doc/install-redhat/" class="icon icon-home"> ERMrest Documentation</a>
+        <a href="../../../README/" class="icon icon-home"> ERMrest Documentation</a>
         <div role="search">
   <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -47,6 +47,11 @@
       <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
 	<ul class="current">
 	  
+          
+            <li class="toctree-l1">
+		
+    <a class="" href="../../../README/">Welcome to the documentation</a>
+	    </li>
           
             <li class="toctree-l1">
 		
@@ -91,112 +96,135 @@
                     
     <a class="" href="../../rest-catalog/">ERMrest Catalog Operations</a>
                 </li>
-                <li class="">
-                    
-    <a class="" href="../naming/">ERMrest Model Resources</a>
-                </li>
                 <li class=" current">
+                    
+    <span class="caption-text">ERMrest Model Guide</span>
+    <ul class="subnav">
+                <li class="toctree-l3">
+                    
+    <a class="" href="../naming/">ERMrest Model Operations</a>
+                </li>
+                <li class="toctree-l3 current">
                     
     <a class="current" href="./">ERMrest Model Operations</a>
     <ul class="subnav">
             
-    <li class="toctree-l3"><a href="#ermrest-model-operations">ERMrest Model Operations</a></li>
+    <li class="toctree-l4"><a href="#ermrest-model-operations">ERMrest Model Operations</a></li>
     
         <ul>
         
-            <li><a class="toctree-l4" href="#schemata-retrieval">Schemata Retrieval</a></li>
+            <li><a class="toctree-l5" href="#schemata-retrieval">Schemata Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#bulk-schemata-and-table-creation">Bulk Schemata and Table Creation</a></li>
+            <li><a class="toctree-l5" href="#bulk-schemata-and-table-creation">Bulk Schemata and Table Creation</a></li>
         
-            <li><a class="toctree-l4" href="#schema-creation">Schema Creation</a></li>
+            <li><a class="toctree-l5" href="#schema-creation">Schema Creation</a></li>
         
-            <li><a class="toctree-l4" href="#schema-retrieval">Schema Retrieval</a></li>
+            <li><a class="toctree-l5" href="#schema-retrieval">Schema Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#schema-deletion">Schema Deletion</a></li>
+            <li><a class="toctree-l5" href="#schema-deletion">Schema Deletion</a></li>
         
-            <li><a class="toctree-l4" href="#table-list-retrieval">Table List Retrieval</a></li>
+            <li><a class="toctree-l5" href="#table-list-retrieval">Table List Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#table-creation">Table Creation</a></li>
+            <li><a class="toctree-l5" href="#table-creation">Table Creation</a></li>
         
-            <li><a class="toctree-l4" href="#table-retrieval">Table Retrieval</a></li>
+            <li><a class="toctree-l5" href="#table-retrieval">Table Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#table-deletion">Table Deletion</a></li>
+            <li><a class="toctree-l5" href="#table-deletion">Table Deletion</a></li>
         
-            <li><a class="toctree-l4" href="#column-list-retrieval">Column List Retrieval</a></li>
+            <li><a class="toctree-l5" href="#column-list-retrieval">Column List Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#column-creation">Column Creation</a></li>
+            <li><a class="toctree-l5" href="#column-creation">Column Creation</a></li>
         
-            <li><a class="toctree-l4" href="#column-retrieval">Column Retrieval</a></li>
+            <li><a class="toctree-l5" href="#column-retrieval">Column Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#column-deletion">Column Deletion</a></li>
+            <li><a class="toctree-l5" href="#column-deletion">Column Deletion</a></li>
         
-            <li><a class="toctree-l4" href="#key-list-retrieval">Key List Retrieval</a></li>
+            <li><a class="toctree-l5" href="#key-list-retrieval">Key List Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#key-creation">Key Creation</a></li>
+            <li><a class="toctree-l5" href="#key-creation">Key Creation</a></li>
         
-            <li><a class="toctree-l4" href="#key-retrieval">Key Retrieval</a></li>
+            <li><a class="toctree-l5" href="#key-retrieval">Key Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#key-deletion">Key Deletion</a></li>
+            <li><a class="toctree-l5" href="#key-deletion">Key Deletion</a></li>
         
-            <li><a class="toctree-l4" href="#foreign-key-list-retrieval">Foreign Key List Retrieval</a></li>
+            <li><a class="toctree-l5" href="#foreign-key-list-retrieval">Foreign Key List Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#foreign-key-creation">Foreign Key Creation</a></li>
+            <li><a class="toctree-l5" href="#foreign-key-creation">Foreign Key Creation</a></li>
         
-            <li><a class="toctree-l4" href="#foreign-key-retrieval">Foreign Key Retrieval</a></li>
+            <li><a class="toctree-l5" href="#foreign-key-retrieval">Foreign Key Retrieval</a></li>
         
-            <li><a class="toctree-l4" href="#foreign-key-deletion">Foreign Key Deletion</a></li>
+            <li><a class="toctree-l5" href="#foreign-key-deletion">Foreign Key Deletion</a></li>
         
-            <li><a class="toctree-l4" href="#annotations">Annotations</a></li>
+            <li><a class="toctree-l5" href="#annotations">Annotations</a></li>
         
-            <li><a class="toctree-l4" href="#comments">Comments</a></li>
+            <li><a class="toctree-l5" href="#comments">Comments</a></li>
         
-            <li><a class="toctree-l4" href="#access-control-lists">Access Control Lists</a></li>
+            <li><a class="toctree-l5" href="#access-control-lists">Access Control Lists</a></li>
         
-            <li><a class="toctree-l4" href="#access-control-list-bindings">Access Control List Bindings</a></li>
+            <li><a class="toctree-l5" href="#access-control-list-bindings">Access Control List Bindings</a></li>
         
         </ul>
     
 
     </ul>
                 </li>
-                <li class="">
-                    
-    <a class="" href="../../acl/concepts/">ERMrest Access Control</a>
+    </ul>
                 </li>
                 <li class="">
+                    
+    <span class="caption-text">ERMrest Access Control</span>
+    <ul class="subnav">
+                <li class="toctree-l3">
+                    
+    <a class="" href="../../acl/concepts/">Access Concepts</a>
+                </li>
+                <li class="toctree-l3">
                     
     <a class="" href="../../acl/static/">Static Model-Based Policies</a>
                 </li>
-                <li class="">
+                <li class="toctree-l3">
                     
     <a class="" href="../../acl/dynamic/">Dynamic Data-Dependent Policies</a>
                 </li>
     </ul>
-	    </li>
-          
-            <li class="toctree-l1">
-		
-    <span class="caption-text">Client-Specific Rights Summaries</span>
-    <ul class="subnav">
+                </li>
                 <li class="">
+                    
+    <span class="caption-text">Client-Specific Rights</span>
+    <ul class="subnav">
+                <li class="toctree-l3">
                     
     <a class="" href="../../acl/rights/">Rights Summaries</a>
                 </li>
-                <li class="">
+                <li class="toctree-l3">
+                    
+    <span class="caption-text">ERMrest Data Resources</span>
+    <ul class="subnav">
+                <li class="toctree-l4">
                     
     <a class="" href="../../data/naming/">ERMrest Data Resources</a>
                 </li>
-                <li class="">
+                <li class="toctree-l4">
                     
     <a class="" href="../../data/rest/">ERMrest Data Operations</a>
                 </li>
-                <li class="">
+    </ul>
+                </li>
+                <li class="toctree-l3">
+                    
+    <span class="caption-text">ERMrest History Management</span>
+    <ul class="subnav">
+                <li class="toctree-l4">
                     
     <a class="" href="../../history/naming/">ERMrest History Management Resources</a>
                 </li>
-                <li class="">
+                <li class="toctree-l4">
                     
     <a class="" href="../../history/rest/">ERMrest History Management Operations</a>
+                </li>
+    </ul>
+                </li>
+    </ul>
                 </li>
     </ul>
 	    </li>
@@ -211,7 +239,7 @@
       
       <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-        <a href="../../../user-doc/install-redhat/">ERMrest Documentation</a>
+        <a href="../../../README/">ERMrest Documentation</a>
       </nav>
 
       
@@ -219,11 +247,15 @@
         <div class="rst-content">
           <div role="navigation" aria-label="breadcrumbs navigation">
   <ul class="wy-breadcrumbs">
-    <li><a href="../../../user-doc/install-redhat/">Docs</a> &raquo;</li>
+    <li><a href="../../../README/">Docs</a> &raquo;</li>
     
       
         
           <li>ERMrest API and Service Semantics &raquo;</li>
+        
+      
+        
+          <li>ERMrest Model Guide &raquo;</li>
         
       
     
@@ -1218,10 +1250,10 @@ Content-Type: application/json
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../../acl/concepts/" class="btn btn-neutral float-right" title="ERMrest Access Control">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../../acl/concepts/" class="btn btn-neutral float-right" title="Access Concepts">Next <span class="icon icon-circle-arrow-right"></span></a>
       
       
-        <a href="../naming/" class="btn btn-neutral" title="ERMrest Model Resources"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../naming/" class="btn btn-neutral" title="ERMrest Model Operations"><span class="icon icon-circle-arrow-left"></span> Previous</a>
       
     </div>
   
