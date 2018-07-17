@@ -69,8 +69,8 @@ def TableDoc(table_name, column_definitions=[], keys=[], foreign_keys=[], annota
         doc['schema_name'] = schema_name
     return doc
 
-def ColumnDoc(column_name, type, annotations={}, nullok=True, acls={}, acl_bindings={}, default=None):
-    return {
+def ColumnDoc(column_name, type, annotations={}, nullok=True, acls={}, acl_bindings={}, default=None, schema_name=None, table_name=None):
+    doc = {
         'name': column_name,
         'type': type,
         'default': default,
@@ -79,6 +79,11 @@ def ColumnDoc(column_name, type, annotations={}, nullok=True, acls={}, acl_bindi
         'acls': acls,
         'acl_bindings': acl_bindings,
     }
+    if schema_name is not None:
+        doc['schema_name'] = schema_name
+    if table_name is not None:
+        doc['table_name'] = table_name
+    return doc
 
 def KeyDoc(unique_columns=[], annotations={}, names=None):
     doc = {
