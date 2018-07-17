@@ -52,7 +52,7 @@ class Model (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
-    def prejson(self):
+    def prejson(self, brief=False):
         cur = web.ctx.ermrest_catalog_pc.cur
         cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(self.snaptime))
         snaptime = cur.fetchone()[0]
@@ -60,12 +60,13 @@ class Model (object):
             "snaptime": snaptime,
             "annotations": self.annotations,
             "rights": self.rights(),
-            "schemas": {
+        }
+        if not brief:
+            doc["schemas"] = {
                 sname: schema.prejson()
                 for sname, schema in self.schemas.items()
                 if schema.has_right('enumerate')
             }
-        }
         if self.has_right('owner'):
             doc['acls'] = self.acls
         return doc
