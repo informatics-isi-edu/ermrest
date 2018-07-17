@@ -61,10 +61,10 @@ Optionally, a batch request list document is also supported:
 	Content-Type: application/json
     
     [
-	   schema or table representation, ...
+	   schema, table, or foreign-key representation, ...
 	]
 	
-In this form, each _schema representation_ is handled as in the preceding form, creating both schema and any nested tables. Each _table representation_ is handled similar to the [Table Creation](#table-creation) API, allowing multiple tables to be added to existing schemata. The list of schema and table representations are processed in document order.  With both forms, a set of tables with interdependent foreign key constraints MAY be specified and the service will first create all requested schemata, then all tables, then all foreign key constraints.
+In this form, each _schema representation_, _table representation_,  or _foreign key representation_ is handled similarly to the [Schema Creation](#schema-creation), [Table Creation](#table-creation), or [Foreign Key Creation](#foreign-key-creation) APIs, respectively. The list of representations are processed in document order, and embedded sub-resources are also created.  With both forms, a set of tables with interdependent foreign key constraints MAY be specified and the service will defer all foreign key definitions until after all tables and keys have been defined.
 
 On success, the response is:
 

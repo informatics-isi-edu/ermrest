@@ -81,7 +81,17 @@ class CyclicFkeys (common.ErmrestTest):
                 FkeyDoc("s4", "B", ["rid"], "s1", "B", ["id"]),
             ],
             schema_name="s4",
-        )
+        ),
+        TableDoc(
+            "C",
+            [
+                RID, RCT, RMT, RCB, RMB,
+                ColumnDoc("rid", Text),
+            ],
+            [ RidKey ],
+            schema_name="s1",
+        ),
+        FkeyDoc("s1", "C", ["rid"], "s1", "B", ["RID"]),
     ]
         
     def test_2_list(self):
