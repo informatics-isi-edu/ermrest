@@ -52,10 +52,12 @@ class Model (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
-    def prejson(self, brief=False):
-        cur = web.ctx.ermrest_catalog_pc.cur
-        cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(self.snaptime))
-        snaptime = cur.fetchone()[0]
+    def prejson(self, brief=False, snaptime=None):
+        if snaptime is None:
+            # this is model snaptime, but catalog reuses representation w/ catalog snaptime!
+            cur = web.ctx.ermrest_catalog_pc.cur
+            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(self.snaptime))
+            snaptime = cur.fetchone()[0]
         doc = {
             "snaptime": snaptime,
             "annotations": self.annotations,
