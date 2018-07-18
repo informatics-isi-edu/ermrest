@@ -90,6 +90,10 @@ SELECT _ermrest.model_version_bump();
 
     @cache_rights
     def has_right(self, aclname, roles=None):
+        if self.name in {'RMT', 'RMB'} and aclname in {'insert', 'update', 'write'}:
+            return False
+        if self.name == 'RID' and aclname in {'update', 'write'}:
+            return False
         if self.table.has_right(aclname, roles) is False:
             return False
         return self._has_right(aclname, roles)
