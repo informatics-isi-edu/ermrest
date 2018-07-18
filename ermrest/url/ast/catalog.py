@@ -189,12 +189,8 @@ class Catalog (Api):
             # note that the 'descriptor' includes private system information such 
             # as the dbname (and potentially connection credentials) which should
             # not ever be shared.
-            resource = {
-                'id': self.catalog_id,
-                'meta': _acls_to_meta(_model.acls),
-                'acls': _model.acls,
-                'snaptime': self.catalog_snaptime,
-            }
+            resource = _model.prejson(brief=True, snaptime=self.catalog_snaptime)
+            resource["id"] = self.catalog_id
             response = json.dumps(resource) + '\n'
             self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
             self.http_check_preconditions()
