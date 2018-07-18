@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="../../css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../css/theme_extra.css" type="text/css" />
   <link rel="stylesheet" href="../../css/highlight.css">
-  <link href="../..//css/extra.css" rel="stylesheet">
+  <link href="../../css/extra.css" rel="stylesheet">
   
   <script>
     // Current page data
@@ -50,7 +50,7 @@
           
             <li class="toctree-l1">
 		
-    <a class="" href="../..">Welcome to the documentation</a>
+    <a class="" href="../..">ERMrest Documentation</a>
 	    </li>
           
             <li class="toctree-l1">
@@ -241,11 +241,13 @@ your server will only support HTTP/1.1.</p>
 distribution suitable for your OS, to be sure you have the latest
 stable database release for better performance.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<p>ERMrest depends on the following prerequisites:
-- Currently supported Fedora
-   - Or CentOS 7 and EPEL 7
-- PostgreSQL 9.6 or above (10 recommended)
-- WebAuthn</p>
+<p>ERMrest depends on the following prerequisites:</p>
+<ul>
+<li>Currently supported Fedora</li>
+<li>Or CentOS 7 and EPEL 7</li>
+<li>PostgreSQL 9.6 or above (10 recommended)</li>
+<li>WebAuthn</li>
+</ul>
 <p>This guide assumes only that you have installed the <a href="https://getfedora.org">Fedora Linux distribution</a>.</p>
 <p>In this document, commands that begin with <code>#</code> should be run as root or with
 super user privileges (<code>sudo</code>). Commands that begin with <code>$</code> may be run as a
@@ -268,49 +270,61 @@ stable release, i.e. Postgres 10 at time of writing.</p>
 <p>Check the list of packages for the version of PostgreSQL and your 
    distribution from the list at <code>http://yum.postgresql.org/</code>.</p>
 <p>At time of writing, these are the latest packages for stable Fedora and CentOS, respectively:</p>
-<p><code># dnf install https://download.postgresql.org/pub/repos/yum/10/fedora/fedora-28-x86_64/pgdg-fedora10-10-4.noarch.rpm
-   ## OR
-   # dnf install https://download.postgresql.org/pub/repos/yum/10/redhat/rhel-7-x86_64/pgdg-centos10-10-4.noarch.rpm</code></p>
+<pre><code># dnf install https://download.postgresql.org/pub/repos/yum/10/fedora/fedora-28-x86_64/pgdg-fedora10-10-4.noarch.rpm
+## OR
+# dnf install https://download.postgresql.org/pub/repos/yum/10/redhat/rhel-7-x86_64/pgdg-centos10-10-4.noarch.rpm
+</code></pre>
+
 <ol>
 <li>Install the required packages. You may first want to uninstall any
    conflicting packages if you had default PostgreSQL packages installed with
    your base CentOS installation.</li>
 </ol>
-<p><code># dnf install policycoreutils-python
-   # dnf remove postgresql{,-server}
-   # dnf install postgresql10{,-server,-docs,-contrib}</code></p>
+<pre><code># dnf install policycoreutils-python
+# dnf remove postgresql{,-server}
+# dnf install postgresql10{,-server,-docs,-contrib}
+</code></pre>
+
 <ol>
 <li>Add local labeling rules to <a href="http://wiki.centos.org/HowTos/SELinux" title="Security-Enhanced Linux">SE-Linux</a> since the files are not where CentOS
    expects them.</li>
 </ol>
-<p><code># semanage fcontext --add --type postgresql_tmp_t "/tmp/\.s\.PGSQL\.[0-9]+.*"
-  # semanage fcontext --add --type postgresql_exec_t "/usr/pgsql-[.0-9]+/bin/(initdb|postgres)"
-  # semanage fcontext --add --type postgresql_log_t "/var/lib/pgsql/[.0-9]+/pgstartup\.log"
-  # semanage fcontext --add --type postgresql_db_t "/var/lib/pgsql/[.0-9]+/data(/.*)?"
-  # restorecon -rv /var/lib/pgsql/
-  # restorecon -rv /usr/pgsql-[.0-9]+</code></p>
+<pre><code># semanage fcontext --add --type postgresql_tmp_t &quot;/tmp/\.s\.PGSQL\.[0-9]+.*&quot;
+# semanage fcontext --add --type postgresql_exec_t &quot;/usr/pgsql-[.0-9]+/bin/(initdb|postgres)&quot;
+# semanage fcontext --add --type postgresql_log_t &quot;/var/lib/pgsql/[.0-9]+/pgstartup\.log&quot;
+# semanage fcontext --add --type postgresql_db_t &quot;/var/lib/pgsql/[.0-9]+/data(/.*)?&quot;
+# restorecon -rv /var/lib/pgsql/
+# restorecon -rv /usr/pgsql-[.0-9]+
+</code></pre>
+
 <ol>
 <li>Initialize and enable the <code>postgresql</code> service.</li>
 </ol>
-<p><code># /usr/pgsql-10/bin/postgresql10-setup initdb
-   # systemctl enable postgresql-10.service
-   # systemctl start postgresql-10.service</code></p>
+<pre><code># /usr/pgsql-10/bin/postgresql10-setup initdb
+# systemctl enable postgresql-10.service
+# systemctl start postgresql-10.service
+</code></pre>
+
 <ol>
 <li>Verify that postmaster is running under the right SE-Linux context
    <code>postgresql_t</code> (though process IDs will vary of course).</li>
 </ol>
-<p><code># ps -Z -U postgres
-   system_u:system_r:unconfined_service_t:s0 22188 ? 00:00:00 postmaster
-   system_u:system_r:unconfined_service_t:s0 22189 ? 00:00:00 postmaster
-   system_u:system_r:unconfined_service_t:s0 22191 ? 00:00:00 postmaster
-   system_u:system_r:unconfined_service_t:s0 22192 ? 00:00:00 postmaster
-   system_u:system_r:unconfined_service_t:s0 22193 ? 00:00:00 postmaster
-   system_u:system_r:unconfined_service_t:s0 22194 ? 00:00:00 postmaster
-   system_u:system_r:unconfined_service_t:s0 22195 ? 00:00:00 postmaster</code></p>
+<pre><code># ps -Z -U postgres
+system_u:system_r:unconfined_service_t:s0 22188 ? 00:00:00 postmaster
+system_u:system_r:unconfined_service_t:s0 22189 ? 00:00:00 postmaster
+system_u:system_r:unconfined_service_t:s0 22191 ? 00:00:00 postmaster
+system_u:system_r:unconfined_service_t:s0 22192 ? 00:00:00 postmaster
+system_u:system_r:unconfined_service_t:s0 22193 ? 00:00:00 postmaster
+system_u:system_r:unconfined_service_t:s0 22194 ? 00:00:00 postmaster
+system_u:system_r:unconfined_service_t:s0 22195 ? 00:00:00 postmaster
+</code></pre>
+
 <ol>
 <li>Permit network connections to the database service.</li>
 </ol>
-<p><code># setsebool -P httpd_can_network_connect_db=1</code></p>
+<pre><code># setsebool -P httpd_can_network_connect_db=1
+</code></pre>
+
 <h3 id="other-prerequisites">Other Prerequisites<a class="headerlink" href="#other-prerequisites" title="Permanent link">&para;</a></h3>
 <pre><code># dnf install httpd mod_{ssl,wsgi} python{,-psycopg2,-dateutil,-setuptools,-ply} pytz
 # dnf install python-webpy
@@ -327,14 +341,18 @@ installing ERMrest.</p>
 <ol>
 <li>Download WebAuthn.</li>
 </ol>
-<p><code>$ git clone https://github.com/informatics-isi-edu/webauthn.git webauthn</code></p>
+<pre><code>$ git clone https://github.com/informatics-isi-edu/webauthn.git webauthn
+</code></pre>
+
 <ol>
 <li>From the WebAuthn source directory, run the installation and deployment scripts.</li>
 </ol>
-<p><code># cd webauthn
-   # make preinstall_centos
-   # make install
-   # make deploy</code></p>
+<pre><code># cd webauthn
+# make preinstall_centos
+# make install
+# make deploy
+</code></pre>
+
 <p>The <code>preinstall_centos</code> target attempts to install prerequisites
    for Red Hat family distributions. System administrators may prefer
    to review the Makefile and install packages manually instead.</p>
@@ -348,12 +366,16 @@ installing ERMrest.</p>
 <ol>
 <li>Download ERMrest.</li>
 </ol>
-<p><code>$ git clone https://github.com/informatics-isi-edu/ermrest.git ermrest</code></p>
+<pre><code>$ git clone https://github.com/informatics-isi-edu/ermrest.git ermrest
+</code></pre>
+
 <ol>
 <li>From the ERMrest source directory, run the installation script.</li>
 </ol>
-<p><code># cd ermrest
-   # make install [PLATFORM=centos7]</code></p>
+<pre><code># cd ermrest
+# make install [PLATFORM=centos7]
+</code></pre>
+
 <p>The install script:
    - installs the ERMrest Python module under
      <code>/usr/lib/python2*/site-packages</code>
@@ -362,7 +384,9 @@ installing ERMrest.</p>
 <ol>
 <li>From the same directory, run the deployment script.</li>
 </ol>
-<p><code># make deploy [PLATFORM=centos7]</code></p>
+<pre><code># make deploy [PLATFORM=centos7]
+</code></pre>
+
 <p>The deployment script:
    - runs install target
    - prepares service environment (makes ERMrest daemon user, creates directories)
@@ -375,7 +399,9 @@ installing ERMrest.</p>
 <ol>
 <li>Restart the Apache httpd service</li>
 </ol>
-<p><code># service httpd restart</code></p>
+<pre><code># service httpd restart
+</code></pre>
+
 <h2 id="updating-ermrest">Updating ERMrest<a class="headerlink" href="#updating-ermrest" title="Permanent link">&para;</a></h2>
 <p>Changes to code in your working copy can be quickly tested with the following
 commands.</p>
@@ -415,21 +441,27 @@ against an internal database of usernames and passwords and attributes.</p>
 <ol>
 <li>Switch to the <code>webauthn</code> user in order to perform the  configuration steps.</li>
 </ol>
-<p><code># su - webauthn</code></p>
+<pre><code># su - webauthn
+</code></pre>
+
 <ol>
 <li>Setup an administrator account.</li>
 </ol>
-<p><code>$ webauthn2-manage adduser root
-   $ webauthn2-manage addattr admin
-   $ webauthn2-manage assign root admin
-   $ webauthn2-manage passwd root 'your password here'</code></p>
+<pre><code>$ webauthn2-manage adduser root
+$ webauthn2-manage addattr admin
+$ webauthn2-manage assign root admin
+$ webauthn2-manage passwd root 'your password here'
+</code></pre>
+
 <p>The <code>admin</code> attribute has special meaning only if it appears in ACLs
    in <code>~webauthn/webauthn2_config.json</code> or <code>~ermrest/ermrest_config.json</code>.</p>
 <ol>
 <li>Setup a user account.</li>
 </ol>
-<p><code>$ webauthn2-manage adduser myuser
-   $ webauthn2-manage passwd myuser 'your password here'</code></p>
+<pre><code>$ webauthn2-manage adduser myuser
+$ webauthn2-manage passwd myuser 'your password here'
+</code></pre>
+
 <h2 id="create-your-first-catalog">Create Your First Catalog<a class="headerlink" href="#create-your-first-catalog" title="Permanent link">&para;</a></h2>
 <p>A quick sanity check of the above configuration is to login to ERMrest, create
 a catalog, and read its meta properties. The following commands can be run as
@@ -438,37 +470,37 @@ any local user.</p>
 <li>Login to ERMrest using an <code>admin</code> account previously created with
    <code>ermrest-webauthn-manage</code>. Do not include the single quotes in the parameter. The following script will create a cookie file named <code>cookie</code>.</li>
 </ol>
-<p><code>$ curl -k -c cookie -d username=testuser -d password='your password here' https://$(hostname)/ermrest/authn/session</code></p>
+<pre><code>$ curl -k -c cookie -d username=testuser -d password='your password here' https://$(hostname)/ermrest/authn/session
+</code></pre>
+
 <ol>
 <li>Create a catalog.</li>
 </ol>
-<p><code>$ curl -k -b cookie -X POST https://$(hostname)/ermrest/catalog/</code></p>
+<pre><code>$ curl -k -b cookie -X POST https://$(hostname)/ermrest/catalog/
+</code></pre>
+
 <ol>
 <li>Inspect the catalog metadata. (Readable indentation added here.)</li>
 </ol>
-<p>```
-   $ curl -k -b cookie -H "Accept: application/json" \</p>
-<blockquote>
-<p>https://$(hostname)/ermrest/catalog/1
-   {
-     "acls": {"owner": ["testuser"]},
-     "id": "1"
-   }
-   ```</p>
-</blockquote>
+<pre><code>$ curl -k -b cookie -H &quot;Accept: application/json&quot; \
+&gt; https://$(hostname)/ermrest/catalog/1
+{
+ &quot;acls&quot;: {&quot;owner&quot;: [&quot;testuser&quot;]},
+ &quot;id&quot;: &quot;1&quot;
+}
+</code></pre>
+
 <ol>
 <li>Inspect the catalog schema.</li>
 </ol>
-<p>```
-   $ curl -k -b cookie -H "Accept: application/json" \</p>
-<blockquote>
-<p>https://$(hostname)/ermrest/catalog/1/schema
-   {
-      "schemas": {
-      ...
-   }
-   ```</p>
-</blockquote>
+<pre><code>$ curl -k -b cookie -H &quot;Accept: application/json&quot; \
+&gt; https://$(hostname)/ermrest/catalog/1/schema
+{
+  &quot;schemas&quot;: {
+  ...
+}
+</code></pre>
+
 <h2 id="firewall">Firewall<a class="headerlink" href="#firewall" title="Permanent link">&para;</a></h2>
 <p>You will need to edit your firewall rules if you want to access the ERMrest
 service from remote hosts. There are multiple ways to do this.</p>
@@ -486,7 +518,7 @@ accomplishing this.</p>
         <a href="../annotation/" class="btn btn-neutral float-right" title="Model Annotation">Next <span class="icon icon-circle-arrow-right"></span></a>
       
       
-        <a href="../.." class="btn btn-neutral" title="Welcome to the documentation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../.." class="btn btn-neutral" title="ERMrest Documentation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
       
     </div>
   
