@@ -70,7 +70,7 @@ The input data MUST observe the table definition including column names and type
 
 All columns should still be present in the input. However, the values for the column (or columns) named in the `defaults` query parameter will be ignored and server-assigned values generated instead. It is an error for any existing key in the stored table to match any key in the input data, as this would denote the creation of multiple rows with the same keys.
 
-For convenience, the ERMrest system columns (`RID`, `RCT`, `RMT`, `RCB`, `RMB`) are implicitly supplied with default values during entity creation, even if they are not listed in the `defaults` query parameter. The optional `nondefaults` query parameter can be used to suppress this implicit behavior, e.g. to allow a client to import or relocate table content from another catalog while preserving its originally assigned `RID` values.
+For convenience, columns lacking `enumerate` privilege and the ERMrest system columns (`RID`, `RCT`, `RMT`, `RCB`, `RMB`) are implicitly supplied with default values during entity creation, even if they are not listed in the `defaults` query parameter. The optional `nondefaults` query parameter can be used to suppress this implicit behavior, e.g. to allow a client to import or relocate table content from another catalog while preserving its originally assigned `RID`, `RCT`, and `RCB` values. NOTE: the server will also allow a privileged client to send values for `RMT` and `RMB`, but the current implementation of system columns will always override with a system-determined value reflecting the actual data mutation request transaction metadata.
 
 On success, the response is:
 
