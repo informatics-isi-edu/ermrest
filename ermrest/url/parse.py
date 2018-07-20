@@ -80,7 +80,6 @@ def p_apis(p):
              | catalog_range
              | data_range
              | config_range
-             | meta
              | data
              | datasort"""
     p[0] = p[1]
@@ -159,10 +158,6 @@ def p_catalogslash(p):
     """catalogslash : catalog '/' """
     p[0] = p[1]
 
-def p_meta(p):
-    """meta : catalogslash META slashopt """
-    p[0] = p[1].meta()
-
 def p_data(p):
     """data : entity
             | attribute
@@ -200,10 +195,6 @@ def p_pagelist_grow(p):
     p[0] = p[1]
     p[0].append( p[3] )
     
-def p_meta_key(p):
-    """meta : catalogslash META '/' string """
-    p[0] = p[1].meta(p[4])
-
 def p_textfacet(p):
     """textfacet : catalogslash TEXTFACET '/' string """
     p[0] = p[1].textfacet(predicate.Value(p[4]))

@@ -58,7 +58,7 @@ class Catalogs (object):
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client['id'])).next()
         finally:
             pc.final()
 
@@ -79,25 +79,6 @@ class Catalogs (object):
         else:
             assert content_type == _application_json
             return json.dumps(dict(id=catalog_id))
-
-def _acls_to_meta(acls):
-    meta_keys = {
-        "owner": "owner",
-        "read_user": "enumerate",
-        "content_read_user": "select",
-        "content_write_user": "write",
-        "schema_write_user": 'create',
-        "write_user": False,
-    }
-    return dict([
-        (metakey, acls[aclname] or [])
-        for metakey, aclname in meta_keys.items()
-        if aclname
-    ] + [
-        (metakey, [])
-        for metakey, aclname in meta_keys.items()
-        if not aclname
-    ])
 
 class Catalog (Api):
 
@@ -140,10 +121,6 @@ class Catalog (Api):
     def schema(self, name):
         """A specific schema for this catalog."""
         return model.Schema(self, name)
-
-    def meta(self, key=None, value=None):
-        """A metadata set for this catalog."""
-        return Meta(self, key, value)
 
     def textfacet(self, filterelem):
         """A textfacet set for this catalog."""
@@ -253,50 +230,3 @@ class Catalog (Api):
             return ''
 
         return self.perform(body, post_commit)
-
-class Meta (Api):
-    """A metadata set of the catalog.
-
-       This is a temporary map of ACLs to old meta API for introspection by older clients.
-
-       DEPRECATED.
-    """
-
-    default_content_type = _application_json
-    supported_types = [default_content_type]
-
-    def __init__(self, catalog, key=None, value=None):
-        Api.__init__(self, catalog)
-        self.key = key
-        self.value = value
-
-    def GET(self, uri):
-        """Perform HTTP GET of catalog metadata.
-        """
-        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
-        def body(conn, cur):
-            self.enforce_right('enumerate', uri)
-            return web.ctx.ermrest_catalog_model.acls
-
-        def post_commit(acls):
-            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
-            self.http_check_preconditions()
-            self.emit_headers()
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_request_content_type = content_type
-
-            meta = _acls_to_meta(acls)
-
-            if self.key is not None:
-                # project out single ACL from ACL set
-                try:
-                    meta = meta[self.key]
-                except KeyError:
-                    raise exception.rest.NotFound(uri)
-
-            response = json.dumps(meta) + '\n'
-            web.header('Content-Length', len(response))
-            return response
-
-        return self.perform(body, post_commit)
-

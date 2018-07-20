@@ -237,46 +237,13 @@ class Catalog (object):
                 del self.MODEL_CACHE[key]
         return model
 
-    def destroy(self):
-        """Destroys the catalog (i.e., drops the database).
-        
-           This operation will fail if there are any other open connections to
-           the database.
-           
-           Important: THIS OPERATION IS PERMANENT... unless you have backups ;)
-
-           NOTE: This code is clearly b0rken
-        """
-        # the database connection must be closed
-        sanepg2.pools[self._dbname].closeall() # TODO: this should reference the pool key not dbname
-            
-        # drop db cannot be called by a connection to the db, so the factory
-        # must do it
-        #
-        # Note: factory's destroy method is not robust, so for a quick and 
-        #       dirty imperfect workaround we retry 3 times here
-        for i in range(3):
-            try:
-                self._factory._destroy_catalog(self)
-                return
-            except RuntimeError, ev:
-                msg = str(ev)
-                continue
-        raise RuntimeError(msg)
-    
-    def init_meta(self, conn, cur, owner=None):
+    def init_meta(self, conn, cur, owner):
         """Initializes the Catalog metadata.
-        
-           When 'owner' is None, it initializes the catalog permissions with 
-           the anonymous ('*') role, including the ownership.
         """
         cur.execute(pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'))
         cur.execute('SELECT _ermrest.model_change_event();')
         cur.execute('ANALYZE;')
 
-        if type(owner) is dict:
-            owner = owner['id']
-            
         ## initial policy
         model = self.get_model(cur, self._config)
         owner = owner if owner else '*'
