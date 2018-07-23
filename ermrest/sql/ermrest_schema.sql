@@ -1213,7 +1213,11 @@ BEGIN
     -- this addresses a possible inconsistency found when a DBA does 'ALTER ... RENAME ...' unsafely
     SELECT schema_name INTO new_sname FROM _ermrest.known_schemas WHERE "RID" = srid;
     EXECUTE
-      'DROP TRIGGER IF EXISTS ermrest_history'
+      'DROP TRIGGER IF EXISTS ermrest_history_insert'
+      ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';'
+      'DROP TRIGGER IF EXISTS ermrest_history_update'
+      ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';'
+      'DROP TRIGGER IF EXISTS ermrest_history_delete'
       ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';' ;
   END LOOP;
 
@@ -1537,7 +1541,11 @@ BEGIN
     -- this addresses a possible inconsistency found when a DBA does 'ALTER ... RENAME ...' unsafely
     SELECT schema_name INTO new_sname FROM _ermrest.known_schemas WHERE "RID" = srid;
     EXECUTE
-      'DROP TRIGGER IF EXISTS ermrest_history'
+      'DROP TRIGGER IF EXISTS ermrest_history_insert'
+      ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';'
+      'DROP TRIGGER IF EXISTS ermrest_history_update'
+      ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';'
+      'DROP TRIGGER IF EXISTS ermrest_history_delete'
       ' ON ' || quote_ident(new_sname) || '.' || quote_ident(new_tname) || ';' ;
   END LOOP;
 
