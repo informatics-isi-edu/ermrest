@@ -338,6 +338,17 @@ RETURNING "RID", column_num;
             column.set_annotation(conn, cur, k, v)
         for k, v in column.acls.items():
             column.set_acl(cur, k, v)
+        if column.default_value is not None:
+            # do this seemingly redundant UPDATE so history-tracking triggers see the new column value!
+            cur.execute("""
+UPDATE %(sname)s.%(tname)s SET %(cname)s = %(default)s;
+""" % {
+    "sname": sql_identifier(self.schema.name),
+    "tname": sql_identifier(self.name),
+    "cname": sql_identifier(column.name),
+    "default": column.type.sql_literal(column.default_value),
+}
+            )
         return column
 
     def delete_column(self, conn, cur, cname):
