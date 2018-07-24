@@ -100,6 +100,9 @@ class BadModelDocs (common.ErmrestTest):
     def _keytest(self, key, status=400):
         self._badtable(self._tdef(keys=[key]), status)
 
+    def test_key_nondict(self):
+        self._keytest( [KeyDoc(['RCT'])] )
+
     def test_key_name_nonlist(self):
         self._keytest( KeyDoc(['RCT'], names=['not a list']) )
 
@@ -120,6 +123,9 @@ class BadModelDocs (common.ErmrestTest):
 
     def _fkeytest(self, fkey, status=400):
         self._badtable(self._tdef(columns=[ColumnDoc('ref', Text)], fkeys=[fkey]), status)
+
+    def test_fkey_nondict(self):
+        self._fkeytest( [FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'])] )
 
     def test_fkey_name_nonlist(self):
         self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'], names=['not a list']) )
@@ -144,6 +150,26 @@ class BadModelDocs (common.ErmrestTest):
 
     def test_fkey_pkcol_nontext(self):
         self._fkeytest( FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, [{'not': 'text'}], names=[[self._S, 'valid name']]) )
+
+    def _table_keytest(self, key, status=400):
+        try:
+            self.assertHttp(self.session.post('schema/%s/table' % self._S, json=self._tdef()), 201)
+            self.assertHttp(self.session.post('schema/%s/table/%s/key' % (self._S, self._T), json=key), status)
+        finally:
+            self.session.delete('schema/%s/table/%s' % (self._S, self._T))
+
+    def test_table_key_nondict(self):
+        self._table_keytest( [KeyDoc(['RCT'])] )
+
+    def _table_fkeytest(self, fkey, status=400):
+        try:
+            self.assertHttp(self.session.post('schema/%s/table' % self._S, json=self._tdef()), 201)
+            self.assertHttp(self.session.post('schema/%s/table/%s/foreignkey' % (self._S, self._T), json=fkey), status)
+        finally:
+            self.session.delete('schema/%s/table/%s' % (self._S, self._T))
+
+    def test_table_fkey_nondict(self):
+        self._table_fkeytest([FkeyDoc(self._S, self._T, ['ref'], self._S, self._T, ['RID'])])
 
     def _bulk_config_test(self, subapi, payload, subject='', status=400):
         self.assertHttp(
