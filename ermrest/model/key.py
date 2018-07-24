@@ -108,6 +108,9 @@ SELECT _ermrest.model_version_bump();
                     raise exception.BadData('Key constraint_name %s must be textual' % n[1])
             return names
 
+        if not isinstance(keydoc, dict):
+            raise exception.BadData('Key document must be a single object.')
+
         pk_namepairs = check_names(keydoc.get('names', []))
         keycolumns = []
         kcnames = keydoc.get('unique_columns', [])
@@ -674,6 +677,9 @@ RETURNING fkey_rid;
                     )
 
             return colset, key, table
+
+        if not isinstance(refdoc, dict):
+            raise exception.BadData('Foreign-key reference document must be a single object.')
 
         fk_names = check_names(refdoc.get('names', []))
         fk_columns = list(check_columns(refdoc.get('foreign_key_columns', []), 'foreign-key'))
