@@ -323,7 +323,7 @@ system_colnames = {'RID','RCT','RMT','RCB','RMB'}
 
 def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, drop_tables=None, use_defaults=None):
     if use_defaults is None:
-        use_defaults = dict()
+        use_defaults = set()
     input_table = random_name("input_data_")
     input_json_table = None
     cur.execute(
@@ -331,10 +331,10 @@ def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliase
             sql_identifier(input_table),
             ','.join(
                 [
-                    c.input_ddl(mkcol_aliases.get(c), c.name not in use_defaults)
+                    c.input_ddl(mkcol_aliases.get(c), c not in use_defaults)
                     for c in mkcols
                 ] + [
-                    c.input_ddl(nmkcol_aliases.get(c), c.name not in use_defaults)
+                    c.input_ddl(nmkcol_aliases.get(c), c not in use_defaults)
                     for c in nmkcols
                 ]
             )
@@ -349,8 +349,11 @@ def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliase
             drop_tables.append(input_json_table)
     return input_table, input_json_table
 
-def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     """Build up intermediate SQL representations of each JSON record as field lists."""
+    if use_defaults is None:
+        use_defaults = set()
+
     def json_fields(col_name, c):
         sql_type = c.type.sql(basic_storage=True)
 
@@ -389,16 +392,19 @@ def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
 
     parts = [
         json_fields(mkcol_aliases.get(c, c.name), c)
-        for c in mkcols
+        for c in mkcols if c not in use_defaults
     ] + [
         json_fields(nmkcol_aliases.get(c, c.name), c)
-        for c in nmkcols
+        for c in nmkcols if c not in use_defaults
     ]
 
     # split back into json_cols, json_projection lists
     return zip(*parts)
 
-def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = set()
+
     hdr = csv.reader([ input_data.readline() ]).next()
 
     inputcol_names = set(
@@ -419,6 +425,7 @@ def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_al
             else:
                 raise ConflictModel('CSV column %s not recognized.' % cn)
 
+    inputcol_names = set(inputcol_names).difference(set([ c.name for c in use_defaults ]))
     if inputcol_names:
         raise BadData('Missing expected CSV column%s: %s.' % (
             ('' if len(inputcol_names) == 0 else 's'),
@@ -442,7 +449,10 @@ FROM STDIN WITH (
     except psycopg2.DataError, e:
         raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
 
-def _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+def _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = set()
+
     json_cols, json_projection = _build_json_projections(
         mkcols, nmkcols,
         mkcol_aliases, nmkcol_aliases
@@ -467,7 +477,7 @@ FROM (
     except psycopg2.DataError, e:
         raise BadData('Bad JSON array input. ' + e.pgerror)
 
-def _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+def _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     json_cols, json_projection = _build_json_projections(
         mkcols, nmkcols,
         mkcol_aliases, nmkcol_aliases
@@ -491,13 +501,13 @@ FROM (
     except psycopg2.DataError, e:
         raise BadData('Bad JSON stream input. ' + e.pgerror)
 
-def _load_input_data(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type):
+def _load_input_data(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, use_defaults=None):
     if in_content_type == 'text/csv':
-        _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+        _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     elif in_content_type == 'application/json':
-        _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+        _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     elif in_content_type == 'application/x-json-stream':
-        _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+        _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     else:
         raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
@@ -571,14 +581,16 @@ def _table_col_fkrs(table):
                 col_fkrs[c].update(set(fk.references.values()))
     return col_fkrs
 
-def _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+def _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = set()
     # 1. accumulate all fkrs into a map  { c: {fkr,...} }
     col_fkrs = _table_col_fkrs(table)
     # 2. prune columns from map if column is not affected by request or no input data IS NOT NULL
     for c in list(col_fkrs):
-        if c in mkcols:
+        if c in mkcols and c not in use_defaults:
             alias = mkcol_aliases.get(c)
-        elif c in nmkcols:
+        elif c in nmkcols and c not in use_defaults:
             alias = nmkcol_aliases.get(c)
         else:
             # prune this unaffected column
@@ -594,19 +606,22 @@ def _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkc
     mkcol_fkrs = {
         c: fkrs
         for c, fkrs in col_fkrs.items()
-        if c in mkcols
+        if c in mkcols and c not in use_defaults
     }
     nmkcol_fkrs = {
         c: fkrs
         for c, fkrs in col_fkrs.items()
-        if c in nmkcols
+        if c in nmkcols and c not in use_defaults
     }
     return mkcol_fkrs, nmkcol_fkrs
 
-def _enforce_table_access_static(cur, access, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, require_tc=False):
+def _enforce_table_access_static(cur, access, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, require_tc=False, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = set()
     table.enforce_right(access, require_true=require_tc)
     for c in nmkcols:
-        c.enforce_data_right(access, require_true=require_tc)
+        if c not in use_defaults:
+            c.enforce_data_right(access, require_true=require_tc)
     mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
     for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
         fkr.enforce_right(access)
@@ -614,8 +629,13 @@ def _enforce_table_access_static(cur, access, table, input_table, mkcols, nmkcol
 def _enforce_table_update_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
     _enforce_table_access_static(cur, 'update', table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
 
-def _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
-    _enforce_table_access_static(cur, 'insert', table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, require_tc=True)
+def _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = set()
+    _enforce_table_access_static(cur, 'insert', table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, require_tc=True, use_defaults=use_defaults)
+    for c in mkcols:
+        if c not in use_defaults:
+            c.enforce_data_right('insert', require_true=True)
 
 def _enforce_table_upsert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
     """Raise access error or return will_insert boolean determination from input_table."""
@@ -651,14 +671,14 @@ def _keymatches(mkcols, mkcol_aliases):
     return u' AND '.join([ keymatch(c, mkcol_aliases) for c in mkcols ])
 
 def _cols(mkcols, nmkcols, use_defaults):
-    return ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c.name not in use_defaults ])
+    return ','.join([ c.sql_name() for c in (mkcols + nmkcols) if c not in use_defaults ])
 
 def _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     if use_defaults is None:
-        use_defaults = dict()
+        use_defaults = set()
     return ','.join(
-        [jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols if c.name not in use_defaults]
-        + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols if c.name not in use_defaults]
+        [jsonfix1('i.%s' % c.sql_name(mkcol_aliases.get(c)), c) for c in mkcols if c not in use_defaults]
+        + [jsonfix1('i.%s' % c.sql_name(nmkcol_aliases.get(c)), c) for c in nmkcols if c not in use_defaults]
     )
 
 def _tcols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
@@ -682,9 +702,11 @@ LIMIT 1;""" % {
     for row in cur:
         raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
 
-def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
+def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+    if use_defaults is None:
+        use_defaults = set()
     input_table_sql = sql_identifier(input_table)
-    icols = _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+    icols = _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
 
     mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
     for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
@@ -712,12 +734,12 @@ LIMIT 1""") % {
     'fkr_nonnull': ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
     'fkrs_cols': ','.join(fkr_cols),
     'icols': icols,
-    'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
+    'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='insert', alias='d', dynauthz_testfkr=fkr),
     'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen ]),
     }
         )
         if cur.rowcount > 0:
-            raise Forbidden(u'update access on foreign key reference %s' % fkr)
+            raise Forbidden(u'insert access on foreign key reference %s' % fkr)
 
 def _enforce_table_update_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
     input_table_sql = sql_identifier(input_table)
@@ -1078,13 +1100,10 @@ class EntityElem (object):
         nmkcol_aliases = dict()
         extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
 
-        if use_defaults is None:
-            use_defaults = set()
+        if use_defaults is not None:
+            raise NotImplementedError("use_defaults in upsert is not supported")
 
         use_defaults = set([
-            self.table.columns.get_enumerable(cname).name
-            for cname in use_defaults
-        ] + [
             # system columns aren't writable so don't make client ask for their defaults explicitly
             self.table.columns[cname]
             for cname in system_colnames
@@ -1116,7 +1135,7 @@ class EntityElem (object):
         )
 
         if will_insert:
-            if not set([ c.name for c in mkcols]).union(set([ c.name for c in nmkcols ])).difference(use_defaults):
+            if not set(mkcols).union(set(nmkcols)).difference(use_defaults):
                 raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
 
         _enforce_table_upsert_dynamic(
@@ -1221,6 +1240,24 @@ class EntityElem (object):
 
         drop_tables = []
 
+        if use_defaults is None:
+            use_defaults = set()
+
+        if non_defaults is None:
+            non_defaults = set()
+
+        use_defaults = set([
+            self.table.columns.get_enumerable(cname)
+            for cname in use_defaults
+            if cname not in non_defaults
+        ] + [
+            # system columns aren't writable so don't make client ask for their defaults explicitly
+            self.table.columns.get(cname)
+            for cname in system_colnames
+            # but allow them to suppress this using nondefaults param...
+            if cname in self.table.columns and cname not in non_defaults
+        ])
+
         # we are doing a whole entity request
         inputcols = self.table.columns_in_order()
         mkcols = set()
@@ -1230,36 +1267,18 @@ class EntityElem (object):
         nmkcols = [
             c
             for c in inputcols
-            if c not in mkcols and (c.name not in system_colnames or c.name in non_defaults)
+            if c not in mkcols
         ]
         mkcols = [
             c
             for c in inputcols
-            if c in mkcols and (c.name not in system_colnames or c.name in non_defaults)
+            if c in mkcols
         ]
         mkcol_aliases = dict()
         nmkcol_aliases = dict()
         extra_return_cols = [ c for c in inputcols if c.name in system_colnames ]
 
-        if use_defaults is None:
-            use_defaults = set()
-
-        if non_defaults is None:
-            non_defaults = set()
-
-        use_defaults = set([
-            self.table.columns.get_enumerable(cname).name
-            for cname in use_defaults
-            if cname not in non_defaults
-        ] + [
-            # system columns aren't writable so don't make client ask for their defaults explicitly
-            self.table.columns[cname]
-            for cname in system_colnames
-            # but allow them to suppress this using nondefaults param...
-            if cname in self.table.columns and cname not in non_defaults
-        ])
-
-        if not set([ c.name for c in mkcols]).union(set([ c.name for c in nmkcols ])).difference(use_defaults):
+        if not set(mkcols).union(set(nmkcols)).difference(use_defaults):
             raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
 
         input_table, input_json_table = _create_temp_input_tables(
@@ -1275,7 +1294,8 @@ class EntityElem (object):
             cur, input_data, input_table, input_json_table,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
-            in_content_type
+            in_content_type,
+            use_defaults
         )
 
         _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
@@ -1283,13 +1303,15 @@ class EntityElem (object):
         _enforce_table_insert_static(
             cur, self.table, input_table,
             mkcols, nmkcols,
-            mkcol_aliases, nmkcol_aliases
+            mkcol_aliases, nmkcol_aliases,
+            use_defaults
         )
 
         _enforce_table_insert_dynamic(
             cur, self.table, input_table,
             mkcols, nmkcols,
-            mkcol_aliases, nmkcol_aliases
+            mkcol_aliases, nmkcol_aliases,
+            use_defaults
         )
 
         try:

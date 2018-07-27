@@ -381,7 +381,7 @@ class Authz (common.ErmrestTest):
         self._json_check(self.session.put('attributegroup/%s:T1/name;value' % _S, json=_data[0][1]), self.put_data_T1_status)
 
     def test_post_data_T1(self):
-        self._json_check(self.session.post('entity/%s:T1' % _S, json=_data[0][1]), self.post_data_T1_status)
+        self._json_check(self.session.post('entity/%s:T1' % _S, json=_extra_post_data_1['T1']), self.post_data_T1_status)
 
     def test_delete_data_T1(self):
         self._json_check(self.session.delete('attribute/%s:T1/name,value' % _S), self.delete_data_T1_status)
@@ -417,7 +417,7 @@ class Authz (common.ErmrestTest):
 
     post_data_T1_default_id_status = 403
     def test_post_data_T1_default_id(self):
-        self._json_check(self.session.put('entity/%s:T1?defaults=id' % _S, json=_data[0][1]), self.post_data_T1_default_id_status)
+        self._json_check(self.session.post('entity/%s:T1?defaults=id' % _S, json=_extra_post_data_2['T1']), self.post_data_T1_default_id_status)
 
     delete_data_T1_id_status = 403
     def test_delete_data_T1_id(self):
@@ -540,7 +540,45 @@ class AuthzHideT1id (Authz):
     get_data_T1_id_status = 409
     get_data_T1T3_id_status = 409
     put_data_T1_id_status = 409
+    post_data_T1_default_id_status = 409
     delete_data_T1_id_status = 409
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT1Insert (Authz):
+    T1 = {
+        "insert": [common.secondary_client_id],
+        "select": ["*"],
+    }
+    T1_id = {
+        "insert": [],
+        "select": ["*"],
+    }
+
+    post_data_T1_status = 403
+    post_data_T1_default_id_status = 200
+
+    rights_T1 = {
+        "select": True,
+        "insert": True,
+    }
+    rights_T1_id = {
+        "select": True,
+        "insert": False,
+    }
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzT1InsertId (AuthzT1Insert):
+    T1_id = {
+        "insert": [common.secondary_client_id],
+        "select": ["*"],
+    }
+
+    post_data_T1_status = 200
+
+    rights_T1_id = {
+        "select": True,
+        "insert": True,
+    }
 
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzHideT1 (AuthzHideT1id):
@@ -852,6 +890,22 @@ _data = [
     ),
 ]
 
+_extra_post_data_1 = {
+    "T1": [
+        {"id": 100, "name": "t1.100", "value": "foo"},
+        {"id": 200, "name": "t1.200", "value": "bar"},
+        {"id": 300, "name": "t1.300", "value": "baz"},
+    ],
+}
+
+_extra_post_data_2 = {
+    "T1": [
+        {"name": "t1.1.null", "value": "foo"},
+        {"name": "t1.2.null", "value": "bar"},
+        {"name": "t1.3.null", "value": "baz"},
+    ],
+}
+
 _defs = ModelDoc(
     [
         SchemaDoc(
@@ -861,7 +915,7 @@ _defs = ModelDoc(
                     "T1",
                     [
                         RID, RCT, RMT, RCB, RMB,
-                        ColumnDoc("id", Int8),
+                        ColumnDoc("id", Int8, nullok=True),
                         ColumnDoc("name", Text, nullok=False),
                         ColumnDoc("value", Text),
                     ],
