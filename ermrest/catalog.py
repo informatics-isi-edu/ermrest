@@ -233,7 +233,7 @@ class Catalog (object):
         if len(self.MODEL_CACHE) > 2 * self.MODEL_CACHE_SIZE:
             cache_items = list(self.MODEL_CACHE.items())
             cache_items.sort(key=lambda item: item[1].last_access, reverse=True)
-            for key, model in cache_items[self.MODEL_CACHE_SIZE:]:
+            for key, victim in cache_items[self.MODEL_CACHE_SIZE:]:
                 del self.MODEL_CACHE[key]
         return model
 

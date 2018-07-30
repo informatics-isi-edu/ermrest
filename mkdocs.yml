@@ -13,6 +13,7 @@ pages:
     - Model Annotation: user-doc/annotation.md
     - Performance Tuning: user-doc/tuning.md
     - ermrest-registry-purge command: user-doc/ermrest-registry-purge.md
+    - ermrest-freetxt-indices command: user-doc/ermrest-freetext-indices.md
     - System Table `ermrest_client`: user-doc/ermrest-client-table.md
     - History Tracking for DBAs and Programmers: user-doc/history-track.md
 - ERMrest API and Service Semantics:
