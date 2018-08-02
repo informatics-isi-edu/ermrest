@@ -209,7 +209,6 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
 
         table.set_annotations(conn, cur, annotations)
         table.set_acls(cur, acls)
-        table.set_dynacls(cur, dynacls)
 
         def execute_if(sql):
             if sql:
@@ -235,7 +234,6 @@ ORDER BY column_num;
                 column.set_comment(conn, cur, column.comment)
             column.set_annotations(conn, cur, column.annotations)
             column.set_acls(cur, column.acls)
-            column.set_dynacls(cur, column.dynacls)
 
         for keydoc in tabledoc.get('keys', []):
             for key in table.add_unique(conn, cur, keydoc):
@@ -250,10 +248,21 @@ ORDER BY column_num;
                 web.debug(table, column, e)
                 raise
 
+        fkr_dynacls = {}
         for fkeydoc in tabledoc.get('foreign_keys', []):
+            if not isinstance(fkeydoc, dict):
+                raise exception.BadData("Foreign key documents must be JSON objects.")
+            dynacls_doc = fkeydoc.pop('acl_bindings', {})
             for fkr in table.add_fkeyref(conn, cur, fkeydoc):
                 # need to drain this generating function
-                pass
+                fkr_dynacls[fkr] = dynacls_doc
+
+        # defer dynacls which may depend on columns and foreign keys...
+        table.set_dynacls(cur, dynacls)
+        for column in columns:
+            column.set_dynacls(cur, column.dynacls)
+        for fkr, _dynacls in fkr_dynacls:
+            fkr.set_dynacls(cur, _dynacls)
 
         try:
             table.check_primary_keys(ermrest_config.get('require_primary_keys', True))

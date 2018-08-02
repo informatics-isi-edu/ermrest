@@ -32,6 +32,7 @@ import struct
 import urllib
 import json
 import sys
+import re
 import traceback
 import psycopg2
 import webauthn2
@@ -236,6 +237,18 @@ def web_method():
        classes. Doing so would cause a double-wrapping.
 
     """
+    def pg_message_shorten(e):
+        mesg = e.message.decode('utf8').strip()
+        m = re.match('^.*\nDETAIL: (?P<detail>[^\n]+)\nHINT: (?P<hint>[^\n]+).*', mesg)
+        if m:
+            g = m.groupdict()
+            mesg = "%s. %s" % (g['detail'], g['hint'])
+            return mesg
+        elif mesg:
+            return mesg
+        else:
+            return str(e)
+
     def helper(original_method):
         def wrapper(*args):
             request_init()
@@ -284,9 +297,13 @@ def web_method():
                             raise rest.ServiceUnavailable('Transaction aborted.')
                         elif e.pgcode[0:2] == '54':
                             raise rest.BadRequest('Program limit exceeded: %s.' % e.message.decode('utf8').strip())
+                        elif e.pgcode[0:2] == '22':
+                            raise rest.BadRequest('Bad data: %s' % pg_message_shorten(e))
+                        elif e.pgcode[0:2] == '23':
+                            raise rest.Conflict('Conflict: %s' % pg_message_shorten(e))
                         elif e.pgcode[0:2] == 'XX':
                             raise rest.ServiceUnavailable('Internal error.')
-                        
+
                     # TODO: simplify postgres error text?
                     web.debug(e, e.pgcode, e.pgerror)
                     et, ev, tb = sys.exc_info()

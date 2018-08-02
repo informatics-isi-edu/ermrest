@@ -102,12 +102,27 @@ class Schemas (Api):
         modelobj = web.ctx.ermrest_catalog_model
 
         deferred_fkeys = []
+        deferred_table_dynacls = []
+        deferred_column_dynacls = []
+        deferred_fkey_dynacls = []
         
         def extract_fkeys(sname, tname, tabledoc):
             """Remove fkey sub-documents and defer to our own storage."""
             deferred_fkeys.append(
                 (sname, tname, tabledoc.pop('foreign_keys', []))
             )
+
+        def extract_column_dynacls(sname, tname, columndoc):
+            deferred_column_dynacls.append(
+                (sname, tname, columndoc.get('name'), columndoc.pop('acl_bindings', {}))
+            )
+
+        def extract_table_dynacls(sname, tname, tabledoc):
+            deferred_table_dynacls.append(
+                (sname, tname, tabledoc.pop('acl_bindings', {}))
+            )
+            for columndoc in tabledoc.get('column_definitions', []):
+                extract_column_dynacls(sname, tname, columndoc)
 
         def run_schema_pass1(sname, sdoc):
             """Create one schema and its tables while deferring fkeys."""
@@ -124,6 +139,7 @@ class Schemas (Api):
                 
             for tname, tdoc in sdoc.get('tables', {}).items():
                 extract_fkeys(sname, tname, tdoc)
+                extract_table_dynacls(sname, tname, tdoc)
             return model.Schema.create_fromjson(conn, cur, modelobj, sdoc, web.ctx.ermrest_config)
 
         def run_table_pass1(tdoc):
@@ -134,6 +150,7 @@ class Schemas (Api):
             except KeyError, e:
                 raise exception.BadData('Each table document must have a %s field.' % e)
             extract_fkeys(sname, tname, tdoc)
+            extract_table_dynacls(sname, tname, tdoc)
             schema = modelobj.schemas[sname]
             return model.Table.create_fromjson(conn, cur, schema, tdoc, web.ctx.ermrest_config)
 
@@ -147,7 +164,7 @@ class Schemas (Api):
             except IndexError:
                 raise exception.BadData('Each key document must have at least one unique_columns entry.')
             return modelobj.schemas[sname].tables[tname].add_unique(conn, cur, kdoc)
-        
+
         def defer_fkey(fkdoc):
             """Defer fkey."""
             try:
@@ -165,10 +182,21 @@ class Schemas (Api):
             """Create all deferred fkeys assuming tables now exist."""
             for sname, tname, fkeydocs in deferred_fkeys:
                 for fkeydoc in fkeydocs:
+                    dynacls = fkeydoc.pop('acl_bindings', [])
                     for fkr in modelobj.schemas[sname].tables[tname].add_fkeyref(conn, cur, fkeydoc):
                         # need to drain this generating function
+                        deferred_fkey_dynacls.append((fkr, dynacls))
                         pass
-        
+
+        def run_deferred_dynacls():
+            """Create all deferred dynacls assuming tables, columns, and fkeys now exist."""
+            for sname, tname, dynacls in deferred_table_dynacls:
+                modelobj.schemas[sname].tables[tname].set_dynacls(cur, dynacls)
+            for sname, tname, cname, dynacls in deferred_column_dynacls:
+                modelobj.schemas[sname].tables[tname].columns[cname].set_dynacls(cur, dynacls)
+            for fkeyref, dynacls in deferred_fkey_dynacls:
+                fkeyref.set_dynacls(cur, dynacls)
+
         if isinstance(doc, dict):
             # top-level model document has schemas w/ nested tables
             schemasdoc = doc.get('schemas')
@@ -180,6 +208,7 @@ class Schemas (Api):
                 schemas.append(run_schema_pass1(sname, sdoc))
 
             run_deferred_fkeys()
+            run_deferred_dynacls()
             return dict(schemas={ s.name: s.prejson() for s in schemas })
         elif isinstance(doc, list):
             # polymorphic batch may have schemas and/or tables mixed together
@@ -198,6 +227,7 @@ class Schemas (Api):
                     raise exception.BadData('Each batch item must be a schema, table, or foreign-key document.')
 
             run_deferred_fkeys()
+            run_deferred_dynacls()
             return resources
         else:
             raise exception.BadData('JSON input is neither a schema set or a batch list of schemas and tables.')

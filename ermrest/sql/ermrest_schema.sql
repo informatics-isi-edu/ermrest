@@ -422,6 +422,7 @@ END IF;
 CREATE OR REPLACE FUNCTION _ermrest.key_invalidate() RETURNS TRIGGER AS $$
 BEGIN
   DELETE FROM _ermrest.known_keys k WHERE k."RID" = OLD.key_rid;
+  PERFORM _ermrest.model_version_bump();
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -468,6 +469,7 @@ END IF;
 CREATE OR REPLACE FUNCTION _ermrest.pseudo_key_invalidate() RETURNS TRIGGER AS $$
 BEGIN
   DELETE FROM _ermrest.known_pseudo_keys k WHERE k."RID" = OLD.key_rid;
+  PERFORM _ermrest.model_version_bump();
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -520,6 +522,7 @@ END IF;
 CREATE OR REPLACE FUNCTION _ermrest.fkey_invalidate() RETURNS TRIGGER AS $$
 BEGIN
   DELETE FROM _ermrest.known_fkeys k WHERE k."RID" = OLD.fkey_rid;
+  PERFORM _ermrest.model_version_bump();
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -568,6 +571,7 @@ END IF;
 CREATE OR REPLACE FUNCTION _ermrest.pseudo_fkey_invalidate() RETURNS TRIGGER AS $$
 BEGIN
   DELETE FROM _ermrest.known_pseudo_fkeys k WHERE k."RID" = OLD.fkey_rid;
+  PERFORM _ermrest.model_version_bump();
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -1840,32 +1844,603 @@ PERFORM _ermrest.create_acl_table('column', 'column', 'columns');
 PERFORM _ermrest.create_acl_table('fkey', 'fkey', 'fkeys');
 PERFORM _ermrest.create_acl_table('pseudo_fkey', 'fkey', 'pseudo_fkeys');
 
-CREATE OR REPLACE FUNCTION _ermrest.create_dynacl_table(rname text, fkcname text, fkrname text) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION _ermrest.create_aclbinding_invalidate_function(rname text) RETURNS text AS $def$
 DECLARE
-  tname text;
+  fname text;
 BEGIN
-  tname := 'known_' || rname || '_dynacls';
-  IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = tname) IS NULL THEN
+  fname = rname || '_acl_binding_invalidate';
+  EXECUTE
+    'CREATE OR REPLACE FUNCTION _ermrest.' || fname || '() RETURNS TRIGGER AS $$'
+    'BEGIN'
+    '  DELETE FROM _ermrest.known_' || rname || '_acl_bindings b WHERE b."RID" = OLD.binding_rid;'
+    '  PERFORM _ermrest.model_version_bump();'
+    '  RETURN NULL;'
+    'END;'
+    '$$ LANGUAGE plpgsql;';
+  RETURN fname;
+END;
+$def$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.create_aclbinding_table(rname text, fkcname text, fkrname text) RETURNS void AS $def$
+DECLARE
+  tname1 text;
+  tname2 text;
+  tname3 text;
+  tname4 text;
+  fname text;
+BEGIN
+  tname1 := 'known_' || rname || '_acl_bindings';
+  IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = tname1) IS NULL THEN
     EXECUTE
-      'CREATE TABLE _ermrest.' || tname || '('
+      'CREATE TABLE _ermrest.' || tname1 || '('
       '  "RID" ermrest_rid PRIMARY KEY DEFAULT nextval(''_ermrest.rid_seq''),'
       '  "RCT" ermrest_rct NOT NULL DEFAULT now(),'
       '  "RMT" ermrest_rmt NOT NULL DEFAULT now(),'
       '  "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),'
       '  "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),'
-      || fkcname || '_rid text NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,' ||
+      '  ' || fkcname || '_rid text NOT NULL REFERENCES _ermrest.known_' || fkrname || '("RID") ON DELETE CASCADE,'
       '  binding_name text NOT NULL,'
-      '  binding jsonb NOT NULL,'
-      '  UNIQUE (' || fkcname || '_rid, binding_name)'
+      '  scope_members text[],'
+      '  access_types text[],'
+      '  projection_type text,'
+      '  projection_column_rid text REFERENCES _ermrest.known_columns("RID"),'
+      '  CHECK( (scope_members IS NOT NULL AND access_types IS NOT NULL AND projection_type IS NOT NULL AND projection_column_rid IS NOT NULL)'
+      '        OR (scope_members IS NULL AND access_types IS NULL AND projection_type IS NULL AND projection_column_rid IS NULL) ),'
+      '  UNIQUE(' || fkcname || '_rid, binding_name)'
       ');' ;
+  END IF;
+
+  fname := _ermrest.create_aclbinding_invalidate_function(rname);
+
+  tname2 := 'known_' || rname || '_acl_binding_elems';
+  IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = tname2) IS NULL THEN
+    EXECUTE
+      'CREATE TABLE _ermrest.' || tname2 || '('
+      '  "RID" ermrest_rid PRIMARY KEY DEFAULT nextval(''_ermrest.rid_seq''),'
+      '  "RCT" ermrest_rct NOT NULL DEFAULT now(),'
+      '  "RMT" ermrest_rmt NOT NULL DEFAULT now(),'
+      '  "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),'
+      '  "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),'
+      '  binding_rid text NOT NULL REFERENCES _ermrest.' || tname1 || '("RID") ON DELETE CASCADE,'
+      '  position int4 NOT NULL,'
+      '  context text,'
+      '  alias text,'
+      '  inbound boolean NOT NULL,'
+      '  fkey_rid text REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,'
+      '  pseudo_fkey_rid text REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,'
+      '  CHECK(fkey_rid IS NULL OR pseudo_fkey_rid IS NULL),'
+      '  CHECK(fkey_rid IS NOT NULL OR pseudo_fkey_rid IS NOT NULL),'
+      '  UNIQUE(binding_rid, position)'
+      ');'
+      'CREATE TRIGGER acl_binding_invalidate'
+      '  AFTER DELETE ON _ermrest.' || tname2 ||
+      '  FOR EACH ROW EXECUTE PROCEDURE _ermrest.' || fname || '();';
+  END IF;
+
+  tname3 := 'known_' || rname || '_acl_binding_combiners';
+  IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = tname3) IS NULL THEN
+    EXECUTE
+      'CREATE TABLE _ermrest.' || tname3 || '('
+      '  "RID" ermrest_rid PRIMARY KEY DEFAULT nextval(''_ermrest.rid_seq''),'
+      '  "RCT" ermrest_rct NOT NULL DEFAULT now(),'
+      '  "RMT" ermrest_rmt NOT NULL DEFAULT now(),'
+      '  "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),'
+      '  "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),'
+      '  binding_rid text NOT NULL REFERENCES _ermrest.' || tname1 || '("RID") ON DELETE CASCADE,'
+      '  parent_position int4,'
+      '  position int4 NOT NULL,'
+      '  combiner text NOT NULL,'
+      '  negate boolean NOT NULL,'
+      '  UNIQUE(binding_rid, position)'
+      ');';
+  END IF;
+
+  tname4 := 'known_' || rname || '_acl_binding_filters';
+  IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = tname4) IS NULL THEN
+    EXECUTE
+      'CREATE TABLE _ermrest.' || tname4 || '('
+      '  "RID" ermrest_rid PRIMARY KEY DEFAULT nextval(''_ermrest.rid_seq''),'
+      '  "RCT" ermrest_rct NOT NULL DEFAULT now(),'
+      '  "RMT" ermrest_rmt NOT NULL DEFAULT now(),'
+      '  "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),'
+      '  "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),'
+      '  binding_rid text NOT NULL REFERENCES _ermrest.' || tname1 || '("RID") ON DELETE CASCADE,'
+      '  parent_position int4,'
+      '  position int4 NOT NULL,'
+      '  context text,'
+      '  column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,'
+      '  operator text,'
+      '  operand text,'
+      '  negate boolean NOT NULL,'
+      '  UNIQUE(binding_rid, position)'
+      ');'
+      'CREATE TRIGGER acl_binding_invalidate'
+      '  AFTER DELETE ON _ermrest.' || tname4 ||
+      '  FOR EACH ROW EXECUTE PROCEDURE _ermrest.' || fname || '();';
+  END IF;
+END;
+$def$ LANGUAGE plpgsql;
+
+PERFORM _ermrest.create_aclbinding_table('table', 'table', 'tables');
+PERFORM _ermrest.create_aclbinding_table('column', 'column', 'columns');
+PERFORM _ermrest.create_aclbinding_table('fkey', 'fkey', 'fkeys');
+PERFORM _ermrest.create_aclbinding_table('pseudo_fkey', 'fkey', 'pseudo_fkeys');
+
+-- this is a helper function for the subsequent aclbinding_parse() function...
+CREATE OR REPLACE FUNCTION _ermrest.aclbinding_filter_parse(next_pos integer, current_scope_table_rid text, env jsonb, doc jsonb, parent_pos integer default NULL) RETURNS jsonb AS $$
+DECLARE
+  projection_combiners jsonb;
+  projection_filters jsonb;
+  subresult jsonb;
+
+  combiner text;
+  children jsonb;
+  child jsonb;
+  negate jsonb;
+
+  cname text;
+  column_rid text;
+  context_alias text;
+  operator jsonb;
+  operand jsonb;
+
+  pos integer;
+BEGIN
+  projection_combiners := '[]';
+  projection_filters := '[]';
+
+  negate := doc->'negate';
+  if jsonb_typeof(negate) = 'boolean' OR jsonb_typeof(negate) IS NULL THEN
+    -- pass
+  ELSE
+    RAISE SQLSTATE '22000' USING DETAIL = negate, HINT = 'Invalid "negate" boolean value in ACL binding path.';
+  END IF;
+
+  pos := next_pos;
+  next_pos := next_pos + 1;
+
+  IF doc ?| '{and,or}' THEN
+    IF doc ? 'and' THEN
+      combiner := 'and';
+    ELSE
+      combiner := 'or';
+    END IF;
+
+    children = doc->combiner;
+
+    IF jsonb_typeof(children) = 'array' THEN
+      FOR child IN SELECT jsonb_array_elements(children) LOOP
+        projection_combiners := projection_combiners || jsonb_build_object(
+	  'position', pos,
+	  'parent_position', parent_pos,
+	  'combiner', combiner,
+	  'negate', negate
+	);
+        subresult := _ermrest.aclbinding_filter_parse(next_pos, current_scope_table_rid, env, child, pos);
+	next_pos := (subresult->>'next_pos')::integer;
+	projection_combiners := projection_combiners || (subresult->'projection_combiners');
+	projection_filters := projection_filters || (subresult->'projection_filters');
+      END LOOP;
+    ELSE
+      RAISE SQLSTATE '22000' USING DETAIL = children, HINT = 'ACL binding logical combiner must provide an array of filters.';
+    END IF;
+  ELSE
+    IF jsonb_typeof(doc->'filter') = 'array'
+    AND jsonb_typeof((doc->'filter')->0) = 'string'
+    AND jsonb_typeof((doc->'filter')->1) = 'string' THEN
+      context_alias := (doc->'filter')->>0;
+      cname := (doc->'filter')->>1;
+
+      IF env ? context_alias THEN
+        current_scope_table_rid = env->>context_alias;
+      ELSE
+        RAISE SQLSTATE '22000' USING DETAIL = context_alias, HINT = 'Reference to unbound context in ACL binding projection.';
+      END IF;
+    ELSIF jsonb_typeof(doc->'filter') = 'string' THEN
+      context_alias := NULL;
+      cname := doc->>'filter';
+    ELSE
+      RAISE SQLSTATE '22000' USING DETAIL = doc, HINT = 'ACL binding "filter" field must be a column name string or [alias, name] string pair.';
+    END IF;
+
+    SELECT c."RID" INTO column_rid
+    FROM _ermrest.known_columns c
+    WHERE c.column_name = cname
+      AND c.table_rid = current_scope_table_rid;
+
+    IF column_rid IS NULL THEN
+      RAISE SQLSTATE '23000' USING DETAIL = cname, HINT = 'Filter column not found.';
+    END IF;
+
+    operator := doc->'operator';
+    operand := doc->'operand';
+
+    projection_filters := projection_filters || jsonb_build_object(
+      'position', pos,
+      'parent_position', parent_pos,
+      'context', context_alias,
+      'column_rid', column_rid,
+      'operator', operator,
+      'operand', operand,
+      'negate', negate
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'next_pos', next_pos,
+    'projection_combiners', projection_combiners,
+    'projection_filters', projection_filters
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- this generic function parses an ACL binding doc and returns a flattened version
+-- ready for insertion into policy storage tables
+CREATE OR REPLACE FUNCTION _ermrest.aclbinding_parse(binding_name text, env jsonb, doc jsonb) RETURNS jsonb AS $$
+DECLARE
+  scope_members jsonb;
+  access_types jsonb;
+  projection_type jsonb;
+
+  projection_elems jsonb;
+  projection_combiners jsonb;
+  projection_filters jsonb;
+
+  next_pos integer;
+  current_scope_table_rid text;
+  proj_column_rid text;
+  proj_column_istext boolean;
+
+  proj jsonb;
+  proj_len integer;
+  elem jsonb;
+  elem_pos integer;
+  context text;
+
+  elem_fkeyname jsonb;
+  elem_fkey_rid text;
+  elem_fkt_rid text;
+  elem_pkt_rid text;
+  inbound boolean;
+  ealias text;
+
+  filters jsonb;
+  tmp_a text[];
+BEGIN
+  IF jsonb_typeof(doc) = 'object' THEN
+    scope_members = doc->'scope_acl';
+    access_types = doc->'types';
+    projection_type = doc->'projection_type';
+
+    current_scope_table_rid := env->>'base';
+    next_pos := 1;
+
+    IF jsonb_typeof(doc->'projection') = 'array' THEN
+      proj := doc->'projection';
+    ELSIF jsonb_typeof(doc->'projection') = 'string' THEN
+      proj := to_jsonb(ARRAY[ doc->'projection' ]);
+    ELSE
+      RAISE SQLSTATE '22000' USING DETAIL = doc->'projection', HINT = 'ACL binding projection must be a JSON array or a bare column name.';
+    END IF;
+
+    proj_len := jsonb_array_length(proj);
+
+    projection_elems = '[]';
+    projection_combiners = '[]';
+    projection_filters = '[]';
+
+    FOR idx IN 0 .. proj_len - 2 LOOP
+      elem := proj->>idx;
+      elem_pos := next_pos;
+
+      IF jsonb_typeof(elem) = 'object' THEN
+        IF jsonb_typeof(elem->'context') = 'string' THEN
+	  context := elem->>'context';
+	  IF env ? context THEN
+	    current_scope_table_rid := env->context;
+	  ELSE
+	    RAISE SQLSTATE '22000' USING DETAIL = context, HINT = 'Reference to unbound context in ACL binding path.';
+	  END IF;
+	ELSIF elem ? 'context' THEN
+	  RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Invalid "context" name in ACL binding path element.';
+	ELSE
+	  context := NULL;
+	END IF;
+
+        IF elem ?| '{outbound,inbound}'::text[] THEN
+	  -- this element is a joining table instance
+          IF elem ? 'inbound' THEN
+	    elem_fkeyname := elem->'inbound';
+	    inbound := True;
+	  ELSE
+	    elem_fkeyname := elem->'outbound';
+	    inbound := False;
+	  END IF;
+
+          IF jsonb_typeof(elem_fkeyname) = 'array' THEN
+            IF jsonb_typeof(elem_fkeyname->1) = 'string' THEN
+	      -- pass
+	    ELSE
+	      RAISE SQLSTATE '22000' USING DETAIL = elem_fkeyname, HINT = 'Foreign key names in ACL binding paths must contain two strings.';
+	    END IF;
+
+	    IF elem_fkeyname->0 = '""'::jsonb THEN
+	      SELECT fk."RID", fk.fk_table_rid, fk.pk_table_rid
+	      INTO elem_fkey_rid, elem_fkt_rid, elem_pkt_rid
+	      FROM _ermrest.known_pseudo_fkeys fk
+	      WHERE fk.constraint_name = elem_fkeyname->>1;
+	    ELSE
+              IF jsonb_typeof(elem_fkeyname->0) = 'string' THEN
+  	        -- pass
+	      ELSE
+	        RAISE SQLSTATE '22000' USING DETAIL = elem_fkeyname, HINT = 'Foreign key names in ACL binding paths must contain two strings.';
+	      END IF;
+	      SELECT fk."RID", fk.fk_table_rid, fk.pk_table_rid
+	      INTO elem_fkey_rid, elem_fkt_rid, elem_pkt_rid
+	      FROM _ermrest.known_fkeys fk
+	      JOIN _ermrest.known_schemas s ON (fk.schema_rid = s."RID")
+	      WHERE fk.constraint_name = elem_fkeyname->>1
+	        AND s.schema_name = elem_fkeyname->>0;
+	    END IF;
+	  ELSE
+	    RAISE SQLSTATE '22000' USING DETAIL = elem_fkeyname, HINT = 'Foreign key names in ACL binding paths must be JSON arrays.';
+	  END IF;
+
+          IF elem_fkey_rid IS NULL THEN
+	    RAISE SQLSTATE '23000' USING DETAIL = elem_fkeyname, HINT = 'Foreign key not found.';
+	  END IF;
+
+          IF inbound AND elem_pkt_rid = current_scope_table_rid THEN
+	    current_scope_table_rid := elem_fkt_rid;
+	  ELSIF (NOT inbound) AND elem_fkt_rid = current_scope_table_rid THEN
+            current_scope_table_rid := elem_pkt_rid;
+          ELSE
+	    RAISE '22000' USING DETAIL = jsonb_build_object(
+	      'elem', elem,
+	      'inbound', inbound,
+	      'current_scope_table_rid', current_scope_table_rid,
+	      'elem_fkey_rid', elem_fkey_rid,
+	      'elem_pkt_rid', elem_pkt_rid,
+	      'elem_fkt_rid', elem_fkt_rid,
+	      'elem_fkeyname->>1', elem_fkeyname->>1
+	    ), HINT = 'Named foreign key does not have requested relationship to path context in ACL binding.';
+	  END IF;
+
+          IF jsonb_typeof(elem->'alias') = 'string' THEN
+	    ealias := elem->>'alias';
+	    IF env ? elias THEN
+	      RAISE '22000' USING DETAIL = ealias, HINT = 'ACL binding path element "alias" collides with existing alias.';
+	    END IF;
+	    env := env || jsonb_build_object(ealias, current_scope_table_rid);
+	  ELSIF elem ? 'alias' THEN
+	    RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Invalid "alias" name in ACL binding path element.';
+	  ELSE
+	    ealias := NULL;
+	  END IF;
+
+          projection_elems := projection_elems || jsonb_build_object(
+	    'position', elem_pos,
+	    'context', context,
+	    'alias', ealias,
+	    'inbound', inbound,
+	    'fkey_rid', CASE WHEN elem_fkeyname->0 = '""' THEN NULL ELSE elem_fkey_rid END,
+	    'pseudo_fkey_rid', CASE WHEN elem_fkeyname->0 = '""' THEN elem_fkey_rid ELSE NULL END
+	  );
+
+          next_pos := next_pos + 1;
+
+	ELSIF elem ?| '{and,or,filter}'::text[] THEN
+
+	  filters := _ermrest.aclbinding_filter_parse(next_pos, current_scope_table_rid, env, elem);
+	  next_pos := (filters->>'next_pos')::integer;
+	  projection_combiners := projection_combiners || (filters->'projection_combiners');
+	  projection_filters := projection_filters || (filters->'projection_filters');
+
+	ELSE
+	  RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'ACL binding projection path element not understood.';
+	END IF;
+      ELSE
+        RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'ACL binding projection inner path element must be a JSON object.';
+      END IF;
+    END LOOP;
+
+    SELECT
+      c."RID",
+      ct.type_name = 'text' OR det.type_name = 'text' OR aet.type_name = 'text'
+    INTO proj_column_rid, proj_column_istext
+    FROM _ermrest.known_columns c
+    JOIN _ermrest.known_types ct ON (c.type_rid = ct."RID")
+    LEFT OUTER JOIN _ermrest.known_types det ON (ct.domain_element_type_rid = det."RID")
+    LEFT OUTER JOIN _ermrest.known_types aet ON (ct.array_element_type_rid = aet."RID" OR det.array_element_type_rid = aet."RID")
+    WHERE c.column_name = proj->>-1
+      AND c.table_rid = current_scope_table_rid;
+
+    IF proj_column_rid IS NULL THEN
+      RAISE SQLSTATE '23000' USING DETAIL = proj->>-1, HINT = 'Projected column not found.';
+    END IF;
+
+    IF jsonb_typeof(scope_members) IS NULL OR jsonb_typeof(scope_members) = 'null' THEN
+      scope_members := '["*"]';
+    ELSIF jsonb_typeof(scope_members) = 'array' THEN
+      SELECT array_agg(jsonb_typeof(e)) INTO tmp_a
+      FROM jsonb_array_elements(scope_members) a(e);
+      IF tmp_a != '{string}' THEN
+        RAISE SQLSTATE '22000' USING DETAIL = scope_members, HINT = 'ACL binding "scope_acl" must be an array of strings.';
+      END IF;
+    ELSE
+      RAISE SQLSTATE '22000' USING DETAIL = scope_members, HINT = 'ACL binding "scope_acl" must be an array of strings.';
+    END IF;
+
+    IF projection_type = '"acl"'::jsonb AND proj_column_istext THEN
+      -- pass
+    ELSIF projection_type = '"nonnull"'::jsonb THEN
+      -- pass
+    ELSIF projection_type IS NOT NULL THEN
+      RAISE SQLSTATE '22000' USING DETAIL = projection_type, HINT = 'Invalid "projection_type" in ACL binding.';
+    ELSE
+      projection_type := CASE WHEN proj_column_istext THEN 'acl' ELSE 'nonnull' END;
+    END IF;
+
+    RETURN jsonb_build_object(
+      'binding_name', binding_name,
+      'scope_members', scope_members,
+      'access_types', access_types,
+      'projection_type', projection_type,
+      'projection_column_rid', proj_column_rid,
+      'projection_elems', projection_elems,
+      'projection_combiners', projection_combiners,
+      'projection_filters', projection_filters
+    );
+  ELSIF doc = 'false'::jsonb THEN
+    RETURN jsonb_build_object(
+      'binding_name', binding_name
+    );
+  ELSE
+    RAISE SQLSTATE '22000' USING DETAIL = doc, HINT = 'Outer ACL binding document must be a JSON object.';
   END IF;
 END;
 $$ LANGUAGE plpgsql;
 
-PERFORM _ermrest.create_dynacl_table('table', 'table', 'tables');
-PERFORM _ermrest.create_dynacl_table('column', 'column', 'columns');
-PERFORM _ermrest.create_dynacl_table('fkey', 'fkey', 'fkeys');
-PERFORM _ermrest.create_dynacl_table('pseudo_fkey', 'fkey', 'pseudo_fkeys');
+CREATE OR REPLACE FUNCTION _ermrest.insert_aclbinding_generic(rname text, fkcname text, subject_rid text, base_rid text, binding_name text, binding jsonb) RETURNS text AS $$
+DECLARE
+  tname1 text;
+  tname2 text;
+  tname3 text;
+  tname4 text;
+
+  flattened jsonb;
+  entry jsonb;
+
+  binding_rid text;
+BEGIN
+  tname1 := 'known_' || rname || '_acl_bindings';
+  tname2 := 'known_' || rname || '_acl_binding_elems';
+  tname3 := 'known_' || rname || '_acl_binding_combiners';
+  tname4 := 'known_' || rname || '_acl_binding_filters';
+
+  flattened := jsonb_strip_nulls(_ermrest.aclbinding_parse(binding_name, jsonb_build_object('base', base_rid), binding));
+
+  EXECUTE
+    'INSERT INTO _ermrest.' || tname1 || '(' || fkcname || '_rid, binding_name, scope_members, access_types, projection_type, projection_column_rid)'
+    'SELECT'
+    '  ' || quote_literal(subject_rid) || ','
+    '  $1->>''binding_name'','
+    '  (SELECT array_agg(a.e ORDER BY a.n) FROM jsonb_array_elements_text($1->''scope_members'') WITH ORDINALITY a(e, n)),'
+    '  (SELECT array_agg(a.e ORDER BY a.n) FROM jsonb_array_elements_text($1->''access_types'') WITH ORDINALITY a(e, n)),'
+    '  $1->>''projection_type'','
+    '  $1->>''projection_column_rid'''
+    'RETURNING "RID";'
+  INTO binding_rid
+  USING flattened;
+
+  FOR entry IN SELECT e FROM jsonb_array_elements(COALESCE(flattened->'projection_elems', '[]')) WITH ORDINALITY a(e, n) ORDER BY n LOOP
+    EXECUTE
+      'INSERT INTO _ermrest.' || tname2 || '(binding_rid, position, context, alias, inbound, fkey_rid, pseudo_fkey_rid)'
+      'VALUES ('
+      '  $1,'
+      '  ($2->>''position'')::integer,'
+      '  $2->>''context'','
+      '  $2->>''alias'','
+      '  ($2->>''inbound'')::boolean,'
+      '  $2->>''fkey_rid'','
+      '  $2->>''pseudo_fkey_rid'' );'
+    USING binding_rid, entry;
+  END LOOP;
+
+  FOR entry IN SELECT e FROM jsonb_array_elements(COALESCE(flattened->'projection_combiners', '[]')) WITH ORDINALITY a(e, n) ORDER BY n LOOP
+    EXECUTE
+      'INSERT INTO _ermrest.' || tname3 || '(binding_rid, parent_position, position, combiner, negate)'
+      'VALUES ('
+      '  $1,'
+      '  ($2->>''parent_position'')::integer,'
+      '  ($2->>''position'')::integer,'
+      '  $2->>''combiner'','
+      '  COALESCE(($2->>''negate'')::boolean, False) );'
+    USING binding_rid, entry;
+  END LOOP;
+
+  FOR entry IN SELECT e FROM jsonb_array_elements(COALESCE(flattened->'projection_filters', '[]')) WITH ORDINALITY a(e, n) ORDER BY n LOOP
+    EXECUTE
+      'INSERT INTO _ermrest.' || tname4 || '(binding_rid, parent_position, position, context, column_rid, operator, operand, negate)'
+      'VALUES ('
+      '  $1,'
+      '  ($2->>''parent_position'')::integer,'
+      '  ($2->>''position'')::integer,'
+      '  $2->>''context'','
+      '  $2->>''column_rid'','
+      '  $2->>''operator'','
+      '  $2->>''operand'','
+      '  COALESCE(($2->>''negate'')::boolean, False) );'
+    USING binding_rid, entry;
+  END LOOP;
+
+  RETURN binding_rid;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.insert_table_aclbinding(table_rid text, binding_name text, binding jsonb) RETURNS text AS $$
+BEGIN
+  RETURN _ermrest.insert_aclbinding_generic(
+    'table',
+    'table',
+    table_rid,
+    table_rid,
+    binding_name,
+    binding
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.insert_column_aclbinding(column_rid text, binding_name text, binding jsonb) RETURNS text AS $$
+DECLARE
+  table_rid text;
+BEGIN
+  SELECT c.table_rid INTO table_rid FROM _ermrest.known_columns c WHERE c."RID" = column_rid;
+
+  RETURN _ermrest.insert_aclbinding_generic(
+    'column',
+    'column',
+    column_rid,
+    table_rid,
+    binding_name,
+    binding
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.insert_fkey_aclbinding(fkey_rid text, binding_name text, binding jsonb) RETURNS text AS $$
+DECLARE
+  table_rid text;
+BEGIN
+  SELECT pk_table_rid INTO table_rid FROM _ermrest.known_fkeys WHERE "RID" = fkey_rid;
+
+  RETURN _ermrest.insert_aclbinding_generic(
+    'fkey',
+    'fkey',
+    fkey_rid,
+    table_rid,
+    binding_name,
+    binding
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.insert_pseudo_fkey_aclbinding(fkey_rid text, binding_name text, binding jsonb) RETURNS text AS $$
+DECLARE
+  table_rid text;
+BEGIN
+  SELECT pk_table_rid INTO table_rid FROM _ermrest.known_pseudo_fkeys WHERE "RID" = fkey_rid;
+
+  RETURN _ermrest.insert_aclbinding_generic(
+    'pseudo_fkey',
+    'fkey',
+    fkey_rid,
+    table_rid,
+    binding_name,
+    binding
+  );
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.create_annotation_table(rname text, fkcname text, fkrname text) RETURNS void AS $$
 DECLARE
@@ -1945,22 +2520,247 @@ PERFORM _ermrest.create_historical_acl_func('column', 'column_rid');
 PERFORM _ermrest.create_historical_acl_func('fkey', 'fkey_rid');
 PERFORM _ermrest.create_historical_acl_func('pseudo_fkey', 'fkey_rid');
 
-CREATE OR REPLACE FUNCTION _ermrest.create_historical_dynacl_func(rname text, cname text) RETURNS void AS $def$
+CREATE OR REPLACE FUNCTION _ermrest.column_name_from_rid(column_rid text, ts timestamptz default NULL) RETURNS text STABLE AS $$
+DECLARE
+  cname text;
+BEGIN
+  IF ts IS NULL THEN
+    SELECT c.column_name
+    INTO cname
+    FROM _ermrest.known_columns c
+    WHERE c."RID" = column_rid;
+  ELSE
+    SELECT (c.rowdata)->>'column_name'
+    INTO cname
+    FROM _ermrest_history.known_columns c
+    WHERE c."RID" = column_rid
+      AND c.during @> ts;
+  END IF;
+  RETURN cname;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.aclbinding_filter_serialize(part jsonb, parent_children_map jsonb, ts timestamptz default NULL) RETURNS jsonb AS $$
+DECLARE
+  child_list jsonb;
+  cname jsonb;
+BEGIN
+  IF part ? 'combiner' THEN
+    -- convert each child using this same serialization function recursively
+    SELECT jsonb_agg(
+      _ermrest.aclbinding_filter_serialize(c, parent_children_map, ts)
+      ORDER BY s.n
+    )
+    INTO child_list
+    FROM jsonb_array_elements(parent_children_map->(part->>'position')) WITH ORDINALITY s(c, n);
+
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+      part->>'combiner', child_list,
+      'negate', part->'negate' = 'true'::jsonb
+    ));
+  ELSE
+    -- convert this leaf filter node as base case
+    cname := to_jsonb(_ermrest.column_name_from_rid(part->>'column_rid', ts));
+
+    IF part->'context_alias' != 'null'::jsonb THEN
+      cname := to_jsonb(ARRAY[ part->'context_alias', cname ]);
+    END IF;
+
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+      'filter', cname,
+      'operator', part->'operator',
+      'operand', part->'operand',
+      'negate', part->'negate' = 'true'::jsonb
+    ));
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.fkey_name_from_rids(fkey_rid text, pseudo_fkey_rid text, ts timestamptz default NULL) RETURNS jsonb STABLE AS $$
+DECLARE
+  sname text;
+  cname text;
+BEGIN
+  IF ts IS NULL THEN
+    IF fkey_rid IS NOT NULL THEN
+      SELECT s.schema_name, fk.constraint_name
+      INTO sname, cname
+      FROM _ermrest.known_fkeys fk
+      JOIN _ermrest.known_schemas s ON (s."RID" = fk.schema_rid)
+      WHERE fk."RID" = fkey_rid;
+    ELSE
+      SELECT '', fk.constraint_name
+      INTO sname, cname
+      FROM _ermrest.known_pseudo_fkeys fk
+      WHERE fk."RID" = pseudo_fkey_rid;
+    END IF;
+  ELSE
+    IF fkey_rid IS NOT NULL THEN
+      SELECT (s.rowdata)->>'schema_name', (fk.rowdata)->>'constraint_name'
+      INTO sname, cname
+      FROM _ermrest_history.known_fkeys fk
+      JOIN _ermrest_history.known_schemas s ON (s."RID" = (fk.rowdata)->>'schema_rid')
+      WHERE fk."RID" = fkey_rid
+        AND fk.during @> ts
+	AND s.during @> ts;
+    ELSE
+      SELECT '', (fk.rowdata)->>'constraint_name'
+      INTO sname, cname
+      FROM _ermrest_history.known_pseudo_fkeys fk
+      WHERE fk."RID" = pseudo_fkey_rid
+        AND fk.during @> ts;
+    END IF;
+
+  END IF;
+  RETURN to_jsonb( ARRAY[ sname, cname ]::text[] );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.aclbinding_serialize(binding_record jsonb, elems jsonb, combiners jsonb, filters jsonb, ts timestamptz default NULL) RETURNS jsonb AS $$
+DECLARE
+  projection jsonb;
+  children jsonb;
+BEGIN
+  IF binding_record->'access_types' = 'null' THEN
+    -- we NULL out required fields to represent a "false" binding mask
+    RETURN 'false'::jsonb;
+  END IF;
+
+  -- build parent->children map needed below to reconstruct expressiont trees
+  SELECT jsonb_object_agg(parent_pos, child_list)
+  INTO children
+  FROM (
+    SELECT
+      c->>'parent_position',
+      COALESCE(jsonb_agg(c ORDER BY (c->>'position')::integer), '{}'::jsonb) AS child_list
+    FROM (
+      SELECT * FROM jsonb_array_elements(combiners) s(c)
+      UNION ALL
+      SELECT * FROM jsonb_array_elements(filters) s(c)
+    ) s(c)
+    WHERE COALESCE(c->'parent_position', 'null'::jsonb) != 'null'::jsonb
+    GROUP BY c->>'parent_position'
+  ) s(parent_pos, child_list);
+
+  IF COALESCE(binding_record->'projection_type', 'null'::jsonb) = 'null'::jsonb THEN
+    RETURN jsonb_build_object(
+      'projection', 'false'::jsonb
+    );
+  END IF;
+
+  -- rebuild projection path which is ordered roots of forest plus final column name
+  SELECT COALESCE(jsonb_agg(
+    CASE
+      WHEN p ?| '{combiner,column_rid}' THEN _ermrest.aclbinding_filter_serialize(p, children, ts)
+      ELSE jsonb_strip_nulls(jsonb_build_object(
+        'context', p->'context',
+	'alias', p->'alias',
+	CASE
+	  WHEN (p->>'inbound')::boolean
+	  THEN 'inbound'
+	  ELSE 'outbound'
+	END::text,
+	_ermrest.fkey_name_from_rids((s.p)->>'fkey_rid', (s.p)->>'pseudo_fkey-rid', ts)
+      ))
+    END
+    ORDER BY (p->>'position')::integer
+  ), '[]'::jsonb) || to_jsonb(_ermrest.column_name_from_rid(binding_record->>'projection_column_rid'))
+  INTO projection
+  FROM (
+    SELECT * FROM jsonb_array_elements(elems) s(p)
+    UNION ALL
+    SELECT * FROM jsonb_array_elements(combiners) s(p)
+    UNION ALL
+    SELECT * FROM jsonb_array_elements(filters) s(p)
+  ) s(p)
+  WHERE COALESCE(p->'parent_position', 'null'::jsonb) = 'null'::jsonb;
+
+  RETURN jsonb_build_object(
+    'scope_acl', $1->'scope_members',
+    'types', $1->'access_types',
+    'projection_type', $1->'projection_type',
+    'projection', projection
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION _ermrest.create_historical_aclbinding_func(rname text, cname text) RETURNS void AS $def$
+DECLARE
+  s text;
 BEGIN
   EXECUTE
-    'CREATE OR REPLACE FUNCTION _ermrest.known_' || rname || '_dynacls(ts timestamptz)'
+    'CREATE OR REPLACE FUNCTION _ermrest.known_' || rname || '_acl_bindings(ts timestamptz default NULL)'
     'RETURNS TABLE (' || cname || ' text,' || 'binding_name text, binding jsonb) AS $$'
-    '  SELECT ' || '(s.rowdata->>' || quote_literal(cname) || ')::text,' || 's.rowdata->>''binding_name'', s.rowdata->''binding'''
-    '  FROM _ermrest_history.known_' || rname || '_dynacls s'
-    '  WHERE s.during @> COALESCE(ts, now());'
-    '$$ LANGUAGE SQL;' ;
+    'BEGIN'
+    '  IF ts IS NULL THEN'
+    '    RETURN QUERY'
+    '    SELECT'
+    '      b.' || cname || ','
+    '      b.binding_name,'
+    '      _ermrest.aclbinding_serialize('
+    '        row_to_json(b.*)::jsonb,'
+    '        COALESCE(e.parts, ''[]''::jsonb),'
+    '        COALESCE(c.parts, ''[]''::jsonb),'
+    '        COALESCE(f.parts, ''[]''::jsonb)'
+    '      )'
+    '    FROM _ermrest.known_' || rname || '_acl_bindings b'
+    '    LEFT JOIN ('
+    '      SELECT s.binding_rid, jsonb_agg(row_to_json(s.*))'
+    '      FROM _ermrest.known_' || rname || '_acl_binding_elems s'
+    '      GROUP BY s.binding_rid'
+    '    ) e (binding_rid, parts) ON (b."RID" = e.binding_rid)'
+    '    LEFT JOIN ('
+    '      SELECT s.binding_rid, jsonb_agg(row_to_json(s.*))'
+    '      FROM _ermrest.known_' || rname || '_acl_binding_combiners s'
+    '      GROUP BY s.binding_rid'
+    '    ) c (binding_rid, parts) ON (b."RID" = c.binding_rid)'
+    '    LEFT JOIN ('
+    '      SELECT s.binding_rid, jsonb_agg(row_to_json(s.*))'
+    '      FROM _ermrest.known_' || rname || '_acl_binding_filters s'
+    '      GROUP BY s.binding_rid'
+    '    ) f (binding_rid, parts) ON (b."RID" = f.binding_rid);'
+    '  ELSE'
+    '    RETURN QUERY'
+    '    SELECT'
+    '      (b.rowdata)->>''' || cname || ''','
+    '      (b.rowdata)->>''binding_name'','
+    '      _ermrest.aclbinding_serialize('
+    '        b.rowdata,'
+    '        COALESCE(e.parts, ''[]''::jsonb),'
+    '        COALESCE(c.parts, ''[]''::jsonb),'
+    '        COALESCE(f.parts, ''[]''::jsonb)'
+    '      )'
+    '    FROM _ermrest_history.known_' || rname || '_acl_bindings b'
+    '    LEFT JOIN ('
+    '      SELECT (s.rowdata)->>''binding_rid'', jsonb_agg(s.rowdata)'
+    '      FROM _ermrest_history.known_' || rname || '_acl_binding_elems s'
+    '      WHERE s.during @> ts'
+    '      GROUP BY (s.rowdata)->>''binding_rid'''
+    '    ) e (binding_rid, parts) ON (b."RID" = e.binding_rid)'
+    '    LEFT JOIN ('
+    '      SELECT (s.rowdata)->>''binding_rid'', jsonb_agg(s.rowdata)'
+    '      FROM _ermrest_history.known_' || rname || '_acl_binding_combiners s'
+    '      WHERE s.during @> ts'
+    '      GROUP BY (s.rowdata)->>''binding_rid'''
+    '    ) c (binding_rid, parts) ON (b."RID" = c.binding_rid)'
+    '    LEFT JOIN ('
+    '      SELECT (s.rowdata)->>''binding_rid'', jsonb_agg(s.rowdata)'
+    '      FROM _ermrest_history.known_' || rname || '_acl_binding_filters s'
+    '      WHERE s.during @> ts'
+    '      GROUP BY (s.rowdata)->>''binding_rid'''
+    '    ) f (binding_rid, parts) ON (b."RID" = f.binding_rid)'
+    '    WHERE b.during @> ts;'
+    '  END IF;'
+    'END;'
+    '$$ LANGUAGE plpgsql;' ;
 END;
 $def$ LANGUAGE plpgsql;
 
-PERFORM _ermrest.create_historical_dynacl_func('table', 'table_rid');
-PERFORM _ermrest.create_historical_dynacl_func('column', 'column_rid');
-PERFORM _ermrest.create_historical_dynacl_func('fkey', 'fkey_rid');
-PERFORM _ermrest.create_historical_dynacl_func('pseudo_fkey', 'fkey_rid');
+PERFORM _ermrest.create_historical_aclbinding_func('table', 'table_rid');
+PERFORM _ermrest.create_historical_aclbinding_func('column', 'column_rid');
+PERFORM _ermrest.create_historical_aclbinding_func('fkey', 'fkey_rid');
+PERFORM _ermrest.create_historical_aclbinding_func('pseudo_fkey', 'fkey_rid');
 
 CREATE OR REPLACE FUNCTION _ermrest.known_catalog_denorm(ts timestamptz)
 RETURNS TABLE (annotations jsonb, acls jsonb) AS $$

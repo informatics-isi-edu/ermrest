@@ -38,74 +38,86 @@ def _diff(d1, d2):
 # some reusable ACL binding idioms
 _member_owner_acl = {
     "types": ["owner"],
-    "projection": "member",
-    "projection_type": "acl"
+    "projection": ["member"],
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _ACL_owner_acl = {
     "types": ["owner"],
-    "projection": "ACL",
-    "projection_type": "acl"
+    "projection": ["ACL"],
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _datacid_member_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Data.c_id"]}, "member"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _datacid_ACL_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Data.c_id"]}, "ACL"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _assoccid_member_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Data_Category.c_id"]}, "member"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _assoccid_ACL_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Data_Category.c_id"]}, "ACL"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _assocdid_member_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Data_Category.d_id"]}, "member"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _assocdid_ACL_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Data_Category.d_id"]}, "ACL"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _extid_datacid_member_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Extension.id"]}, {"outbound": [_S, "fkey Data.c_id"]}, "member"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _extid_datacid_ACL_owner_acl = {
     "types": ["owner"],
     "projection": [{"outbound": [_S, "fkey Extension.id"]}, {"outbound": [_S, "fkey Data.c_id"]}, "ACL"],
-    "projection_type": "acl"
+    "projection_type": "acl",
+    "scope_acl": ["*"],
 }
 
 _id_owner_nonnull = {
     "types": ["owner"],
     "projection": "id",
-    "projection_type": "nonnull"
+    "projection_type": "nonnull",
+    "scope_acl": ["*"],
 }
 
 _did_owner_nonnull = {
     "types": ["owner"],
-    "projection": "d_id",
-    "projection_type": "nonnull"
+    "projection": ["d_id"],
+    "projection_type": "nonnull",
+    "scope_acl": ["*"],
 }
 
 class Expectation (object):
@@ -522,8 +534,9 @@ class SelectOnly (HiddenPolicy):
         "Data": {
             "member": {
                 "types": ["select"],
-                "projection": "id",
-                "projection_type": "nonnull"
+                "projection": ["id"],
+                "projection_type": "nonnull",
+                "scope_acl": ["*"],
             }
         },
         "Extension": { "member": _id_owner_nonnull },
@@ -703,28 +716,32 @@ class Cat3Owner (StaticUnhidden):
             "cat3": {
                 "types": ["owner"],
                 "projection": [{"outbound": [_S, "fkey Data.c_id"]}, {"filter": "id", "operand": 3}, "id"],
-                "projection_type": "nonnull"
+                "projection_type": "nonnull",
+                "scope_acl": ["*"],
             }
         },
         "Extension": {
             "cat3": {
                 "types": ["owner"],
                 "projection": [{"outbound": [_S, "fkey Extension.id"]}, {"outbound": [_S, "fkey Data.c_id"]}, {"filter": "id", "operand": 3}, "id"],
-                "projection_type": "nonnull"
+                "projection_type": "nonnull",
+                "scope_acl": ["*"],
             }
         },
         "Category": {
             "cat3": {
                 "types": ["owner"],
                 "projection": [{"filter": "id", "operand": 3}, "id"],
-                "projection_type": "nonnull"
+                "projection_type": "nonnull",
+                "scope_acl": ["*"],
             }
         },
         "Data_Category": {
             "cat3": {
                 "types": ["owner"],
                 "projection": [{"filter": "c_id", "operand": 3}, "c_id"],
-                "projection_type": "nonnull"
+                "projection_type": "nonnull",
+                "scope_acl": ["*"],
             }
         }
     }
@@ -866,7 +883,8 @@ class CategoriesAclOwnerHiddenPolicy (HiddenPolicy):
             "member2": {
                 "types": ["owner"],
                 "projection": [{"inbound": [_S, "fkey Data_Category.d_id"]}, {"outbound": [_S, "fkey Data_Category.c_id"]}, "ACL"],
-                "projection_type": "acl"
+                "projection_type": "acl",
+                "scope_acl": ["*"],
             }
         },
         "Extension": {
@@ -935,7 +953,8 @@ class ImplicitEnumeration (common.ErmrestTest):
             'selectany': {
                 "types": ["select"],
                 "projection": ["id"],
-                "projection_type": "nonnull"
+                "projection_type": "nonnull",
+                "scope_acl": ["*"],
             },
         }
     }
@@ -1097,8 +1116,9 @@ _defs = ModelDoc(
                             acl_bindings= {
                                 "member2": {
                                     "types": ["select", "update"],
-                                    "projection": "member",
-                                    "projection_type": "acl"
+                                    "projection": ["member"],
+                                    "projection_type": "acl",
+                                    "scope_acl": ["*"],
                                 }
                             }
                         ),
@@ -1107,8 +1127,9 @@ _defs = ModelDoc(
                             acl_bindings={
                                 "member2": {
                                     "types": ["select", "update"],
-                                    "projection": "member",
-                                    "projection_type": "acl"
+                                    "projection": ["member"],
+                                    "projection_type": "acl",
+                                    "scope_acl": ["*"],
                                 }
                             }
                         )

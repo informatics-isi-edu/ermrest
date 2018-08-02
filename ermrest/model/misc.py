@@ -249,7 +249,7 @@ class AclBinding (AltDict):
                     raise exception.BadData('Field "types" in ACL binding "%s" must be a non-empty list of type names.' % binding_name)
                 for t in v:
                     if t not in resource.dynacl_types_supported:
-                        raise exception.BadData('ACL binding type %r is not supported on this resource.' % t)
+                        raise exception.BadData('ACL binding type %r is not supported on %s resources.' % (t, type(resource).__name__))
             elif k == 'projection':
                 pass
             elif k == 'projection_type':
@@ -739,21 +739,11 @@ def hasdynacls(dynacl_types_supported):
 
        The keying() decorator MUST be applied first.
     """
-    def _interp_dynacl(self, name, newval=None):
-        keying = {
-            k: sql_literal(v[1](self))
-            for k, v in self._model_keying.items()
-        }
-        if name is not None:
-            keying['binding_name'] = sql_literal(name)
-        keycols = keying.keys()
-        return {
-            'restype': self._model_restype,
-            'cols': ','.join(keycols),
-            'vals': ','.join([ keying[k] for k in keycols ]),
-            'newval': sql_literal(json.dumps(newval)),
-            'where': ' AND '.join([ "%s = %s" % (k, v) for k, v in keying.items() ]),
-        }
+    def _interp_dynacl(self):
+        assert len(self._model_keying) == 1
+        res_rid_col = self._model_keying.keys()[0]
+        res_rid_val = self._model_keying[res_rid_col][1](self)
+        return res_rid_col, res_rid_val
 
     def set_dynacls(self, cur, doc):
         """Replace full dynacls doc, returning None."""
@@ -762,21 +752,21 @@ def hasdynacls(dynacl_types_supported):
         doc = dict(doc)
         self.delete_dynacl(cur, None) # enforces owner rights for us...
         self.dynacls.update(doc)
-        interp = self._interp_dynacl(None)
-        if doc:
-            if interp['cols']:
-                interp['cols'] = interp['cols'] + ','
-                interp['vals'] = interp['vals'] + ','
-            # build rows for each field in doc
-            interp['vals'] = ', '.join([
-                '(%s %s, %s::jsonb)' % (interp['vals'], sql_literal(key), sql_literal(json.dumps(value)))
-                for key, value in doc.items()
-                if value is not None
-            ])
-            cur.execute("""
+        res_rid_col, res_rid_val = self._interp_dynacl()
+        cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_dynacls (%(cols)s binding_name, binding) VALUES %(vals)s;
-""" % interp)
+""" + ''.join([
+    """
+SELECT _ermrest.insert_%(restype)s_aclbinding(%(res_rid_val)s, %(binding_name)s, %(binding)s);
+""" % {
+    'restype': self._model_restype,
+    'res_rid_val': sql_literal(res_rid_val),
+    'binding_name': sql_literal(k),
+    'binding': sql_literal(json.dumps(v)),
+}
+    for k, v in doc.items()
+])
+        )
 
     def set_dynacl(self, cur, name, binding):
         assert name is not None
@@ -786,25 +776,29 @@ INSERT INTO _ermrest.known_%(restype)s_dynacls (%(cols)s binding_name, binding) 
 
         self.enforce_right('owner') # pre-flight authz
 
-        oldvalue = self.dynacls.get(name)
         if binding is False:
             self.dynacls[name] = False
         else:
             self.dynacls[name] = AclBinding(web.ctx.ermrest_catalog_model, self, name, binding)
 
-        interp = self._interp_dynacl(name, binding)
+        res_rid_col, res_rid_val = self._interp_dynacl()
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_dynacls (%(cols)s, binding) VALUES (%(vals)s, %(newval)s::jsonb)
-ON CONFLICT (%(cols)s) DO UPDATE SET binding = %(newval)s::jsonb;
-""" % interp
+DELETE FROM _ermrest.known_%(restype)s_acl_bindings WHERE %(res_rid_col)s = %(res_rid_val)s AND binding_name = %(binding_name)s;
+SELECT _ermrest.insert_%(restype)s_aclbinding(%(res_rid_val)s, %(binding_name)s, %(binding)s);
+""" % {
+    'restype': self._model_restype,
+    'res_rid_col': sql_identifier(res_rid_col),
+    'res_rid_val': sql_literal(res_rid_val),
+    'binding_name': sql_literal(name),
+    'binding': sql_literal(json.dumps(binding)),
+}
         )
-        return oldvalue
 
     def delete_dynacl(self, cur, name):
         self.enforce_right('owner') # pre-flight authz
 
-        interp = self._interp_dynacl(name)
+        res_rid_col, res_rid_val = self._interp_dynacl()
         if name is None:
             self.dynacls.clear()
         elif name in self.dynacls:
@@ -812,8 +806,13 @@ ON CONFLICT (%(cols)s) DO UPDATE SET binding = %(newval)s::jsonb;
 
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.known_%(restype)s_dynacls WHERE %(where)s;
-""" % interp
+DELETE FROM _ermrest.known_%(restype)s_acl_bindings WHERE %(res_rid_col)s = %(res_rid_val)s AND %(name_clause)s;
+""" % {
+    'restype': self._model_restype,
+    'res_rid_col': sql_identifier(res_rid_col),
+    'res_rid_val': sql_literal(res_rid_val),
+    'name_clause': ('binding_name = %s' % sql_literal(name)) if name is not None else 'True',
+}
         )
 
     def helper(orig_class):

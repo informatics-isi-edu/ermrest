@@ -56,7 +56,7 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
     pfkeyrefs = dict()
 
     if snapwhen is None:
-        snapwhen = current_model_snaptime(cur)
+        #snapwhen = current_model_snaptime(cur)
         assert amendver is None
     else:
         assert amendver is not None
@@ -284,10 +284,10 @@ SELECT _ermrest.model_version_bump();
 
     # AclBinding constructor needs whole model to validate binding projections...
     for resourceset, sqlfunc, grpcol in [
-            (tables, 'known_table_dynacls', 'table_rid'),
-            (columns, 'known_column_dynacls', 'column_rid'),
-            (fkeyrefs, 'known_fkey_dynacls', 'fkey_rid'),
-            (pfkeyrefs, 'known_pseudo_fkey_dynacls', 'fkey_rid'),
+            (tables, 'known_table_acl_bindings', 'table_rid'),
+            (columns, 'known_column_acl_bindings', 'column_rid'),
+            (fkeyrefs, 'known_fkey_acl_bindings', 'fkey_rid'),
+            (pfkeyrefs, 'known_pseudo_fkey_acl_bindings', 'fkey_rid'),
     ]:
         cur.execute("""
 SELECT 
@@ -305,37 +305,9 @@ GROUP BY a.%(grpcol)s ;
             resource = resourceset[rid]
             new_dynacls = {}
             for binding_name, binding_doc in dynacls.items():
-                try:
-                    new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
-                except exception.ConflictModel as te:
-                    msg = 'Pruning invalid dynamic ACL binding %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
-                        binding_name,
-                        resource,
-                        te
-                    )
-                    try:
-                        web.ctx.ermrest_request_trace(msg)
-                    except:
-                        web.debug(msg)
-                    cur.execute("""
-DELETE FROM _ermrest.%(binding_table)s
-WHERE %(resource_col)s = %(resource_rid)s
-  AND binding_name = %(binding_name)s;
-SELECT _ermrest.model_version_bump();
-""" % {
-    'binding_table': sql_identifier(sqlfunc),
-    'resource_col': sql_identifier(grpcol),
-    'resource_rid': sql_literal(rid),
-    'binding_name': sql_literal(binding_name),
-})
-                    cur.fetchall()
-                    pruned_any = True
+                new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
             resource.dynacls.update(new_dynacls)
 
-    if pruned_any:
-        # this fires when we've done any of the pseudo constraint or acl binding DELETE cleanups above...
-        cur.connection.commit()
-        raise exception.rest.ServiceUnavailable('Model introspection failed due to a transient condition. Please try again')
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
     model.pg_catalog_schema = model.schemas['pg_catalog']

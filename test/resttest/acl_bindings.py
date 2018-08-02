@@ -25,6 +25,8 @@ catalog_acls = dict(common.catalog_acls)
 catalog_acls['owner'] = [common.primary_client_id]
 
 class AclBindingT1 (common.ErmrestTest):
+    maxDiff = None
+
     resource = 'schema/%s/table/T1' % _Sd
 
     supported_dynacl_types = {
@@ -39,8 +41,14 @@ class AclBindingT1 (common.ErmrestTest):
     additional_dynacls = {
         'my binding 2': {
             'types': ['owner'],
-            'projection': 'name',
+            'projection': ['name'],
             'projection_type': 'acl',
+            'scope_acl': ['*'],
+        },
+        'filtered binding': {
+            'types': ['owner'],
+            'projection': [{'and': [{'filter': 'name', 'operand': 'XXX', 'operator': '=', 'negate': True}], 'negate': False}, 'name'],
+            'projection_type': 'nonnull',
             'scope_acl': ['*'],
         }
     }
@@ -173,7 +181,7 @@ class AclBindingT3 (AclBindingT1):
     initial_dynacls = {
         'my binding 1': {
             'types': ['owner'],
-            'projection': 'owner',
+            'projection': ['owner'],
             'projection_type': 'acl',
             'scope_acl': ['*'],
         }
@@ -216,7 +224,7 @@ class AclBindingT3Fkey (AclBindingT2Fkey):
     initial_dynacls = {
         'my binding 1': {
             'types': ['owner'],
-            'projection': 'name',
+            'projection': ['name'],
             'projection_type': 'acl',
             'scope_acl': ['*'],
         }

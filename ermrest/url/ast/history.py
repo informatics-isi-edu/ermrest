@@ -578,6 +578,8 @@ def _amend_acl_binding(cur, h_from, h_until, restype, rid, contentmap):
     except KeyError:
         raise exception.rest.Conflict('ACL bindings are not supported on selected %s resource.' % restype)
 
+    raise exception.rest.NoMethod('Amendment of historical ACL bindings currently not implemented.')
+
     for name, content in contentmap.items():
         if not isinstance(name, (str, unicode)):
             raise exception.rest.Conflict('ACL binding names must be textual.')
