@@ -134,9 +134,13 @@ class PoolManager (object):
 pools = PoolManager()       
 
 class PooledConnection (object):
-    def __init__(self, dsn):
-        self.used_pool = pools[dsn]
-        self.conn = self.used_pool.getconn()
+    def __init__(self, dsn, shared=True):
+        if shared:
+            self.used_pool = pools[dsn]
+            self.conn = self.used_pool.getconn()
+        else:
+            self.used_pool = None
+            self.conn = psycopg2.extensions.connection(dsn)
         self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
         self.cur = self.conn.cursor()
 
@@ -158,7 +162,8 @@ class PooledConnection (object):
                 yield result
         except (psycopg2.InterfaceError, psycopg2.OperationalError), e:
             # reset bad connection
-            self.used_pool.putconn(self.conn, close=True)
+            if self.used_pool:
+                self.used_pool.putconn(self.conn, close=True)
             self.conn = None
             raise e
         except GeneratorExit, e:
@@ -180,6 +185,12 @@ class PooledConnection (object):
                 self.conn.commit()
             except:
                 pass
-            self.used_pool.putconn(self.conn)
+            if self.used_pool:
+                self.used_pool.putconn(self.conn)
+            else:
+                try:
+                    self.conn.close()
+                except:
+                    pass
             self.conn = None
 
