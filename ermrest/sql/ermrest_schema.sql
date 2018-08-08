@@ -626,7 +626,7 @@ CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS
     obj_description(nc.oid)::text AS "comment"
   FROM pg_catalog.pg_namespace nc
   WHERE nc.nspname NOT IN ('information_schema', 'pg_toast', '_ermrest_history')
-    AND nc.nspname !~ '^pg_(toast_)temp_'
+    AND nc.nspname !~ '^pg_(toast_)?temp_'
     AND NOT pg_is_other_temp_schema(nc.oid)
 ;
 
