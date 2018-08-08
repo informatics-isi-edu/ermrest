@@ -39,6 +39,7 @@ class Model (object):
     def __init__(self, snapwhen, amendver, annotations={}, acls={}):
         self.snaptime = snapwhen
         self.amendver = amendver
+        self.rid = '0' # hard-coded for consistency w/ other model-storage tables
         self.last_access = None # hack: slot to track LRU state for model_cache
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),

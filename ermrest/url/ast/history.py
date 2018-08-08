@@ -455,32 +455,31 @@ VALUES (now(), tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)'
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
-def _amend_config(cur, h_from, h_until, restype, configtype, rid, namecol, contentcol, contentmap):
+def _amend_config(cur, h_from, h_until, restype, rid, contentcol, contentmap):
+    assert rid is not None
     cur.execute("""
 INSERT INTO _ermrest.catalog_amended (ts, during)
 VALUES (now(), tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)'))
 ON CONFLICT (ts) DO NOTHING;
 
 -- adjust live tuples to be consistent with revised history boundary
-UPDATE _ermrest.known_%(restype)s_%(configtype)ss
+UPDATE _ermrest.known_%(restype)ss
 SET
   "RMT" = %(h_until)s::timestamptz,
   "RMB" = _ermrest.current_client()
 WHERE "RMT"::timestamptz < %(h_until)s::timestamptz;
 
-WITH content AS (
-  SELECT * FROM jsonb_each(%(contentmap)s::jsonb) j (key, value)
-), snaprange AS (
+WITH snaprange AS (
   SELECT tstzrange(%(h_from)s::timestamptz, %(h_until)s::timestamptz, '[)') AS snaprange
 ), deleted AS (
   -- clear out all overlapping configs so we can build up desired state
-  DELETE FROM _ermrest_history.known_%(restype)s_%(configtype)ss
+  DELETE FROM _ermrest_history.known_%(restype)ss
   WHERE during && (SELECT snaprange FROM snaprange)
     AND %(rid_clause)s
   RETURNING *
 ), restore_prefix AS (
   -- rebuild any preceding config by clamping upper
-  INSERT INTO _ermrest_history.known_%(restype)s_%(configtype)ss ("RID", during, "RMB", rowdata)
+  INSERT INTO _ermrest_history.known_%(restype)ss ("RID", during, "RMB", rowdata)
   SELECT
     "RID",
     tstzrange(lower(during), %(h_from)s::timestamptz, '[)'),
@@ -492,7 +491,7 @@ WITH content AS (
 ), restore_suffix AS (
   -- rebuild any succeeding config by clamping lower
   -- HACK: existing RID may disappear and reappear before/after the amended interval
-  INSERT INTO _ermrest_history.known_%(restype)s_%(configtype)ss ("RID", during, "RMB", rowdata)
+  INSERT INTO _ermrest_history.known_%(restype)ss ("RID", during, "RMB", rowdata)
   SELECT
     "RID",
     tstzrange(%(h_until)s::timestamptz, upper(during), '[)'),
@@ -502,24 +501,27 @@ WITH content AS (
   WHERE upper(during) > %(h_until)s::timestamptz OR upper(during) IS NULL
   RETURNING *
 ), construct_amended AS (
-  -- now, create the desired config during the amended interval using fresh RIDs
-  INSERT INTO _ermrest_history.known_%(restype)s_%(configtype)ss ("RID", during, "RMB", rowdata)
+  -- now, re-create the desired configs during the amended interval
+  -- duplicating boundary overlapping configs clamped within amended interval
+  INSERT INTO _ermrest_history.known_%(restype)ss ("RID", during, "RMB", rowdata)
   SELECT
-    nextval('_ermrest.rid_seq'::regclass),
-    (SELECT snaprange FROM snaprange),
+    "RID",
+    tstzrange(
+      GREATEST(lower(during), %(h_from)s::timestamptz),
+      LEAST(upper(during), %(h_until)s::timestamptz),
+      '[)'
+    ),
     _ermrest.current_client(),
-    jsonb_build_object(
+    rowdata || jsonb_build_object(
       'RCB', _ermrest.current_client(),
       'RCT', %(h_from)s::timestamptz::text,
-      %(j_rid_field)s
-      '%(namecol)s', key,
-      '%(contentcol)s', value
+      '%(contentcol)s', %(contentmap)s
     )
-  FROM content
+  FROM deleted
   RETURNING *
 )
 SELECT jsonb_build_object(
-    'content',   (SELECT jsonb_agg(to_jsonb(s)) FROM content s),
+    'content',   %(contentmap)s,
     'snaprange', (SELECT jsonb_agg(to_jsonb(s)) FROM snaprange s),
     'deleted',   (SELECT jsonb_agg(to_jsonb(s)) FROM deleted s),
     'prefix',    (SELECT jsonb_agg(to_jsonb(s)) FROM restore_prefix s),
@@ -530,10 +532,7 @@ SELECT jsonb_build_object(
     'h_from': sql_literal(h_from),
     'h_until': sql_literal(h_until),
     'restype': restype,
-    'configtype': configtype,
-    'rid_clause': ("rowdata->'%s_rid' = to_jsonb(%s::text)" % (restype, sql_literal(rid))) if rid is not None else 'True',
-    'j_rid_field': ("'%s_rid', to_jsonb(%s::text)," % (restype, sql_literal(rid))) if rid is not None else "",
-    'namecol': namecol,
+    'rid_clause': ('"RID" = %s' % sql_literal(rid)),
     'contentcol': contentcol,
     'contentmap': sql_literal(json.dumps(contentmap)),
 })
@@ -565,7 +564,7 @@ def _amend_acl(cur, h_from, h_until, restype, rid, contentmap):
         if v is not None
     }
 
-    _amend_config(cur, h_from, h_until, restype, 'acl', rid, 'acl', 'members', contentmap)
+    _amend_config(cur, h_from, h_until, restype, rid, 'acls', contentmap)
 
 def _amend_acl_binding(cur, h_from, h_until, restype, rid, contentmap):
     try:
@@ -595,7 +594,7 @@ def _amend_annotation(cur, h_from, h_until, restype, rid, contentmap):
         if not isinstance(name, (str, unicode)):
             raise exception.rest.Conflict('Annotation keys must be textual.')
 
-    _amend_config(cur, h_from, h_until, restype, 'annotation', rid, 'annotation_uri', 'annotation_value', contentmap)
+    _amend_config(cur, h_from, h_until, restype, rid, 'annotations', contentmap)
 
 class ConfigHistory (Api):
     """Represents over-writable configuration resources.

@@ -61,8 +61,8 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
     else:
         assert amendver is not None
 
-    cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(%s);" % sql_literal(snapwhen))
-    annotations, acls = cur.next()
+    cur.execute("SELECT acls, annotations FROM _ermrest.known_catalogs(%s);" % sql_literal(snapwhen))
+    acls, annotations = cur.next()
     model = Model(snapwhen, amendver, annotations, acls)
 
     #
@@ -70,8 +70,8 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
     #
     
     # get schemas (including empty ones)
-    cur.execute("SELECT * FROM _ermrest.known_schemas_denorm(%s)" % sql_literal(snapwhen))
-    for rid, schema_name, comment, annotations, acls in cur:
+    cur.execute("SELECT * FROM _ermrest.known_schemas(%s)" % sql_literal(snapwhen))
+    for rid, schema_name, comment, acls, annotations in cur:
         schemas[rid] = Schema(model, schema_name, comment, annotations, acls, rid)
 
     # get possible column types (including unused ones)
@@ -90,7 +90,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
 
     # get tables, views, etc. (including empty zero-column ones)
     cur.execute("SELECT * FROM _ermrest.known_tables_denorm(%s)" % sql_literal(snapwhen))
-    for rid, schema_rid, table_name, table_kind, comment, annotations, acls, coldocs in cur:
+    for rid, schema_rid, table_name, table_kind, comment, acls, annotations, coldocs in cur:
         tcols = []
         for i in range(len(coldocs)):
             cdoc = coldocs[i]
@@ -244,7 +244,7 @@ SELECT _ermrest.model_version_bump();
 
     cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm(%s);" % sql_literal(snapwhen))
     for rid, schema_rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
-        delete_rule, update_rule, comment, annotations, acls in cur:
+        delete_rule, update_rule, comment, acls, annotations in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
         fkeyrefs[rid] = _introspect_fkr(
             constraint_name,
@@ -254,7 +254,7 @@ SELECT _ermrest.model_version_bump();
 
     cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm(%s);" % sql_literal(snapwhen))
     for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
-        comment, annotations, acls in cur:
+        comment, acls, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
         try:
             pfkeyrefs[rid] = _introspect_fkr(

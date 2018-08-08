@@ -456,19 +456,11 @@ def annotatable(orig_class):
        The keying() decorator MUST be applied before this one.
     """
     def _interp_annotation(self, key, newval=None):
-        keying = {
-            k: sql_literal(v[1](self))
-            for k, v in orig_class._model_keying.items()
-        }
-        if key is not None:
-            keying['annotation_uri'] = sql_literal(key)
-        keycols = keying.keys()
         return {
             'restype': orig_class._model_restype,
-            'cols': ','.join(keycols),
-            'vals': ','.join([ keying[k] for k in keycols ]),
-            'newval': sql_literal(json.dumps(newval)),
-            'where': ' AND '.join(['True'] + [ "%s = %s" % (k, v) for k, v in keying.items() ]),
+            'rid': sql_literal(self.rid),
+            'uri': sql_literal(key) if key is not None else sql_literal('"null"'),
+            'value': '%s::jsonb' % sql_literal(json.dumps(newval)) if newval is not None else sql_literal('"null"'),
         }
 
     def set_annotations(self, conn, cur, doc):
@@ -480,17 +472,20 @@ def annotatable(orig_class):
         self.annotations.update(doc)
         if doc:
             interp = self._interp_annotation(None)
-            if interp['cols']:
-                interp['cols'] = interp['cols'] + ','
-                interp['vals'] = interp['vals'] + ','
-            # build rows for each field in doc
-            interp['vals'] = ', '.join([
-                '(%s %s, %s)' % (interp['vals'], sql_literal(key), sql_literal(json.dumps(value)))
-                for key, value in doc.items()
-            ])
+            interp['annotations'] = 'jsonb_build_object(%s)' % (
+                ','.join([
+                    '%s, %s::jsonb' % (
+                        sql_literal(k),
+                        sql_literal(json.dumps(v)),
+                    )
+                    for k, v in self.annotations.items()
+                ]),
+            )
             cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_annotations (%(cols)s annotation_uri, annotation_value) VALUES %(vals)s;
+UPDATE _ermrest.known_%(restype)ss
+SET annotations = %(annotations)s
+WHERE "RID" = %(rid)s;
 """ % interp)
 
     def set_annotation(self, conn, cur, key, value):
@@ -502,8 +497,9 @@ INSERT INTO _ermrest.known_%(restype)s_annotations (%(cols)s annotation_uri, ann
         self.annotations[key] = value
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_annotations (%(cols)s, annotation_value) VALUES (%(vals)s, %(newval)s)
-ON CONFLICT (%(cols)s) DO UPDATE SET annotation_value = %(newval)s;
+UPDATE _ermrest.known_%(restype)ss
+SET annotations = jsonb_set(annotations, ARRAY[%(uri)s]::text[], %(value)s)
+WHERE "RID" = %(rid)s;
 """ % interp)
         return oldvalue
 
@@ -512,9 +508,16 @@ ON CONFLICT (%(cols)s) DO UPDATE SET annotation_value = %(newval)s;
         self.enforce_right('owner')
         self.annotations.clear()
         interp = self._interp_annotation(key)
+        if key is None:
+            interp['new_annotations'] = "'{}'::jsonb"
+        else:
+            interp['new_annotations'] = "annotations - %(uri)s" % interp
+
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.known_%(restype)s_annotations WHERE %(where)s;
+UPDATE _ermrest.known_%(restype)ss
+SET annotations = %(new_annotations)s
+WHERE "RID" = %(rid)s;
 """ % interp)
 
     setattr(orig_class, '_interp_annotation', _interp_annotation)
@@ -538,20 +541,13 @@ def hasacls(acls_supported, rights_supported, getparent):
        The keying() decorator MUST be applied first.
     """
     def _interp_acl(self, aclname, newval=None):
-        keying = {
-            k: sql_literal(v[1](self))
-            for k, v in self._model_keying.items()
-        }
         if aclname is not None:
             assert newval is not None
-            keying['acl'] = sql_literal(aclname)
-        keycols = keying.keys()
         return {
             'restype': self._model_restype,
-            'cols': ','.join(keycols),
-            'vals': ','.join([ keying[k] for k in keycols ]),
-            'newval': '%s::text[]' % sql_literal(newval) if newval is not None else None,
-            'where': ' AND '.join(['True'] + [ "%s = %s" % (k, v) for k, v in keying.items() ]),
+            'rid': sql_literal(self.rid),
+            'acl': sql_literal(aclname) if aclname is not None else sql_literal('"null"'),
+            'members': ('to_jsonb(ARRAY[%s]::text[])' % (','.join([ sql_literal(m) for m in newval ]))) if newval is not None else sql_literal('"null"'),
         }
 
     def set_acls(self, cur, doc, anon_mutation_ok=False):
@@ -572,19 +568,23 @@ def hasacls(acls_supported, rights_supported, getparent):
                 raise exception.BadData('ACL name %s does not support wildcard member.' % aclname)
         interp = self._interp_acl(None)
         if doc:
-            if interp['cols']:
-                interp['cols'] = interp['cols'] + ','
-                interp['vals'] = interp['vals'] + ','
-            # build rows for each field in doc
-            interp['vals'] = ', '.join([
-                '(%s %s, %s::text[])' % (interp['vals'], sql_literal(key), sql_literal(value))
-                for key, value in doc.items()
-                if value is not None
-            ])
+            interp['acls'] = 'jsonb_build_object(%s)' % (
+                ','.join([
+                    '%s, ARRAY[%s]::text[]' % (
+                        sql_literal(k),
+                        ','.join([ sql_literal(m) for m in v ]),
+                    )
+                    for k, v in self.acls.items()
+                    if v is not None
+                ]),
+            )
             cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s acl, members) VALUES %(vals)s;
-""" % interp)
+UPDATE _ermrest.known_%(restype)ss
+SET acls = %(acls)s
+WHERE "RID" = %(rid)s;
+""" % interp
+            )
 
     def set_acl(self, cur, aclname, members, anon_mutation_ok=False):
         """Set annotation on %s, returning previous value for updates or None.""" % self._model_restype
@@ -611,8 +611,9 @@ INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s acl, members) VALUES %(val
         interp = self._interp_acl(aclname, members)
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s, members) VALUES (%(vals)s, %(newval)s)
-ON CONFLICT (%(cols)s) DO UPDATE SET members = %(newval)s;
+UPDATE _ermrest.known_%(restype)ss
+SET acls = jsonb_set(acls, ARRAY[%(acl)s]::text[], %(members)s)
+WHERE "RID" = %(rid)s;
 """ % interp)
         return oldvalue
 
@@ -626,15 +627,21 @@ ON CONFLICT (%(cols)s) DO UPDATE SET members = %(newval)s;
         if self.acls.can_remove:
             if aclname is None:
                 self.acls.clear()
+                interp['new_acls'] = "'{}'::jsonb"
             elif aclname in self.acls:
                 del self.acls[aclname]
+                interp['new_acls'] = "acls - %(acl)s" % interp
+            else:
+                interp['new_acls'] = "acls" # hack to cover a no-op case...
 
             if not purging:
                 self.enforce_right('owner') # integrity check... can't disown except when purging
 
-                cur.execute("""
+            cur.execute("""
 SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
+UPDATE _ermrest.known_%(restype)ss
+SET acls = %(new_acls)s
+WHERE "RID" = %(rid)s;
 """ % interp)
         else:
             if aclname is None:
