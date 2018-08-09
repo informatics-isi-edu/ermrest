@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,31 +47,56 @@ import traceback
 import datetime
 import math
 
+import pkgutil
+from . import sql
+
 class connection (psycopg2.extensions.connection):
-    """Customized psycopg2 connection factory with per-execution() cursor support.
+    """Customized psycopg2 connection factory.
 
     """
     def __init__(self, dsn):
         psycopg2.extensions.connection.__init__(self, dsn)
-        self._curnumber  = 1
+        self._already_prepared = False
+        self._prepare_connection()
 
-    def execute(self, stmt, vars=None):
-        """Name and create a server-side cursor with withhold=True and run statement in it.
+    def _prepare_connection(self):
+        # ugly hack: we use the same pooler for registry and catalog connections :-/
+        if self._already_prepared:
+            return
 
-           You can iterate over the resulting cursor to efficiently
-           fetch rows from the server, and you may do this before or
-           after committing the transaction.  The entire result set
-           need not exist in Python memory if you dispose of your old
-           rows as you go.
+        cur = self.cursor()
+        try:
+            cur.execute("SELECT True FROM information_schema.schemata WHERE schema_name = '_ermrest';")
+            for row in cur:
+                try:
+                    stmts = pkgutil.get_data(sql.__name__, 'conn_prepare.sql')
+                    cur.execute(stmts)
+                    self.commit()
+                    self._already_prepared = True
+                    return
+                except psycopg2.ProgrammingError as te:
+                    web.debug('catalog prepared statements error', self, te)
+                    self.rollback()
 
-           Please remember to close these per-statement cursors to avoid
-           wasting resources on the Postgres server session.
-        """
-        curname = 'cursor%d' % self._curnumber
-        self._curnumber += 1
-        cur = self.cursor(curname, withhold=True)
-        cur.execute(stmt, vars=vars)
-        return cur
+            cur.execute("SELECT True FROM information_schema.tables WHERE table_schema = 'ermrest' AND table_name = 'simple_registry';")
+            for row in cur:
+                try:
+                    stmts = """
+PREPARE ermrest_catalog_lookup(int8) AS
+  SELECT id, descriptor
+  FROM ermrest.simple_registry
+  WHERE deleted_on IS NULL AND id = $1;
+"""
+                    cur = self.cursor()
+                    cur.execute(stmts)
+                    self.commit()
+                    self._already_prepared = True
+                    return
+                except psycopg2.ProgrammingError as te:
+                    web.debug('registry prepared statements error', self, te)
+                    self.rollback()
+        finally:
+            cur.close()
 
 def pool(minconn, maxconn, dsn):
     """Open a thread-safe connection pool with minconn <= N <= maxconn connections to database.

@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2012-2017 University of Southern California
+-- Copyright 2012-2018 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -2690,52 +2690,107 @@ PERFORM _ermrest.create_historical_aclbinding_func('pseudo_fkey', 'fkey_rid');
 
 CREATE OR REPLACE FUNCTION _ermrest.known_catalogs(ts timestamptz)
 RETURNS TABLE ("RID" text, acls jsonb, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.acls, s.annotations
+  FROM _ermrest.known_catalogs s
+  WHERE s."RID" = '0';
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.acls, sr.annotations
   FROM _ermrest_history.known_catalogs s,
   LATERAL jsonb_to_record(s.rowdata) sr (acls jsonb, annotations jsonb)
   WHERE s.during @> COALESCE($1, now())
     AND s."RID" = '0';
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_schemas(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_name text, comment text, acls jsonb, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.schema_name, s.comment, s.acls, s.annotations
+  FROM _ermrest.known_schemas s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.schema_name, sr.comment, sr.acls, sr.annotations
   FROM _ermrest_history.known_schemas s,
   LATERAL jsonb_to_record(s.rowdata) sr (schema_name text, comment text, acls jsonb, annotations jsonb)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_types(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, type_name text, array_element_type_rid text, domain_element_type_rid text, domain_notnull boolean, domain_default text, comment text) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.schema_rid, s.type_name, s.array_element_type_rid, s.domain_element_type_rid, s.domain_notnull, s.domain_default, s.comment
+  FROM _ermrest.known_types s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.schema_rid, sr.type_name, sr.array_element_type_rid, sr.domain_element_type_rid, sr.domain_notnull, sr.domain_default, sr.comment
   FROM _ermrest_history.known_types s,
   LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, type_name text, array_element_type_rid text, domain_element_type_rid text, domain_notnull boolean, domain_default text, comment text)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text, acls jsonb, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.table_rid, s.column_num, s.column_name, s.type_rid, s.not_null, s.column_default, s.comment, s.acls, s.annotations
+  FROM _ermrest.known_columns s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.table_rid, sr.column_num, sr.column_name, sr.type_rid, sr.not_null, sr.column_default, sr.comment, sr.acls, sr.annotations
   FROM _ermrest_history.known_columns s,
   LATERAL jsonb_to_record(s.rowdata) sr (table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text, acls jsonb, annotations jsonb)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_notnulls(ts timestamptz)
 RETURNS TABLE ("RID" text, column_rid text) AS $$
+BEGIN
+IF ts is NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.column_rid
+  FROM _ermrest.known_pseudo_notnulls s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.column_rid
   FROM _ermrest_history.known_pseudo_notnulls s,
   LATERAL jsonb_to_record(s.rowdata) sr (column_rid text)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_tables(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, comment text, acls jsonb, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.schema_rid, s.table_name, s.table_kind, s.comment, s.acls, s.annotations
+  FROM _ermrest.known_tables s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.schema_rid, sr.table_name, sr.table_kind, sr.comment, sr.acls, sr.annotations
   FROM _ermrest_history.known_tables s,
   LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, table_name text, table_kind text, comment text, acls jsonb, annotations jsonb)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_tables_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, comment text, acls jsonb, annotations jsonb, columns jsonb[]) AS $$
@@ -2811,35 +2866,71 @@ END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, comment text, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.schema_rid, s.constraint_name, s.table_rid, s.comment, s.annotations
+  FROM _ermrest.known_keys s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.table_rid, sr.comment, sr.annotations
   FROM _ermrest_history.known_keys s,
   LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, table_rid text, comment text, annotations jsonb)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_keys(ts timestamptz)
 RETURNS TABLE ("RID" text, constraint_name text, table_rid text, comment text, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.constraint_name, s.table_rid, s.comment, s.annotations
+  FROM _ermrest.known_pseudo_keys s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.constraint_name, sr.table_rid, sr.comment, sr.annotations
   FROM _ermrest_history.known_pseudo_keys s,
   LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, table_rid text, comment text, annotations jsonb)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_key_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.key_rid, s.column_rid
+  FROM _ermrest.known_key_columns s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.key_rid, sr.column_rid
   FROM _ermrest_history.known_key_columns s,
   LATERAL jsonb_to_record(s.rowdata) sr (key_rid text, column_rid text)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_key_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.key_rid, s.column_rid
+  FROM _ermrest.known_pseudo_key_columns s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.key_rid, sr.column_rid
   FROM _ermrest_history.known_pseudo_key_columns s,
   LATERAL jsonb_to_record(s.rowdata) sr (key_rid text, column_rid text)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, column_rids text[], comment text, annotations jsonb) AS $$
@@ -2882,35 +2973,71 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkeys(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, fk_table_rid text, pk_table_rid text, delete_rule text, update_rule text, comment text, acls jsonb, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.schema_rid, s.constraint_name, s.fk_table_rid, s.pk_table_rid, s.delete_rule, s.update_rule, s.comment, s.acls, s.annotations
+  FROM _ermrest.known_fkeys s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.delete_rule, sr.update_rule, sr.comment, sr.acls, sr.annotations
   FROM _ermrest_history.known_fkeys s,
   LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, fk_table_rid text, pk_table_rid text, delete_rule text, update_rule text, comment text, acls jsonb, annotations jsonb)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkeys(ts timestamptz)
 RETURNS TABLE ("RID" text, constraint_name text, fk_table_rid text, pk_table_rid text, comment text, acls jsonb, annotations jsonb) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.constraint_name, s.fk_table_rid, s.pk_table_rid, s.comment, s.acls, s.annotations
+  FROM _ermrest.known_pseudo_fkeys s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.comment, sr.acls, sr.annotations
   FROM _ermrest_history.known_pseudo_fkeys s,
   LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, fk_table_rid text, pk_table_rid text, comment text, acls jsonb, annotations jsonb)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkey_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.fkey_rid, s.fk_column_rid, s.pk_column_rid
+  FROM _ermrest.known_fkey_columns s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.fkey_rid, sr.fk_column_rid, sr.pk_column_rid
   FROM _ermrest_history.known_fkey_columns s,
   LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid text, fk_column_rid text, pk_column_rid text)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkey_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
+BEGIN
+IF ts IS NULL THEN
+  RETURN QUERY
+  SELECT s."RID"::text, s.fkey_rid, s.fk_column_rid, s.pk_column_rid
+  FROM _ermrest.known_pseudo_fkey_columns s;
+ELSE
+  RETURN QUERY
   SELECT s."RID", sr.fkey_rid, sr.fk_column_rid, sr.pk_column_rid
   FROM _ermrest_history.known_pseudo_fkey_columns s,
   LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid text, fk_column_rid text, pk_column_rid text)
   WHERE s.during @> COALESCE($1, now());
-$$ LANGUAGE SQL;
+END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkeys_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, fk_table_rid text, fk_column_rids text[], pk_table_rid text, pk_column_rids text[], delete_rule text, update_rule text, comment text, acls jsonb, annotations jsonb) AS $$

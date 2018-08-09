@@ -1,5 +1,5 @@
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,9 +61,12 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
     else:
         assert amendver is not None
 
-    cur.execute("SELECT acls, annotations FROM _ermrest.known_catalogs(%s);" % sql_literal(snapwhen))
+    cur.execute("""
+EXECUTE ermrest_introspect_catalogs(%s);
+""" % sql_literal(snapwhen)
+    )
     acls, annotations = cur.next()
-    model = Model(snapwhen, amendver, annotations, acls)
+    model = Model(snapwhen if snapwhen is not None else current_model_snaptime(cur), amendver, annotations, acls)
 
     #
     # Introspect schemas, tables, columns
@@ -76,9 +79,9 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
 
     # get possible column types (including unused ones)
     cur.execute("""
-SELECT * FROM _ermrest.known_types(%s)
-ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST;
-""" % sql_literal(snapwhen))
+EXECUTE ermrest_introspect_types(%s);
+""" % sql_literal(snapwhen)
+    )
     for rid, schema_rid, type_name, array_element_type_rid, domain_element_type_rid, domain_notnull, domain_default, comment in cur:
         # TODO: track schema and comments?
         if domain_element_type_rid is not None:
@@ -89,7 +92,10 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             typesengine.add_base_type(rid, type_name, comment)
 
     # get tables, views, etc. (including empty zero-column ones)
-    cur.execute("SELECT * FROM _ermrest.known_tables_denorm(%s)" % sql_literal(snapwhen))
+    cur.execute("""
+EXECUTE ermrest_introspect_tables(%s);
+""" % sql_literal(snapwhen)
+    )
     for rid, schema_rid, table_name, table_kind, comment, acls, annotations, coldocs in cur:
         tcols = []
         for i in range(len(coldocs)):
@@ -159,7 +165,10 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             ))
         pkeys[pk_colset] = pk
 
-    cur.execute("SELECT * FROM _ermrest.known_keys_denorm(%s);" % sql_literal(snapwhen))
+    cur.execute("""
+EXECUTE ermrest_introspect_keys(%s);
+""" % sql_literal(snapwhen)
+    )
     for rid, schema_rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
         _introspect_pkey(
@@ -168,7 +177,9 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
             lambda pk_colset: Unique(pk_colset, name_pair, comment, annotations, rid)
         )
 
-    cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm(%s);" % sql_literal(snapwhen))
+    cur.execute("""
+EXECUTE ermrest_introspect_pseudo_keys(%s);
+""" % sql_literal(snapwhen))
     pruned_any = False
     for rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
@@ -242,7 +253,10 @@ SELECT _ermrest.model_version_bump();
         fk.references[fk_ref_map] = fkr
         return fkr
 
-    cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm(%s);" % sql_literal(snapwhen))
+    cur.execute("""
+EXECUTE ermrest_introspect_fkeys(%s);
+""" % sql_literal(snapwhen)
+    )
     for rid, schema_rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         delete_rule, update_rule, comment, acls, annotations in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
@@ -252,7 +266,10 @@ SELECT _ermrest.model_version_bump();
             lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, name_pair, annotations, comment, acls, rid=rid)
         )
 
-    cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm(%s);" % sql_literal(snapwhen))
+    cur.execute("""
+EXECUTE ermrest_introspect_pseudo_fkeys(%s);
+""" % sql_literal(snapwhen)
+    )
     for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
         comment, acls, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
@@ -283,21 +300,16 @@ SELECT _ermrest.model_version_bump();
             pruned_any = True
 
     # AclBinding constructor needs whole model to validate binding projections...
-    for resourceset, sqlfunc, grpcol in [
-            (tables, 'known_table_acl_bindings', 'table_rid'),
-            (columns, 'known_column_acl_bindings', 'column_rid'),
-            (fkeyrefs, 'known_fkey_acl_bindings', 'fkey_rid'),
-            (pfkeyrefs, 'known_pseudo_fkey_acl_bindings', 'fkey_rid'),
+    for resourceset, restype in [
+            (tables, 'table'),
+            (columns, 'column'),
+            (fkeyrefs, 'fkey'),
+            (pfkeyrefs, 'pseudo_fkey'),
     ]:
         cur.execute("""
-SELECT 
-  %(grpcol)s,
-  jsonb_object_agg(a.binding_name, a.binding) AS dynacls
-FROM _ermrest.%(sqlfunc)s(%(when)s) a 
-GROUP BY a.%(grpcol)s ;
+EXECUTE ermrest_introspect_%(restype)s_acl_bindings (%(when)s);
 """ % {
-    'sqlfunc': sqlfunc,
-    'grpcol': grpcol,
+    'restype': restype,
     'when': sql_literal(snapwhen),
 })
         rows = list(cur) # pre-fetch the result in case we use cursor in constructor code below...

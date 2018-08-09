@@ -1,5 +1,5 @@
 #
-# Copyright 2012-2017 University of Southern California
+# Copyright 2012-2018 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -137,18 +137,14 @@ class SimpleRegistry(Registry):
             if pc is not None:
                 pc.final()
 
-    def lookup(self, id=None):
+    def lookup(self, id):
         """See Registry.lookup()"""
+        assert id is not None
         def body(conn, cur):
-            filter = " AND id = %s" % sql_literal(id) if id else ""
-
             cur.execute("""
-SELECT id, descriptor
-FROM ermrest.simple_registry
-WHERE deleted_on IS NULL
-%(filter)s;
-"""         % dict(filter=filter))
-
+EXECUTE ermrest_catalog_lookup(%s);
+""" % sql_literal(id)
+            )
             # return results as a list of dictionaries
             return [
                 dict(id=eid, descriptor=json.loads(descriptor))

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -218,11 +218,12 @@ class Catalog (object):
         if config is None:
             config = self._config
         if snapwhen is None:
-            snapwhen = current_model_snaptime(cur)
+            snapwhen_key = current_model_snaptime(cur)
             assert amendver is None
         else:
+            snapwhen_key = snapwhen
             assert amendver is not None
-        cache_key = (str(self.descriptor), (snapwhen, amendver))
+        cache_key = (str(self.descriptor), (snapwhen_key, amendver))
         model = self.MODEL_CACHE.get(cache_key)
         if (model is None) or private:
             model = introspect(cur, config, snapwhen, amendver)
@@ -243,6 +244,8 @@ class Catalog (object):
         cur.execute(pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'))
         cur.execute('SELECT _ermrest.model_change_event();')
         cur.execute('ANALYZE;')
+        # need to prepare again now that our schema exists for this connection...
+        conn._prepare_connection()
 
         ## initial policy
         model = self.get_model(cur, self._config)

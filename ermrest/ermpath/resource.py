@@ -122,7 +122,7 @@ def get_dynacl_clauses(src, access_type, prefix, dynacls=None):
 def current_request_snaptime(cur):
     """The snaptime produced by this mutation request."""
     cur.execute("""
-SELECT now();
+EXECUTE ermrest_current_request_snaptime;
 """)
     return cur.next()[0]
 
@@ -134,20 +134,15 @@ def current_catalog_snaptime(cur, encode=False):
          True: encode as a simple URL-safe string as time since EPOCH
     """
     cur.execute("""
-SELECT %(prefix)s GREATEST(
-  (SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1),
-  (SELECT ts FROM _ermrest.table_last_modified ORDER BY ts DESC LIMIT 1)
-) %(suffix)s;
-""" % {
-    'prefix': '_ermrest.tstzencode(' if encode else '',
-    'suffix': ')' if encode else '',
-})
+EXECUTE ermrest_current_catalog_snaptime%s;
+""" % ('_encoded' if encode else '')
+    )
     return cur.next()[0]
 
 def current_model_snaptime(cur):
     """The current model snaptime is the most recent change to the live model."""
     cur.execute("""
-SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1;
+EXECUTE ermrest_current_model_snaptime;
 """)
     return cur.next()[0]
 
@@ -159,10 +154,7 @@ def normalized_history_snaptime(cur, snapwhen, encoded=True):
          False: snapwhen should be a timestamptz input string
     """
     cur.execute("""
-SELECT GREATEST(
-  (SELECT ts FROM _ermrest.model_modified WHERE ts <= %(when)s::timestamptz ORDER BY ts DESC LIMIT 1),
-  (SELECT ts FROM _ermrest.table_modified WHERE ts <= %(when)s::timestamptz ORDER BY ts DESC LIMIT 1)
-);
+EXECUTE ermrest_normalized_history_snaptime(%(when)s);
 """ % {
     'when': ("_ermrest.tstzdecode(%s)" % sql_literal(snapwhen)) if encoded else sql_literal(snapwhen)
 })
@@ -173,10 +165,7 @@ SELECT GREATEST(
 
 def current_history_amendver(cur, snapwhen):
     cur.execute("""
-SELECT GREATEST(
-  %(when)s::timestamptz,
-  (SELECT ts FROM _ermrest.catalog_amended WHERE during @> %(when)s::timestamptz ORDER BY ts DESC LIMIT 1)
-);
+EXECUTE ermrest_current_history_amendver(%(when)s::timestamptz);
 """ % {
     'when': sql_literal(snapwhen)
 })
