@@ -1,13 +1,17 @@
 site_name: ERMrest Documentation
 site_description: Documentation for ERMrest web-service codebase in the DERIVA framework.
-theme: readthedocs
 site_url: https://informatics-isi-edu.github.io/ermrest/
+#theme: readthedocs
+theme:
+  name: 'material'
+  custom_dir: 'theme'
+  logo: 'images/logo.png'
+  favicon: 'images/favicon.ico'
 extra_css: 
-  - /css/extra.css
-
+  - css/extra.css
 
 pages:
-- Welcome to the documentation: index.md
+- Introduction: index.md
 - User Docs:
     - Installing on Red Hat-derived Linux: user-doc/install-redhat.md
     - Model Annotation: user-doc/annotation.md
@@ -19,20 +23,21 @@ pages:
     - Guide to the ERMrest API: api-doc/index.md
     - ERMrest Catalog Operations: api-doc/rest-catalog.md
     - ERMrest Model Guide:
-        - ERMrest Model Operations: api-doc/model/naming.md
+        - ERMrest Model Resource Naming: api-doc/model/naming.md
         - ERMrest Model Operations: api-doc/model/rest.md
+        - ERMrest Standard System Columns: ermrest_documentation/api-doc/model/system-columns.md
     - ERMrest Access Control:
         - Access Concepts: api-doc/acl/concepts.md
         - Static Model-Based Policies: api-doc/acl/static.md
         - Dynamic Data-Dependent Policies: api-doc/acl/dynamic.md
     - Client-Specific Rights:
-      - Rights Summaries: api-doc/acl/rights.md
-      - ERMrest Data Resources: 
-          - ERMrest Data Resources: api-doc/data/naming.md
-          - ERMrest Data Operations: api-doc/data/rest.md
-      - ERMrest History Management:
-          - ERMrest History Management Resources: api-doc/history/naming.md
-          - ERMrest History Management Operations: api-doc/history/rest.md
+        - Rights Summaries: api-doc/acl/rights.md
+        - ERMrest Data Resources: 
+            - ERMrest Data Resources: api-doc/data/naming.md
+            - ERMrest Data Operations: api-doc/data/rest.md
+        - ERMrest History Management:
+            - ERMrest History Management Resources: api-doc/history/naming.md
+            - ERMrest History Management Operations: api-doc/history/rest.md
 
 markdown_extensions:
     - toc:

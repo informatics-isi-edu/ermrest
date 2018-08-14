@@ -1,4 +1,4 @@
-# ERMrest Data Resource Naming
+# Data Resource Naming
 
 The [ERMrest](http://github.com/informatics-isi-edu/ermrest) data resource names always have a common structure:
 

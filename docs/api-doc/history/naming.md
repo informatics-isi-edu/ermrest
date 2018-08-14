@@ -1,5 +1,5 @@
 
-# ERMrest History Resource Naming
+# History Resource Naming
 
 The [ERMrest](https://github.com/informatics-isi-edu/ermrest) history resource names have a common root
 relative to an identified catalog:

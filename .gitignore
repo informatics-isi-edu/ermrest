@@ -8,3 +8,4 @@ build
 dist
 ermrest.egg-info
 install-record.txt
+site/
