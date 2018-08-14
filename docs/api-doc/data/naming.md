@@ -21,7 +21,7 @@ where the components in this structure are:
 - _query parameters_: optional parameters which may affect interpretation of the data name
    - the `limit` parameter to define query result paging length
    - the `accept` parameter to override HTTP `Accept` header for content negotiation
-   - the `defaults` parameter to modify the behavior of POST operations to the `entity` API
+   - the `defaults` and `nondefaults` parameters to modify the behavior of POST operations to the `entity` API
 
 ## Entity Names
 
@@ -436,6 +436,14 @@ An optional `defaults` query parameter can be used with the `POST` operation on 
 - _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?defaults=` _column name_ `,` ...
 
 A list of one or more _column name_ indicates columns of the target table which should be populated using server-assigned defaults values, ignoring any values provided by the client. See the [Entity Creation with Defaults](rest.md#entity-creation-with-defaults) operation documentation for more explanation.
+
+## Nondefaults Query Parameter
+
+An optional `nondefaults` query parameter can be used with the `POST` operation on the `entity` API:
+
+- _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?nondefaults=` _column name_ `,` ...
+
+A list of one or more _column name_ indicates columns of the target table which should be populated using client-supplied values, overriding an implicit default behavior. This is primarily useful for administrative clients who are copying table data including existing `RID` values from one table or catalog to another. See the [Entity Creation with Defaults](rest.md#entity-creation-with-defaults) operation documentation for more explanation.
 
 ## Limit Query Parameter
 

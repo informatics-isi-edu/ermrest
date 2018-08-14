@@ -1,10 +1,10 @@
 
 import unittest
 import common
-from common import catalog_initial_version, primary_client_id, urlquote
+from common import catalog_initial_version, primary_client_id, urlquote, SchemaDoc, ColumnDoc, Int8
 import basics
 import data
-from data import _T1, _T2, _Tc2, _T2b
+from data import _T1, _T2, _Tc1, _T2b
 import json
 
 _S = 'history_read'
@@ -43,6 +43,20 @@ def setUpModule():
         r = common.primary_session.get('schema')
         r.raise_for_status()
         _model = r.json()
+
+class AddColumnDefault (common.ErmrestTest):
+    _S = "history_write"
+    def test_column_default(self):
+        self.session.post("schema", json=[SchemaDoc(self._S, [_table_defs[_Tc1]])]).raise_for_status()
+        self.session.put("entity/%s:%s" % (self._S, _Tc1), json=data.CompositeKey._initial).raise_for_status()
+        self.session.post("schema/%s/table/%s/column" % (self._S, _Tc1), json=ColumnDoc('new_column', Int8, nullok=False, default=5)).raise_for_status()
+        data_version = common.primary_session.get('').json()['snaptime']
+        r = self.session.get('attributegroup/%s:%s/new_column' % (self._S, _Tc1))
+        self.assertHttp(r, 200)
+        self.assertEqual(r.json(), [{"new_column": 5}])
+        r = self.session.get('%s@%s/attributegroup/%s:%s/new_column' % (common.cpath, data_version, self._S, _Tc1))
+        self.assertHttp(r, 200)
+        self.assertEqual(r.json(), [{"new_column": 5}])
 
 class CatalogWhen (common.ErmrestTest):
     container_resource = ''

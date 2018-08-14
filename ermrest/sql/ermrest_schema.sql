@@ -212,14 +212,23 @@ PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_curie', 'text');
 CREATE OR REPLACE FUNCTION _ermrest.maintain_row() RETURNS TRIGGER AS $$
 DECLARE
   colrow RECORD;
+  newj jsonb;
+  oldj jsonb;
   val text;
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
-    NEW."RCB" := _ermrest.current_client();
-    NEW."RCT" := now();
-    NEW."RMB" := _ermrest.current_client();
-    NEW."RMT" := now();
+    newj := to_jsonb(NEW);
+    IF newj ? 'RID' AND NEW."RID" IS NULL THEN
+      NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
+    END IF;
+    IF newj ? 'RCB' AND NEW."RCB" IS NULL THEN
+      NEW."RCB" := _ermrest.current_client();
+    END IF;
+    IF newj ? 'RCT' AND NEW."RCT" IS NULL THEN
+      NEW."RCT" := now();
+    END IF;
+    IF newj ? 'RMB' THEN NEW."RMB" := _ermrest.current_client(); END IF;
+    IF newj ? 'RMT' THEN NEW."RMT" := now(); END IF;
 
     -- find columns of this row using ermrest_uri or ermrest_curie domains
     FOR colrow IN
@@ -253,15 +262,15 @@ BEGIN
          END IF;
       END IF;
     END LOOP;
-
   ELSEIF TG_OP = 'UPDATE' THEN
     -- do not allow values to change... is this too strict?
-    NEW."RID" := OLD."RID";
-    NEW."RCB" := OLD."RCB";
-    NEW."RCT" := OLD."RCT";
+    oldj := to_jsonb(OLD);
+    IF oldj ? 'RID' THEN NEW."RID" := OLD."RID"; END IF;
+    IF oldj ? 'RCB' THEN NEW."RCB" := OLD."RCB"; END IF;
+    IF oldj ? 'RCT' THEN NEW."RCT" := OLD."RCT"; END IF;
 
-    NEW."RMB" := _ermrest.current_client();
-    NEW."RMT" := now();
+    IF oldj ? 'RMB' THEN NEW."RMB" := _ermrest.current_client(); END IF;
+    IF oldj ? 'RMT' THEN NEW."RMT" := now(); END IF;
   END IF;
   RETURN NEW;
 END;
@@ -617,7 +626,7 @@ CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS
     obj_description(nc.oid)::text AS "comment"
   FROM pg_catalog.pg_namespace nc
   WHERE nc.nspname NOT IN ('information_schema', 'pg_toast', '_ermrest_history')
-    AND nc.nspname !~ '^pg_(toast_)temp_'
+    AND nc.nspname !~ '^pg_(toast_)?temp_'
     AND NOT pg_is_other_temp_schema(nc.oid)
 ;
 

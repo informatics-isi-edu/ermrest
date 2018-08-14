@@ -30,7 +30,8 @@ def for_each_catalog(thunk, id=None):
     results = registry.lookup(id)
     for result in results:
         catalog = Catalog(catalog_factory, result['descriptor'])
-        pc = sanepg2.PooledConnection(catalog.dsn)
+        # a non-shared pool is just our same API w/o pooling...
+        pc = sanepg2.PooledConnection(catalog.dsn, shared=False)
         pc.perform(lambda conn, cur: thunk(catalog, conn, cur), verbose=False).next()
         pc.final()
 

@@ -136,7 +136,31 @@ class Schemas (Api):
             extract_fkeys(sname, tname, tdoc)
             schema = modelobj.schemas[sname]
             return model.Table.create_fromjson(conn, cur, schema, tdoc, web.ctx.ermrest_config)
+
+        def run_key(kdoc):
+            """Create one key."""
+            try:
+                sname = kdoc['unique_columns'][0]['schema_name']
+                tname = kdoc['unique_columns'][0]['table_name']
+            except KeyError as e:
+                raise exception.BadData('Each key document must have a %s field.' % e)
+            except IndexError:
+                raise exception.BadData('Each key document must have at least one unique_columns entry.')
+            return modelobj.schemas[sname].tables[tname].add_unique(conn, cur, kdoc)
         
+        def defer_fkey(fkdoc):
+            """Defer fkey."""
+            try:
+                sname = fkdoc['foreign_key_columns'][0]['schema_name']
+                tname = fkdoc['foreign_key_columns'][0]['table_name']
+            except KeyError as e:
+                raise exception.BadData('Each foreign key document must have a %s field.' % e)
+            except IndexError:
+                raise exception.BadData('Each foreign key document must have at least one foreign_key_columns entry.')
+            deferred_fkeys.append(
+                (sname, tname, [fkdoc])
+            )
+
         def run_deferred_fkeys():
             """Create all deferred fkeys assuming tables now exist."""
             for sname, tname, fkeydocs in deferred_fkeys:
@@ -164,10 +188,14 @@ class Schemas (Api):
                 if isinstance(rdoc, dict):
                     if 'table_name' in rdoc:
                         resources.append(run_table_pass1(rdoc))
-                    else:
+                    elif 'foreign_key_columns' in rdoc:
+                        defer_fkey(rdoc)
+                    elif 'schema_name' in rdoc:
                         resources.append(run_schema_pass1(None, rdoc))
+                    else:
+                        exception.BadData('Each batch item must be an object/dictionary.')
                 else:
-                    raise exception.BadData('Each batch item must be a schema or table document.')
+                    raise exception.BadData('Each batch item must be a schema, table, or foreign-key document.')
 
             run_deferred_fkeys()
             return resources

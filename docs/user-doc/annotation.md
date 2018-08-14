@@ -63,6 +63,7 @@ here is a quick matrix to locate them.
 | [2016 Table Display](#2016-table-display) | - | X | - | - | - | Table-specific display options |
 | [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
+| [2016 Export](#2016-export) | - | X | - | - | - | Describes export templates |
 | [2017 Asset](#2017-asset) | - | - | X | - | - | Describes assets |
 | [2018 Indexing Preferences](#2018-indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
 
@@ -320,7 +321,7 @@ Configuration attributes (optional):
 - `entity`: If the facet can be treated as entity (the column that is being used for facet is key of the table), setting this attribute to `false` will force the facet to show scalar mode.
 - `open`: Setting this attribute to `true`, will force the facet to open by default.
 - `bar_plot`: This attribute is meant to be an object of properties that control the display of the histogram. Setting this attribute to `false` will force the histogram to not be shown in the facet in the facet panel. If unspecified, default is `true` (or show the histogram).
-- `ux_mode`: `choices` or `ranges`. If a multi-modal facet control UX is available, it will specify the default UX mode that should be used (If `ux_mode` is defined, the other type of constraint will not be displayed even if you have defined it in the annotation).
+- `ux_mode`: `choices`, `ranges`, or `check_presence`. If a multi-modal facet control UX is available, it will specify the default UX mode that should be used (If `ux_mode` is defined, the other type of constraint will not be displayed even if you have defined it in the annotation). In `check_presence` mode only two options will be available to the users, "not-null" and "null".
 
 `bar_plot` attributes (optional):
 - `n_bins`: Used to define the number of bins the histogram uses to fetch and display data. If undefined, default is 30 bins.
@@ -583,6 +584,39 @@ Supported JSON payload patterns:
 A alternative table or view which abstracts another table _SHOULD_ have a non-null (psuedo) primary key which is also a foreign key to the base storage table. The base storage table is the one bearing this annotation. Otherwise, a consuming application would not know how to navigate from one abstracted representation of an entity to another representation from the base storage tables.
 
 See [Context Names](#context-names) section for the list of supported _context_ names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` or `compact` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` or `compact` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
+
+### 2016 Export
+
+`tag:isrd.isi.edu,2016:export`
+
+This key can be used to define export templates that will be used for `ioboxd` service integration with the client tools. For more information about the annotation payload please visit [the iobodx integration document](https://github.com/informatics-isi-edu/ioboxd/blob/master/doc/integration.md). The following is how the JSON payload should look like:
+
+```
+"tag:isrd.isi.edu,2016:export": {
+  "templates": [
+    {
+      "name": "<some-name>",  // for internal use
+      "format_name": "<chaise-display-name>",
+      "format_type": "<FILE or BAG>",
+      "outputs": [
+        {
+          "source": {
+            "api": "<ermrest-query-type>", // entity, attribute, attribute-group
+            "table": "<schema:table>"
+            "path": "<optional-ermrest-predicate>" //  optional
+          },
+          "destination": {
+            "name": "<output-file-base-name>",
+            "type": "<output-format-suffix>", // FILE supports csv, json; BAG supports csv, json, fetch, download
+            "params": "<params>" // conditionally optional
+          }
+        }, ...
+      ]
+    }, ...
+  ]
+}
+```
+
 
 ### 2017 Asset
 
