@@ -986,6 +986,27 @@ class ImplicitEnumeration (common.ErmrestTest):
         table = self._get_table_doc('Data')
         self.assertEqual(len(table['foreign_keys']), 1)
 
+class ImplicitHiddenFkr (ImplicitEnumeration):
+
+    col_acls = dict(ImplicitEnumeration.col_acls)
+    col_acls.update({
+        "Data": {
+            "c_id": {
+                "enumerate": [],
+                "select": [],
+                "update": [],
+            }
+        }
+    })
+
+    def test_fkc_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertNotIn('c_id', [ col['name'] for col in table['column_definitions'] ])
+
+    def test_fkr_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertEqual(len(table['foreign_keys']), 0)
+
 class UnscopedBindings (ImplicitEnumeration):
 
     col_bindings = {

@@ -1,5 +1,5 @@
 
-# ERMrest Access Control Core Concepts
+# Access Control Core Concepts
 
 ## Catalog Resource Hierarchy
 

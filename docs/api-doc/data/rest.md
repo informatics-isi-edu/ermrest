@@ -1,4 +1,4 @@
-# ERMrest Data Operations
+# Data Operations
 
 The [ERMrest](http://github.com/informatics-isi-edu/ermrest) data operations manipulate tabular data structured according to the existing entity-relationship model already configured as schemata resources in the catalog.
 

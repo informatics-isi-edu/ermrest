@@ -1,7 +1,5 @@
 
-# ERMrest Access Control
-
-## Static ACL Technical Reference
+# Static ACL Technical Reference
 
 ### Available Static ACL Names
 

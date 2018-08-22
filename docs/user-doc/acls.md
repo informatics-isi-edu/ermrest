@@ -1,5 +1,5 @@
 
-# ERMrest Access Control
+# Access Control
 
 **NOTE**: much of the documentation previously found here has been
 merged into the [ERMrest API docs](../api-doc/index.md) since it is

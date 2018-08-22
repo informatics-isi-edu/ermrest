@@ -1,5 +1,5 @@
 
-# ERMrest client table
+# Client table
 
 The `ermrest_client` table in the `public` schema is created
 automatically in newly created catalogs and is also added to existing

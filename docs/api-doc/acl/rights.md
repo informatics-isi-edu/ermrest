@@ -1,7 +1,5 @@
 
-# ERMrest Access Control
-
-## Access Decision Introspection
+# Access Decision Introspection
 
 Because many user-interfaces benefit from anticipating policy
 decisions and customizing the options presented to the user, ERMrest

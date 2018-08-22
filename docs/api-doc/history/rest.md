@@ -1,5 +1,5 @@
 
-# ERMrest History Operations
+# History Operations
 
 The [ERMrest](http://github.com/informatics-isi-edu/ermrest) history operations manipulate history storage in the catalog.
 
