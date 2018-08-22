@@ -265,7 +265,7 @@ class Name (object):
         self.nameparts.append(namepart)
         return self
         
-    def resolve_column(self, model, epath, base=None):
+    def resolve_column(self, model, epath, base=None, enforce_client=True):
         """Resolve self against a specific database model and epath context.
 
            Returns (column, base) where base is one of:
@@ -304,14 +304,14 @@ class Name (object):
         try:
             if len(self.nameparts) == 1:
                 if base is epath:
-                    return (ptable.columns.get_enumerable(self.nameparts[0]), epath)
+                    return (ptable.columns.get_enumerable(self.nameparts[0], skip_enum_check=not enforce_client), epath)
                 elif base in epath.aliases:
-                    return (epath[base].table.columns.get_enumerable(self.nameparts[0]), base)
+                    return (epath[base].table.columns.get_enumerable(self.nameparts[0], skip_enum_check=not enforce_client), base)
                 elif base is not None:
-                    return (base.columns.get_enumerable(self.nameparts[0]), None)
+                    return (base.columns.get_enumerable(self.nameparts[0], skip_enum_check=not enforce_client), None)
                 else:
                     try:
-                        return (ptable.columns.get_enumerable(self.nameparts[0]), epath)
+                        return (ptable.columns.get_enumerable(self.nameparts[0], skip_enum_check=not enforce_client), epath)
                     except exception.ConflictModel, e:
                         if self.nameparts[0] == '*':
                             return (ptable.freetext_column(), epath)
@@ -321,14 +321,14 @@ class Name (object):
                 n0, n1 = self.nameparts
                 if n0 in epath.aliases:
                     try:
-                        return (epath[n0].table.columns.get_enumerable(n1), n0)
+                        return (epath[n0].table.columns.get_enumerable(n1, skip_enum_check=not enforce_client), n0)
                     except exception.ConflictModel, e:
                         if self.nameparts[1] == '*':
                             return (epath[n0].table.freetext_column(), n0)
                         raise
 
                 table = model.lookup_table(n0)
-                return (table.columns.get_enumerable(n1), None)
+                return (table.columns.get_enumerable(n1, skip_enum_check=not enforce_client), None)
 
         except exception.NotFound, e:
             raise exception.ConflictModel(unicode(e))
@@ -366,14 +366,14 @@ class Name (object):
 
         raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % self)
 
-    def validate(self, epath):
+    def validate(self, epath, enforce_client=True):
         """Validate name in epath context, raising exception on problems.
 
            Name must be a column of path's current entity type 
            or alias-qualified column of ancestor path entity type.
         """
         table = epath.current_entity_table()
-        col, base = self.resolve_column(epath._model, epath)
+        col, base = self.resolve_column(epath._model, epath, enforce_client=enforce_client)
         if base == epath:
             return col, epath._path[epath.current_entity_position()]
         elif base in epath.aliases:

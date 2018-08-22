@@ -129,7 +129,7 @@ class Predicate (object):
             )
 
     def validate(self, epath, allow_star=False, enforce_client=True):
-        self.left_col, self.left_elem = self.left_name.validate(epath)
+        self.left_col, self.left_elem = self.left_name.validate(epath, enforce_client=enforce_client)
         if enforce_client:
             self.left_col.enforce_right('select')
         if not allow_star and self.left_col.is_star_column():
