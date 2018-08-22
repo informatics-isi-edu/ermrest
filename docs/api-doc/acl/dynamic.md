@@ -1,7 +1,5 @@
 
-# ERMrest Access Control
-
-## Dynamic ACL Binding Technical Reference
+# Dynamic ACL Binding Technical Reference
 
 ### Available Dynamic ACL Types
 

@@ -1,6 +1,6 @@
 # ERMrest API
 
-[ERMrest](http://github.com/informatics-isi-edu/ermrest) (rhymes with "earn rest") is a general relational data storage service for web-based, data-oriented collaboration.  See the [ERMrest overview](../README.md) for a general description and motivation.
+[ERMrest](http://github.com/informatics-isi-edu/ermrest) (rhymes with "earn rest") is a general relational data storage service for web-based, data-oriented collaboration.  See the [ERMrest overview](../index.md) for a general description and motivation.
 
 This technical document specifies the web service protocol in terms of resources, resource representations, resource naming, and operations.
 

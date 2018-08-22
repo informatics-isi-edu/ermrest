@@ -1,5 +1,5 @@
 
-# ERMrest Standard System Columns
+# Standard System Columns
 
 ERMrest defines five special system columns with reserved column
 names, types, and certain integrity constraints:

@@ -1,4 +1,4 @@
-# ERMrest Catalog Operations
+# Catalog Operations
 
 In this documentation and examples, the _service_ as described in the previous section on [model resource naming](model/naming.md) is assumed to be `https://www.example.com/ermrest`.
 

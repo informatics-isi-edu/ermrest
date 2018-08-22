@@ -378,6 +378,8 @@ class ForeignKey (object):
     @cache_rights
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
+        if not self.columns_have_right("enumerate", roles):
+            return False
         if self.columns_have_right("select", roles) is False:
             return False
         for krset in self.table_references.values():
@@ -449,10 +451,12 @@ def _keyref_has_right(self, aclname, roles=None):
     if aclname == 'enumerate':
         if not self.unique.has_right('enumerate', roles):
             return False
-        decision = self.foreign_key.columns_have_right('select')
+        if not self.foreign_key.columns_have_right('enumerate', roles):
+            return False
+        decision = self.foreign_key.columns_have_right('select', roles)
         if decision is False:
             return False
-        decision = self.unique.has_right(aclname)
+        decision = self.unique.has_right(aclname, roles)
         if decision is False:
             return False
     if aclname in {'update', 'insert'} and aclname not in self.acls:
