@@ -112,9 +112,9 @@ class AltDict (dict):
         self._validator(k, v)
         return dict.__setitem__(self, k, v)
 
-    def get_enumerable(self, k):
+    def get_enumerable(self, k, skip_enum_check=False):
         result = self[k]
-        if not result.has_right('enumerate'):
+        if not result.has_right('enumerate') and not skip_enum_check:
             raise self._keyerror(k)
         return result
 
