@@ -211,7 +211,7 @@ WHERE t.during && tstzrange(NULL, %(h_until)s::timestamptz, '[)');
 SELECT True
 FROM _ermrest_history.known_tables
 WHERE "RID" = %(table_rid)s::text
-  AND lower(during) >= %(h_until)s::timestamptz
+  AND upper(during) >= %(h_until)s::timestamptz OR upper(during) IS NULL
 LIMIT 1;
 """ % {
     'table_rid': sql_literal(table_rid),
@@ -242,7 +242,10 @@ DELETE FROM _ermrest.table_last_modified WHERE table_rid = %(table_rid)s AND ts 
 INSERT INTO _ermrest.table_modified (ts, table_rid) VALUES (now(), %(table_rid)s)
   ON CONFLICT (ts, table_rid) DO NOTHING;
 
-INSERT INTO _ermrest.table_last_modified (ts, table_rid) VALUES (now(), %(table_rid)s)
+INSERT INTO _ermrest.table_last_modified (ts, table_rid)
+SELECT now(), t."RID"
+FROM _ermrest.known_tables t
+WHERE t."RID" = %(table_rid)s
   ON CONFLICT (table_rid) DO NOTHING;
 """ % {
     'htable_name': sql_identifier(htable_name),

@@ -1,4 +1,4 @@
-ERMrest
+Entity Relationship Store (ERMrest)
 ========
 
 .. toctree::
