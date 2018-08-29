@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2017 University of Southern California
+# Copyright 2010-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -396,8 +396,17 @@ def p_attrcore(p):
                 | binfunc"""
     p[0] = p[1]
 
+def p_aggfunc_name(p):
+    """aggfunc_name : ARRAY
+                    | ARRAY_D
+                    | CNT
+                    | CNT_D
+                    | MIN
+                    | MAX"""
+    p[0] = p[1]
+
 def p_attrcore_agg(p):
-    """aggfunc : string '(' sname ')'"""
+    """aggfunc : aggfunc_name '(' sname ')'"""
     p[0] = ast.Aggregate(p[1], p[3])
 
 # TODO: uncomment if we implement automatic binning modes
