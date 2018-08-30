@@ -121,8 +121,14 @@ WHERE t."RID" = %(table_rid)s
             last_visible = self._last_visible_snaptime(cur, table_rid, self._resolve_rid, gone_when)
             sname, tname = self._table_info(cur, table_rid, last_visible)
         else:
-            web.debug(table_rid, web.ctx.ermrest_history_snaptime)
             sname, tname = self._table_info(cur, table_rid, web.ctx.ermrest_history_snaptime)
+
+        if sname == '_ermrest':
+            # for now, we act like model element RIDs are non-resolvable
+            web.ctx.ermrest_request_trace(
+                'Refusing resolution of model entity %s:%s/RID=%s' % (sname, tname, self._resolve_rid)
+            )
+            raise exception.rest.NotFound('entity with RID=%s' % self._resolve_rid)
 
         prejson = {
             'RID': self._resolve_rid,
