@@ -65,6 +65,7 @@ here is a quick matrix to locate them.
 | [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
 | [2016 Export](#2016-export) | - | X | - | - | - | Describes export templates |
 | [2017 Asset](#2017-asset) | - | - | X | - | - | Describes assets |
+| [2018 Citation](#2018-citation) | - | X | - | - | - | Describes citation |
 | [2018 Indexing Preferences](#2018-indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
 
 For brevity, the annotation keys are listed above by their section
@@ -589,34 +590,31 @@ See [Context Names](#context-names) section for the list of supported _context_ 
 
 `tag:isrd.isi.edu,2016:export`
 
-This key can be used to define export templates that will be used for `ioboxd` service integration with the client tools. For more information about the annotation payload please visit [the iobodx integration document](https://github.com/informatics-isi-edu/ioboxd/blob/master/doc/integration.md). The following is how the JSON payload should look like:
+This key can be used to define export templates that will be used for `ioboxd` service integration with the client tools. For more information about the annotation payload please visit [the iobodx integration document](https://github.com/informatics-isi-edu/ioboxd/blob/master/doc/integration.md). 
 
-```
-"tag:isrd.isi.edu,2016:export": {
-  "templates": [
-    {
-      "name": "<some-name>",  // for internal use
-      "format_name": "<chaise-display-name>",
-      "format_type": "<FILE or BAG>",
-      "outputs": [
-        {
-          "source": {
-            "api": "<ermrest-query-type>", // entity, attribute, attribute-group
-            "table": "<schema:table>"
-            "path": "<optional-ermrest-predicate>" //  optional
-          },
-          "destination": {
-            "name": "<output-file-base-name>",
-            "type": "<output-format-suffix>", // FILE supports csv, json; BAG supports csv, json, fetch, download
-            "params": "<params>" // conditionally optional
-          }
-        }, ...
-      ]
-    }, ...
-  ]
-}
-```
+Supported JSON payload patterns:
 
+- `{` `"templates":` `[`_template_`]` `}`: An array of _template_ objects to export.
+
+Supported _template_ patterns:
+- _name_: The name of the template instance, which should be unique among all other template instances in this _templates_ array.
+- _format_name_: The display name that will be used to populate the Chaise export drop-down for this _template_.
+- _format_type_: One of two keywords; _"FILE"_ or _"BAG"_, used to determine the container format for results.
+- `{`... `"outputs":` `[`_output_`]` `}`: An array of _output_ objects.
+
+Supported _output_ patterns:
+- `{`... `"source":` _sourceentry_ `}`: An object that contains parameters used to generate source data by querying ERMrest.
+- `{`... `"destination":` _destinationentry_ `}`: An object that contains parameters used to render the results of the source query into a specified destination format.
+
+Supported _sourceentry_ patterns:
+- _api_: The type of ERMrest query projection to perform. Valid values are _entity_, _attribute_, and _attributegroup_.
+-_table_: A schema-qualified ERMrest table name in the form `schema_name:table_name`. The string MAY be escaped according to [RFC 3986](https://tools.ietf.org/html/rfc3986).
+-_path_: An optional ERMrest path predicate. The string MUST be escaped according to [RFC 3986](https://tools.ietf.org/html/rfc3986) if it contains user-generated identifiers that use the reserved character set. See the [ERMRest URL conventions](https://github.com/informatics-isi-edu/ermrest/blob/master/docs/api-doc/index.md#url-conventions) for additional information.
+
+Supported _destinationentry_ patterns:
+-_name_: The base name to use for the output file.
+-_type_: A type keyword that determines the output format. Supported values are dependent on the `template`.`format_type` selected. For the `FILE` type, the values `csv`, `json`, are currently supported. For the `BAG` type, the values `csv`, `json`, `fetch` and `download` are currently supported.
+-_params_: An optional object containing destination format-specific parameters.  Some destination formats (particularly those that require some kind of post-processing or data transformation), may require additional parameters  to be specified.
 
 ### 2017 Asset
 
@@ -658,6 +656,29 @@ At present, the Chaise implementation of the asset annotation has the following 
 1. 'generated' column(s) in the `url_pattern` are only supported in the `entry/edit` context and _not_ in the `entry/create` context. If you wish to use 'generated' column(s) in the `url_pattern`, you will need to use the [2016 Visible Columns](#2016-visible-columns) annotation and leave the asset column out of the list of visible columns for its `entry/create` context.
 2. `sha256` is not presently supported.
 3. If `url_pattern` is not available or `browser_upload` is `False` Chaise will show a disabled form field for the asset column. It will still provide the download button in read-only contexts.
+
+### 2018 Citation
+
+`tag:isrd.isi.edu,2018:citation`
+
+This key indicates that the annotated table has a format for defining citations for the rows. A _citation_ defines the given row in a way that it can be shared and referenced in other works. Each pattern in the citation annotation is consumed by the client and presented in a way defined by the client.
+
+Supported JSON payload patterns:
+
+- `{`... `"journal_pattern": ` _pattern_ ...`}`: A desired journal value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_. This attribute is required for the citation feature and if it is not specified, the client will not provide the citation display feature. See implementation notes below.
+- `{`... `"author_pattern": ` _pattern_ ...`}`: A desired author value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+- `{`... `"title_pattern": ` _pattern_ ...`}`: A desired title value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+- `{`... `"year_pattern": ` _pattern_ ...`}`: A desired year value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_. This attribute is required for the citation feature and if it is not specified, the client will not provide the citation display feature. See implementation notes below.
+- `{`... `"url_pattern": ` _pattern_ ...`}`: A desired url value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_. This attribute is required for the citation feature and if it is not specified, the client will not provide the citation display feature. See implementation notes below.
+- `{`... `"id_pattern": ` _pattern_ ...`}`: A desired id value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+
+Default heuristics:
+- `journal_pattern`, `year_pattern`, and `url_pattern` MUST be specified for citation. If any of the 3 are not specified or if one of them produces a null value, citation will be disabled.
+- If any of the other values are not present or produce a null value, it is up to the client to decide how to display the citation.
+
+At present, the Chaise implementation of the citation annotation has the following limitations:
+1. If `journal_pattern`, `year_pattern`, or `url_pattern` is not available, Chaise will not show a Citation list option in the Share dialog.
+2. Chaise will try to show the 3 non-required fields if their are present and their templates don't produce a null value.
 
 ### 2018 Indexing Preferences
 
@@ -720,7 +741,7 @@ The following matrix illustrates which context is meaningful in which annotation
 
 ## Pattern Expansion
 
-When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{{column name}}` or `{{{ column name}}}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
+When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{{column name}}` or `{{{ column name}}}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_. Each pattern is passed through a templating environment. By default, this templating environment is `Mustache`. A `template_engine` parameter can be defined alongside any _pattern_ to define which templating engine to use.
 
 For example, a _column_ may have a [`tag:isrd.isi.edu,2016:column-display`](#2016-column-display) annotation containing the following payload:
 
