@@ -77,6 +77,7 @@ def p_apis(p):
              | foreignkeyref
              | foreignkeyrefslash
              | textfacet
+             | resolve_entity_rid
              | catalog_range
              | data_range
              | config_range
@@ -104,6 +105,10 @@ def p_catalog_when(p):
     cur = web.ctx.ermrest_catalog_pc.cur
     web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[8])
     web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
+
+def p_resolve_entity_rid(p):
+    """resolve_entity_rid : catalogslash ENTITY_RID '/' string"""
+    p[0] = p[1].entity_rid(p[4])
 
 def p_catalog_range(p):
     """cataloghistory : catalogslash HISTORY"""

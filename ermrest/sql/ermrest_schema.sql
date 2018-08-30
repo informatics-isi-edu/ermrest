@@ -367,6 +367,17 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
   );
 END IF;
 
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest_history' AND table_name = 'visible_entities') IS NULL THEN
+  CREATE TABLE _ermrest_history.visible_entities (
+    entity_rid text NOT NULL,
+    table_rid text NOT NULL,
+    during tstzrange NOT NULL,
+    PRIMARY KEY (table_rid, entity_rid, during)
+  );
+  CREATE INDEX ve_open_idx ON _ermrest_history.visible_entities (table_rid, entity_rid, lower(during)) WHERE upper(during) IS NULL;
+  CREATE INDEX ve_resolve_idx ON _ermrest_history.visible_entities (entity_rid, during);
+END IF;
+
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_columns') IS NULL THEN
   CREATE TABLE _ermrest.known_columns (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
@@ -962,6 +973,14 @@ BEGIN
     'DECLARE'
     '  rowsnap jsonb;'
     'BEGIN'
+    '  IF TG_OP = ''DELETE'' THEN'
+    '    UPDATE _ermrest_history.visible_entities ve'
+    '    SET during = tstzrange(lower(ve.during), now(), ''[)'')'
+    '    FROM ' || quote_ident(otname) || ' o'
+    '    WHERE ve.entity_rid = o."RID"'
+    '      AND ve.table_rid = ' || quote_literal(table_rid) ||
+    '      AND upper(ve.during) IS NULL ;'
+    '  END IF;'
     '  IF TG_OP IN (''UPDATE'', ''DELETE'') THEN'
     '    DELETE FROM _ermrest_history.' || quote_ident(htname) || ' t'
     '    USING ' || quote_ident(otname) || ' o'
@@ -974,6 +993,14 @@ BEGIN
     '    WHERE t."RID" = o."RID"'
     '      AND t.during = tstzrange(o."RMT", NULL, ''[)'')'
     '      AND o."RMT" < now();'
+    '  END IF;'
+    '  IF TG_OP = ''INSERT'' THEN'
+    '    INSERT INTO _ermrest_history.visible_entities (table_rid, entity_rid, during)'
+    '    SELECT'
+    '      ' || quote_literal(table_rid) || ','
+    '      n."RID",'
+    '      tstzrange(now(), NULL, ''[)'')'
+    '    FROM ' || quote_ident(ntname) || ' n ;'
     '  END IF;'
     '  IF TG_OP IN (''INSERT'', ''UPDATE'') THEN'
     '    INSERT INTO _ermrest_history.' || quote_ident(htname) || ' ("RID", during, "RMB", rowdata)'
@@ -1029,6 +1056,21 @@ BEGIN
     ' ) s'
     ' WHERE h."RID" = s."RID" AND h.during = s.during;' ;
 
+  EXECUTE
+    'UPDATE _ermrest_history.visible_entities ve'
+    ' SET during = tstzrange(lower(ve.during), now(), ''[)'')'
+    ' FROM ('
+    '   SELECT ve.entity_rid, ve.table_rid, ve.during'
+    '   FROM _ermrest_history.visible_entities ve'
+    '   LEFT OUTER JOIN ' || quote_ident(sname) || '.' || quote_ident(tname) || ' s ON (ve.entity_rid = s."RID")'
+    '   WHERE upper(ve.during) IS NULL'
+    '     AND ve.table_rid = ' || quote_literal(table_rid) ||
+    '     AND s."RID" IS NULL'
+    ' ) s'
+    ' WHERE ve.table_rid = s.table_rid'
+    '   AND ve.entity_rid = s.entity_rid'
+    '   AND upper(ve.during) IS NULL;' ;
+
   -- replicate latest live data if it's not already there
   EXECUTE
     'INSERT INTO _ermrest_history.' || quote_ident(htname) || '("RID", during, "RMB", rowdata)'
@@ -1044,6 +1086,14 @@ BEGIN
     ' LEFT OUTER JOIN _ermrest_history.' || quote_ident(htname) || ' h'
     '  ON (t."RID" = h."RID" AND h.during = tstzrange(t."RMT", NULL, ''[)''))'
     ' WHERE h."RID" IS NULL;' ;
+
+  EXECUTE
+    'INSERT INTO _ermrest_history.visible_entities (entity_rid, table_rid, during)'
+    ' SELECT s."RID", ' || quote_literal(table_rid) || ', tstzrange(s."RMT", NULL, ''[)'')'
+    ' FROM ' || quote_ident(sname) || '.' || quote_ident(tname) || ' s'
+    ' LEFT OUTER JOIN _ermrest_history.visible_entities ve'
+    '   ON (s."RID" = ve.entity_rid AND ve.table_rid = ' || quote_literal(table_rid) || ' AND upper(ve.during) IS NULL)'
+    ' WHERE ve.entity_RID IS NULL;' ;
 END;
 $func$ LANGUAGE plpgsql;
 
