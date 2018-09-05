@@ -1,5 +1,5 @@
 Entity Relationship Store (ERMrest)
-========
+====================================
 
 .. toctree::
    :maxdepth: 4
