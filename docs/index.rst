@@ -5,9 +5,7 @@ Entity Relationship Store (ERMrest)
    :maxdepth: 4
    :caption: ERMrest User Documents
 
-   user-doc/install-redhat.md
    user-doc/annotation.md
-   user-doc/tuning.md
    user-doc/ermrest-registry-purge.md
    user-doc/ermrest-client-table.md
 
