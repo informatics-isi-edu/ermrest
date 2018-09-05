@@ -29,7 +29,7 @@ abbreviated ISO dates such as `2015`, `2015-01`, and `2015-01-01`.
 ### Example to Set Annotation
 
 This example sets the
-[2015 Display](#2015-display) annotation:
+[2015 Display](#display) annotation:
 
     PUT /ermrest/catalog/1/schema/MainContent/annotation/tag%3Amisd.isi.edu%2C2015%3Adisplay HTTP/1.1
     Host: www.example.com
@@ -49,24 +49,24 @@ here is a quick matrix to locate them.
 
 | Annotation | Schema | Table | Column | Key | FKR | Summary |
 |------------|--------|-------|--------|-----|-----|---------|
-| [2015 Display](#2015-display) | X | X | X | X | - | Display options |
-| [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
-| [2016 Table Alternatives](#2016-table-alternatives) | - | X | - | _ | _ | Table abstracts another table |
-| [2016 Column Display](#2016-column-display) | - | - | X | - | - | Column-specific display options |
-| [2017 Key Display](#2017-key-display) | - | - | - | X | - | Key augmentation |
-| [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
-| [2016 Generated](#2016-generated) | X | X | X | - | - | Generated model element |
-| [2016 Ignore](#2016-ignore) | X | X | X | - | - | Ignore model element |
-| [2016 Immutable](#2016-immutable) | X | X | X | - | - | Immutable model element |
-| [2016 Non Deletable](#2016-non-deletable) | X | X | - | - | - | Non-deletable model element |
-| [2016 App Links](#2016-app-links) | X | X | - | - | - | Intra-Chaise app links |
-| [2016 Table Display](#2016-table-display) | - | X | - | - | - | Table-specific display options |
-| [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
-| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
-| [2016 Export](#2016-export) | - | X | - | - | - | Describes export templates |
-| [2017 Asset](#2017-asset) | - | - | X | - | - | Describes assets |
-| [2018 Citation](#2018-citation) | - | X | - | - | - | Describes citation |
-| [2018 Indexing Preferences](#2018-indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
+| [2015 Display](#display) | X | X | X | X | - | Display options |
+| [2015 Vocabulary](#vocabulary) | - | X | - | - | - | Table as a vocabulary list |
+| [2016 Table Alternatives](#table-alternatives) | - | X | - | _ | _ | Table abstracts another table |
+| [2016 Column Display](#column-display) | - | - | X | - | - | Column-specific display options |
+| [2017 Key Display](#key-display) | - | - | - | X | - | Key augmentation |
+| [2016 Foreign Key](#foreign-key) | - | - | - | - | X | Foreign key augmentation |
+| [2016 Generated](#generated) | X | X | X | - | - | Generated model element |
+| [2016 Ignore](#ignore) | X | X | X | - | - | Ignore model element |
+| [2016 Immutable](#immutable) | X | X | X | - | - | Immutable model element |
+| [2016 Non Deletable](#non-deletable) | X | X | - | - | - | Non-deletable model element |
+| [2016 App Links](#app-links) | X | X | - | - | - | Intra-Chaise app links |
+| [2016 Table Display](#table-display) | - | X | - | - | - | Table-specific display options |
+| [2016 Visible Columns](#visible-columns) | - | X | - | - | - | Column visibility and presentation order |
+| [2016 Visible Foreign Keys](#visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
+| [2016 Export](#export) | - | X | - | - | - | Describes export templates |
+| [2017 Asset](#asset) | - | - | X | - | - | Describes assets |
+| [2018 Citation](#citation) | - | X | - | - | - | Describes citation |
+| [2018 Indexing Preferences](#indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
@@ -185,8 +185,8 @@ This key is allowed on any number of Schema, Table, or Column model elements. Th
 
 This key was previously specified for these model elements but such use is deprecated:
 
-- Column (use [2016 Visible Columns](#2016-visible-columns) instead)
-- Foreign Key (use [2016 Visible Foreign Keys](#2016-visible-foreign-keys) instead)
+- Column (use [2016 Visible Columns](#visible-columns) instead)
+- Foreign Key (use [2016 Visible Foreign Keys](#visible-foreign-keys) instead)
 
 This annotation indicates that the annotated model element should be ignored in typical model-driven user interfaces, with the presentation behaving as if the model element were not present. The JSON payload contextualizes the user interface mode or modes which should ignore the model element.
 
@@ -368,8 +368,8 @@ Supported _columnorder_key_ syntax:
 
 Key pseudo-column-naming heuristics (use first applicable rule):
 
-1. Use key name specified by [2015 Display](#2015-display) if `name` attribute is specified.
-2. For simple keys, use effective name of sole constituent column considering [2015 Display](#2015-display) and column name from model.
+1. Use key name specified by [2015 Display](#display) if `name` attribute is specified.
+2. For simple keys, use effective name of sole constituent column considering [2015 Display](#display) and column name from model.
 3. Other application-specific defaults might be considered (non-normative examples):
   - Anonymous pseudo-column may be applicable in some presentations
   - A fixed name such as `Key`
@@ -515,7 +515,7 @@ Supported JSON _option_ payload patterns:
 - `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys. The given _sortkey_ s will be used as is (_columnorder_ SHOULD not be applied recursivly to this).
 - `"page_size":` `_number_`: The default number of rows to be shown on a page.  
 - `"row_markdown_pattern":` _rowpattern_: Render the row by composing a markdown representation only when `row_markdown_pattern` is non-null.
-  - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
+  - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#column-display).
 - `"separator_markdown":` _separator_: Insert _separator_ markdown text between each expanded _rowpattern_ when presenting row sets. (Default new-line `"\n"`.)
   - Ignore if `"row_markdown_pattern"` is not also configured.
 - `"prefix_markdown":` _prefix_: Insert _prefix_ markdown before the first _rowpattern_ expansion when presenting row sets. (Default empty string `""`.)
@@ -653,7 +653,7 @@ Protocol-specific metadata retrieval MAY be applied once an asset location is kn
 - Some location schemes may define authoritative metadata resolution procedures.
 
 At present, the Chaise implementation of the asset annotation has the following limitations:
-1. 'generated' column(s) in the `url_pattern` are only supported in the `entry/edit` context and _not_ in the `entry/create` context. If you wish to use 'generated' column(s) in the `url_pattern`, you will need to use the [2016 Visible Columns](#2016-visible-columns) annotation and leave the asset column out of the list of visible columns for its `entry/create` context.
+1. 'generated' column(s) in the `url_pattern` are only supported in the `entry/edit` context and _not_ in the `entry/create` context. If you wish to use 'generated' column(s) in the `url_pattern`, you will need to use the [2016 Visible Columns](#visible-columns) annotation and leave the asset column out of the list of visible columns for its `entry/create` context.
 2. `sha256` is not presently supported.
 3. If `url_pattern` is not available or `browser_upload` is `False` Chaise will show a disabled form field for the asset column. It will still provide the download button in read-only contexts.
 
@@ -730,20 +730,20 @@ The following matrix illustrates which context is meaningful in which annotation
 
 | Annotation                                              | compact | compact/brief | compact/select | detailed | entry | entry/edit | entry/create | filter | row_name | * |
 |---------------------------------------------------------|---------|---------------|----------------|----------|-------|------------|--------------|--------|----------|---|
-| [2015 Display](#2015-display)                           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Ignore](#2016-ignore)                             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Visible Columns](#2016-visible-columns)           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Column Display](#2016-column-display)             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Table Display](#2016-table-display)               | X       | X             | X              | X        | -     | -          | -            | X      | X        | X |
-| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | -              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Table Alternatives](#2016-table-alternatives)     | X       | -             | X              | X        | -     | -          | -            | X      | -        | X |
+| [2015 Display](#display)                           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Ignore](#ignore)                             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Visible Columns](#visible-columns)           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Column Display](#column-display)             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Table Display](#table-display)               | X       | X             | X              | X        | -     | -          | -            | X      | X        | X |
+| [2016 Visible Foreign Keys](#visible-foreign-keys) | X       | -             | -              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Table Alternatives](#table-alternatives)     | X       | -             | X              | X        | -     | -          | -            | X      | -        | X |
 
 
 ## Pattern Expansion
 
 When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{{column name}}` or `{{{ column name}}}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_. Each pattern is passed through a templating environment. By default, this templating environment is `Mustache`. A `template_engine` parameter can be defined alongside any _pattern_ to define which templating engine to use.
 
-For example, a _column_ may have a [`tag:isrd.isi.edu,2016:column-display`](#2016-column-display) annotation containing the following payload:
+For example, a _column_ may have a [`tag:isrd.isi.edu,2016:column-display`](#column-display) annotation containing the following payload:
 
 ```
 {
