@@ -83,6 +83,7 @@ As a special case, the psuedo-column `*` can be used in several idiomatic forms:
 
 - `cnt(*)`: a count of entities rather than of non-NULL values is computed
 - `array(`_alias_`:*)`: an array of records rather than an array of values is computed
+- `array_d(`_alias_`:*)`: an array of distinct records rather is computed
 
 TODO: document other variants?
 
