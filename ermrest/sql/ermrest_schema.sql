@@ -378,7 +378,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest_hi
   CREATE INDEX ve_resolve_idx ON _ermrest_history.visible_entities (entity_rid, during);
 
   -- logic to perform one-time conversion associated with creation of visible_entities on existing catalogs
-  CREATE FUNCTION _ermrest.htable_to_visible_entities(trid text, sname text, tname text, htname text) RETURNS void AS $$
+  CREATE OR REPLACE FUNCTION _ermrest.htable_to_visible_entities(trid text, sname text, tname text, htname text) RETURNS void AS $$
   DECLARE
     record record;
     prev_record record;
@@ -388,7 +388,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest_hi
     -- we can assume the visible_entities table contains NO records for this table yet
     prev_born := NULL;
     FOR record IN
-      EXECUTE 'SELECT * FROM _ermrest_history.' || quote_ident(htname) || ' h ORDER BY "RID", during'
+      EXECUTE 'SELECT "RID"::text, during FROM _ermrest_history.' || quote_ident(htname) || ' h ORDER BY "RID", during'
     LOOP
       IF prev_born IS NOT NULL THEN
         IF record."RID" = prev_record."RID" AND (prev_record.during -|- record.during OR prev_record.during && record.during) THEN
