@@ -295,11 +295,7 @@ Supported _columnentry_ patterns:
   - `array_display`: If you have `"aggregate": "array"` or `"aggregate": "array_d"` in the pseudo-column definition, a comma-seperated value will be presented to the user. You can use `array_display` attribute to change that. The available options are,
     - `olist` for ordered bullet list.
     - `ulist` for unordered bullet list.
-    - `csv` for comma-seperated values (the default presentation).
-
-olist for ordered bullet list.
-ulist for unordered bullet list.
-csv for comma-seperated values (the default presentation).
+    - `csv` for comma-seperated values.
 
 Supported _sourceentry_ pattern:
 - _columnname_: : A string literal. _columnname_ identifies a constituent column of the table.
