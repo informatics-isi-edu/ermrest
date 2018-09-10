@@ -490,7 +490,6 @@ class AggArray(AggFunc):
 class AggArrayDistinct(AggArray):
     aggfunc = 'array_d'
     distinct = 'DISTINCT'
-    supports_star = False
 
 aggfuncs = {
     aggfunc.aggfunc: aggfunc
