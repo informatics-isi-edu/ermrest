@@ -9,7 +9,7 @@ catalog content.
 These annotations do not affect the behavior of the ERMrest service
 itself but merely inform clients about intended use beyond that
 captured in the entity-relationship model. Further, as described in
-the [REST API docs](../../ermrest/api-doc/) ([GitHub](https://github.com/informatics-isi-edu/ermrest/blob/master/docs/api-doc/index.md)), the annotation system is
+the [REST API docs](../api-doc/index.md), the annotation system is
 openly extensible so communities MAY use other annotation keys not
 described here; in those cases, the community SHOULD publish similar
 documentation on their use and interpretation.
