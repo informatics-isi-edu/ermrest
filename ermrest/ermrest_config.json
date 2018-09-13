@@ -70,5 +70,6 @@
 
     "textfacet_policy": false,
     "require_primary_keys": true,
+    "request_timeout_s": 15.0,
     "default_limit" : 100
 }

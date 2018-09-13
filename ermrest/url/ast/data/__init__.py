@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,12 +23,15 @@ import cStringIO
 import web
 import tempfile
 import psycopg2
+import datetime
+import pytz
 
 from ..api import Api
 from . import path
 from ....model.predicate import predicatecls
 from ....model.name import Name
 from .... import ermpath, exception
+from ....util import sql_literal
 from webauthn2.util import urlquote
 
 def _preprocess_attributes(epath, attributes):
@@ -85,6 +88,15 @@ def _GET(handler, uri, dresource, vresource):
             handler.http_check_preconditions()
             dresource.add_sort(handler.sort)
             dresource.add_paging(handler.after, handler.before)
+            try:
+                # try to set a transaction-local statement timeout before this potentially long-running query
+                request_timeout_s = float(web.ctx.ermrest_config.get('request_timeout_s'))
+                elapsed = datetime.datetime.now(pytz.timezone('UTC')) - web.ctx.ermrest_start_time
+                timeout_ms = int(1000.0 * max((request_timeout_s - elapsed.total_seconds()), 0.001))
+                cur.execute("SELECT set_config('statement_timeout', %s, true);" % sql_literal(timeout_ms))
+            except Exception as e:
+                web.debug(e)
+                pass
             return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit)
         finally:
             try:
