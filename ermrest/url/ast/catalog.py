@@ -22,8 +22,7 @@ import json
 import web
 import psycopg2.extensions
 
-import model
-import data
+from . import model, data, resolver
 from .api import Api, negotiated_content_type
 from ... import exception, catalog, sanepg2
 from ...apicore import web_method
@@ -168,6 +167,10 @@ class Catalog (Api):
     def query(self, qpath):
         """A query set for this catalog."""
         return data.Query(self, qpath)
+
+    def entity_rid(self, rid):
+        """An entity_rid resolver query."""
+        return resolver.EntityRidResolver(self, rid)
 
     def GET_body(self, conn, cur):
         _model = web.ctx.ermrest_catalog_model

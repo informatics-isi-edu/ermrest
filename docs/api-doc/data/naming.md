@@ -23,6 +23,14 @@ where the components in this structure are:
    - the `accept` parameter to override HTTP `Accept` header for content negotiation
    - the `defaults` and `nondefaults` parameters to modify the behavior of POST operations to the `entity` API
 
+## Entity Resolution Names
+
+The `entity_rid` resource space denotes resolvable RIDs using names of the form:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity_rid/` _rid_
+
+The single _rid_ parameter is an entity reference to be resolved in the catalog or catalog snapshot. This _rid_ should be a `RID` column value observed in an entity within the catalog. The resolved resource, when found, is a concise JSON record telling the client in which table to look for a given entity. The client must then use other data-access resources, described next, to actually retrieve the entity content associated with the _rid_.
+
 ## Entity Names
 
 The `entity` resource space denotes whole entities using names of the form:

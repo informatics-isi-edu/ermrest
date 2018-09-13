@@ -245,6 +245,7 @@ The ERMrest interface supports typical HTTP operations to manage these different
       1. [Access Control List Binding Retrieval](model/rest.md#access-control-list-binding-retrieval)
       1. [Access Control List Binding Deletion](model/rest.md#access-control-list-binding-deletion)
 1. [Data operations](data/rest.md)
+   1. [Entity Resolution](data/rest.md#entity-resolution)
    1. [Entity Creation](data/rest.md#entity-creation)
    1. [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults)
    1. [Entity Update](data/rest.md#entity-update)

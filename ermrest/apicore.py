@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2017 University of Southern California
+# Copyright 2012-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ __all__ = [
 global_env = webauthn2.merge_config(
     jsonFileName='ermrest_config.json', 
     built_ins={
+        "request_timeout_s": 15.0,
         # TODO: are these used?
         # "default_limit": 100,
         # "db": "ermrest", 
@@ -286,7 +287,9 @@ def web_method():
                             raise rest.BadRequest('Program limit exceeded: %s.' % e.message.decode('utf8').strip())
                         elif e.pgcode[0:2] == 'XX':
                             raise rest.ServiceUnavailable('Internal error.')
-                        
+                        elif e.pgcode == '57014':
+                            raise rest.BadRequest('Query run time limit exceeded.')
+
                     # TODO: simplify postgres error text?
                     web.debug(e, e.pgcode, e.pgerror)
                     et, ev, tb = sys.exc_info()
