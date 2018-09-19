@@ -706,7 +706,8 @@ This annotation is a hint to ERMrest during table or column creation, when index
 
 ### Context Names
 
-List of _context_ names that are used in ermrest:
+List of _context_ names that are used in ERMrest:
+
 - `"compact"`: Any compact, tabular presentation of data from multiple entities.
   - `"compact/brief"`: A limited compact, tabular presentation of data from multiple entities to be shown under the `detailed` context. In this context, only a page of data will be shown with a link to the access the `compact` context for more detail.  
   - `"compact/select"`: A sub-context of `compact` that is used for selecting entities, e.g. when prompting the user for choosing a foreign key value.
