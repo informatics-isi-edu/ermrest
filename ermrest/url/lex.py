@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2017 University of Southern California
+# Copyright 2010-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,16 +61,21 @@ keywords = [
     'after',
     'aggregate',
     'annotation',
+    'array',
+    'array_d',
     'attribute',
     'attributegroup',
     'before',
     'bin',
     'catalog',
     'ciregexp',
+    'cnt',
+    'cnt_d',
     'column',
     'comment',
     'desc',
     'entity',
+    'entity_rid',
     'foreignkey',
     'full',
     'geq',
@@ -80,6 +85,8 @@ keywords = [
     'leq',
     'left',
     'lt',
+    'max',
+    'min',
     'null',
     'query',
     'reference',

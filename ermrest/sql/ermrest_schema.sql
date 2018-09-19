@@ -104,7 +104,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.urlb32_decode(text) RETURNS int8 IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.urlb32_decode(encoded text, raise_errors boolean) RETURNS int8 IMMUTABLE AS $$
 DECLARE
   raw bit(65);
   code int;
@@ -116,7 +116,11 @@ BEGIN
 
   IF octet_length(encoded) > 13
   THEN
-    RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = 'Length exceeds 13 symbols';
+    IF raise_errors THEN
+      RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = 'Length exceeds 13 symbols';
+    ELSE
+      RETURN NULL;
+    END IF;
   END IF;
 
   FOR d IN 1 .. octet_length(encoded) LOOP
@@ -154,7 +158,11 @@ BEGIN
       WHEN 'Y' THEN code := 30;
       WHEN 'Z' THEN code := 31;
       ELSE
-        RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = substring(encoded from 1 for 1);
+        IF raise_errors THEN
+          RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = 'Invalid character: ' || quote_literal(substring(encoded from 1 for 1));
+	ELSE
+	  RETURN NULL;
+	END IF;
     END CASE;
     raw := (raw << 5) | ((0::bit(60) || code::bit(5)));
     encoded := substring(encoded from 2);
@@ -163,6 +171,10 @@ BEGIN
   RETURN substring(raw from 1 for 64)::int8;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.urlb32_decode(text) RETURNS int8 IMMUTABLE AS $$
+SELECT _ermrest.urlb32_decode($1, True);
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.tstzencode(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT _ermrest.urlb32_encode(floor(EXTRACT(epoch FROM $1))::int8 * 1000000 + EXTRACT(microseconds FROM $1)::int8 % 1000000);
@@ -383,6 +395,54 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     PRIMARY KEY (ts, table_rid)
   );
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest_history' AND table_name = 'visible_entities') IS NULL THEN
+  CREATE TABLE _ermrest_history.visible_entities (
+    entity_rid text NOT NULL,
+    table_rid text NOT NULL,
+    during tstzrange NOT NULL,
+    PRIMARY KEY (table_rid, entity_rid, during)
+  );
+  CREATE INDEX ve_open_idx ON _ermrest_history.visible_entities (table_rid, entity_rid, lower(during)) WHERE upper(during) IS NULL;
+  CREATE INDEX ve_resolve_idx ON _ermrest_history.visible_entities (entity_rid, during);
+
+  -- logic to perform one-time conversion associated with creation of visible_entities on existing catalogs
+  CREATE OR REPLACE FUNCTION _ermrest.htable_to_visible_entities(trid text, sname text, tname text, htname text) RETURNS void AS $$
+  DECLARE
+    record record;
+    prev_record record;
+    prev_record_rid text;
+    prev_born timestamptz;
+  BEGIN
+    -- we can assume the visible_entities table contains NO records for this table yet
+    prev_born := NULL;
+    FOR record IN
+      EXECUTE 'SELECT "RID"::text, during FROM _ermrest_history.' || quote_ident(htname) || ' h ORDER BY "RID", during'
+    LOOP
+      IF prev_born IS NOT NULL THEN
+        IF record."RID" = prev_record."RID" AND (prev_record.during -|- record.during OR prev_record.during && record.during) THEN
+          -- this is a continuation of previous interval
+          record.during := prev_record.during + record.during; -- tolerate imprecise history ranges
+          prev_record := record;
+          CONTINUE;
+        ELSE
+          -- last record is final part of previous interval
+	  INSERT INTO _ermrest_history.visible_entities (entity_rid, table_rid, during)
+	  VALUES (prev_record."RID", trid, tstzrange(prev_born, upper(prev_record.during), '[)'));
+	END IF;
+      END IF;
+      -- this begins the first (or next interval if previous was flushed above)
+      prev_record := record;
+      prev_born := lower(record.during);
+    END LOOP;
+    IF prev_born IS NOT NULL THEN
+      -- flush final interval of iteration
+      INSERT INTO _ermrest_history.visible_entities (entity_rid, table_rid, during)
+      VALUES (prev_record."RID", trid, tstzrange(prev_born, upper(prev_record.during), '[)'));
+    END IF;
+  END;
+  $$ LANGUAGE plpgsql;
 END IF;
 
 IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' AND table_name = 'known_columns') IS NULL THEN
@@ -992,6 +1052,14 @@ BEGIN
     'DECLARE'
     '  rowsnap jsonb;'
     'BEGIN'
+    '  IF TG_OP = ''DELETE'' THEN'
+    '    UPDATE _ermrest_history.visible_entities ve'
+    '    SET during = tstzrange(lower(ve.during), now(), ''[)'')'
+    '    FROM ' || quote_ident(otname) || ' o'
+    '    WHERE ve.entity_rid = o."RID"'
+    '      AND ve.table_rid = ' || quote_literal(table_rid) ||
+    '      AND upper(ve.during) IS NULL ;'
+    '  END IF;'
     '  IF TG_OP IN (''UPDATE'', ''DELETE'') THEN'
     '    DELETE FROM _ermrest_history.' || quote_ident(htname) || ' t'
     '    USING ' || quote_ident(otname) || ' o'
@@ -1004,6 +1072,14 @@ BEGIN
     '    WHERE t."RID" = o."RID"'
     '      AND t.during = tstzrange(o."RMT", NULL, ''[)'')'
     '      AND o."RMT" < now();'
+    '  END IF;'
+    '  IF TG_OP = ''INSERT'' THEN'
+    '    INSERT INTO _ermrest_history.visible_entities (table_rid, entity_rid, during)'
+    '    SELECT'
+    '      ' || quote_literal(table_rid) || ','
+    '      n."RID",'
+    '      tstzrange(now(), NULL, ''[)'')'
+    '    FROM ' || quote_ident(ntname) || ' n ;'
     '  END IF;'
     '  IF TG_OP IN (''INSERT'', ''UPDATE'') THEN'
     '    INSERT INTO _ermrest_history.' || quote_ident(htname) || ' ("RID", during, "RMB", rowdata)'
@@ -1039,6 +1115,9 @@ BEGIN
       || ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
   END IF;
 
+  -- this function becomes a no-op under steady state operations but handles one-time resolver upgrade
+  PERFORM _ermrest.htable_to_visible_entities(table_rid, sname, tname, htname);
+
   -- skip healing if requested by caller and history table seems superficially active already
   IF htable_exists AND (new_trigger_exists OR old_trigger_exists) AND NOT heal_existing
   THEN
@@ -1059,6 +1138,21 @@ BEGIN
     ' ) s'
     ' WHERE h."RID" = s."RID" AND h.during = s.during;' ;
 
+  EXECUTE
+    'UPDATE _ermrest_history.visible_entities ve'
+    ' SET during = tstzrange(lower(ve.during), now(), ''[)'')'
+    ' FROM ('
+    '   SELECT ve.entity_rid, ve.table_rid, ve.during'
+    '   FROM _ermrest_history.visible_entities ve'
+    '   LEFT OUTER JOIN ' || quote_ident(sname) || '.' || quote_ident(tname) || ' s ON (ve.entity_rid = s."RID")'
+    '   WHERE upper(ve.during) IS NULL'
+    '     AND ve.table_rid = ' || quote_literal(table_rid) ||
+    '     AND s."RID" IS NULL'
+    ' ) s'
+    ' WHERE ve.table_rid = s.table_rid'
+    '   AND ve.entity_rid = s.entity_rid'
+    '   AND upper(ve.during) IS NULL;' ;
+
   -- replicate latest live data if it's not already there
   EXECUTE
     'INSERT INTO _ermrest_history.' || quote_ident(htname) || '("RID", during, "RMB", rowdata)'
@@ -1074,6 +1168,14 @@ BEGIN
     ' LEFT OUTER JOIN _ermrest_history.' || quote_ident(htname) || ' h'
     '  ON (t."RID" = h."RID" AND h.during = tstzrange(t."RMT", NULL, ''[)''))'
     ' WHERE h."RID" IS NULL;' ;
+
+  EXECUTE
+    'INSERT INTO _ermrest_history.visible_entities (entity_rid, table_rid, during)'
+    ' SELECT s."RID", ' || quote_literal(table_rid) || ', tstzrange(s."RMT", NULL, ''[)'')'
+    ' FROM ' || quote_ident(sname) || '.' || quote_ident(tname) || ' s'
+    ' LEFT OUTER JOIN _ermrest_history.visible_entities ve'
+    '   ON (s."RID" = ve.entity_rid AND ve.table_rid = ' || quote_literal(table_rid) || ' AND upper(ve.during) IS NULL)'
+    ' WHERE ve.entity_RID IS NULL;' ;
 END;
 $func$ LANGUAGE plpgsql;
 
@@ -3102,6 +3204,14 @@ LOOP
     || quote_ident(looprow.schema_name) || '.' || quote_ident(looprow.table_name)
     || ' FOR EACH ROW EXECUTE PROCEDURE _ermrest.maintain_row();';
 END LOOP;
+
+-- disable one-time conversion that MAY have been done above
+CREATE OR REPLACE FUNCTION _ermrest.htable_to_visible_entities(trid text, sname text, tname text, htname text) RETURNS void AS $$
+BEGIN
+  -- do nothing during normal operations...
+  RETURN;
+END;
+$$ LANGUAGE plpgsql;
 
 RAISE NOTICE 'Completed idempotent creation of standard ERMrest schema.';
 

@@ -1,4 +1,4 @@
-# Model Annotation
+# Base Model Annotation
 
 This document defines a set of annotations we suggest may be useful in
 combination with ERMrest. We define a set of _annotation keys_, any
@@ -29,7 +29,7 @@ abbreviated ISO dates such as `2015`, `2015-01`, and `2015-01-01`.
 ### Example to Set Annotation
 
 This example sets the
-[2015 Display](#2015-display) annotation:
+[2015 Display](#tag-2015-display) annotation:
 
     PUT /ermrest/catalog/1/schema/MainContent/annotation/tag%3Amisd.isi.edu%2C2015%3Adisplay HTTP/1.1
     Host: www.example.com
@@ -49,23 +49,25 @@ here is a quick matrix to locate them.
 
 | Annotation | Schema | Table | Column | Key | FKR | Summary |
 |------------|--------|-------|--------|-----|-----|---------|
-| [2015 Display](#2015-display) | X | X | X | X | - | Display options |
-| [2015 Vocabulary](#2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
-| [2016 Table Alternatives](#2016-table-alternatives) | - | X | - | _ | _ | Table abstracts another table |
-| [2016 Column Display](#2016-column-display) | - | - | X | - | - | Column-specific display options |
-| [2017 Key Display](#2017-key-display) | - | - | - | X | - | Key augmentation |
-| [2016 Foreign Key](#2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
-| [2016 Generated](#2016-generated) | X | X | X | - | - | Generated model element |
-| [2016 Ignore](#2016-ignore) | X | X | X | - | - | Ignore model element |
-| [2016 Immutable](#2016-immutable) | X | X | X | - | - | Immutable model element |
-| [2016 Non Deletable](#2016-non-deletable) | X | X | - | - | - | Non-deletable model element |
-| [2016 App Links](#2016-app-links) | X | X | - | - | - | Intra-Chaise app links |
-| [2016 Table Display](#2016-table-display) | - | X | - | - | - | Table-specific display options |
-| [2016 Visible Columns](#2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
-| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
-| [2016 Export](#2016-export) | - | X | - | - | - | Describes export templates |
-| [2017 Asset](#2017-asset) | - | - | X | - | - | Describes assets |
-| [2018 Indexing Preferences](#2018-indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
+| [2015 Display](#tag-2015-display) | X | X | X | X | - | Display options |
+| [2015 Vocabulary](#tag-2015-vocabulary) | - | X | - | - | - | Table as a vocabulary list |
+| [2016 Table Alternatives](#tag-2016-table-alternatives) | - | X | - | _ | _ | Table abstracts another table |
+| [2016 Column Display](#tag-2016-column-display) | - | - | X | - | - | Column-specific display options |
+| [2017 Key Display](#tag-2017-key-display) | - | - | - | X | - | Key augmentation |
+| [2016 Foreign Key](#tag-2016-foreign-key) | - | - | - | - | X | Foreign key augmentation |
+| [2016 Generated](#tag-2016-generated) | X | X | X | - | - | Generated model element |
+| [2016 Ignore](#tag-2016-ignore) | X | X | X | - | - | Ignore model element |
+| [2016 Immutable](#tag-2016-immutable) | X | X | X | - | - | Immutable model element |
+| [2016 Non Deletable](#tag-2016-non-deletable) | X | X | - | - | - | Non-deletable model element |
+| [2016 App Links](#tag-2016-app-links) | X | X | - | - | - | Intra-Chaise app links |
+| [2016 Table Display](#tag-2016-table-display) | - | X | - | - | - | Table-specific display options |
+| [2016 Visible Columns](#tag-2016-visible-columns) | - | X | - | - | - | Column visibility and presentation order |
+| [2016 Visible Foreign Keys](#tag-2016-visible-foreign-keys) | - | X | - | - | - | Foreign key visibility and presentation order |
+| [2016 Export](#tag-2016-export) | - | X | - | - | - | Describes export templates |
+| [2017 Asset](#tag-2017-asset) | - | - | X | - | - | Describes assets |
+| [2018 Citation](#tag-2018-citation) | - | X | - | - | - | Describes citation |
+| [2018 Required](#tag-2018-required) | - | X | - | - | - | Required model column |
+| [2018 Indexing Preferences](#tag-2018-indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
 
 For brevity, the annotation keys are listed above by their section
 name within this documentation. The actual key URI follows the form
@@ -74,7 +76,7 @@ lower-cased with hyphens replacing whitespace. For example, the
 `2015 Display` annotation key URI is actually
 `tag:misd.isi.edu,2015:display`.
 
-### 2015 Display
+### Tag: 2015 Display
 
 `tag:misd.isi.edu,2015:display`
 
@@ -112,7 +114,7 @@ Supported JSON _nshow_ patterns:
 
 See [Context Names](#context-names) section for the list of supported JSON _ncontext_ patterns.
 
-#### 2015 Display Settings Hierarchy
+#### Tag: 2015 Display Settings Hierarchy
 
 - The `"name"` and `"markdown_name"` setting applies *only* to the model element which is annotated. They bypass the `name_style` controls which only apply to actual model names.
   - The `"markdown_name"` setting takes precedence if both are specified.
@@ -133,7 +135,7 @@ Note:
 - An explicit setting of `null` will turn *off* inheritence and restore default behavior for that modele element and any of its nested elements.
 - The name_style has to be derived separately for each field e.g. one can set `underline_space=true` at the schema-level and doesn't have to set this again.   
 
-### 2015 Vocabulary
+### Tag: 2015 Vocabulary
 
 `tag:misd.isi.edu,2015:vocabulary`
 
@@ -176,7 +178,7 @@ often used in prose, long-form presentations, tool tips, or other
 scenarios where a user may need more natural language understanding of
 the concept.
 
-### 2016 Ignore
+### Tag: 2016 Ignore
 
 `tag:isrd.isi.edu,2016:ignore`
 
@@ -184,8 +186,8 @@ This key is allowed on any number of Schema, Table, or Column model elements. Th
 
 This key was previously specified for these model elements but such use is deprecated:
 
-- Column (use [2016 Visible Columns](#2016-visible-columns) instead)
-- Foreign Key (use [2016 Visible Foreign Keys](#2016-visible-foreign-keys) instead)
+- Column (use [2016 Visible Columns](#tag-2016-visible-columns) instead)
+- Foreign Key (use [2016 Visible Foreign Keys](#tag-2016-visible-foreign-keys) instead)
 
 This annotation indicates that the annotated model element should be ignored in typical model-driven user interfaces, with the presentation behaving as if the model element were not present. The JSON payload contextualizes the user interface mode or modes which should ignore the model element.
 
@@ -204,7 +206,7 @@ using a hierarchical scoping mode:
 5. Annotations on the column or foreign key reference levels override table-level, schema-level, server-level, or codebase behaviors.
 
 
-### 2016 App Links
+### Tag: 2016 App Links
 
 `tag:isrd.isi.edu,2016:app-links`
 
@@ -235,7 +237,7 @@ using a hierarchical scoping mode:
 3. Schema-level annotation overrides server-level or codebase behaviors.
 4. Table-level annotation overrides schema-level, server-level, or codebase behaviors.
 
-### 2016 Immutable
+### Tag: 2016 Immutable
 
 `tag:isrd.isi.edu,2016:immutable`
 
@@ -243,7 +245,7 @@ This key indicates that the values for a given model element may not be mutated
 (changed) once set. This key is allowed on any number of columns, tables, and schemas. There is no
 content for this key.
 
-### 2016 Generated
+### Tag: 2016 Generated
 
 `tag:isrd.isi.edu,2016:generated`
 
@@ -251,14 +253,14 @@ This key indicates that the values for a given model element will be generated b
 the system. This key is allowed on any number of columns, tables and schemas.
 There is no content for this key.
 
-### 2016 Non Deletable
+### Tag: 2016 Non Deletable
 
 `tag:isrd.isi.edu,2016:non-deletable`
 
 This key indicates that the schema or table is non-deletable. This key is allowed
 on any number tables and schemas. There is no content for this key.
 
-### 2016 Visible Columns
+### Tag: 2016 Visible Columns
 
 `tag:isrd.isi.edu,2016:visible-columns`
 
@@ -282,14 +284,19 @@ Supported _columnlist_ patterns:
 Supported _columnentry_ patterns:
 
 - _columnname_: A string literal _columnname_ identifies a constituent column of the table. The value of the column SHOULD be presented, possibly with representation guided by other annotations or heuristics.
-- `[` _schemaname_ `,` _constraintname_ `]`: A two-element list of string literal _schemaname_ and _constraintname_ identifies a constituent foreign key of the table. The value of the external entity referenced by the foreign key SHOULD be presented, possibly with representation guided by other annotations or heuristics. If the foreginkey is representing an inbound relationship with the current table, it SHOULD be presented in a tabular format since it can represent multiple rows of data.
+- `[` _schemaname_ `,` _constraintname_ `]`: A two-element list of string literal _schemaname_ and _constraintname_ identifies a constituent foreign key of the table. The value of the external entity referenced by the foreign key SHOULD be presented, possibly with representation guided by other annotations or heuristics. If the foreign key is representing an inbound relationship with the current table, it SHOULD be presented in a tabular format since it can represent multiple rows of data.
 - `{ "source": ` _sourceentry_ `}`:  Defines a pseudo-column based on the given _sourceentry_. For detailed explanation and examples please refer to [here](https://github.com/informatics-isi-edu/ermrestjs/wiki/Pseudo-Column-Logic-&-Heuristics#examples). Other optional attributes that this JSON document can have are:
   - `markdown_name`: The markdown to use in place of the default heuristics for title of column.
   - `comment`: The tooltip to be used in place of the default heuristics for the column.
   - `entity`: If the _sourceentry_ can be treated as entity (the source column is key of the table), setting this attribute to `false` will force the scalar mode.
-  - `aggregate`: The aggregate function that should be used for getting an aggregated result. The available aggregate functions are `min`, `max`, `cnt`, `cnt_d`, and `array`.
+  - `aggregate`: The aggregate function that should be used for getting an aggregated result. The available aggregate functions are `min`, `max`, `cnt`, `cnt_d`, `array`, and `array_d`.
     - `array` will return ALL the values including duplicates associated with the specified columns. For data types that are sortable (e.g integer, text), the values will be sorted alphabetically or numerically. Otherwise, it displays values in the order that it receives from ERMrest. There is no paging mechanism to limit what's shown in the aggregate column, therefore please USE WITH CARE as it can incur performance overhead and ugly presentation.
-    - Using `array` aggregate in entiy mode will provide an array of row-names instead of just they value of the column.
+    - `array_d` will return distinct values. It has the same performance overhead as `array`, so pleas USE WITH CARE.
+    - Using `array` or `array_d` aggregate in entity mode will provide an array of row-names instead of just the value of the column.
+  - `array_display`: If you have `"aggregate": "array"` or `"aggregate": "array_d"` in the pseudo-column definition, a comma-seperated value will be presented to the user. You can use `array_display` attribute to change that. The available options are,
+    - `olist` for ordered bullet list.
+    - `ulist` for unordered bullet list.
+    - `csv` for comma-seperated values.
 
 Supported _sourceentry_ pattern:
 - _columnname_: : A string literal. _columnname_ identifies a constituent column of the table.
@@ -339,7 +346,7 @@ The following is an example of visible-columns annotation payload for defining f
 }
 ```
 
-### 2017 Key Display
+### Tag: 2017 Key Display
 
 `tag:isrd.isi.edu,2017:key-display`
 
@@ -367,8 +374,8 @@ Supported _columnorder_key_ syntax:
 
 Key pseudo-column-naming heuristics (use first applicable rule):
 
-1. Use key name specified by [2015 Display](#2015-display) if `name` attribute is specified.
-2. For simple keys, use effective name of sole constituent column considering [2015 Display](#2015-display) and column name from model.
+1. Use key name specified by [2015 Display](#display) if `name` attribute is specified.
+2. For simple keys, use effective name of sole constituent column considering [2015 Display](#display) and column name from model.
 3. Other application-specific defaults might be considered (non-normative examples):
   - Anonymous pseudo-column may be applicable in some presentations
   - A fixed name such as `Key`
@@ -383,7 +390,7 @@ Key sorting heuristics (use first applicable rule):
 
 The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.
 
-### 2016 Foreign Key
+### Tag: 2016 Foreign Key
 
 `tag:isrd.isi.edu,2016:foreign-key`
 
@@ -408,9 +415,6 @@ Supported _columnorder_key_ syntax:
 - `{ "column":` _columnname_ `, "descending": false }`: Sort according to the values in the _columnname_ column.
 - `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
 - _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`. _columnname_ can be the name of any columns from the table that the foreign key is referring to.
-
-
-
 
 Set-naming heuristics (use first applicable rule):
 
@@ -459,7 +463,7 @@ literals MUST be URL-escaped to protect any special characters. All
 _column_ names MUST match columns in the referenced table and MUST NOT
 be qualified with table instance aliases.
 
-### 2016 Column Display
+### Tag: 2016 Column Display
 
 `tag:isrd.isi.edu,2016:column-display`
 
@@ -479,7 +483,6 @@ Supported _option_ syntax:
 - `"column_order"`: `[` _columnorder_key_ ... `]`: An alternative sort method to apply when a client wants to semantically sort by this column.
 - `"column_order": false`: Sorting by this column should not be offered.
 
-
 Supported _columnorder_key_ syntax:
 
 - `{ "column":` _columnname_ `, "descending": true }`: Sort according to the values in the _columnname_ column opposite of the order of current sort. For instance if asked to sort the column in descending order, sorting will be based on the ascending values of _columnname_ column.
@@ -498,7 +501,7 @@ Column sorting heuristics (use first applicable rule):
 
 The first applicable rule MAY cause sorting to be disabled. Consider that determination final and do not continue to search subsequent rules.
 
-### 2016 Table Display
+### Tag: 2016 Table Display
 
 `tag:isrd.isi.edu,2016:table-display`
 
@@ -514,7 +517,7 @@ Supported JSON _option_ payload patterns:
 - `"row_order":` `[` _sortkey_ ... `]`: The list of one or more _sortkey_ defines the preferred or default order to present rows from a table. The ordered list of sort keys starts with a primary sort and optionally continues with secondary, tertiary, etc. sort keys. The given _sortkey_ s will be used as is (_columnorder_ SHOULD not be applied recursivly to this).
 - `"page_size":` `_number_`: The default number of rows to be shown on a page.  
 - `"row_markdown_pattern":` _rowpattern_: Render the row by composing a markdown representation only when `row_markdown_pattern` is non-null.
-  - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#2016-column-display).
+  - Expand _rowpattern_ to obtain a markdown representation of each row via [Pattern Expansion](#pattern-expansion). The pattern has access to column values **after** any processing implied by [2016 Column Display](#column-display).
 - `"separator_markdown":` _separator_: Insert _separator_ markdown text between each expanded _rowpattern_ when presenting row sets. (Default new-line `"\n"`.)
   - Ignore if `"row_markdown_pattern"` is not also configured.
 - `"prefix_markdown":` _prefix_: Insert _prefix_ markdown before the first _rowpattern_ expansion when presenting row sets. (Default empty string `""`.)
@@ -538,13 +541,13 @@ Supported JSON _sortkey_ patterns:
 - `{ "column":` _columnname_ `}`: If omitted, the `"descending"` field defaults to `false` as per above.
 - _columnname_: A bare _columnname_ is a short-hand for `{ "column":` _columnname_ `}`.
 
-#### 2016 Table Display Settings Hierarchy
+#### Table Display Settings Hierarchy 
 
 The table display settings apply only to tables, but MAY be annotated at the schema level to set a schema-wide default, if appropriate in a particular model. Any table-level specification of these settings will override the behavior for that table. These settings on other model elements are meaningless and ignored.
 
-For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritence and restore default behavior for that model element and any of its nested elements.
+For hierarchically inheritable settings, an explicit setting of `null` will turn *off* inheritance and restore default behavior for that model element and any of its nested elements.
 
-### 2016 Visible Foreign Keys
+### Tag: 2016 Visible Foreign Keys
 
 `tag:isrd.isi.edu,2016:visible-foreign-keys`
 
@@ -570,7 +573,7 @@ Supported _sourceentry_ pattern in here:
           "`{` _direction_ `:[` *schema name*`,` *constraint name* `]}` "
       Where _direction_ is either `inbound`, or `outbound`.
 
-### 2016 Table Alternatives
+### Tag: 2016 Table Alternatives
 
 `tag:isrd.isi.edu,2016:table-alternatives`
 
@@ -585,40 +588,37 @@ A alternative table or view which abstracts another table _SHOULD_ have a non-nu
 
 See [Context Names](#context-names) section for the list of supported _context_ names. It is assumed that any application context that is performing mutation (record creation, deletion, or editing) MUST use a base entity storage table that is not an abstraction over another table. However, the use of the `detailed` or `compact` context MAY offer an abstraction that augments the presentation of an existing record. An application offering mutation options while displaying an existing entity record might then present the data from the `detailed` or `compact` abstraction but only offer editing or data-entry controls on the fields available from the base storage table.
 
-### 2016 Export
+### Tag: 2016 Export
 
 `tag:isrd.isi.edu,2016:export`
 
-This key can be used to define export templates that will be used for `ioboxd` service integration with the client tools. For more information about the annotation payload please visit [the iobodx integration document](https://github.com/informatics-isi-edu/ioboxd/blob/master/doc/integration.md). The following is how the JSON payload should look like:
+This key can be used to define export templates that will be used for `ioboxd` service integration with the client tools. For more information about the annotation payload please visit [the iobodx integration document](https://github.com/informatics-isi-edu/ioboxd/blob/master/doc/integration.md). 
 
-```
-"tag:isrd.isi.edu,2016:export": {
-  "templates": [
-    {
-      "name": "<some-name>",  // for internal use
-      "format_name": "<chaise-display-name>",
-      "format_type": "<FILE or BAG>",
-      "outputs": [
-        {
-          "source": {
-            "api": "<ermrest-query-type>", // entity, attribute, attribute-group
-            "table": "<schema:table>"
-            "path": "<optional-ermrest-predicate>" //  optional
-          },
-          "destination": {
-            "name": "<output-file-base-name>",
-            "type": "<output-format-suffix>", // FILE supports csv, json; BAG supports csv, json, fetch, download
-            "params": "<params>" // conditionally optional
-          }
-        }, ...
-      ]
-    }, ...
-  ]
-}
-```
+Supported JSON payload patterns:
 
+- `{` `"templates":` `[`_template_`]` `}`: An array of _template_ objects to export.
 
-### 2017 Asset
+Supported _template_ patterns:
+- _name_: The name of the template instance, which should be unique among all other template instances in this _templates_ array.
+- _format_name_: The display name that will be used to populate the Chaise export drop-down for this _template_.
+- _format_type_: One of two keywords; _"FILE"_ or _"BAG"_, used to determine the container format for results.
+- `{`... `"outputs":` `[`_output_`]` `}`: An array of _output_ objects.
+
+Supported _output_ patterns:
+- `{`... `"source":` _sourceentry_ `}`: An object that contains parameters used to generate source data by querying ERMrest.
+- `{`... `"destination":` _destinationentry_ `}`: An object that contains parameters used to render the results of the source query into a specified destination format.
+
+Supported _sourceentry_ patterns:
+- _api_: The type of ERMrest query projection to perform. Valid values are _entity_, _attribute_, and _attributegroup_.
+-_table_: A schema-qualified ERMrest table name in the form `schema_name:table_name`. The string MAY be escaped according to [RFC 3986](https://tools.ietf.org/html/rfc3986).
+-_path_: An optional ERMrest path predicate. The string MUST be escaped according to [RFC 3986](https://tools.ietf.org/html/rfc3986) if it contains user-generated identifiers that use the reserved character set. See the [ERMRest URL conventions](https://github.com/informatics-isi-edu/ermrest/blob/master/docs/api-doc/index.md#url-conventions) for additional information.
+
+Supported _destinationentry_ patterns:
+-_name_: The base name to use for the output file.
+-_type_: A type keyword that determines the output format. Supported values are dependent on the `template`.`format_type` selected. For the `FILE` type, the values `csv`, `json`, are currently supported. For the `BAG` type, the values `csv`, `json`, `fetch` and `download` are currently supported.
+-_params_: An optional object containing destination format-specific parameters.  Some destination formats (particularly those that require some kind of post-processing or data transformation), may require additional parameters  to be specified.
+
+### Tag: 2017 Asset
 
 `tag:isrd.isi.edu,2017:asset`
 
@@ -655,11 +655,41 @@ Protocol-specific metadata retrieval MAY be applied once an asset location is kn
 - Some location schemes may define authoritative metadata resolution procedures.
 
 At present, the Chaise implementation of the asset annotation has the following limitations:
-1. 'generated' column(s) in the `url_pattern` are only supported in the `entry/edit` context and _not_ in the `entry/create` context. If you wish to use 'generated' column(s) in the `url_pattern`, you will need to use the [2016 Visible Columns](#2016-visible-columns) annotation and leave the asset column out of the list of visible columns for its `entry/create` context.
+1. 'generated' column(s) in the `url_pattern` are only supported in the `entry/edit` context and _not_ in the `entry/create` context. If you wish to use 'generated' column(s) in the `url_pattern`, you will need to use the [2016 Visible Columns](#visible-columns) annotation and leave the asset column out of the list of visible columns for its `entry/create` context.
 2. `sha256` is not presently supported.
 3. If `url_pattern` is not available or `browser_upload` is `False` Chaise will show a disabled form field for the asset column. It will still provide the download button in read-only contexts.
 
-### 2018 Indexing Preferences
+### Tag: 2018 Citation
+
+`tag:isrd.isi.edu,2018:citation`
+
+This key indicates that the annotated table has a format for defining citations for the rows. A _citation_ defines the given row in a way that it can be shared and referenced in other works. Each pattern in the citation annotation is consumed by the client and presented in a way defined by the client.
+
+Supported JSON payload patterns:
+
+- `{`... `"journal_pattern": ` _pattern_ ...`}`: A desired journal value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_. This attribute is required for the citation feature and if it is not specified, the client will not provide the citation display feature. See implementation notes below.
+- `{`... `"author_pattern": ` _pattern_ ...`}`: A desired author value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+- `{`... `"title_pattern": ` _pattern_ ...`}`: A desired title value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+- `{`... `"year_pattern": ` _pattern_ ...`}`: A desired year value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_. This attribute is required for the citation feature and if it is not specified, the client will not provide the citation display feature. See implementation notes below.
+- `{`... `"url_pattern": ` _pattern_ ...`}`: A desired url value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_. This attribute is required for the citation feature and if it is not specified, the client will not provide the citation display feature. See implementation notes below.
+- `{`... `"id_pattern": ` _pattern_ ...`}`: A desired id value can be derived by [Pattern Expansion](#pattern-expansion) on _pattern_.
+
+Default heuristics:
+- `journal_pattern`, `year_pattern`, and `url_pattern` MUST be specified for citation. If any of the 3 are not specified or if one of them produces a null value, citation will be disabled.
+- If any of the other values are not present or produce a null value, it is up to the client to decide how to display the citation.
+
+At present, the Chaise implementation of the citation annotation has the following limitations:
+1. If `journal_pattern`, `year_pattern`, or `url_pattern` is not available, Chaise will not show a Citation list option in the Share dialog.
+2. Chaise will try to show the 3 non-required fields if their are present and their templates don't produce a null value.
+
+### Tag: 2018 Required
+
+`tag:isrd.isi.edu,2018:required`
+
+This key indicates that the values for a given model element will be required by
+the system. This key is allowed on any number of columns. There is no content for this key.
+
+### Tag: 2018 Indexing Preferences
 
 `tag:isrd.isi.edu,2018:indexing-preferences`
 
@@ -684,7 +714,8 @@ This annotation is a hint to ERMrest during table or column creation, when index
 
 ### Context Names
 
-List of _context_ names that are used in ermrest:
+List of _context_ names that are used in ERMrest:
+
 - `"compact"`: Any compact, tabular presentation of data from multiple entities.
   - `"compact/brief"`: A limited compact, tabular presentation of data from multiple entities to be shown under the `detailed` context. In this context, only a page of data will be shown with a link to the access the `compact` context for more detail.  
   - `"compact/select"`: A sub-context of `compact` that is used for selecting entities, e.g. when prompting the user for choosing a foreign key value.
@@ -709,20 +740,20 @@ The following matrix illustrates which context is meaningful in which annotation
 
 | Annotation                                              | compact | compact/brief | compact/select | detailed | entry | entry/edit | entry/create | filter | row_name | * |
 |---------------------------------------------------------|---------|---------------|----------------|----------|-------|------------|--------------|--------|----------|---|
-| [2015 Display](#2015-display)                           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Ignore](#2016-ignore)                             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Visible Columns](#2016-visible-columns)           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Column Display](#2016-column-display)             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Table Display](#2016-table-display)               | X       | X             | X              | X        | -     | -          | -            | X      | X        | X |
-| [2016 Visible Foreign Keys](#2016-visible-foreign-keys) | X       | -             | -              | X        | X     | X          | X            | X      | -        | X |
-| [2016 Table Alternatives](#2016-table-alternatives)     | X       | -             | X              | X        | -     | -          | -            | X      | -        | X |
+| [2015 Display](#tag-2015-display)                           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Ignore](#tag-2016-ignore)                             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Visible Columns](#tag-2016-visible-columns)           | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Column Display](#tag-2016-column-display)             | X       | -             | X              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Table Display](#tag-2016-table-display)               | X       | X             | X              | X        | -     | -          | -            | X      | X        | X |
+| [2016 Visible Foreign Keys](#tag-2016-visible-foreign-keys) | X       | -             | -              | X        | X     | X          | X            | X      | -        | X |
+| [2016 Table Alternatives](#tag-2016-table-alternatives)     | X       | -             | X              | X        | -     | -          | -            | X      | -        | X |
 
 
 ## Pattern Expansion
 
-When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{{column name}}` or `{{{ column name}}}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_.
+When deriving a field value from a _pattern_, the _pattern_ MAY contain markers for substring replacements of the form `{{column name}}` or `{{{ column name}}}` where `column name` MUST reference a column in the table. Any particular column name MAY be referenced and expanded zero or more times in the same _pattern_. Each pattern is passed through a templating environment. By default, this templating environment is `Mustache`. A `template_engine` parameter can be defined alongside any _pattern_ to define which templating engine to use.
 
-For example, a _column_ may have a [`tag:isrd.isi.edu,2016:column-display`](#2016-column-display) annotation containing the following payload:
+For example, a _column_ may have a [`tag:isrd.isi.edu,2016:column-display`](#tag-2016-column-display) annotation containing the following payload:
 
 ```
 {

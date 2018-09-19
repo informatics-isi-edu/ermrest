@@ -23,6 +23,14 @@ where the components in this structure are:
    - the `accept` parameter to override HTTP `Accept` header for content negotiation
    - the `defaults` and `nondefaults` parameters to modify the behavior of POST operations to the `entity` API
 
+## Entity Resolution Names
+
+The `entity_rid` resource space denotes resolvable RIDs using names of the form:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity_rid/` _rid_
+
+The single _rid_ parameter is an entity reference to be resolved in the catalog or catalog snapshot. This _rid_ should be a `RID` column value observed in an entity within the catalog. The resolved resource, when found, is a concise JSON record telling the client in which table to look for a given entity. The client must then use other data-access resources, described next, to actually retrieve the entity content associated with the _rid_.
+
 ## Entity Names
 
 The `entity` resource space denotes whole entities using names of the form:
@@ -83,6 +91,7 @@ As a special case, the psuedo-column `*` can be used in several idiomatic forms:
 
 - `cnt(*)`: a count of entities rather than of non-NULL values is computed
 - `array(`_alias_`:*)`: an array of records rather than an array of values is computed
+- `array_d(`_alias_`:*)`: an array of distinct records rather is computed
 
 TODO: document other variants?
 
@@ -462,7 +471,7 @@ The `limit` query parameter is only meaningful on retrieval requests using the `
 
 ## Data Paging
 
-The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [paging modifers](#paging-modifiers) can be combined to express paged access to set-based data resources:
+The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [paging modifiers](#paging-modifiers) can be combined to express paged access to set-based data resources:
 
 1. The sort order defines a stable sequence of set elements.
 1. The paging modifiers select set elements following (or preceding) the last-visited element.

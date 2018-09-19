@@ -29,8 +29,6 @@ once an appropriate database connection is available.
 import urllib
 
 from .catalog import Catalogs, Catalog
-from . import model
-from . import data
 from ...model.name import Name, NameList
 from . import history
 

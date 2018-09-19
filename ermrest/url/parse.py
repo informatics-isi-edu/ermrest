@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2017 University of Southern California
+# Copyright 2010-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,6 +77,7 @@ def p_apis(p):
              | foreignkeyref
              | foreignkeyrefslash
              | textfacet
+             | resolve_entity_rid
              | catalog_range
              | data_range
              | config_range
@@ -103,6 +104,10 @@ def p_catalog_when(p):
     cur = web.ctx.ermrest_catalog_pc.cur
     web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[8])
     web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
+
+def p_resolve_entity_rid(p):
+    """resolve_entity_rid : catalogslash ENTITY_RID '/' string"""
+    p[0] = p[1].entity_rid(p[4])
 
 def p_catalog_range(p):
     """cataloghistory : catalogslash HISTORY"""
@@ -387,8 +392,17 @@ def p_attrcore(p):
                 | binfunc"""
     p[0] = p[1]
 
+def p_aggfunc_name(p):
+    """aggfunc_name : ARRAY
+                    | ARRAY_D
+                    | CNT
+                    | CNT_D
+                    | MIN
+                    | MAX"""
+    p[0] = p[1]
+
 def p_attrcore_agg(p):
-    """aggfunc : string '(' sname ')'"""
+    """aggfunc : aggfunc_name '(' sname ')'"""
     p[0] = ast.Aggregate(p[1], p[3])
 
 # TODO: uncomment if we implement automatic binning modes

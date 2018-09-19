@@ -1,17 +1,13 @@
-ERMrest
-========
+Entity Relationship Store (ERMrest)
+====================================
 
 .. toctree::
    :maxdepth: 4
    :caption: ERMrest User Documents
 
-   user-doc/install-redhat.md
-   user-doc/install-ubuntu1204
    user-doc/annotation.md
-   user-doc/tuning.md
    user-doc/ermrest-registry-purge.md
    user-doc/ermrest-client-table.md
-   user-doc/history-track.md
 
 .. toctree::
   :maxdepth: 4
@@ -22,7 +18,7 @@ ERMrest
 
 .. toctree::
   :maxdepth: 4
-  :caption: ERMrest API: Model Guide
+  :caption: ERMrest API: Model Access
   
   api-doc/model/naming.md
   api-doc/model/rest.md
@@ -30,7 +26,7 @@ ERMrest
   
 .. toctree::
   :maxdepth: 4
-  :caption: ERMrest API: Access Control
+  :caption: ERMrest API: Access Control Policy
   
   api-doc/acl/concepts.md
   api-doc/acl/static.md
@@ -39,9 +35,14 @@ ERMrest
   
 .. toctree::
   :maxdepth: 4
-  :caption: ERMrest API: Client-specific Rights
+  :caption: ERMrest API: Data Access
   
   api-doc/data/naming.md
   api-doc/data/rest.md
+
+.. toctree::
+  :maxdepth: 4
+  :caption: ERMrest API: History Administration
+  
   api-doc/history/naming.md
   api-doc/history/rest.md
