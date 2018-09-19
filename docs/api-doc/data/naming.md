@@ -471,7 +471,7 @@ The `limit` query parameter is only meaningful on retrieval requests using the `
 
 ## Data Paging
 
-The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [paging modifers](#paging-modifiers) can be combined to express paged access to set-based data resources:
+The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [paging modifiers](#paging-modifiers) can be combined to express paged access to set-based data resources:
 
 1. The sort order defines a stable sequence of set elements.
 1. The paging modifiers select set elements following (or preceding) the last-visited element.

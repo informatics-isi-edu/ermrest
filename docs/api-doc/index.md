@@ -67,7 +67,7 @@ In general, ERMrest allows clients to define their own models. However, to simpl
    - A client identifier for *who* created or *who* last modified the row
 - An idiom for referring to a *version* of a row, i.e. a snapshot of its state, via the combination of the row identifier and the row last modified timestamp.
 
-See [ERMrest standard system columns documentation](model/system-columns.md#ermrest-standard-system-columns) for more information about the names, types, and special guarantees of these system columns.
+See [ERMrest standard system columns documentation](model/system-columns.md#standard-system-columns) for more information about the names, types, and special guarantees of these system columns.
  
 #### Access Control
 
@@ -166,7 +166,7 @@ The [data resources](data/naming.md) make use of a model-driven language for den
       1. [Linkage by Foriegn-Key Endpoint](data/naming.md#linkage-by-foreign-key-endpoint)
       1. [Linkage by Explicit Column Mapping](data/naming.md#linkage-by-explicit-column-mapping)
       1. [Outer-Join Linkage by Column Mapping](data/naming.md#outer-join-linkage-by-column-mapping)
-   1. [Table Instance Alias](data/naming.md#table-instance-alias)
+   1. [Table Instance Alias](data/naming.md#table-instance-aliases)
    1. [Path Context Reset](data/naming.md#path-context-reset)
 1. [Filter Language](data/naming.md#filter-language)
    1. [Unary Filter Predicate](data/naming.md#unary-filter-predicate)
@@ -250,9 +250,9 @@ The ERMrest interface supports typical HTTP operations to manage these different
    1. [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults)
    1. [Entity Update](data/rest.md#entity-update)
    1. [Entity Retrieval](data/rest.md#entity-retrieval)
-   1. [Entity Delete](data/rest.md#entity-delete)
+   1. [Entity Deletion](data/rest.md#entity-deletion)
    1. [Attribute Retrieval](data/rest.md#attribute-retrieval)
-   1. [Attribute Delete](data/rest.md#attribute-delete)
+   1. [Attribute Deletion](data/rest.md#attribute-deletion)
    1. [Attribute Group Retrieval](data/rest.md#attribute-group-retrieval)
    1. [Attribute Group Update](data/rest.md#attribute-group-update)
    1. [Attribute Group Update with Renaming](data/rest.md#attribute-group-update-with-renaming)
