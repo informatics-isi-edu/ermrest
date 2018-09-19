@@ -4,6 +4,52 @@ The [ERMrest](http://github.com/informatics-isi-edu/ermrest) data operations man
 
 In the following examples, we illustrate the use of specific data formats. However, content negotiation allows any of the supported tabular data formats to be used in any request or response involving tabular data.
 
+## Entity Resolution
+
+The GET operation is used to resolve an externally conveyed `RID` column value, using an `entity_rid` resource data name of the form:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity_rid/` _rid_
+
+On success the response for an existing entity is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+	
+	{
+	  "schema_name": sname,
+	  "table_name": tname,
+	  "RID": rid
+	}
+
+This result indicates the schema name _sname and table name _tname_ where the given _rid_ can be located. Given such a result, the client may attempt to retrieve the resolved entity content via the [entity retrieval](#entity-retrieval) API using this form of resource name:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _sname_ `:` _tname_ `/RID=` _rid_
+
+to address the resolved entity within the same catalog or catalog snapshot it was resolved in.
+
+However, if resolution determines that the entity existed previously and no longer exists within the addressed catalog or catalog snapshot, a slightly different success response is generated:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+	
+	{
+	  "schema_name": sname,
+	  "table_name": tname,
+	  "RID": rid,
+	  "deleted_at": _dtime_,
+	  "last_visible_at": _vtime_,
+	  "last_visible_snaptime": _vrevision_
+	}
+
+This result indicates the _sname_ and _tname_ for the _rid_ as previously; it additionally indicates a deletion timestamp _dtime_ when the entity was removed, a last-visible timestamp _vtime_ when the entity was visible with its last pre-deletion state, and the _vrevision_ revision number of the catalog snapshot containing this last visible state. Given such a result, the client may attempt to retrieve the last-visible resolved entity content via the following resource name:
+
+- _service_ `/catalog/` _cid_ `@` _vrevision_ `/entity/` _sname_ `:` _tname_ `/RID=` _rid_
+
+to address the resolved entity within the _vrevision_ catalog snapshot containing its final visible state.
+
+Typical error response codes include:
+- 404 Not Found
+
 ## Entity Creation
 
 The POST operation is used to create new entity records in a table, using an `entity` resource data name of the form:

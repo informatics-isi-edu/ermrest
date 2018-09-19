@@ -66,6 +66,7 @@ here is a quick matrix to locate them.
 | [2016 Export](#tag-2016-export) | - | X | - | - | - | Describes export templates |
 | [2017 Asset](#tag-2017-asset) | - | - | X | - | - | Describes assets |
 | [2018 Citation](#tag-2018-citation) | - | X | - | - | - | Describes citation |
+| [2018 Required](#tag-2018-required) | - | X | - | - | - | Required model column |
 | [2018 Indexing Preferences](#tag-2018-indexing-preferences) | - | X | X | - | - | Specify database indexing preferences |
 
 For brevity, the annotation keys are listed above by their section
@@ -680,6 +681,13 @@ Default heuristics:
 At present, the Chaise implementation of the citation annotation has the following limitations:
 1. If `journal_pattern`, `year_pattern`, or `url_pattern` is not available, Chaise will not show a Citation list option in the Share dialog.
 2. Chaise will try to show the 3 non-required fields if their are present and their templates don't produce a null value.
+
+### Tag: 2018 Required
+
+`tag:isrd.isi.edu,2018:required`
+
+This key indicates that the values for a given model element will be required by
+the system. This key is allowed on any number of columns. There is no content for this key.
 
 ### Tag: 2018 Indexing Preferences
 
