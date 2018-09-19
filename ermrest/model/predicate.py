@@ -275,6 +275,15 @@ class EqualPredicate (BinaryPredicate):
                 self.right_expr.sql_literal(self.left_col.type.base_type),
                 self.left_col.type.sql(basic_storage=True),
             )
+        elif self.left_col.name == 'RID':
+            # specialization of BinaryPredicate.sql_where() to try normalizing user-supplied RID for equality tests
+            return """
+(%(left_rid)s = %(right_rid)s
+   OR %(left_rid)s = _ermrest.urlb32_encode(_ermrest.urlb32_decode(%(right_rid)s, False)))
+""" % {
+    'left_rid': '%st%d."RID"' % (prefix, self.left_elem.pos),
+    'right_rid': self.right_expr.sql_literal(self.left_col.type),
+}
         else:
             return BinaryPredicate.sql_where(self, epath, elem, prefix=prefix)
 

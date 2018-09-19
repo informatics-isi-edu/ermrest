@@ -35,17 +35,18 @@ class EntityRidResolver (Api):
         self._resolve_rid = rid
 
     def _table_found_or_gone(self, cur, rid, snaptime=None):
-        """Return (table_rid, gonetime) or None if not found.
+        """Return (entity_rid, table_rid, gonetime) or None if not found.
 
            table_rid is the table where rid was resolved.
            gonetime is None when found or an earlier timestamp when gone.
         """
         cur.execute("""
 SELECT
+  ve.entity_rid,
   ve.table_rid,
   CASE WHEN ve.during @> %(snaptime)s THEN NULL ELSE upper(ve.during) END
 FROM _ermrest_history.visible_entities ve
-WHERE entity_rid = %(rid)s
+WHERE (entity_rid = %(rid)s OR entity_rid = _ermrest.urlb32_encode(_ermrest.urlb32_decode(%(rid)s, False)))
   AND (ve.during @> %(snaptime)s OR upper(ve.during) <= %(snaptime)s)
 ORDER BY during DESC
 LIMIT 1;
@@ -115,7 +116,7 @@ WHERE t."RID" = %(table_rid)s
         if row is None:
             raise exception.rest.NotFound('entity with RID=%s' % self._resolve_rid)
 
-        table_rid, gone_when = row
+        entity_rid, table_rid, gone_when = row
 
         if gone_when is not None:
             last_visible = self._last_visible_snaptime(cur, table_rid, self._resolve_rid, gone_when)
@@ -131,7 +132,7 @@ WHERE t."RID" = %(table_rid)s
             raise exception.rest.NotFound('entity with RID=%s' % self._resolve_rid)
 
         prejson = {
-            'RID': self._resolve_rid,
+            'RID': entity_rid,
             'schema_name': sname,
             'table_name': tname,
         }

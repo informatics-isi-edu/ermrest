@@ -104,7 +104,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION _ermrest.urlb32_decode(text) RETURNS int8 IMMUTABLE AS $$
+CREATE OR REPLACE FUNCTION _ermrest.urlb32_decode(encoded text, raise_errors boolean) RETURNS int8 IMMUTABLE AS $$
 DECLARE
   raw bit(65);
   code int;
@@ -116,7 +116,11 @@ BEGIN
 
   IF octet_length(encoded) > 13
   THEN
-    RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = 'Length exceeds 13 symbols';
+    IF raise_errors THEN
+      RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = 'Length exceeds 13 symbols';
+    ELSE
+      RETURN NULL;
+    END IF;
   END IF;
 
   FOR d IN 1 .. octet_length(encoded) LOOP
@@ -154,7 +158,11 @@ BEGIN
       WHEN 'Y' THEN code := 30;
       WHEN 'Z' THEN code := 31;
       ELSE
-        RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = substring(encoded from 1 for 1);
+        IF raise_errors THEN
+          RAISE SQLSTATE '22P02' USING DETAIL = $1, HINT = 'Invalid character: ' || quote_literal(substring(encoded from 1 for 1));
+	ELSE
+	  RETURN NULL;
+	END IF;
     END CASE;
     raw := (raw << 5) | ((0::bit(60) || code::bit(5)));
     encoded := substring(encoded from 2);
@@ -163,6 +171,10 @@ BEGIN
   RETURN substring(raw from 1 for 64)::int8;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.urlb32_decode(text) RETURNS int8 IMMUTABLE AS $$
+SELECT _ermrest.urlb32_decode($1, True);
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.tstzencode(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT _ermrest.urlb32_encode(floor(EXTRACT(epoch FROM $1))::int8 * 1000000 + EXTRACT(microseconds FROM $1)::int8 % 1000000);
