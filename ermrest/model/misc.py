@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,10 +87,19 @@ sufficient_rights = {
 
 class AltDict (dict):
     """Alternative dict that raises custom errors."""
-    def __init__(self, keyerror, validator=lambda k, v: (k, v)):
+    def __init__(self, keyerror, validator=lambda k, v: (k, v), lazy_get=None, lazy_load=None):
         dict.__init__(self)
         self._keyerror = keyerror
         self._validator = validator
+        self._lazy_get = lazy_get
+        self._lazy_load = lazy_load
+
+    def _try_lazy_get(self, k):
+        if self._lazy_get is not None:
+            v = self._lazy_get(k)
+            self[k] = v
+            return v
+        raise KeyError(k)
 
     def __getitem__(self, k):
         try:
@@ -98,13 +107,22 @@ class AltDict (dict):
                 k = k.decode('utf8')
             return dict.__getitem__(self, k)
         except KeyError:
-            raise self._keyerror(k)
+            try:
+                return self._try_lazy_get(k)
+            except KeyError:
+                raise self._keyerror(k)
         except TypeError:
             raise self._keyerror(k)
 
     def __contains__(self, k):
         try:
-            return dict.__contains__(self, k)
+            if dict.__contains__(self, k):
+                return True
+            try:
+                self._try_lazy_get(k)
+                return True
+            except KeyError:
+                return False
         except TypeError:
             raise exception.BadSyntax('Invalid model element name: %s' % k)
 

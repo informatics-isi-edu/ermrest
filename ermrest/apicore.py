@@ -44,7 +44,7 @@ from .exception import *
 
 from .registry import get_registry
 from .catalog import get_catalog_factory
-from .util import negotiated_content_type, urlquote, random_name
+from .util import negotiated_content_type, urlquote, random_name, sql_literal
 
 __all__ = [
     'web_urls',
@@ -208,6 +208,13 @@ def request_init():
         r['id'] if type(r) is dict else r
         for r in web.ctx.webauthn2_context.attributes
     ]).union({'*'})
+
+    web.ctx.ermrest_client_roles_sql = 'ARRAY[%s]::text[]' % (
+        ','.join([
+            sql_literal(v)
+            for v in web.ctx.ermrest_client_roles
+        ])
+    )
 
 def request_final():
     """Log final request handler state to finalize a request's audit trail."""

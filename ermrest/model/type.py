@@ -72,6 +72,7 @@ class TypesEngine (object):
         self.by_rid = dict()
         self.disallowed_by_rid = dict()
         self.by_name = dict()
+        self.last_access = None # hack for use by external LRU cache logic
 
     def add_base_type(self, rid, type_name, comment):
         try:

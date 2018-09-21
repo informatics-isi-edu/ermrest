@@ -35,6 +35,23 @@ from .column import Column
 from .table import Table
 from .key import Unique, ForeignKey, KeyReference, PseudoUnique, PseudoKeyReference
 
+def introspect_types(cur, config, snapwhen):
+    """Get possible column types (including unused ones) in TypesEngine instance."""
+    typesengine = TypesEngine(config)
+    cur.execute("""
+EXECUTE ermrest_introspect_types(%s);
+""" % sql_literal(snapwhen)
+    )
+    for rid, schema_rid, type_name, array_element_type_rid, domain_element_type_rid, domain_notnull, domain_default, comment in cur:
+        # TODO: track schema and comments?
+        if domain_element_type_rid is not None:
+            typesengine.add_domain_type(rid, type_name, domain_element_type_rid, domain_default, domain_notnull, comment)
+        elif array_element_type_rid is not None:
+            typesengine.add_array_type(rid, type_name, array_element_type_rid, comment)
+        else:
+            typesengine.add_base_type(rid, type_name, comment)
+    return typesengine
+
 def introspect(cur, config=None, snapwhen=None, amendver=None):
     """Introspects a Catalog (i.e., a database).
     
@@ -47,7 +64,7 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
     """
     # Dicts to re-use singleton objects
     schemas  = dict()
-    typesengine = TypesEngine(config)
+    typesengine = None
     tables   = dict()
     columns  = dict()
     pkeys    = dict()
@@ -78,18 +95,7 @@ EXECUTE ermrest_introspect_catalogs(%s);
         schemas[rid] = Schema(model, schema_name, comment, annotations, acls, rid)
 
     # get possible column types (including unused ones)
-    cur.execute("""
-EXECUTE ermrest_introspect_types(%s);
-""" % sql_literal(snapwhen)
-    )
-    for rid, schema_rid, type_name, array_element_type_rid, domain_element_type_rid, domain_notnull, domain_default, comment in cur:
-        # TODO: track schema and comments?
-        if domain_element_type_rid is not None:
-            typesengine.add_domain_type(rid, type_name, domain_element_type_rid, domain_default, domain_notnull, comment)
-        elif array_element_type_rid is not None:
-            typesengine.add_array_type(rid, type_name, array_element_type_rid, comment)
-        else:
-            typesengine.add_base_type(rid, type_name, comment)
+    typesengine = introspect_types(cur, config, snapwhen)
 
     # get tables, views, etc. (including empty zero-column ones)
     cur.execute("""

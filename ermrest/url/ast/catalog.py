@@ -150,7 +150,11 @@ class Catalog (Api):
         return resolver.EntityRidResolver(self, rid)
 
     def GET_body(self, conn, cur):
-        _model = web.ctx.ermrest_catalog_model
+        #_model = web.ctx.ermrest_catalog_model
+        _model = self.catalog.manager.get_model(
+            snapwhen=web.ctx.ermrest_history_snaptime,
+            amendver=web.ctx.ermrest_history_amendver,
+        )
         if web.ctx.ermrest_history_snaptime is not None:
             cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_snaptime))
             self.catalog_snaptime = cur.fetchone()[0]

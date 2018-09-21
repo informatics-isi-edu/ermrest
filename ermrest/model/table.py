@@ -28,7 +28,7 @@ needed by other modules of the ermrest project.
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode, table_exists
 from .misc import AltDict, Annotatable, HasAcls, HasDynacls, cache_rights, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
-from .column import Column, FreetextColumn
+from .column import Column, FreetextColumn, HistColumnLazy, LiveColumnLazy
 from .key import Unique, ForeignKey, KeyReference
 
 import urllib
@@ -56,7 +56,7 @@ class Table (HasDynacls, HasAcls, Annotatable):
 
     tag_indexing_preferences = 'tag:isrd.isi.edu,2018:indexing-preferences'
 
-    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None):
+    def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None, add_to_model=True):
         super(Table, self).__init__()
         self.schema = schema
         self.name = name
@@ -86,7 +86,7 @@ class Table (HasDynacls, HasAcls, Annotatable):
             self.columns[c.name] = c
             c.table = self
 
-        if name not in self.schema.tables:
+        if add_to_model and name not in self.schema.tables:
             self.schema.tables[name] = self
 
     def _annotation_key_error(self, key):
@@ -519,4 +519,52 @@ WHERE "RID" = %s;
 
     def freetext_column(self):
         return FreetextColumn(self)
+
+class HistTableLazy (Table):
+    def __init__(self, schema, rid, name, kind, coldocs, comment, acls, annotations, rights):
+        Table.__init__(self, schema, name, self._columns_from_coldocs(schema, name, coldocs), kind, comment, annotations, acls, rid=rid, add_to_model=False)
+        self.rights = dict(rights)
+
+    _get_column_cls = HistColumnLazy
+        
+    def has_right(self, aclname):
+        return self.rights[aclname]
+
+    @classmethod
+    def _columns_from_coldocs(cls, schema, table_name, coldocs):
+        columns = []
+        for cpos in range(len(coldocs)):
+            cdoc = coldocs[cpos]
+            try:
+                ctype = schema.model.typesengine.lookup(cdoc["type_rid"], cdoc["column_default"], True)
+            except ValueError:
+                raise ValueError('Disallowed type "%s" requested for column "%s"."%s"."%s"' % (
+                    schema.model.typesengine.disallowed_by_rid(cdoc["type_rid"]),
+                    schema.name,
+                    table_name,
+                    cdoc["column_name"],
+                ))
+            try:
+                default = ctype.default_value(cdoc["column_default"])
+            except ValueError:
+                default = None
+            columns.append(
+                cls._get_column_cls(
+                    cdoc["RID"],
+                    cdoc["column_name"],
+                    cpos,
+                    ctype,
+                    default,
+                    not cdoc["not_null"],
+                    cdoc["comment"],
+                    cdoc["column_num"],
+                    cdoc["annotations"],
+                    cdoc["acls"],
+                    cdoc["rights"],
+                )
+            )
+        return columns
+
+class LiveTableLazy (HistTableLazy):
+    _get_column_class = LiveColumnLazy
 

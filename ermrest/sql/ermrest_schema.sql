@@ -44,6 +44,120 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+BEGIN
+  CREATE TYPE ermrest_acls AS (
+    "enumerate" text[],
+    "select" text[],
+    "insert" text[],
+    "update" text[],
+    "delete" text[],
+    "write" text[],
+    "create" text[],
+    "owner" text[]
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END;
+
+BEGIN
+  CREATE TYPE ermrest_acl_matches AS (
+    "enumerate" boolean,
+    "select" boolean,
+    "insert" boolean,
+    "update" boolean,
+    "delete" boolean,
+    "write" boolean,
+    "create" boolean,
+    "owner" boolean
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END;
+
+BEGIN
+  CREATE TYPE ermrest_rights AS (
+    "enumerate" boolean,
+    "select" boolean,
+    "insert" boolean,
+    "update" boolean,
+    "delete" boolean,
+    "create" boolean,
+    "owner" boolean
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END;
+
+-- convert jsonb '["a", "b", ...]' to ARRAY['a', 'b', ...]
+CREATE OR REPLACE FUNCTION _ermrest.jsonb_to_text_array(v jsonb) RETURNS text[] IMMUTABLE AS $$
+SELECT
+  CASE WHEN v = 'null'::jsonb THEN NULL
+  ELSE
+    (SELECT array_agg(e ORDER BY n)
+     FROM jsonb_array_elements_text(v) WITH ORDINALITY s (e, n))
+  END;
+$$ LANGUAGE SQL;
+
+-- unpack jsonb acls into composite type record
+CREATE OR REPLACE FUNCTION _ermrest.to_acls(acls jsonb) RETURNS ermrest_acls IMMUTABLE AS $$
+SELECT
+  _ermrest.jsonb_to_text_array(acls->'enumerate'),
+  _ermrest.jsonb_to_text_array(acls->'select'),
+  _ermrest.jsonb_to_text_array(acls->'insert'),
+  _ermrest.jsonb_to_text_array(acls->'update'),
+  _ermrest.jsonb_to_text_array(acls->'delete'),
+  _ermrest.jsonb_to_text_array(acls->'write'),
+  _ermrest.jsonb_to_text_array(acls->'create'),
+  _ermrest.jsonb_to_text_array(acls->'owner');
+$$ LANGUAGE SQL;
+
+-- unpack stack of jsonb acls into composite type record
+CREATE OR REPLACE FUNCTION _ermrest.to_acls(acls1 jsonb, acls2 jsonb)
+RETURNS ermrest_acls IMMUTABLE AS $$
+SELECT _ermrest.to_acls($1 || jsonb_strip_nulls($2));
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.to_acls(acls1 jsonb, acls2 jsonb, acls3 jsonb)
+RETURNS ermrest_acls IMMUTABLE AS $$
+SELECT _ermrest.to_acls(($1 || jsonb_strip_nulls($2)) || jsonb_strip_nulls($3));
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.to_acls(acls1 jsonb, acls2 jsonb, acls3 jsonb, acls4 jsonb)
+RETURNS ermrest_acls IMMUTABLE AS $$
+SELECT _ermrest.to_acls((($1 || jsonb_strip_nulls($2)) || jsonb_strip_nulls($3)) || jsonb_strip_nulls($4));
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.matches(acls ermrest_acls, roles text[])
+RETURNS ermrest_acl_matches IMMUTABLE AS $$
+SELECT
+  acls."enumerate" && roles,
+  acls."select" && roles,
+  acls."insert" && roles,
+  acls."update" && roles,
+  acls."delete" && roles,
+  acls."write" && roles,
+  acls."create" && roles,
+  acls."owner" && roles;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.rights(acls ermrest_acls, roles text[])
+RETURNS ermrest_rights IMMUTABLE AS $$
+DECLARE
+  am ermrest_acl_matches;
+  ar ermrest_rights;
+BEGIN
+  am := _ermrest.matches(acls, roles);
+
+  ar."owner" := am."owner";
+  ar."create" := am."create" OR ar."owner";
+  ar."delete" := am."delete" OR am."write" OR ar."owner";
+  ar."update" := am."update" OR am."write" OR ar."owner";
+  ar."insert" := am."insert" OR am."write" OR ar."owner";
+  ar."select" := am."select" OR ar."update" OR ar."delete" OR ar."owner";
+  ar."enumerate" := am."enumerate" OR ar."select" OR ar."insert";
+
+  RETURN ar;
+END;
+$$ LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
 $$ LANGUAGE SQL;
@@ -3212,6 +3326,116 @@ BEGIN
   RETURN;
 END;
 $$ LANGUAGE plpgsql;
+
+---------- Lazy service introspection support
+
+CREATE OR REPLACE FUNCTION _ermrest.live_catalogs(roles text[])
+RETURNS TABLE (acls jsonb, annotations jsonb, rights jsonb) AS $$
+SELECT
+  c.acls,
+  c.annotations,
+  to_jsonb(c_rights) AS rights
+FROM _ermrest.known_catalogs c
+JOIN LATERAL _ermrest.rights(_ermrest.to_acls(c.acls), $1) c_rights ON (True)
+WHERE c."RID" = '0'
+  AND c_rights."enumerate";
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.live_schema(sname text, roles text[])
+RETURNS TABLE ("RID" text, schema_name text, comment text, acls jsonb, annotations jsonb, rights jsonb) AS $$
+SELECT
+  s."RID"::text,
+  s.schema_name,
+  s.comment,
+  s.acls,
+  s.annotations,
+  to_jsonb(s_rights) AS rights
+FROM _ermrest.known_schemas s
+JOIN  _ermrest.known_catalogs c ON (c."RID" = '0')
+JOIN LATERAL _ermrest.rights(_ermrest.to_acls(c.acls, s.acls), $2) s_rights ON (True)
+-- catalog is enumerable or we wouldn't be running this!
+WHERE s.schema_name = $1
+  AND s_rights."enumerate";
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.live_table_columns(trid text, roles text[])
+RETURNS TABLE ("RID" text, table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text, acls jsonb, annotations jsonb, rights jsonb) AS $$
+SELECT
+  c."RID"::text,
+  c.table_rid,
+  c.column_num,
+  c.column_name,
+  c.type_rid,
+  c.not_null,
+  c.column_default,
+  c.comment,
+  c.acls,
+  c.annotations,
+  to_jsonb(c_rights) AS rights
+FROM _ermrest.known_tables t
+JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+JOIN _ermrest.known_catalogs cat ON (cat."RID" = '0')
+JOIN _ermrest.known_columns c ON (c.table_rid = t."RID")
+JOIN LATERAL _ermrest.rights(_ermrest.to_acls(cat.acls, s.acls, t.acls, c.acls), $2) c_rights ON (True)
+-- catalog, schema, and table are enumerable or we wouldn't be running this!
+WHERE t."RID" = $1
+  AND c_rights."enumerate";
+$$ LANGUAGE SQL;
+
+
+
+CREATE OR REPLACE FUNCTION _ermrest.live_table(srid text, tname text, roles text[])
+RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, comment text, coldocs jsonb[], acls jsonb, annotations jsonb, rights jsonb) AS $$
+SELECT
+  t."RID"::text,
+  t.schema_rid,
+  t.table_name,
+  t.table_kind,
+  t.comment,
+  (SELECT COALESCE(array_agg(to_jsonb(col.*) ORDER BY col.column_num), ARRAY[]::jsonb[]) FROM _ermrest.live_table_columns(t."RID", $3) col),
+  t.acls,
+  t.annotations,
+  to_jsonb(t_rights) AS rights
+FROM _ermrest.known_tables t
+JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+JOIN _ermrest.known_catalogs c ON (c."RID" = '0')
+JOIN LATERAL _ermrest.rights(_ermrest.to_acls(c.acls, s.acls, t.acls), $3) t_rights ON (True)
+-- catalog and schema are enumerable or we wouldn't be running this!
+WHERE t.schema_rid = $1
+  AND t.table_name = $2
+  AND t_rights."enumerate";
+$$ LANGUAGE SQL;
+
+
+CREATE OR REPLACE FUNCTION _ermrest.past_catalogs(ts timestamptz, roles text[])
+RETURNS TABLE (acls jsonb, annotations jsonb, rights jsonb) AS $$
+SELECT
+  (c.rowdata)->'acls',
+  (c.rowdata)->'annotations',
+  to_jsonb(c_rights) AS rights
+FROM _ermrest_history.known_catalogs c
+JOIN LATERAL _ermrest.rights(_ermrest.to_acls((c.rowdata)->'acls'), $2) c_rights ON (True)
+WHERE c.during @> $1
+  AND c."RID" = '0'
+  AND c_rights."enumerate";
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.past_schema(sname text, ts timestamptz, roles text[])
+RETURNS TABLE ("RID" text, schema_name text, comment text, acls jsonb, annotations jsonb, rights jsonb) AS $$
+SELECT
+  s."RID"::text,
+  (s.rowdata)->>'schema_name',
+  (s.rowdata)->>'comment',
+  (s.rowdata)->'acls',
+  (s.rowdata)->'annotations',
+  to_jsonb(s_rights) AS rights
+FROM _ermrest.past_catalogs($2, $3) c
+JOIN _ermrest_history.known_schemas s ON True
+JOIN LATERAL _ermrest.rights(_ermrest.to_acls(c.acls, (s.rowdata)->'acls'), $3) s_rights ON (True)
+WHERE s.during @> $2
+  AND (s.rowdata)->>'schema_name' = $1
+  AND s_rights."enumerate";
+$$ LANGUAGE SQL;
 
 RAISE NOTICE 'Completed idempotent creation of standard ERMrest schema.';
 

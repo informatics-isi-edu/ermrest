@@ -98,3 +98,15 @@ PREPARE ermrest_introspect_pseudo_fkey_acl_bindings (timestamptz) AS
   FROM _ermrest.known_pseudo_fkey_acl_bindings($1) a
   GROUP BY a.fkey_rid ;
 
+PREPARE ermrest_live_catalogs (text[]) AS
+  SELECT * FROM _ermrest.live_catalogs($1);
+  
+PREPARE ermrest_past_catalogs (timestamptz, text[]) AS
+  SELECT * FROM _ermrest.past_catalogs($1, $2);
+
+PREPARE ermrest_live_schema (text, text[]) AS
+  SELECT * FROM _ermrest.live_schema($1, $2);
+
+PREPARE ermrest_live_table (text, text, text[]) AS
+  SELECT * FROM _ermrest.live_table($1, $2, $3);
+

@@ -50,6 +50,9 @@ class Api (object):
             web.debug('Got exception during ermrest_client registration: %s.' % te)
             web.ctx.ermrest_catalog_pc.conn.rollback()
 
+        #web.ctx.ermrest_catalog_model = catalog.manager.get_model_lazy(
+        #    web.ctx.ermrest_catalog_pc.conn,
+        #    web.ctx.ermrest_catalog_pc.cur,
         web.ctx.ermrest_catalog_model = catalog.manager.get_model(
             snapwhen=web.ctx.ermrest_history_snaptime,
             amendver=web.ctx.ermrest_history_amendver

@@ -416,3 +416,15 @@ DROP INDEX IF EXISTS %(schema)s.%(index)s ;
     index=sql_identifier(truncated_identifier([self.table.name, '__pg', 'trgm', '_idx'])),
 )
 
+class HistColumnLazy (Column):
+    def __init__(self, rid, name, position, type, default, nullok, comment, column_num, annotations, acls, rights):
+        Column.__init__(self, name, position, type, default, nullok, comment, column_num, annotations, acls, rid=rid)
+        self.rights = dict(rights)
+
+    def has_right(self, aclname):
+        return self.rights[aclname]
+
+class LiveColumnLazy (HistColumnLazy):
+    pass
+
+

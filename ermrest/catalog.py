@@ -32,7 +32,8 @@ import datetime
 
 from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
-from .model.introspect import introspect
+from .model.introspect import introspect, introspect_types
+from .model.schema import LiveModelLazy, HistModelLazy
 from .model import current_model_snaptime, normalized_history_snaptime
 from . import sql
 
@@ -201,6 +202,13 @@ class Catalog (object):
         self._factory = factory
         self._config = config  # Not sure we need to tuck away the config
 
+    def _model_cache_lru_spill(self):
+        if len(self.MODEL_CACHE) > 2 * self.MODEL_CACHE_SIZE:
+            cache_items = list(self.MODEL_CACHE.items())
+            cache_items.sort(key=lambda item: item[1].last_access, reverse=True)
+            for key, victim in cache_items[self.MODEL_CACHE_SIZE:]:
+                del self.MODEL_CACHE[key]
+
     def _serialize_descriptor(self, descriptor):
         """Serializes the descriptor.
 
@@ -211,6 +219,36 @@ class Catalog (object):
             return " ".join([ "%s=%s" % (key, descriptor[key]) for key in descriptor if key != 'type' ])
         else:
             raise KeyError("Catalog descriptor type not supported: %(type)s" % descriptor)
+
+    def get_model_lazy(self, conn, cur, snapwhen=None, amendver=None):
+        if snapwhen is None:
+            snapwhen_key = current_model_snaptime(cur)
+            assert amendver is None
+        else:
+            snapwhen_key = snapwhen
+            assert amendver is not None
+
+        cache_key = ('types', str(self.descriptor), snapwhen_key, amendver)
+        typesengine = self.MODEL_CACHE.get(cache_key)
+        if typesengine is None:
+            typesengine = introspect_types(cur, self._config, snapwhen)
+            self.MODEL_CACHE[cache_key] = typesengine
+        typesengine.last_access = datetime.datetime.utcnow()
+        self._model_cache_lru_spill()
+
+        if snapwhen is None:
+            return LiveModelLazy(
+                conn,
+                typesengine,
+                snapwhen_key,
+            )
+        else:
+            return HistModelLazy(
+                conn,
+                typesengine,
+                snapwhen_key,
+                amendver,
+            )
 
     def get_model(self, cur=None, config=None, private=False, snapwhen=None, amendver=None):
         if cur is None:
@@ -223,19 +261,16 @@ class Catalog (object):
         else:
             snapwhen_key = snapwhen
             assert amendver is not None
+
         cache_key = (str(self.descriptor), (snapwhen_key, amendver))
         model = self.MODEL_CACHE.get(cache_key)
         if (model is None) or private:
             model = introspect(cur, config, snapwhen, amendver)
             if not private:
                 self.MODEL_CACHE[cache_key] = model
-        # LRU replacement scheme
         model.last_access = datetime.datetime.utcnow()
-        if len(self.MODEL_CACHE) > 2 * self.MODEL_CACHE_SIZE:
-            cache_items = list(self.MODEL_CACHE.items())
-            cache_items.sort(key=lambda item: item[1].last_access, reverse=True)
-            for key, victim in cache_items[self.MODEL_CACHE_SIZE:]:
-                del self.MODEL_CACHE[key]
+        self._model_cache_lru_spill()
+
         return model
 
     def init_meta(self, conn, cur, owner):

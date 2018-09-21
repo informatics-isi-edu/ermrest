@@ -106,7 +106,7 @@ class AclPredicate (object):
     def sql_where(self, epath, elem, prefix=''):
         lname = '%st%d.%s' % (prefix, self.left_elem.pos, self.left_col.sql_name())
         if self.binding['projection_type'] == 'acl':
-            attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in web.ctx.webauthn2_context.attributes ] + [sql_literal('*')])
+            attrs = web.ctx.ermrest_client_roles_sql
             if self.left_col.type.is_array:
                 return '%s && %s' % (lname, attrs)
             else:

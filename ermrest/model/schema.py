@@ -18,7 +18,8 @@
 from .. import exception
 from ..util import sql_identifier, sql_literal, view_exists, udecode
 from .misc import AltDict, Annotatable, HasAcls, enforce_63byte_id, current_request_snaptime
-from .table import Table
+from .table import Table, LiveTableLazy, HistTableLazy
+from .column import Column
 
 import json
 import web
@@ -46,13 +47,17 @@ class Model (HasAcls, Annotatable):
         self.last_access = None # hack: slot to track LRU state for model_cache
         self.schemas = AltDict(
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
-            lambda k, v: enforce_63byte_id(k, "Schema")
+            lambda k, v: enforce_63byte_id(k, "Schema"),
+            lazy_get=self._lazy_get_schema,
         )
         self.acls.update(acls)
         self.annotations.update(annotations)
 
     def _acls_getparent(self):
         return None
+
+    def _lazy_get_schema(self, sname):
+        raise KeyError(sname)
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
@@ -166,7 +171,7 @@ class Schema (HasAcls, Annotatable):
     _acls_supported = { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" }
     _acls_rights = { "owner", "create" }
 
-    def __init__(self, model, name, comment=None, annotations={}, acls={}, rid=None):
+    def __init__(self, model, name, comment=None, annotations={}, acls={}, rid=None, add_to_model=True):
         super(Schema, self).__init__()
         self.model = model
         self.rid = rid
@@ -174,12 +179,13 @@ class Schema (HasAcls, Annotatable):
         self.comment = comment
         self.tables = AltDict(
             lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))),
-            lambda k, v: enforce_63byte_id(k, "Table")
+            lambda k, v: enforce_63byte_id(k, "Table"),
+            lazy_get=self._lazy_get_table,
         )
         self.annotations.update(annotations)
         self.acls.update(acls)
         
-        if name not in self.model.schemas:
+        if add_to_model and name not in self.model.schemas:
             self.model.schemas[name] = self
 
     def _annotation_key_error(self, key):
@@ -187,6 +193,9 @@ class Schema (HasAcls, Annotatable):
 
     def _acls_getparent(self):
         return self.model
+
+    def _lazy_get_table(self, tname):
+        raise KeyError(tname)
 
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):
@@ -259,4 +268,102 @@ SELECT _ermrest.model_version_bump();
             raise exception.ConflictModel(u'Requested table %s does not exist in schema %s.' % (udecode(tname), udecode(self.name)))
         self.tables[tname].delete(conn, cur)
         del self.tables[tname]
+
+class HistSchemaLazy (Schema):
+    def __init__(self, model, rid, name, comment, acls, annotations, rights):
+        Schema.__init__(self, model, name, comment, annotations, acls, rid, add_to_model=False)
+        self.rights = dict(rights)
+
+    _get_table_sql = """
+EXECUTE ermrest_hist_table(%(schema_rid)s, %(tname)s, %(roles)s);
+"""
+    _get_table_cls = HistTableLazy
+
+    def _lazy_get_table(self, tname):
+        self.model.cur.execute(
+            self._get_table_sql % {
+                'schema_rid': sql_literal(self.rid),
+                'tname': sql_literal(tname),
+                'snapwhen': self.model.snaptime_sql,
+                'roles': self.model.client_roles_sql,
+            }
+        )
+        for rid, srid, table_name, kind, comment, coldocs, acls, annotations, rights in list(self.model.cur):
+            try:
+                return self._get_table_cls(self, rid, table_name, kind, coldocs, comment, acls, annotations, rights)
+            except KeyError as te:
+                raise NotImplementedError(te)
+        raise KeyError(tname)
+
+    def has_right(self, aclname):
+        return self.rights[aclname]
+
+class LiveSchemaLazy (HistSchemaLazy):
+    _get_table_sql = """
+EXECUTE ermrest_live_table(%(schema_rid)s, %(tname)s, %(roles)s);
+"""
+    _get_table_cls = LiveTableLazy
+
+class HistModelLazy (Model):
+    def __init__(self, conn, typesengine, snapwhen, amendver):
+        Model.__init__(self, snapwhen, amendver)
+        self.conn = conn
+        self.cur = conn.cursor()
+        self.typesengine = typesengine
+        self.client_roles = web.ctx.ermrest_client_roles
+        self.client_roles_sql = web.ctx.ermrest_client_roles_sql
+        self.snaptime_sql = sql_literal(snapwhen)
+        self.rights = dict()
+        self._populate_model()
+
+    _populate_model_sql = """
+EXECUTE ermrest_past_catalogs(%(snapwhen)s, %(roles)s);
+"""
+    def _populate_model(self):
+        self.cur.execute(
+            self._populate_model_sql % {
+                'snapwhen': self.snaptime_sql,
+                'roles': self.client_roles_sql,
+            }
+        )
+        for acls, annotations, rights in self.cur:
+            # success when we have enumerable catalog
+            self.acls = acls
+            self.annotations = annotations
+            self.rights = rights
+            return
+        # treat non-enumeration like not found
+        raise exception.NotFound(u'catalog')
+
+    _get_schema_sql = """
+EXECUTE ermrest_past_schema(%(sname)s, %(roles)s);
+"""
+    _get_schema_cls = HistSchemaLazy
+
+    def _lazy_get_schema(self, sname):
+        self.cur.execute(
+            self._get_schema_sql % {
+                'sname': sql_literal(sname),
+                'snapwhen': self.snaptime_sql,
+                'roles': self.client_roles_sql,
+            }
+        )
+        for rid, schema_name, comment, acls, annotations, rights in list(self.cur):
+            return self._get_schema_cls(self, rid, schema_name, comment, acls, annotations, rights)
+        raise KeyError(sname)
+
+    def has_right(self, aclname):
+        return self.rights[aclname]
+
+class LiveModelLazy (HistModelLazy):
+    def __init__(self, conn, typesengine, snapwhen_key):
+        HistModelLazy.__init__(self, conn, typesengine, snapwhen_key, None)
+
+    _populate_model_sql = """
+EXECUTE ermrest_live_catalogs(%(roles)s);
+"""
+    _get_schema_sql = """
+EXECUTE ermrest_live_schema(%(sname)s, %(roles)s);
+"""
+    _get_schema_cls = LiveSchemaLazy
 
