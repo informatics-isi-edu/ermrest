@@ -170,20 +170,11 @@ SELECT _ermrest.model_version_bump();
             conn, cur,
             'ADD %s' % self.sql_def(),
             """
-INSERT INTO _ermrest.known_keys (oid, schema_rid, constraint_name, table_rid, "comment")
-SELECT oid, schema_rid, constraint_name, table_rid, "comment"
+INSERT INTO _ermrest.known_keys (oid, schema_rid, constraint_name, table_rid, column_rids, "comment")
+SELECT oid, schema_rid, constraint_name, table_rid, column_rids, "comment"
 FROM _ermrest.introspect_keys
-WHERE table_rid = %(t_rid)s AND constraint_name = %(c_name)s;
-
-INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
-SELECT key_rid, column_rid
-FROM _ermrest.introspect_key_columns
-WHERE key_rid = (
-  SELECT "RID" 
-  FROM _ermrest.known_keys k
-  WHERE table_rid = %(t_rid)s AND constraint_name = %(c_name)s
-)
-RETURNING key_rid;
+WHERE table_rid = %(t_rid)s AND constraint_name = %(c_name)s
+RETURNING "RID";
 """ % {
     't_rid': sql_literal(self.table.rid),
     'c_name': sql_literal(self.constraint_name[1])
@@ -260,22 +251,16 @@ WHERE constraint_name = %(constraint_name)s;
             self.constraint_name = self._find_new_constraint_name(cur, "")
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_rid, comment)
-VALUES (%(constraint_name)s, %(table_rid)s, %(comment)s)
+INSERT INTO _ermrest.known_pseudo_keys (constraint_name, table_rid, column_rids, comment)
+VALUES (%(constraint_name)s, %(table_rid)s, %(column_rids), %(comment)s)
 RETURNING "RID";
 """ % {
     'constraint_name': sql_literal(name),
     'table_rid': sql_literal(self.table.rid),
+    'column_rids': sql_literal(json.dumps({c.rid: None for c in self.columns })),
     'comment': sql_literal(self.comment),
 })
         self.rid = cur.fetchone()[0]
-        cur.execute("""
-INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
-SELECT %(rid)s, c.rid FROM unnest(%(col_rids)s) c(rid);
-""" % {
-    'rid': sql_literal(self.rid),
-    'col_rids': 'ARRAY[%s]::text[]' % (','.join([ sql_literal(c.rid) for c in self.columns ])),
-})
 
     def delete(self, conn, cur):
         self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
@@ -464,22 +449,12 @@ SELECT _ermrest.model_version_bump();
             conn, cur,
             'ADD %s' % self.sql_def(),
             """
-INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule)
-SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule
+INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, column_rid_map, delete_rule, update_rule)
+SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, column_rid_map, delete_rule, update_rule
 FROM _ermrest.introspect_fkeys
 WHERE fk_table_rid = %(table_rid)s
-  AND constraint_name = %(constraint_name)s;
-
-INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
-SELECT fkey_rid, fk_column_rid, pk_column_rid
-FROM _ermrest.introspect_fkey_columns fkc
-WHERE fkey_rid = (
-  SELECT "RID"
-  FROM _ermrest.known_fkeys
-  WHERE fk_table_rid = %(table_rid)s
-    AND constraint_name = %(constraint_name)s
-)
-RETURNING fkey_rid;
+  AND constraint_name = %(constraint_name)s
+RETURNING "RID";
 """ % {
     'table_rid': sql_literal(self.foreign_key.table.rid),
     'constraint_name': sql_literal(self.constraint_name[1]),
@@ -721,29 +696,24 @@ SELECT _ermrest.model_version_bump();
         fk_cols = list(self.foreign_key.columns)
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_pseudo_fkeys (constraint_name, fk_table_rid, pk_table_rid)
-VALUES (%(constraint_name)s, %(fk_table_rid)s, %(pk_table_rid)s)
+INSERT INTO _ermrest.known_pseudo_fkeys (constraint_name, fk_table_rid, pk_table_rid, column_rid_map)
+VALUES (%(constraint_name)s, %(fk_table_rid)s, %(pk_table_rid)s, %(column_rid_map)s)
 RETURNING "RID";
 """ % {
     'fk_table_rid': sql_literal(self.foreign_key.table.rid),
     'pk_table_rid': sql_literal(self.unique.table.rid),
+    'column_rid_map': sql_literal(
+        json.dumps(
+            {
+                fk_cols[i].rid: self.reference_map[fk_cols[i]].rid
+                for i in range(len(fk_cols))
+            }
+        )
+    ),
     'comment': sql_literal(self.comment),
     'constraint_name': sql_literal(self.constraint_name[1]) if self.constraint_name else 'NULL',
 })
         self.rid = cur.fetchone()[0]
-
-        cur.execute("""
-INSERT INTO _ermrest.known_pseudo_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid) VALUES %(values)s;
-""" % {
-    'values': ','.join([
-        '(%s, %s, %s)' % (
-            sql_literal(self.rid),
-            sql_literal(fk_cols[i].rid),
-            sql_literal(self.reference_map[fk_cols[i]].rid),
-        )
-        for i in range(len(fk_cols))
-    ]),
-})
         self.constraint_name = ["", self.constraint_name[1] if self.constraint_name else self.rid]
 
     def delete(self, conn, cur):
