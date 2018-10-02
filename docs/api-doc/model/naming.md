@@ -95,7 +95,7 @@ Dynamic access control list bindings (ACL bindings) are reified as sub-resources
 
 Each keyed ACL binding has a simple representation which is a machine-readable object or a `false` value in `application/json` format.
 
-## Schema Names
+## Model Names
 
 The ERMrest model resources are named under a root collection of schemata for a particular catalog:
 

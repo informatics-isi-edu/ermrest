@@ -32,7 +32,7 @@ The ERMrest web service model exposes resources to support management of dataset
 1. Service: the entire multi-tenant service end-point
 1. [Catalog](model/naming.md#catalog-names): a particular dataset (in one service)
 1. [Schema or model resources](model/naming.md)
-   1. [Schemata](model/naming.md#schema-names): entire data model of a dataset (in one catalog)
+   1. [Schemata](model/naming.md#model-names): entire data model of a dataset (in one catalog)
    1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
       1. [Table definition](model/naming.md#table-names): a particular named set of data tuples (in one schema)
          1. [Column definition](model/naming.md#column-names): a particular named field of data tuples (in one table)
@@ -192,9 +192,7 @@ The [data resources](data/naming.md) make use of a model-driven language for den
 1. [Nondefaults Query Parameter](data/naming.md#nondefaults-query-parameter)
 1. [Limit Query Parameter](data/naming.md#limit-query-parameter)
 
-The sort, paging, and limit syntax together can support [paged data access](data/naming.md#data-paging):
-   1. [Simple Paging by Entity Key](data/naming.md#simple-paging-by-entity-key)
-   1. [Paging with Application Sort Order](data/naming.md#paging-with-application-sort-order)
+The sort, paging, and limit syntax together can support [paged data access](data/naming.md#data-paging).
 
 ### RESTful Operations Overview
 

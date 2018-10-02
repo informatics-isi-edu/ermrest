@@ -1059,6 +1059,22 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+### Access Control List Deletion
+
+The DELETE method is used to delete an access control list (the `owner` ACL in this example):
+
+    DELETE subject/acl/owner HTTP/1.1
+    Host: www.example.com
+
+On success, this request yields an empty response:
+
+    HTTP/1.1 204 No Content
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
 ## Access Control List Bindings
 
 Access control list bindings (ACL bindings) are generic sub-resources available within multiple _subject_ resources. The possible _subject_ resources are:
@@ -1161,6 +1177,22 @@ On success, this request yields the ACL content as a value list:
       "projection": "My Owner Column",
       "projection_type": "acl"
     }
+
+Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+### Access Control List Binding Deletion
+
+The DELETE method is used to delete an access control list binding:
+
+    DELETE subject/acl_binding/my_example_binding HTTP/1.1
+    Host: www.example.com
+
+On success, this request yields an empty response:
+
+    HTTP/1.1 204 No Content
 
 Typical error response codes include:
 - 404 Not Found
