@@ -317,8 +317,8 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
-    schema_name text UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
+    schema_name text UNIQUE DEFERRABLE NOT NULL,
     "comment" text
   );
 END IF;
@@ -330,7 +330,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     type_name text NOT NULL,
     array_element_type_rid text REFERENCES _ermrest.known_types("RID"),
@@ -338,7 +338,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     domain_notnull boolean,
     domain_default text,
     "comment" text,
-    UNIQUE(schema_rid, type_name),
+    UNIQUE(schema_rid, type_name) DEFERRABLE,
     CHECK(array_element_type_rid IS NULL OR domain_element_type_rid IS NULL)
   );
   CREATE INDEX known_types_basetype_idx
@@ -352,12 +352,12 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     table_name text NOT NULL,
     table_kind text NOT NULL,
     "comment" text,
-    UNIQUE(schema_rid, table_name)
+    UNIQUE(schema_rid, table_name) DEFERRABLE
   );
 END IF;
 
@@ -470,12 +470,12 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
     table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     "comment" text,
-    UNIQUE(schema_rid, constraint_name)
+    UNIQUE(schema_rid, constraint_name) DEFERRABLE
   );
 END IF;
 
@@ -519,7 +519,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    constraint_name text UNIQUE,
+    constraint_name text UNIQUE DEFERRABLE,
     table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     "comment" text
   );
@@ -565,7 +565,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
     fk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
@@ -573,7 +573,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     delete_rule text NOT NULL,
     update_rule text NOT NULL,
     "comment" text,
-    UNIQUE(schema_rid, constraint_name)
+    UNIQUE(schema_rid, constraint_name) DEFERRABLE
   );
 END IF;
 
@@ -618,7 +618,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    constraint_name text NOT NULL UNIQUE,
+    constraint_name text NOT NULL UNIQUE DEFERRABLE,
     fk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     pk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     "comment" text
@@ -1710,14 +1710,15 @@ BEGIN
     UPDATE _ermrest.known_keys k
     SET
       oid = v.oid,
+      table_rid = v.table_rid,
       "comment" = v."comment",
       "RMB" = DEFAULT,
       "RMT" = DEFAULT
     FROM _ermrest.introspect_keys v
     WHERE k.schema_rid = v.schema_rid AND k.constraint_name = v.constraint_name
-      AND ROW(k.oid, k.comment)
+      AND ROW(k.oid, k.table_rid, k.comment)
           IS DISTINCT FROM
-	  ROW(v.oid, v.comment)
+	  ROW(v.oid, v.table_rid, v.comment)
     RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
   model_changed := model_changed OR had_changes > 0;
