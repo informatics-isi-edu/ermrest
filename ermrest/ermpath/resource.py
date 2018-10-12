@@ -625,6 +625,9 @@ def _enforce_table_access_static(cur, access, table, input_table, mkcols, nmkcol
     mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
     for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
         fkr.enforce_right(access)
+    if access == 'insert':
+        for fkr in set().union(*[ set(fkrs) for fkrs in mkcol_fkrs.values() ]):
+            fkr.enforce_right(access)
 
 def _enforce_table_update_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
     _enforce_table_access_static(cur, 'update', table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
@@ -709,13 +712,13 @@ def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkco
     icols = _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
 
     mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
-    for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() ]):
-        if fkr.has_right('update') is not None:
+    for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() + mkcol_fkrs.values() ]):
+        if fkr.has_right('insert') is not None:
             continue
         fkr_cols = [
             (
                 (u'i.%s' % fc.sql_name(nmkcol_aliases.get(fc)))
-                if fc in nmkcols
+                if fc in nmkcols or fc in mkcols
                 else (u't.%s' % fc.sql_name())
             )
             for fc, uc in fkr.reference_map_frozen
@@ -732,7 +735,7 @@ FROM (
 LIMIT 1""") % {
     'input_table': input_table_sql,
     'fkr_nonnull': ' AND '.join([ '%s IS NOT NULL' % c for c in fkr_cols ]),
-    'fkrs_cols': ','.join(fkr_cols),
+    'fkr_cols': ','.join(fkr_cols),
     'icols': icols,
     'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='insert', alias='d', dynauthz_testfkr=fkr),
     'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen ]),
@@ -1102,6 +1105,9 @@ class EntityElem (object):
 
         if use_defaults is not None:
             raise NotImplementedError("use_defaults in upsert is not supported")
+
+        if not mkcols:
+            raise ConflictModel('Entity PUT requires at least one client-managed key for input correlation.')
 
         use_defaults = set([
             # system columns aren't writable so don't make client ask for their defaults explicitly
