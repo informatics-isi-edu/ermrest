@@ -404,6 +404,7 @@ def p_attrcore(p):
 def p_aggfunc_name(p):
     """aggfunc_name : ARRAY
                     | ARRAY_D
+                    | AVG
                     | CNT
                     | CNT_D
                     | MIN

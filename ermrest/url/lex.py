@@ -65,6 +65,7 @@ keywords = [
     'array_d',
     'attribute',
     'attributegroup',
+    'avg',
     'before',
     'bin',
     'catalog',
