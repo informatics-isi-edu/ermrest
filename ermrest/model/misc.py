@@ -270,6 +270,7 @@ class AclBinding (AltDict):
         self.model = model
         self.resource = resource
         self.binding_name = binding_name
+        self.binding_doc = doc
 
         # let AltDict validator behavior check each field above for simple stuff...
         for k, v in doc.items():
@@ -440,8 +441,8 @@ def keying(restype, keying):
     return helper
 
 def cache_rights(orig_method):
-    def helper(self, aclname, roles=None, anon_mutation_ok=False):
-        key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None, anon_mutation_ok)
+    def helper(self, aclname, roles=None):
+        key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None)
         if key in web.ctx.ermrest_model_rights_cache:
             result = web.ctx.ermrest_model_rights_cache[key]
         else:
@@ -453,22 +454,13 @@ def cache_rights(orig_method):
 def annotatable(orig_class):
     """Decorator to add annotation storage access interface to model classes.
 
-       The keying() decorator MUST be applied before this one.
+       The keying() decorator MUST be applied before this one to set orig_class.restype.
     """
-    def _interp_annotation(self, key, newval=None):
-        keying = {
-            k: sql_literal(v[1](self))
-            for k, v in orig_class._model_keying.items()
-        }
-        if key is not None:
-            keying['annotation_uri'] = sql_literal(key)
-        keycols = keying.keys()
+    def _interp_annotation(self, newval=None):
         return {
+            'RID': sql_literal(self.rid),
             'restype': orig_class._model_restype,
-            'cols': ','.join(keycols),
-            'vals': ','.join([ keying[k] for k in keycols ]),
             'newval': sql_literal(json.dumps(newval)),
-            'where': ' AND '.join(['True'] + [ "%s = %s" % (k, v) for k, v in keying.items() ]),
         }
 
     def set_annotations(self, conn, cur, doc):
@@ -476,46 +468,34 @@ def annotatable(orig_class):
         if not isinstance(doc, dict):
             raise exception.BadData(u'Annotation set %s must be a dictionary.' % json.dumps(doc))
         doc = dict(doc)
-        self.delete_annotation(conn, cur, None) # enforced owner rights for us...
+        self.enforce_right('owner')
+        self.annotations.clear()
         self.annotations.update(doc)
-        if doc:
-            interp = self._interp_annotation(None)
-            if interp['cols']:
-                interp['cols'] = interp['cols'] + ','
-                interp['vals'] = interp['vals'] + ','
-            # build rows for each field in doc
-            interp['vals'] = ', '.join([
-                '(%s %s, %s)' % (interp['vals'], sql_literal(key), sql_literal(json.dumps(value)))
-                for key, value in doc.items()
-            ])
-            cur.execute("""
+        interp = self._interp_annotation(doc)
+        cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_annotations (%(cols)s annotation_uri, annotation_value) VALUES %(vals)s;
+UPDATE _ermrest.known_%(restype)ss
+SET annotations = %(newval)s::jsonb
+WHERE "RID" = %(RID)s;
 """ % interp)
 
     def set_annotation(self, conn, cur, key, value):
         """Set annotation on %s, returning previous value for updates or None.""" % orig_class._model_restype
         assert key is not None
-        self.enforce_right('owner')
-        interp = self._interp_annotation(key, value)
+        doc = dict(self.annotations)
         oldvalue = self.annotations.get(key)
-        self.annotations[key] = value
-        cur.execute("""
-SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_annotations (%(cols)s, annotation_value) VALUES (%(vals)s, %(newval)s)
-ON CONFLICT (%(cols)s) DO UPDATE SET annotation_value = %(newval)s;
-""" % interp)
+        doc[key] = value
+        self.set_annotations(conn, cur, doc)
         return oldvalue
 
     def delete_annotation(self, conn, cur, key):
         """Delete annotation on %s.""" % orig_class._model_restype
-        self.enforce_right('owner')
-        self.annotations.clear()
-        interp = self._interp_annotation(key)
-        cur.execute("""
-SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.known_%(restype)s_annotations WHERE %(where)s;
-""" % interp)
+        if key is None:
+            doc = {}
+        else:
+            doc = dict(self.annotations)
+            doc.pop(key, None)
+        self.set_annotations(conn, cur, doc)
 
     setattr(orig_class, '_interp_annotation', _interp_annotation)
     setattr(orig_class, 'set_annotation', set_annotation)
@@ -526,7 +506,7 @@ DELETE FROM _ermrest.known_%(restype)s_annotations WHERE %(where)s;
 
 hasacls_classes = []
 
-def hasacls(acls_supported, rights_supported, getparent):
+def hasacls(acls_supported, rights_supported, getparent, anon_mutation_ok=False):
     """Decorator to add ACL storage access interface to model classes.
 
        acls_supported: { aclname, ... }
@@ -537,24 +517,14 @@ def hasacls(acls_supported, rights_supported, getparent):
 
        The keying() decorator MUST be applied first.
     """
-    def _interp_acl(self, aclname, newval=None):
-        keying = {
-            k: sql_literal(v[1](self))
-            for k, v in self._model_keying.items()
-        }
-        if aclname is not None:
-            assert newval is not None
-            keying['acl'] = sql_literal(aclname)
-        keycols = keying.keys()
+    def _interp_acl(self, newval=None):
         return {
+            'RID': sql_literal(self.rid),
             'restype': self._model_restype,
-            'cols': ','.join(keycols),
-            'vals': ','.join([ keying[k] for k in keycols ]),
-            'newval': '%s::text[]' % sql_literal(newval) if newval is not None else None,
-            'where': ' AND '.join(['True'] + [ "%s = %s" % (k, v) for k, v in keying.items() ]),
+            'newval': sql_literal(json.dumps(newval)),
         }
 
-    def set_acls(self, cur, doc, anon_mutation_ok=False):
+    def set_acls(self, cur, doc, purging=False):
         """Replace full acls doc, returning None."""
         if not isinstance(doc, dict):
             raise exception.BadData(u'ACL set input %s must be a dictionary.' % json.dumps(doc))
@@ -562,89 +532,63 @@ def hasacls(acls_supported, rights_supported, getparent):
         for aclname in doc.keys():
             if aclname not in self._acls_supported:
                 raise exception.ConflictData('ACL name %s not supported on %s.' % (aclname, self))
-        self.delete_acl(cur, None, purging=True) # enforces owner rights for us...
+        self.enforce_right('owner')
+        self.acls.clear()
         self.acls.update(doc)
-        self.enforce_right('owner') # integrity check using Python data...
+        if not purging:
+            self.enforce_right('owner') # integrity check using Python data... unless we are purging
         for aclname, members in self.acls.items():
             if aclname not in {'enumerate', 'select'} \
                and members is not None and '*' in members \
-               and not anon_mutation_ok:
+               and not self._anon_mutation_ok:
                 raise exception.BadData('ACL name %s does not support wildcard member.' % aclname)
-        interp = self._interp_acl(None)
-        if doc:
-            if interp['cols']:
-                interp['cols'] = interp['cols'] + ','
-                interp['vals'] = interp['vals'] + ','
-            # build rows for each field in doc
-            interp['vals'] = ', '.join([
-                '(%s %s, %s::text[])' % (interp['vals'], sql_literal(key), sql_literal(value))
-                for key, value in doc.items()
-                if value is not None
-            ])
-            cur.execute("""
+        interp = self._interp_acl(self.acls)
+        cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s acl, members) VALUES %(vals)s;
+UPDATE _ermrest.known_%(restype)ss
+SET acls = %(newval)s::jsonb
+WHERE "RID" = %(RID)s;
 """ % interp)
 
-    def set_acl(self, cur, aclname, members, anon_mutation_ok=False):
+    def set_acl(self, cur, aclname, members, purging=False):
         """Set annotation on %s, returning previous value for updates or None.""" % self._model_restype
         assert aclname is not None
 
-        if members is None:
-            if self.acls.can_remove:
-                return self.delete_acl(cur, aclname)
-            else:
-                members = []
-
-        self.enforce_right('owner') # pre-flight authz
-        if aclname not in self._acls_supported:
-            raise exception.ConflictData('ACL name %s not supported on %s.' % (aclname, self))
-
-        if aclname not in {'enumerate', 'select'} and '*' in members and not anon_mutation_ok:
-            raise exception.BadData('ACL name %s does not support wildcard member.' % aclname)
-
         oldvalue = self.acls.get(aclname)
 
-        self.acls[aclname] = members
-        self.enforce_right('owner') # integrity check using Python data...
+        doc = dict(self.acls)
+        if members is not None:
+            doc[aclname] = members
+        elif not self.acls.can_delete:
+            doc[aclname] = []
+        else:
+            del doc[aclname]
 
-        interp = self._interp_acl(aclname, members)
-        cur.execute("""
-SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_acls (%(cols)s, members) VALUES (%(vals)s, %(newval)s)
-ON CONFLICT (%(cols)s) DO UPDATE SET members = %(newval)s;
-""" % interp)
+        self.set_acls(cur, doc, purging=purging)
         return oldvalue
 
     def delete_acl(self, cur, aclname, purging=False):
-        interp = self._interp_acl(aclname)
-
-        self.enforce_right('owner') # pre-flight authz
-        if aclname is not None and aclname not in self._acls_supported:
-            raise exception.NotFound('ACL %s on %s' % (aclname, self))
-
-        if self.acls.can_remove:
-            if aclname is None:
-                self.acls.clear()
-            elif aclname in self.acls:
-                del self.acls[aclname]
-
-            if not purging:
-                self.enforce_right('owner') # integrity check... can't disown except when purging
-
-                cur.execute("""
-SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
-""" % interp)
-        else:
-            if aclname is None:
-                for aclname in self._acls_supported:
-                    self.set_acl(cur, aclname, [])
+        if aclname is None:
+            if self.acls.can_remove:
+                doc = {}
             else:
-                self.set_acl(cur, aclname, [])
+                doc = {
+                    aclname: []
+                    for aclname in self._acls_supported
+                }
+        else:
+            if aclname not in self._acls_supported:
+                raise exception.NotFound('ACL %s on %s' % (aclname, self))
+            doc = dict(self.acls)
+            if self.acls.can_remove:
+                doc.pop(aclname, None)
+            else:
+                doc[aclname] = []
+
+        self.set_acls(cur, doc, purging=purging)
 
     @cache_rights
-    def has_right(self, aclname, roles=None, anon_mutation_ok=False):
+    def has_right(self, aclname, roles=None):
         """Return access decision True, False, None.
 
            aclname: the symbolic name for the access mode
@@ -655,7 +599,7 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
         if roles is None:
             roles = web.ctx.ermrest_client_roles
 
-        if roles == {'*'} and aclname not in {'enumerate', 'select'} and not anon_mutation_ok:
+        if roles == {'*'} and aclname not in {'enumerate', 'select'} and not self._anon_mutation_ok:
             # anonymous clients cannot have mutation permissions
             return False
 
@@ -712,6 +656,7 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
         setattr(orig_class, '_acls_supported', set(acls_supported))
         setattr(orig_class, '_acls_rights', set(rights_supported))
         setattr(orig_class, '_interp_acl', _interp_acl)
+        setattr(orig_class, '_anon_mutation_ok', anon_mutation_ok)
         if not hasattr(orig_class, 'rights'):
             setattr(orig_class, 'rights', rights)
         else:
@@ -739,20 +684,16 @@ def hasdynacls(dynacl_types_supported):
 
        The keying() decorator MUST be applied first.
     """
-    def _interp_dynacl(self, name, newval=None):
-        keying = {
-            k: sql_literal(v[1](self))
-            for k, v in self._model_keying.items()
-        }
-        if name is not None:
-            keying['binding_name'] = sql_literal(name)
-        keycols = keying.keys()
+    def _interp_dynacl(self, newval=None):
         return {
+            'RID': sql_literal(self.rid),
             'restype': self._model_restype,
-            'cols': ','.join(keycols),
-            'vals': ','.join([ keying[k] for k in keycols ]),
-            'newval': sql_literal(json.dumps(newval)),
-            'where': ' AND '.join([ "%s = %s" % (k, v) for k, v in keying.items() ]),
+            'newval': sql_literal(
+                json.dumps({
+                    k: v.binding_doc if hasattr(v, 'binding_doc') else v
+                    for k, v in newval.items()
+                })
+            ),
         }
 
     def set_dynacls(self, cur, doc):
@@ -760,22 +701,15 @@ def hasdynacls(dynacl_types_supported):
         if not isinstance(doc, dict):
             raise exception.BadData(u'ACL bindings set input %s must be a dictionary.' % json.dumps(doc))
         doc = dict(doc)
-        self.delete_dynacl(cur, None) # enforces owner rights for us...
+        self.enforce_right('owner')
+        self.dynacls.clear()
         self.dynacls.update(doc)
-        interp = self._interp_dynacl(None)
-        if doc:
-            if interp['cols']:
-                interp['cols'] = interp['cols'] + ','
-                interp['vals'] = interp['vals'] + ','
-            # build rows for each field in doc
-            interp['vals'] = ', '.join([
-                '(%s %s, %s::jsonb)' % (interp['vals'], sql_literal(key), sql_literal(json.dumps(value)))
-                for key, value in doc.items()
-                if value is not None
-            ])
-            cur.execute("""
+        interp = self._interp_dynacl(doc)
+        cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_dynacls (%(cols)s binding_name, binding) VALUES %(vals)s;
+UPDATE _ermrest.known_%(restype)ss
+SET acl_bindings = %(newval)s::jsonb
+WHERE "RID" = %(RID)s;
 """ % interp)
 
     def set_dynacl(self, cur, name, binding):
@@ -792,29 +726,18 @@ INSERT INTO _ermrest.known_%(restype)s_dynacls (%(cols)s binding_name, binding) 
         else:
             self.dynacls[name] = AclBinding(web.ctx.ermrest_catalog_model, self, name, binding)
 
-        interp = self._interp_dynacl(name, binding)
-        cur.execute("""
-SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_dynacls (%(cols)s, binding) VALUES (%(vals)s, %(newval)s::jsonb)
-ON CONFLICT (%(cols)s) DO UPDATE SET binding = %(newval)s::jsonb;
-""" % interp
-        )
+        self.set_dynacls(cur, self.dynacls)
         return oldvalue
 
     def delete_dynacl(self, cur, name):
         self.enforce_right('owner') # pre-flight authz
 
-        interp = self._interp_dynacl(name)
         if name is None:
             self.dynacls.clear()
-        elif name in self.dynacls:
-            del self.dynacls[name]
+        else:
+            self.dynacls.pop(name, None)
 
-        cur.execute("""
-SELECT _ermrest.model_version_bump();
-DELETE FROM _ermrest.known_%(restype)s_dynacls WHERE %(where)s;
-""" % interp
-        )
+        self.set_dynacls(cur, self.dynacls)
 
     def helper(orig_class):
         setattr(orig_class, '_interp_dynacl', _interp_dynacl)

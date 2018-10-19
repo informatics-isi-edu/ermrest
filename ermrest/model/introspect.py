@@ -62,7 +62,7 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
         assert amendver is not None
 
     cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(%s);" % sql_literal(snapwhen))
-    annotations, acls = cur.next()
+    ignore_rid, annotations, acls = cur.next()
     model = Model(snapwhen, amendver, annotations, acls)
 
     #
@@ -203,20 +203,17 @@ SELECT _ermrest.model_version_bump();
     #
     def _introspect_fkr(
             constraint_name,
-            fk_table_rid, fk_column_rids, pk_table_rid, pk_column_rids, fk_comment,
+            fk_table_rid, pk_table_rid, fkc_pkc_rids, fk_comment,
             fkr_factory
     ):
-        if not fk_column_rids or not pk_column_rids:
+        if not fkc_pkc_rids:
             raise ValueError('Foreign key constraint %s lacks any columns.' % constraint_name)
 
         try:
-            fk_cols = [ columns[fk_column_rids[i]] for i in range(len(fk_column_rids)) ]
-            pk_cols = [ columns[pk_column_rids[i]] for i in range(len(pk_column_rids)) ]
+            fk_cols = [ columns[fkc_rid] for fkc_rid in fkc_pkc_rids ]
+            pk_cols = [ columns[fkc_pkc_rids[c.rid]] for c in fk_cols ]
         except KeyError:
             return
-
-        if len(fk_column_rids) != len(pk_column_rids):
-            raise ValueError('Foreign key constraint %s has mismatched column list lengths.' % constraint_name)
 
         fk_colset = frozenset(fk_cols)
         pk_colset = frozenset(pk_cols)
@@ -243,23 +240,23 @@ SELECT _ermrest.model_version_bump();
         return fkr
 
     cur.execute("SELECT * FROM _ermrest.known_fkeys_denorm(%s);" % sql_literal(snapwhen))
-    for rid, schema_rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
+    for rid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, fkc_pkc_rids, \
         delete_rule, update_rule, comment, annotations, acls in cur:
         name_pair = (schemas[schema_rid].name, constraint_name)
         fkeyrefs[rid] = _introspect_fkr(
             constraint_name,
-            fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
+            fk_table_rid, pk_table_rid, fkc_pkc_rids, comment,
             lambda fk, pk, fk_ref_map: KeyReference(fk, pk, fk_ref_map, delete_rule, update_rule, name_pair, annotations, comment, acls, rid=rid)
         )
 
     cur.execute("SELECT * FROM _ermrest.known_pseudo_fkeys_denorm(%s);" % sql_literal(snapwhen))
-    for rid, constraint_name, fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, \
+    for rid, constraint_name, fk_table_rid, pk_table_rid, fkc_pkc_rids, \
         comment, annotations, acls in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
         try:
             pfkeyrefs[rid] = _introspect_fkr(
                 constraint_name,
-                fk_table_rid, fk_col_rids, pk_table_rid, pk_col_rids, comment,
+                fk_table_rid, pk_table_rid, fkc_pkc_rids, comment,
                 lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, rid, name_pair, annotations, comment, acls)
             )
         except ValueError as te:
@@ -283,21 +280,19 @@ SELECT _ermrest.model_version_bump();
             pruned_any = True
 
     # AclBinding constructor needs whole model to validate binding projections...
-    for resourceset, sqlfunc, grpcol in [
-            (tables, 'known_table_dynacls', 'table_rid'),
-            (columns, 'known_column_dynacls', 'column_rid'),
-            (fkeyrefs, 'known_fkey_dynacls', 'fkey_rid'),
-            (pfkeyrefs, 'known_pseudo_fkey_dynacls', 'fkey_rid'),
+    for resourceset, sqlfunc, restype in [
+            (tables, 'known_table_dynacls', 'table'),
+            (columns, 'known_column_dynacls', 'column'),
+            (fkeyrefs, 'known_fkey_dynacls', 'fkey'),
+            (pfkeyrefs, 'known_pseudo_fkey_dynacls', 'pseudo_fkey'),
     ]:
         cur.execute("""
 SELECT 
-  %(grpcol)s,
-  jsonb_object_agg(a.binding_name, a.binding) AS dynacls
-FROM _ermrest.%(sqlfunc)s(%(when)s) a 
-GROUP BY a.%(grpcol)s ;
+  "RID",
+  acl_bindings
+FROM _ermrest.%(sqlfunc)s(%(when)s) a;
 """ % {
     'sqlfunc': sqlfunc,
-    'grpcol': grpcol,
     'when': sql_literal(snapwhen),
 })
         rows = list(cur) # pre-fetch the result in case we use cursor in constructor code below...
@@ -318,13 +313,12 @@ GROUP BY a.%(grpcol)s ;
                     except:
                         web.debug(msg)
                     cur.execute("""
-DELETE FROM _ermrest.%(binding_table)s
-WHERE %(resource_col)s = %(resource_rid)s
-  AND binding_name = %(binding_name)s;
+UPDATE _ermrest.known_%(restype)ss
+SET acl_bindings = acl_bindings - %(binding_name)s
+WHERE "RID" = %(resource_rid)s;
 SELECT _ermrest.model_version_bump();
 """ % {
-    'binding_table': sql_identifier(sqlfunc),
-    'resource_col': sql_identifier(grpcol),
+    'restype': restype,
     'resource_rid': sql_literal(rid),
     'binding_name': sql_literal(binding_name),
 })

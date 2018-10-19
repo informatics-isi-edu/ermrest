@@ -381,7 +381,7 @@ WHERE "RID" = %s;
             fkr.add(conn, cur)
 
             fkr.set_annotations(conn, cur, fkr.annotations)
-            fkr.set_acls(cur, fkr.acls, anon_mutation_ok=True)
+            fkr.set_acls(cur, fkr.acls)
             fkr.set_dynacls(cur, fkr.dynacls)
 
             yield fkr

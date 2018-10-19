@@ -37,6 +37,7 @@ class Model (object):
     database sense of the term.
     """
     def __init__(self, snapwhen, amendver, annotations={}, acls={}):
+        self.rid = '0'
         self.snaptime = snapwhen
         self.amendver = amendver
         self.last_access = None # hack: slot to track LRU state for model_cache

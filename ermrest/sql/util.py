@@ -1,6 +1,6 @@
 
 #
-# Copyright 2017 University of Southern California
+# Copyright 2017-2018 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,6 +118,7 @@ def print_redeploy_catalogs_sql():
 %(catalog_extupgrade)s
 BEGIN;
 ALTER DATABASE %(dbname)s OWNER TO ermrest;
+%(preupgrade_sql)s
 %(ermrest_sql)s
 SELECT _ermrest.model_change_event();
 %(upgrade_sql)s
@@ -127,6 +128,7 @@ ANALYZE;
 """ % {
     "catalog_extupgrade": extupgrade_sql(catalog.descriptor['dbname']),
     "dbname": sql_identifier(catalog.descriptor['dbname']),
+    "preupgrade_sql": pkgutil.get_data(sql.__name__, 'preupgrade_schema.sql'),
     "ermrest_sql": pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'),
     "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_schema.sql'),
     "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql'),
