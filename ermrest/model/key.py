@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,18 +17,22 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
+from .misc import frozendict, AltDict, Annotatable, cache_rights, HasAcls, HasDynacls, enforce_63byte_id, truncated_identifier
 from .name import _keyref_join_str, _keyref_join_sql
 
 import web
 import json
 
-@annotatable
-@keying('key', {"key_rid": ('text', lambda self: self.rid)})
-class Unique (object):
+@Annotatable.annotatable
+class Unique (Annotatable):
     """A unique constraint."""
-    
+    _model_restype = 'key'
+    _model_keying = {
+        "key_rid": ('text', lambda self: self.rid),
+    }
+
     def __init__(self, cols, constraint_name=None, comment=None, annotations={}, rid=None):
+        super(Unique, self).__init__()
         tables = set([ c.table for c in cols ])
         assert len(tables) == 1
         self.table = tables.pop()
@@ -38,11 +43,13 @@ class Unique (object):
             enforce_63byte_id(constraint_name[1], 'Uniqueness constraint')
         self.constraint_name = constraint_name
         self.comment = comment
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
 
         if cols not in self.table.uniques:
             self.table.uniques[cols] = self
+
+    def _annotation_key_error(self, key):
+        return exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name)))
 
     def enforce_right(self, aclname):
         """Proxy enforce_right to self.table for interface consistency."""
@@ -215,35 +222,16 @@ WHERE v."RID" = i.key_rid
                 return False
         return True
 
-@annotatable
-@keying('pseudo_key', {"pkey_rid": ('text', lambda self: self.rid)})
-class PseudoUnique (object):
+@Annotatable.annotatable
+class PseudoUnique (Unique):
     """A pseudo-uniqueness constraint."""
+    _model_restype = 'pseudo_key'
 
     def __init__(self, cols, rid=None, constraint_name=None, comment=None, annotations={}):
-        tables = set([ c.table for c in cols ])
-        assert len(tables) == 1
-        self.table = tables.pop()
-        self.columns = cols
-        self.table_references = dict()
-        self.rid = rid
-        self.constraint_name = constraint_name
-        self.comment = comment
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name))))
-        self.annotations.update(annotations)
-
-        if cols not in self.table.uniques:
-            self.table.uniques[cols] = self
-
-    def __str__(self):
-        return ','.join([ str(c) for c in self.columns ])
+        super(PseudoUnique, self).__init__(rid=rid, constraint_name=constraint_name, comment=comment, annotations=annotations)
 
     def __repr__(self):
         return '<ermrest.model.PseudoUnique %s>' % str(self)
-
-    def enforce_right(self, aclname):
-        """Proxy enforce_right to self.table for interface consistency."""
-        self.table.enforce_right(aclname)
 
     def set_comment(self, conn, cur, comment):
         if self.rid:
@@ -254,29 +242,6 @@ SELECT _ermrest.model_version_bump();
     'comment': sql_literal(comment),
     'rid': sql_literal(self.rid),
 })
-
-    def is_primary_key(self):
-        if not self.columns:
-            return False
-        for col in self.columns:
-            if col.nullok:
-                return False
-        return True
-
-    def _column_names(self):
-        """Canonicalized column names list."""
-        cnames = [ unicode(col.name) for col in self.columns ]
-        cnames.sort()
-        return cnames
-        
-    def prejson(self):
-        return {
-            'RID': self.rid,
-            'comment': self.comment,
-            'annotations': self.annotations,
-            'unique_columns': [ c.name for c in self.columns ],
-            'names': [ self.constraint_name ],
-        }
 
     def _constraint_name_exists(self, cur, name):
         cur.execute("""
@@ -322,14 +287,6 @@ SELECT _ermrest.model_version_bump();
         del self.table.uniques[self.columns]
         if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
             raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
-
-    @cache_rights
-    def has_right(self, aclname, roles=None):
-        assert aclname == 'enumerate'
-        for c in self.columns:
-            if c.has_right('select', roles) is False:
-                return False
-        return True
 
 class ForeignKey (object):
     """A foreign key."""
@@ -402,81 +359,24 @@ def _guarded_add(s, new_fkr):
     # otherwise this is a new leader
     s.add(new_fkr)
 
-def _keyref_from_column_names(self):
-    f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
-    f_cnames.sort()
-    return f_cnames
-
-def _keyref_to_column_names(self):
-    return [
-        unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
-        for colname in self._from_column_names()
-    ]
-
-def _keyref_prejson(self):
-    fcs = []
-    pcs = []
-
-    def constraint_name_prejson(c):
-        return [ c.constraint_name[0], c.constraint_name[1] ]
-    
-    for fc in self.reference_map.keys():
-        fcs.append( fc.prejson_ref() )
-        pcs.append( self.reference_map[fc].prejson_ref() )
-    doc = {
-        'RID': self.rid,
-        'foreign_key_columns': fcs,
-        'referenced_columns': pcs,
-        'rights': self.rights(),
-        'comment': self.comment,
-        'annotations': self.annotations,
-        'names': [ constraint_name_prejson(self) ],
-    }
-    if self.has_right('owner'):
-        doc['acls'] = self.acls
-        doc['acl_bindings'] = self.dynacls
-    if self.on_delete is not None:
-        doc['on_delete'] = self.on_delete
-    if self.on_update is not None:
-        doc['on_update'] = self.on_update
-    return doc
-
-def _keyref_rights(self):
-    rights = self._rights()
-    for aclname in {'insert', 'update'}:
-        if rights[aclname]:
-            rights[aclname] = self.foreign_key.columns_have_right(aclname)
-    return rights
-
-def _keyref_has_right(self, aclname, roles=None):
-    if aclname == 'enumerate':
-        if not self.unique.has_right('enumerate', roles):
-            return False
-        if not self.foreign_key.columns_have_right('enumerate', roles):
-            return False
-        decision = self.foreign_key.columns_have_right('select', roles)
-        if decision is False:
-            return False
-        decision = self.unique.has_right(aclname, roles)
-        if decision is False:
-            return False
-    if aclname in {'update', 'insert'} and aclname not in self.acls:
-        return True
-    return self._has_right(aclname, roles)
-
-@annotatable
-@hasdynacls({ "owner", "insert", "update" })
-@hasacls(
-    {"write", "insert", "update", "enumerate"},
-    {"insert", "update"},
-    lambda self: self.foreign_key.table,
-    anon_mutation_ok=True
-)
-@keying('fkey', {"fkey_rid": ('text', lambda self: self.rid)})
-class KeyReference (object):
+@Annotatable.annotatable
+@HasDynacls.hasdynacls
+@HasAcls.hasacls
+class KeyReference (HasDynacls, HasAcls, Annotatable):
     """A reference from a foreign key to a primary key."""
-    
+    _model_restype = 'fkey'
+    _model_keying = {
+        "fkey_rid": ('text', lambda self: self.rid),
+    }
+
+    _acls_supported = {"write", "insert", "update", "enumerate"}
+    _acls_rights = {"insert", "update"}
+    _anon_mutation_ok = True
+
+    dynacl_types_supported = { "owner", "insert", "update" }
+
     def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}, rid=None):
+        super(KeyReference, self).__init__()
         self.foreign_key = foreign_key
         self.unique = unique
         self.rid = rid
@@ -495,13 +395,16 @@ class KeyReference (object):
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
         _guarded_add(unique.table_references[foreign_key.table], self)
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
         self.annotations.update(annotations)
-        self.acls = AclDict(self)
         self.acls.update(acls)
-        self.dynacls = DynaclDict(self)
         self.dynacls.update(dynacls)
         self.comment = comment
+
+    def _annotation_key_error(self, key):
+        return exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name)))
+
+    def _acls_getparent(self):
+        return self.foreign_key.table
 
     def set_comment(self, conn, cur, comment):
         if self.constraint_name:
@@ -523,7 +426,7 @@ SELECT _ermrest.model_version_bump();
 
     def join_sql(self, refop, lname, rname):
         return _keyref_join_sql(self, refop, lname, rname)
-    
+
     def __str__(self):
         return self.join_str('=@', str(self.foreign_key.table), str(self.unique.table))
 
@@ -595,12 +498,17 @@ WHERE v."RID" = i.fkey_rid
 
     def _from_column_names(self):
         """Canonicalized from-column names list."""
-        return _keyref_from_column_names(self)
-        
+        f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
+        f_cnames.sort()
+        return f_cnames
+
     def _to_column_names(self):
         """Canonicalized to-column names list."""
-        return _keyref_to_column_names(self)
-        
+        return [
+            unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
+            for colname in self._from_column_names()
+        ]
+
     @staticmethod
     def fromjson(model, refdoc, fkey=None, fktable=None, pkey=None, pktable=None, outfkeys=None):
         fk_cols = []
@@ -723,54 +631,69 @@ WHERE v."RID" = i.fkey_rid
         yield fkey.references[fk_ref_map]
 
     def prejson(self):
-        return _keyref_prejson(self)
+        fcs = []
+        pcs = []
+
+        def constraint_name_prejson(c):
+            return [ c.constraint_name[0], c.constraint_name[1] ]
+
+        for fc in self.reference_map.keys():
+            fcs.append( fc.prejson_ref() )
+            pcs.append( self.reference_map[fc].prejson_ref() )
+        doc = {
+            'RID': self.rid,
+            'foreign_key_columns': fcs,
+            'referenced_columns': pcs,
+            'rights': self.rights(),
+            'comment': self.comment,
+            'annotations': self.annotations,
+            'names': [ constraint_name_prejson(self) ],
+        }
+        if self.has_right('owner'):
+            doc['acls'] = self.acls
+            doc['acl_bindings'] = self.dynacls
+        if self.on_delete is not None:
+            doc['on_delete'] = self.on_delete
+        if self.on_update is not None:
+            doc['on_update'] = self.on_update
+        return doc
 
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
 
     @cache_rights
     def has_right(self, aclname, roles=None):
-        return _keyref_has_right(self, aclname, roles)
+        if aclname == 'enumerate':
+            if not self.unique.has_right('enumerate', roles):
+                return False
+            if not self.foreign_key.columns_have_right('enumerate', roles):
+                return False
+            decision = self.foreign_key.columns_have_right('select', roles)
+            if decision is False:
+                return False
+            decision = self.unique.has_right(aclname, roles)
+            if decision is False:
+                return False
+        if aclname in {'update', 'insert'} and aclname not in self.acls:
+            return True
+        return HasAcls.has_right(self, aclname, roles)
 
     def rights(self):
-        return _keyref_rights(self)
+        rights = HasAcls.rights(self)
+        for aclname in {'insert', 'update'}:
+            if rights[aclname]:
+                rights[aclname] = self.foreign_key.columns_have_right(aclname)
+        return rights
 
-@annotatable
-@hasdynacls({ "owner", "insert", "update" })
-@hasacls(
-    {"write", "insert", "update", "enumerate"},
-    {"insert", "update"},
-    lambda self: self.foreign_key.table,
-    anon_mutation_ok=True
-)
-@keying('pseudo_fkey', {"fkey_rid": ('text', lambda self: self.rid)})
-class PseudoKeyReference (object):
+@Annotatable.annotatable
+@HasDynacls.hasdynacls
+@HasAcls.hasacls
+class PseudoKeyReference (KeyReference):
     """A psuedo-reference from a foreign key to a primary key."""
+    _model_restype = 'pseudo_fkey'
     
     def __init__(self, foreign_key, unique, fk_ref_map, rid=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}):
-        self.foreign_key = foreign_key
-        self.unique = unique
-        self.reference_map_frozen = fk_ref_map
-        self.reference_map = dict(fk_ref_map)
-        self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
-        self.on_delete = None
-        self.on_update = None
-        # Link into foreign key's key reference list, by table ref
-        if unique.table not in foreign_key.table_references:
-            foreign_key.table_references[unique.table] = set()
-        _guarded_add(foreign_key.table_references[unique.table], self)
-        if foreign_key.table not in unique.table_references:
-            unique.table_references[foreign_key.table] = set()
-        _guarded_add(unique.table_references[foreign_key.table], self)
-        self.rid = rid
-        self.constraint_name = constraint_name
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name))))
-        self.annotations.update(annotations)
-        self.acls = AclDict(self)
-        self.acls.update(acls)
-        self.dynacls = DynaclDict(self)
-        self.dynacls.update(dynacls)
-        self.comment = comment
+        super(PseudoKeyReference, self).__init__(foreign_key, unique, fk_ref_map, rid=rid, constraint_name=constraint_name, annotations=anotations, comment=comment, acls=acls, dynacls=dynacls)
 
     def set_comment(self, conn, cur, comment):
         if self.rid:
@@ -782,28 +705,8 @@ SELECT _ermrest.model_version_bump();
     'rid': sql_literal(self.rid),
 })
 
-    def join_str(self, refop, lname, rname):
-        return _keyref_join_str(self, refop, lname, rname)
-                
-    def join_sql(self, refop, lname, rname):
-        return _keyref_join_sql(self, refop, lname, rname)
-    
-    def __str__(self):
-        return self.join_str('=@', str(self.foreign_key.table), str(self.unique.table))
-
-    def _from_column_names(self):
-        """Canonicalized from-column names list."""
-        return _keyref_from_column_names(self)
-        
-    def _to_column_names(self):
-        """Canonicalized to-column names list."""
-        return _keyref_to_column_names(self)
-        
-    def prejson(self):
-        return _keyref_prejson(self)
-
     def __repr__(self):
-        return '<ermrest.model.KeyReference %s>' % str(self)
+        return '<ermrest.model.PseudoKeyReference %s>' % str(self)
 
     def add(self, conn, cur):
         self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
@@ -837,10 +740,3 @@ SELECT _ermrest.model_version_bump();
 """ % {
     'rid': sql_literal(self.rid),
 })
-
-    @cache_rights
-    def has_right(self, aclname, roles=None):
-        return _keyref_has_right(self, aclname, roles)
-
-    def rights(self):
-        return _keyref_rights(self)

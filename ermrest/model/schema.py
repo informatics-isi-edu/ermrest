@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,26 +17,29 @@
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, view_exists, udecode
-from .misc import AltDict, AclDict, keying, annotatable, hasacls, enforce_63byte_id, current_request_snaptime
+from .misc import AltDict, Annotatable, HasAcls, enforce_63byte_id, current_request_snaptime
 from .table import Table
 
 import json
 import web
 
-@annotatable
-@hasacls(
-    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
-    { "owner", "create" },
-    None
-)
-@keying('catalog', { })
-class Model (object):
+@Annotatable.annotatable
+@HasAcls.hasacls
+class Model (HasAcls, Annotatable):
     """Represents a database model.
     
     At present, this amounts to a collection of 'schemas' in the conventional
     database sense of the term.
     """
+    _model_restype = 'catalog'
+    _model_keying = {}
+
+    _acls_supported = { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" }
+    _acls_rights = { "owner", "create" }
+    _acls_can_remove = False
+
     def __init__(self, snapwhen, amendver, annotations={}, acls={}):
+        super(Model, self).__init__()
         self.rid = '0'
         self.snaptime = snapwhen
         self.amendver = amendver
@@ -45,10 +48,11 @@ class Model (object):
             lambda k: exception.ConflictModel(u"Schema %s does not exist." % k),
             lambda k, v: enforce_63byte_id(k, "Schema")
         )
-        self.acls = AclDict(self, can_remove=False)
         self.acls.update(acls)
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s"' % (k,)))
         self.annotations.update(annotations)
+
+    def _acls_getparent(self):
+        return None
 
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
@@ -146,24 +150,24 @@ SELECT _ermrest.model_version_bump();
 """ % dict(schema=sql_identifier(sname), rid=sql_literal(schema.rid)))
         del self.schemas[sname]
 
-@annotatable
-@hasacls(
-    { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" },
-    { "owner", "create" },
-    lambda self: self.model
-)
-@keying(
-    'schema',
-    { "schema_rid": ('text', lambda self: self.rid) },
-)
-class Schema (object):
+@Annotatable.annotatable
+@HasAcls.hasacls
+class Schema (HasAcls, Annotatable):
     """Represents a database schema.
     
     At present, this has a 'name' and a collection of database 'tables'. It 
     also has a reference to its 'model'.
     """
-    
+    _model_restype = 'schema'
+    _model_keying = {
+        "schema_rid": ('text', lambda self: self.rid),
+    }
+
+    _acls_supported = { "owner", "create", "enumerate", "write", "insert", "update", "delete", "select" }
+    _acls_rights = { "owner", "create" }
+
     def __init__(self, model, name, comment=None, annotations={}, acls={}, rid=None):
+        super(Schema, self).__init__()
         self.model = model
         self.rid = rid
         self.name = name
@@ -172,14 +176,17 @@ class Schema (object):
             lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))),
             lambda k, v: enforce_63byte_id(k, "Table")
         )
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on schema "%s"' % (k, unicode(self.name))))
         self.annotations.update(annotations)
-
-        self.acls = AclDict(self)
         self.acls.update(acls)
         
         if name not in self.model.schemas:
             self.model.schemas[name] = self
+
+    def _annotation_key_error(self, key):
+        return exception.NotFound(u'annotation "%s" on schema "%s"' % (key, unicode(self.name)))
+
+    def _acls_getparent(self):
+        return self.model
 
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):

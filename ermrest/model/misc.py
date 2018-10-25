@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -423,22 +424,8 @@ class AclBinding (AltDict):
         return (aclpath, col, ctype)
         
 annotatable_classes = []
-
-def keying(restype, keying):
-    """Decorator to configure resource type and keying for model classes.
-
-       restype: the string name for the resource type, used to name auxilliary storage
-
-       keying: dictionary of column names mapped to (psql_type, function) pairs
-         which define the Postgres storage type and compute 
-         literals for those columns to key the individual annotations.
-
-    """
-    def helper(orig_class):
-        setattr(orig_class, '_model_restype', restype)
-        setattr(orig_class, '_model_keying', keying)
-        return orig_class
-    return helper
+hasacls_classes = []
+hasdynacls_classes = []
 
 def cache_rights(orig_method):
     def helper(self, aclname, roles=None):
@@ -451,20 +438,24 @@ def cache_rights(orig_method):
         return result
     return helper
 
-def annotatable(orig_class):
-    """Decorator to add annotation storage access interface to model classes.
+class Annotatable (object):
+    """Aspect class to add annotation storage access interface to model classes."""
+    def __init__(self):
+        super(Annotatable, self).__init__()
+        self.annotations = AltDict(lambda k: self._annotation_key_error(k))
 
-       The keying() decorator MUST be applied before this one to set orig_class.restype.
-    """
+    def _annotation_key_error(self, key):
+        return exception.NotFound(u'annotation "%s"' % (key,))
+
     def _interp_annotation(self, newval=None):
         return {
             'RID': sql_literal(self.rid),
-            'restype': orig_class._model_restype,
+            'restype': self._model_restype,
             'newval': sql_literal(json.dumps(newval)),
         }
 
     def set_annotations(self, conn, cur, doc):
-        """Replace full annotations doc on %s, returning None."""
+        """Replace full annotations doc, returning None."""
         if not isinstance(doc, dict):
             raise exception.BadData(u'Annotation set %s must be a dictionary.' % json.dumps(doc))
         doc = dict(doc)
@@ -480,7 +471,7 @@ WHERE "RID" = %(RID)s;
 """ % interp)
 
     def set_annotation(self, conn, cur, key, value):
-        """Set annotation on %s, returning previous value for updates or None.""" % orig_class._model_restype
+        """Set annotation, returning previous value for updates or None."""
         assert key is not None
         doc = dict(self.annotations)
         oldvalue = self.annotations.get(key)
@@ -489,7 +480,7 @@ WHERE "RID" = %(RID)s;
         return oldvalue
 
     def delete_annotation(self, conn, cur, key):
-        """Delete annotation on %s.""" % orig_class._model_restype
+        """Delete annotation"""
         if key is None:
             doc = {}
         else:
@@ -497,26 +488,21 @@ WHERE "RID" = %(RID)s;
             doc.pop(key, None)
         self.set_annotations(conn, cur, doc)
 
-    setattr(orig_class, '_interp_annotation', _interp_annotation)
-    setattr(orig_class, 'set_annotation', set_annotation)
-    setattr(orig_class, 'set_annotations', set_annotations)
-    setattr(orig_class, 'delete_annotation', delete_annotation)
-    annotatable_classes.append(orig_class)
-    return orig_class
+    @staticmethod
+    def annotatable(klass):
+        """Register annotatable classes."""
+        annotatable_classes.append(klass)
+        return klass
 
-hasacls_classes = []
+class HasAcls (object):
+    """Aspect class to add ACL storage access interface to model classes."""
+    _acls_can_remove = True
+    _anon_mutation_ok = False
 
-def hasacls(acls_supported, rights_supported, getparent, anon_mutation_ok=False):
-    """Decorator to add ACL storage access interface to model classes.
+    def __init__(self):
+        super(HasAcls, self).__init__()
+        self.acls = AclDict(self, can_remove=self._acls_can_remove)
 
-       acls_supported: { aclname, ... }
-
-       rights_supported: { aclname, ... }
-
-       getparent: getparent_func
-
-       The keying() decorator MUST be applied first.
-    """
     def _interp_acl(self, newval=None):
         return {
             'RID': sql_literal(self.rid),
@@ -608,10 +594,7 @@ WHERE "RID" = %(RID)s;
             # on named acl or another acl sufficient for named acl
             return True
 
-        if getparent is not None:
-            parentres = getparent(self)
-        else:
-            parentres = None
+        parentres = self._acls_getparent()
 
         if parentres is not None:
             if parentres.has_right('owner', roles):
@@ -651,39 +634,18 @@ WHERE "RID" = %(RID)s;
             for aclname in self._acls_rights
         }
 
-    def helper(orig_class):
-        setattr(orig_class, '_acl_getparent', lambda self: getparent(self))
-        setattr(orig_class, '_acls_supported', set(acls_supported))
-        setattr(orig_class, '_acls_rights', set(rights_supported))
-        setattr(orig_class, '_interp_acl', _interp_acl)
-        setattr(orig_class, '_anon_mutation_ok', anon_mutation_ok)
-        if not hasattr(orig_class, 'rights'):
-            setattr(orig_class, 'rights', rights)
-        else:
-            setattr(orig_class, '_rights', rights)
-        if not hasattr(orig_class, 'has_right'):
-            setattr(orig_class, 'has_right', has_right)
-        else:
-            setattr(orig_class, '_has_right', has_right)
-        if not hasattr(orig_class, 'enforce_right'):
-            setattr(orig_class, 'enforce_right', enforce_right)
-        else:
-            setattr(orig_class, '_enforce_right', enforce_right)
-        setattr(orig_class, 'set_acls', set_acls)
-        setattr(orig_class, 'set_acl', set_acl)
-        setattr(orig_class, 'delete_acl', delete_acl)
-        hasacls_classes.append(orig_class)
-        return orig_class
+    @staticmethod
+    def hasacls(klass):
+        """Decorator to register hasacls classes."""
+        hasacls_classes.append(klass)
+        return klass
 
-    return helper
+class HasDynacls (object):
+    """Aspect class to add dynamic ACL storage access to mode classes."""
+    def __init__(self):
+        super(HasDynacls, self).__init__()
+        self.dynacls = DynaclDict(self)
 
-hasdynacls_classes = []
-
-def hasdynacls(dynacl_types_supported):
-    """Decorator to add dynamic ACL storage access to model classes.
-
-       The keying() decorator MUST be applied first.
-    """
     def _interp_dynacl(self, newval=None):
         return {
             'RID': sql_literal(self.rid),
@@ -739,14 +701,7 @@ WHERE "RID" = %(RID)s;
 
         self.set_dynacls(cur, self.dynacls)
 
-    def helper(orig_class):
-        setattr(orig_class, '_interp_dynacl', _interp_dynacl)
-        setattr(orig_class, 'set_dynacls', set_dynacls)
-        setattr(orig_class, 'set_dynacl', set_dynacl)
-        setattr(orig_class, 'delete_dynacl', delete_dynacl)
-        setattr(orig_class, 'dynacl_types_supported', dynacl_types_supported)
-        hasdynacls_classes.append(orig_class)
-        return orig_class
-
-    return helper
-
+    @staticmethod
+    def hasdynacls(klass):
+        hasdynacls_classes.append(klass)
+        return klass

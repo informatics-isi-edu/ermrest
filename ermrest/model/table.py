@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +27,7 @@ needed by other modules of the ermrest project.
 
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, udecode, table_exists
-from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
+from .misc import AltDict, Annotatable, cache_rights, HasAcls, HasDynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
@@ -34,30 +35,29 @@ import urllib
 import json
 import web
 
-@annotatable
-@hasdynacls(
-    { "owner", "update", "delete", "select" }
-)
-@hasacls(
-    { "owner", "enumerate", "write", "insert", "update", "delete", "select" },
-    { "owner", "insert", "update", "delete", "select" },
-    lambda self: self.schema
-)
-@keying(
-    'table',
-    {
-        "table_rid": ('text', lambda self: self.rid)
-    }
-)
-class Table (object):
+@Annotatable.annotatable
+@HasDynacls.hasdynacls
+@HasAcls.hasacls
+class Table (HasDynacls, HasAcls, Annotatable):
     """Represents a database table.
     
     At present, this has a 'name' and a collection of table 'columns'. It
     also has a reference to its 'schema'.
     """
+    _model_restype = 'table'
+    _model_keying = {
+        "table_rid": ('text', lambda self: self.rid),
+    }
+
+    _acls_supported = { "owner", "enumerate", "write", "insert", "update", "delete", "select" }
+    _acls_rights = { "owner", "insert", "update", "delete", "select" }
+
+    dynacl_types_supported = { "owner", "update", "delete", "select" }
+
     tag_indexing_preferences = 'tag:isrd.isi.edu,2018:indexing-preferences'
-    
+
     def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None):
+        super(Table, self).__init__()
         self.schema = schema
         self.name = name
         self.rid = rid
@@ -78,13 +78,8 @@ class Table (object):
                     ",".join([unicode(c.name) for c in k]), self)
             )
         )
-        self.annotations = AltDict(
-            lambda k: exception.NotFound(u'annotation "%s" on table %s' % (k, self))
-        )
         self.annotations.update(annotations)
-        self.acls = AclDict(self)
         self.acls.update(acls)
-        self.dynacls = DynaclDict(self)
         self.dynacls.update(dynacls)
 
         for c in columns:
@@ -93,6 +88,12 @@ class Table (object):
 
         if name not in self.schema.tables:
             self.schema.tables[name] = self
+
+    def _annotation_key_error(self, key):
+        return exception.NotFound(u'annotation "%s" on table %s' % (k, self))
+
+    def _acls_getparent(self):
+        return self.schema
 
     def __str__(self):
         return ':%s:%s' % (
@@ -112,7 +113,7 @@ class Table (object):
         if web.ctx.ermrest_history_snaptime is not None:
             if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
                 return False
-        return self._has_right(aclname, roles)
+        return HasAcls.has_right(self, aclname, roles)
 
     def columns_in_order(self):
         cols = [ c for c in self.columns.values() if c.has_right('enumerate') ]

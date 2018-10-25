@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2018 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,17 +23,12 @@ import web
 from .. import exception
 from ..util import sql_identifier, sql_literal, udecode
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, truncated_identifier, sufficient_rights, get_dynacl_clauses
+from .misc import Annotatable, cache_rights, HasAcls, HasDynacls, truncated_identifier, get_dynacl_clauses
 
-@annotatable
-@hasdynacls({ "owner", "update", "delete", "select" })
-@hasacls(
-    {"enumerate", "write", "insert", "update", "select"},
-    {"insert", "update", "select", "delete"},
-    lambda self: self.table
-)
-@keying('column', {"column_rid": ('text', lambda self: self.rid)})
-class Column (object):
+@Annotatable.annotatable
+@HasDynacls.hasdynacls
+@HasAcls.hasacls
+class Column (HasDynacls, HasAcls, Annotatable):
     """Represents a table column.
     
     Its fields include:
@@ -44,8 +40,18 @@ class Column (object):
     
     It also has a reference to its 'table'.
     """
-    
+    _model_restype = 'column'
+    _model_keying = {
+        "column_rid": ('text', lambda self: self.rid),
+    }
+
+    _acls_supported = {"enumerate", "write", "insert", "update", "select"}
+    _acls_rights = {"insert", "update", "select", "delete"}
+
+    dynacl_types_supported = { "owner", "update", "delete", "select" }
+
     def __init__(self, name, position, type, default_value, nullok=None, comment=None, column_num=None, annotations={}, acls={}, dynacls={}, rid=None):
+        super(Column, self).__init__()
         self.table = None
         self.name = name
         self.position = position
@@ -55,12 +61,15 @@ class Column (object):
         self.default_value = default_value
         self.nullok = nullok if nullok is not None else True
         self.comment = comment
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on column %s' % (k, self)))
         self.annotations.update(annotations)
-        self.acls = AclDict(self)
         self.acls.update(acls)
-        self.dynacls = DynaclDict(self)
         self.dynacls.update(dynacls)
+
+    def _annotation_key_error(self, key):
+        return exception.NotFound(u'annotation "%s" on column %s' % (k, self))
+
+    def _acls_getparent(self):
+        return self.table
 
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
@@ -96,7 +105,7 @@ SELECT _ermrest.model_version_bump();
             return False
         if self.table.has_right(aclname, roles) is False:
             return False
-        return self._has_right(aclname, roles)
+        return HasAcls.has_right(self, aclname, roles)
 
     def has_data_right(self, aclname, roles=None):
         return self.has_right(aclname, roles)
