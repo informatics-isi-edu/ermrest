@@ -1776,7 +1776,7 @@ class EntityPath (AnyPath):
         pkeys = [
             k
             for k, unique in context_table.uniques.items()
-            if unique.has_right('select') or not enforce_client
+            if unique.is_primary_key() and (unique.has_right('select') or not enforce_client)
         ]
         if pkeys:
             pkeys.sort(key=lambda k: len(k))
