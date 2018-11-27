@@ -263,9 +263,9 @@ BEGIN
       ELSIF colrow.column_name = 'id' THEN
          val := NEW.id;
       ELSIF colrow.column_name = 'URI' THEN
-         val := NEW.URI;
+         val := NEW."URI";
       ELSIF colrow.column_name = 'ID' THEN
-         val := NEW.ID;
+         val := NEW."ID";
       END IF;
 
       -- check whether supplied value looks like a template containing '{RID}' and expand it
@@ -276,9 +276,9 @@ BEGIN
          ELSIF colrow.column_name = 'id' THEN
             NEW.id := val;
          ELSIF colrow.column_name = 'URI' THEN
-            NEW.URI := val;
+            NEW."URI" := val;
          ELSIF colrow.column_name = 'ID' THEN
-            NEW.ID := val;
+            NEW."ID" := val;
 	    
          END IF;
       END IF;
