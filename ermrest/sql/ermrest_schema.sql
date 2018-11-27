@@ -253,7 +253,7 @@ BEGIN
       WHERE s.schema_name = TG_TABLE_SCHEMA
         AND t.table_name = TG_TABLE_NAME
 	AND typ.type_name IN ('ermrest_uri', 'ermrest_curie')
-	AND c.column_name IN ('uri', 'id')
+	AND c.column_name IN ('URI', 'ID', 'uri', 'id')
 	AND s2.schema_name = 'public'
     LOOP
       -- we can only handle these two standard column names
@@ -262,6 +262,10 @@ BEGIN
          val := NEW.uri;
       ELSIF colrow.column_name = 'id' THEN
          val := NEW.id;
+      ELSIF colrow.column_name = 'URI' THEN
+         val := NEW.URI;
+      ELSIF colrow.column_name = 'ID' THEN
+         val := NEW.ID;
       END IF;
 
       -- check whether supplied value looks like a template containing '{RID}' and expand it
@@ -271,6 +275,11 @@ BEGIN
             NEW.uri := val;
          ELSIF colrow.column_name = 'id' THEN
             NEW.id := val;
+         ELSIF colrow.column_name = 'URI' THEN
+            NEW.URI := val;
+         ELSIF colrow.column_name = 'ID' THEN
+            NEW.ID := val;
+	    
          END IF;
       END IF;
     END LOOP;
