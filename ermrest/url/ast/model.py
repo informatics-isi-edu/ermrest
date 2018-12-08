@@ -24,6 +24,7 @@ import web
 
 from ... import exception
 from ... import model
+from ...model.misc import frozendict
 from .api import Api
 from ...util import negotiated_content_type
 
@@ -102,15 +103,51 @@ class Schemas (Api):
         modelobj = web.ctx.ermrest_catalog_model
 
         deferred_fkeys = []
-        
-        def extract_fkeys(sname, tname, tabledoc):
-            """Remove fkey sub-documents and defer to our own storage."""
+        deferred_dynacls = []
+
+        def defer_fkey(fkdoc, fsname=None, ftname=None):
+            """Defer fkey."""
+            try:
+                if fsname is None:
+                    fsname = fkdoc['foreign_key_columns'][0]['schema_name']
+                if ftname is None:
+                    ftname = fkdoc['foreign_key_columns'][0]['table_name']
+                fcnames = [ c['column_name'] for c in fkdoc['foreign_key_columns'] ]
+                usname = fkdoc['referenced_columns'][0]['schema_name']
+                utname = fkdoc['referenced_columns'][0]['table_name']
+                ucnames = [ c['column_name'] for c in fkdoc['referenced_columns'] ]
+            except KeyError as e:
+                raise exception.BadData('Foreign key document is missing %s field.' % e)
+            except IndexError:
+                raise exception.BadData('Foreign key documents require at least one column mapping.')
+
+            fkmap = ( usname, utname, dict(zip(fcnames, ucnames)) )
+            dynacls = fkdoc.pop('acl_bindings', [])
+
+            if dynacls:
+                deferred_dynacls.append( (fsname, ftname, fkmap, dynacls) )
+
             deferred_fkeys.append(
-                (sname, tname, tabledoc.pop('foreign_keys', []))
+                (fsname, ftname, [fkdoc])
             )
 
+        def extract_deferred(sname, tname, tabledoc):
+            """Remove deferred sub-documents to our own storage."""
+            dynacls = tabledoc.pop('acl_bindings', [])
+            if dynacls:
+                deferred_dynacls.append( (sname, tname, None, dynacls) )
+
+            for columndoc in tabledoc.get('column_definitions', []):
+                dynacls = columndoc.pop('acl_bindings', [])
+                if dynacls:
+                    deferred_dynacls.append( (sname, tname, columndoc['name'], dynacls) )
+
+            fkeys = tabledoc.pop('foreign_keys', [])
+            for fkey in fkeys:
+                defer_fkey(fkey, sname, tname)
+
         def run_schema_pass1(sname, sdoc):
-            """Create one schema and its tables while deferring fkeys."""
+            """Create one schema and its tables except deferred parts."""
             if sname is None:
                 # support use case w/o schema key from parent document
                 sname = sdoc.get('schema_name')
@@ -118,12 +155,12 @@ class Schemas (Api):
             sname2 = sdoc.get('schema_name', sname)
             if sname != sname2:
                 raise exception.BadData('Schema key %s and schema_name %s do not match.' % (sname, sname2))
-            
+
             # support elision of schema_name when parent schema key is already specified
             sdoc['schema_name'] = sname
                 
             for tname, tdoc in sdoc.get('tables', {}).items():
-                extract_fkeys(sname, tname, tdoc)
+                extract_deferred(sname, tname, tdoc)
             return model.Schema.create_fromjson(conn, cur, modelobj, sdoc, web.ctx.ermrest_config)
 
         def run_table_pass1(tdoc):
@@ -133,7 +170,7 @@ class Schemas (Api):
                 tname = tdoc['table_name']
             except KeyError, e:
                 raise exception.BadData('Each table document must have a %s field.' % e)
-            extract_fkeys(sname, tname, tdoc)
+            extract_deferred(sname, tname, tdoc)
             schema = modelobj.schemas[sname]
             return model.Table.create_fromjson(conn, cur, schema, tdoc, web.ctx.ermrest_config)
 
@@ -147,28 +184,36 @@ class Schemas (Api):
             except IndexError:
                 raise exception.BadData('Each key document must have at least one unique_columns entry.')
             return modelobj.schemas[sname].tables[tname].add_unique(conn, cur, kdoc)
-        
-        def defer_fkey(fkdoc):
-            """Defer fkey."""
-            try:
-                sname = fkdoc['foreign_key_columns'][0]['schema_name']
-                tname = fkdoc['foreign_key_columns'][0]['table_name']
-            except KeyError as e:
-                raise exception.BadData('Each foreign key document must have a %s field.' % e)
-            except IndexError:
-                raise exception.BadData('Each foreign key document must have at least one foreign_key_columns entry.')
-            deferred_fkeys.append(
-                (sname, tname, [fkdoc])
-            )
 
-        def run_deferred_fkeys():
-            """Create all deferred fkeys assuming tables now exist."""
+        def run_deferred():
+            """Create all deferred content assuming tables now exist."""
             for sname, tname, fkeydocs in deferred_fkeys:
+                table = modelobj.schemas[sname].tables[tname]
                 for fkeydoc in fkeydocs:
-                    for fkr in modelobj.schemas[sname].tables[tname].add_fkeyref(conn, cur, fkeydoc):
+                    for fkr in table.add_fkeyref(conn, cur, fkeydoc):
                         # need to drain this generating function
                         pass
-        
+
+            table = modelobj.schemas['AclBindingExplicit'].tables['T4']
+            utable = modelobj.schemas['AclBindingExplicit'].tables['T3']
+
+            for sname, tname, cname, dynacls in deferred_dynacls:
+                table = modelobj.schemas[sname].tables[tname]
+                if cname is None:
+                    table.set_dynacls(cur, dynacls)
+                elif isinstance(cname, tuple):
+                    # unpack frozen fkmap and find fkeyref subject
+                    usname, utname, cnames = cname
+                    utable = modelobj.schemas[usname].tables[utname]
+                    refmap = {
+                        table.columns[fc]: utable.columns[uc]
+                        for fc, uc in cnames.items()
+                    }
+                    fkref = table.fkeys[frozenset(refmap.keys())].references[frozendict(refmap)]
+                    fkref.set_dynacls(cur, dynacls)
+                else:
+                    table.columns[cname].set_dynacls(cur, dynacls)
+
         if isinstance(doc, dict):
             # top-level model document has schemas w/ nested tables
             schemasdoc = doc.get('schemas')
@@ -179,7 +224,7 @@ class Schemas (Api):
             for sname, sdoc in schemasdoc.items():
                 schemas.append(run_schema_pass1(sname, sdoc))
 
-            run_deferred_fkeys()
+            run_deferred()
             return dict(schemas={ s.name: s.prejson() for s in schemas })
         elif isinstance(doc, list):
             # polymorphic batch may have schemas and/or tables mixed together
@@ -197,10 +242,10 @@ class Schemas (Api):
                 else:
                     raise exception.BadData('Each batch item must be a schema, table, or foreign-key document.')
 
-            run_deferred_fkeys()
+            run_deferred()
             return resources
         else:
-            raise exception.BadData('JSON input is neither a schema set or a batch list of schemas and tables.')
+            raise exception.BadData('JSON input is neither a schema set nor a batch list of schemas and tables.')
     
     def POST(self, uri):
         """Create schemas and/or tables from JSON

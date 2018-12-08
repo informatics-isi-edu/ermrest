@@ -608,7 +608,7 @@ WHERE v."RID" = i.fkey_rid
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
-        fk_name = fk_names[0] if fk_names else None
+        fk_name = tuple(fk_names[0]) if fk_names else None
             
         if fk_ref_map not in fkey.references:
             if fktable.kind == 'r' and pktable.kind == 'r':

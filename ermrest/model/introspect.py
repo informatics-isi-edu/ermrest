@@ -301,6 +301,8 @@ FROM _ermrest.%(sqlfunc)s(%(when)s) a;
             new_dynacls = {}
             for binding_name, binding_doc in dynacls.items():
                 try:
+                    if hasattr(binding_doc, 'pop'):
+                        binding_doc.pop('model_deps')
                     new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
                 except exception.ConflictModel as te:
                     msg = 'Pruning invalid dynamic ACL binding %s on %s due to error: %s. Was this invalidated by a previous model change?' % (

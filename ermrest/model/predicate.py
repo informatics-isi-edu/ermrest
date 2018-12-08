@@ -58,18 +58,16 @@ class AclBasePredicate (object):
     def sql_where(self, epath, elem, prefix=None):
         assert prefix
         key = None
-        for unique in elem.table.uniques.values():
-            nullok = False
-            for col in unique.columns:
-                if col.nullok:
-                    nullok = True
-                    break
-            if nullok:
-                continue
-            else:
-                key = unique
-                break
-        assert key
+        uniques = [
+            unique
+            for unique in elem.table.uniques.values()
+            if unique.is_primary_key()
+        ]
+        if uniques:
+            uniques.sort(key=lambda k: len(k.columns))
+            key = uniques[0]
+        else:
+            raise NotImplementedError('ACL binding on table %s which lacks primary key.' % elem.table)
         clauses = [
             '%s.%s = %st0.%s' % (
                 prefix,
