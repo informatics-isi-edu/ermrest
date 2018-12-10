@@ -169,34 +169,13 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         )
 
     cur.execute("SELECT * FROM _ermrest.known_pseudo_keys_denorm(%s);" % sql_literal(snapwhen))
-    pruned_any = False
     for rid, constraint_name, table_rid, column_rids, comment, annotations in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
-        try:
-            _introspect_pkey(
-                constraint_name,
-                table_rid, column_rids, comment,
-                lambda pk_colset: PseudoUnique(pk_colset, rid, name_pair, comment, annotations)
-            )
-        except ValueError as te:
-            msg = 'Pruning invalid pseudo key %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
-                constraint_name,
-                tables[table_rid],
-                te
-            )
-            try:
-                web.ctx.ermrest_request_trace(msg)
-            except:
-                web.debug(msg)
-            cur.execute("""
-DELETE FROM _ermrest.known_pseudo_keys
-WHERE "RID" = %(rid)s;
-SELECT _ermrest.model_version_bump();
-""" % {
-    'rid': sql_literal(rid),
-})
-            cur.fetchall()
-            pruned_any = True
+        _introspect_pkey(
+            constraint_name,
+            table_rid, column_rids, comment,
+            lambda pk_colset: PseudoUnique(pk_colset, rid, name_pair, comment, annotations)
+        )
 
     #
     # Introspect foreign keys references, aggregated by reference constraint
@@ -253,31 +232,11 @@ SELECT _ermrest.model_version_bump();
     for rid, constraint_name, fk_table_rid, pk_table_rid, fkc_pkc_rids, \
         comment, annotations, acls in cur:
         name_pair = ("", (constraint_name if constraint_name is not None else rid))
-        try:
-            pfkeyrefs[rid] = _introspect_fkr(
-                constraint_name,
-                fk_table_rid, pk_table_rid, fkc_pkc_rids, comment,
-                lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, rid, name_pair, annotations, comment, acls)
-            )
-        except ValueError as te:
-            msg = 'Pruning invalid pseudo foreign key %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
-                constraint_name,
-                tables[fk_table_rid],
-                te
-            )
-            try:
-                web.ctx.ermrest_request_trace(msg)
-            except:
-                web.debug(msg)
-            cur.execute("""
-DELETE FROM _ermrest.known_pseudo_fkeys
-WHERE "RID" = %(rid)s;
-SELECT _ermrest.model_version_bump();
-""" % {
-    'rid': sql_literal(rid),
-})
-            cur.fetchall()
-            pruned_any = True
+        pfkeyrefs[rid] = _introspect_fkr(
+            constraint_name,
+            fk_table_rid, pk_table_rid, fkc_pkc_rids, comment,
+            lambda fk, pk, fk_ref_map: PseudoKeyReference(fk, pk, fk_ref_map, rid, name_pair, annotations, comment, acls)
+        )
 
     # AclBinding constructor needs whole model to validate binding projections...
     for resourceset, sqlfunc, restype in [
@@ -300,38 +259,11 @@ FROM _ermrest.%(sqlfunc)s(%(when)s) a;
             resource = resourceset[rid]
             new_dynacls = {}
             for binding_name, binding_doc in dynacls.items():
-                try:
-                    if hasattr(binding_doc, 'pop'):
-                        binding_doc.pop('model_deps')
-                    new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
-                except exception.ConflictModel as te:
-                    msg = 'Pruning invalid dynamic ACL binding %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
-                        binding_name,
-                        resource,
-                        te
-                    )
-                    try:
-                        web.ctx.ermrest_request_trace(msg)
-                    except:
-                        web.debug(msg)
-                    cur.execute("""
-UPDATE _ermrest.known_%(restype)ss
-SET acl_bindings = acl_bindings - %(binding_name)s
-WHERE "RID" = %(resource_rid)s;
-SELECT _ermrest.model_version_bump();
-""" % {
-    'restype': restype,
-    'resource_rid': sql_literal(rid),
-    'binding_name': sql_literal(binding_name),
-})
-                    cur.fetchall()
-                    pruned_any = True
+                if hasattr(binding_doc, 'pop'):
+                    binding_doc.pop('model_deps')
+                new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
             resource.dynacls.update(new_dynacls)
 
-    if pruned_any:
-        # this fires when we've done any of the pseudo constraint or acl binding DELETE cleanups above...
-        cur.connection.commit()
-        raise exception.rest.ServiceUnavailable('Model introspection failed due to a transient condition. Please try again')
     # save our private schema in case we want to unhide it later...
     model.ermrest_schema = model.schemas['_ermrest']
     model.pg_catalog_schema = model.schemas['pg_catalog']

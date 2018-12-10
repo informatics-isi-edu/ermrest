@@ -41,6 +41,34 @@ CREATE OR REPLACE FUNCTION _ermrest.column_exists(sname text, tname text, cname 
 SELECT COALESCE((SELECT True FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3), False);
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.trigger_exists(sname text, tname text, tgname text, evname text) RETURNS boolean AS $$
+SELECT COALESCE(
+  (SELECT True
+   FROM information_schema.triggers tg
+   WHERE tg.event_object_schema = $1
+     AND tg.event_object_table = $2
+     AND tg.trigger_name = $3
+     AND tg.event_manipulation = $4
+   LIMIT 1),
+  False
+);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.model_deps(acl_bindings jsonb) RETURNS jsonb IMMUTABLE AS $$
+SELECT jsonb_object_agg(dep, NULL)
+FROM jsonb_each(acl_bindings) b(binding_name, binding)
+JOIN LATERAL jsonb_each(b.binding->'model_deps') m(dep, nothing) ON (True);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.prune_acl_bindings(acl_bindings jsonb, dropped_rid text) RETURNS jsonb IMMUTABLE AS $$
+SELECT COALESCE(
+  (SELECT jsonb_object_agg(binding_name, binding)
+   FROM jsonb_each(acl_bindings) b(binding_name, binding)
+   WHERE NOT binding->'model_deps' ? dropped_rid),
+  '{}'::jsonb
+);
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION _ermrest.create_domain_if_not_exists(domain_schema text, domain_name text, basetype text) RETURNS boolean AS $$
 BEGIN
   IF (SELECT True FROM information_schema.domains d WHERE d.domain_schema = $1 AND d.domain_name = $2) THEN
@@ -584,18 +612,58 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-IF COALESCE(
-     (SELECT False
-      FROM information_schema.triggers tg
-      WHERE tg.event_object_schema = '_ermrest'
-        AND tg.event_object_table = 'known_columns'
-        AND tg.trigger_name = 'columns_invalidate'
-        AND tg.event_manipulation = 'DELETE'),
-     True) THEN
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_columns', 'columns_invalidate', 'DELETE') THEN
   CREATE TRIGGER columns_invalidate
     AFTER DELETE ON _ermrest.known_columns
     REFERENCING OLD TABLE AS _ermrest_dropped_columns
     FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.columns_invalidate();
+END IF;
+
+CREATE OR REPLACE FUNCTION _ermrest.model_elements_invalidate() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    UPDATE _ermrest.known_tables v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+
+    UPDATE _ermrest.known_columns v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+
+    UPDATE _ermrest.known_fkeys v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+
+    UPDATE _ermrest.known_pseudo_fkeys v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_tables', 'model_element_invaldate', 'DELETE') THEN
+  CREATE TRIGGER model_element_invalidate
+    AFTER DELETE ON _ermrest.known_tables
+    REFERENCING OLD TABLE AS _ermrest_dropped_model
+    FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.model_elements_invalidate();
+END IF;
+
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_columns', 'model_element_invaldate', 'DELETE') THEN
+  CREATE TRIGGER model_element_invalidate
+    AFTER DELETE ON _ermrest.known_columns
+    REFERENCING OLD TABLE AS _ermrest_dropped_model
+    FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.model_elements_invalidate();
+END IF;
+
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_fkeys', 'model_element_invaldate', 'DELETE') THEN
+  CREATE TRIGGER model_element_invalidate
+    AFTER DELETE ON _ermrest.known_fkeys
+    REFERENCING OLD TABLE AS _ermrest_dropped_model
+    FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.model_elements_invalidate();
+END IF;
+
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_pseudo_fkeys', 'model_element_invaldate', 'DELETE') THEN
+  CREATE TRIGGER model_element_invalidate
+    AFTER DELETE ON _ermrest.known_pseudo_fkeys
+    REFERENCING OLD TABLE AS _ermrest_dropped_model
+    FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.model_elements_invalidate();
 END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.find_schema_rid(sname text) RETURNS text AS $$
