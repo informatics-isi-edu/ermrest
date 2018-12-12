@@ -185,7 +185,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             sql_identifier(unicode(self.name)),
             self.type.sql()
             ]
-        if self.default_value:
+        if self.default_value is not None:
             parts.append('DEFAULT %s' % self.type.sql_literal(self.default_value))
         if self.nullok is False:
             parts.append('NOT NULL')
