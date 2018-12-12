@@ -181,9 +181,6 @@ class Table (HasDynacls, HasAcls, Annotatable):
         columns = Column.fromjson(tabledoc.get('column_definitions',[]), ermrest_config)
         comment = tabledoc.get('comment')
         table = Table(schema, tname, columns, 'r', comment, annotations)
-        if not schema.has_right('owner'):
-            table.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
-            table.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
 
         clauses = []
         for column in columns:
@@ -207,6 +204,13 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
 )
         )
         table.rid = cur.next()[0]
+
+        if not table.has_right('owner'):
+            # client gets ownership by default
+            table.acls['owner'] = [web.ctx.webauthn2_context.get_client_id()]
+            # merge client-specified ACLs on top
+            table.acls.update(acls)
+            acls = table.acls.copy()
 
         table.set_annotations(conn, cur, annotations)
         table.set_acls(cur, acls)

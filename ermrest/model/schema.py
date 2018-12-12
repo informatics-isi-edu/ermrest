@@ -133,8 +133,9 @@ RETURNING "RID";
         srid = cur.next()[0]
         newschema = Schema(self, sname, rid=srid)
         if not self.has_right('owner'):
-            newschema.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
-            newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
+            # client gets ownership by default
+            newschema.acls['owner'] = [web.ctx.webauthn2_context.get_client_id()]
+            newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.get_client_id()])
         return newschema
 
     def delete_schema(self, conn, cur, sname):
@@ -197,11 +198,14 @@ class Schema (HasAcls, Annotatable):
         tables = schemadoc.get('tables', {})
         
         schema = model.create_schema(conn, cur, sname)
+        # merge client-specified ACLs on top of current state
+        schema.acls.update(acls)
+        acls = schema.acls.copy()
         
         schema.set_comment(conn, cur, comment)
         schema.set_annotations(conn, cur, annotations)
         schema.set_acls(cur, acls)
-            
+
         for k, tabledoc in tables.items():
             tname = tabledoc.get('table_name', k)
             if k != tname:

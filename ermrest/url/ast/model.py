@@ -194,9 +194,6 @@ class Schemas (Api):
                         # need to drain this generating function
                         pass
 
-            table = modelobj.schemas['AclBindingExplicit'].tables['T4']
-            utable = modelobj.schemas['AclBindingExplicit'].tables['T3']
-
             for sname, tname, cname, dynacls in deferred_dynacls:
                 table = modelobj.schemas[sname].tables[tname]
                 if cname is None:
