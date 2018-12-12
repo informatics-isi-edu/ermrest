@@ -543,6 +543,105 @@ class AuthzHideT1id (Authz):
     post_data_T1_default_id_status = 409
     delete_data_T1_id_status = 409
 
+def _merge(d1, d2):
+    d1 = dict(d1)
+    d1.update(d2)
+    return d1
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzCreate (common.ErmrestTest):
+    session = common.secondary_session
+
+    C = _merge(
+        common.catalog_acls,
+        {
+            "create": [common.secondary_client_id],
+        }
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        common.primary_session.put('acl', json=cls.C).raise_for_status()
+        common.primary_session.post('schema', json=[SchemaDoc("S4")]).raise_for_status()
+
+    @classmethod
+    def tearDownClass(cls):
+        common.primary_session.put('acl', json=common.catalog_acls).raise_for_status()
+        common.primary_session.delete('schema/S4').raise_for_status()
+
+    rights_C = {
+        "owner": False,
+        "create": True,
+    }
+    rights_TC = {
+        "owner": True,
+        "insert": True,
+        "update": True,
+        "delete": True,
+        "select": True,
+    }
+
+    create_S3_status = 201
+    delete_S3_status = 204
+    def test_S3_create_schema(self):
+        self.assertHttp(
+            self.session.post('schema/S3'),
+            self.create_S3_status,
+        )
+        self.assertHttp(
+            self.session.delete('schema/S3'),
+            self.delete_S3_status,
+        )
+
+    def test_S3_create_fromjson(self):
+        self.assertHttp(
+            self.session.post('schema', json=[{"schema_name": "S3"}]),
+            self.create_S3_status,
+        )
+        self.assertHttp(
+            self.session.delete('schema/S3'),
+            self.delete_S3_status,
+        )
+
+    _table_doc = TableDoc("TC", [ RID, RCT, RMT, RCB, RMB ], [ RidKey ])
+
+    create_TC_status = 201
+    delete_TC_status = 204
+    def test_TC(self):
+        self.assertHttp(
+            self.session.post('schema/S4/table', json=self._table_doc),
+            self.create_TC_status,
+        )
+
+        if self.create_TC_status == 201:
+            # check table rights only if we could create TC
+            r = self.session.get('schema/S4/table/TC')
+            self.assertHttp(r, 200, 'application/json')
+            rights = r.json()['rights']
+            self.assertEqual(rights, self.rights_TC)
+
+        self.assertHttp(
+            self.session.delete('schema/S4/table/TC'),
+            self.delete_TC_status,
+        )
+
+class AuthzCreateDisallowed (AuthzCreate):
+    C = common.catalog_acls
+
+    rights_C = _merge(
+        AuthzCreate.rights_C,
+        {
+            "create": False
+        }
+    )
+    rights_TC = None
+
+    create_S3_status = 403
+    delete_S3_status = 404
+
+    create_TC_status = 403
+    delete_TC_status = 404
+
 @unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
 class AuthzT1Insert (Authz):
     T1 = {

@@ -631,8 +631,8 @@ ON CONFLICT (%(cols)s) DO UPDATE SET members = %(newval)s;
 
             if not purging:
                 self.enforce_right('owner') # integrity check... can't disown except when purging
-
-                cur.execute("""
+            # not conditional on purging
+            cur.execute("""
 SELECT _ermrest.model_version_bump();
 DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
 """ % interp)
