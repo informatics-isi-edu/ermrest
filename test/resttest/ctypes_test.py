@@ -552,5 +552,53 @@ class CtypeMarkdown (CtypeLongtext):
     ctype = 'markdown'
     cval = '**one**'
 
+class DefaultValue (common.ErmrestTest):
+    ctype = None
+    defaults = []
+
+    @classmethod
+    def _table_name(cls):
+        return 'test_default_%s' % cls.ctype
+
+    @classmethod
+    def _table_def(cls):
+        return TableDoc(
+            cls._table_name(),
+            [
+                RID, RCT, RMT, RCB, RMB,
+            ] + [
+                ColumnDoc("col_%s" % val, TypeDoc(cls.ctype), default=val)
+                for val in cls.defaults
+            ],
+            [ RidKey ]
+        )
+
+    def test_defaults(self):
+        self.assertHttp(self.session.post('schema/%s/table' % _schema, json=self._table_def()), 201)
+        r = self.session.get('schema/%s/table/%s' % (_schema, self._table_name()))
+        self.assertHttp(r, 200, 'application/json')
+        columns = r.json()['column_definitions']
+        for i in range(0, len(self.defaults)):
+            self.assertEqual(columns[i+5]['default'], self.defaults[i])
+
+class DefaultText (DefaultValue):
+    ctype = 'text'
+    defaults = ['0', 'foo', '1', ' ', '', None]
+
+class DefaultInt8 (DefaultValue):
+    ctype = 'int8'
+    defaults = [1, -1, 0, None]
+
+class DefaultBool (DefaultValue):
+    ctype = 'boolean'
+    defaults = [True, False, None]
+
+class DefaultJson (DefaultValue):
+    ctype = 'json'
+    defaults = [True, 1, "one", {"foo": 1}, [1], [0], False, 0, "", {}, [], None]
+
+class DefaultJsonb (DefaultJson):
+    ctype = 'jsonb'
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
