@@ -651,28 +651,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-IF NOT _ermrest.trigger_exists('_ermrest', 'known_tables', 'model_element_invaldate', 'DELETE') THEN
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_tables', 'model_element_invalidate', 'DELETE') THEN
   CREATE TRIGGER model_element_invalidate
     AFTER DELETE ON _ermrest.known_tables
     REFERENCING OLD TABLE AS _ermrest_dropped_model
     FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.model_elements_invalidate();
 END IF;
 
-IF NOT _ermrest.trigger_exists('_ermrest', 'known_columns', 'model_element_invaldate', 'DELETE') THEN
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_columns', 'model_element_invalidate', 'DELETE') THEN
   CREATE TRIGGER model_element_invalidate
     AFTER DELETE ON _ermrest.known_columns
     REFERENCING OLD TABLE AS _ermrest_dropped_model
     FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.model_elements_invalidate();
 END IF;
 
-IF NOT _ermrest.trigger_exists('_ermrest', 'known_fkeys', 'model_element_invaldate', 'DELETE') THEN
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_fkeys', 'model_element_invalidate', 'DELETE') THEN
   CREATE TRIGGER model_element_invalidate
     AFTER DELETE ON _ermrest.known_fkeys
     REFERENCING OLD TABLE AS _ermrest_dropped_model
     FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.model_elements_invalidate();
 END IF;
 
-IF NOT _ermrest.trigger_exists('_ermrest', 'known_pseudo_fkeys', 'model_element_invaldate', 'DELETE') THEN
+IF NOT _ermrest.trigger_exists('_ermrest', 'known_pseudo_fkeys', 'model_element_invalidate', 'DELETE') THEN
   CREATE TRIGGER model_element_invalidate
     AFTER DELETE ON _ermrest.known_pseudo_fkeys
     REFERENCING OLD TABLE AS _ermrest_dropped_model
