@@ -228,7 +228,7 @@ class PseudoUnique (Unique):
     _model_restype = 'pseudo_key'
 
     def __init__(self, cols, rid=None, constraint_name=None, comment=None, annotations={}):
-        super(PseudoUnique, self).__init__(rid=rid, constraint_name=constraint_name, comment=comment, annotations=annotations)
+        super(PseudoUnique, self).__init__(cols, rid=rid, constraint_name=constraint_name, comment=comment, annotations=annotations)
 
     def __repr__(self):
         return '<ermrest.model.PseudoUnique %s>' % str(self)
@@ -693,7 +693,7 @@ class PseudoKeyReference (KeyReference):
     _model_restype = 'pseudo_fkey'
     
     def __init__(self, foreign_key, unique, fk_ref_map, rid=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}):
-        super(PseudoKeyReference, self).__init__(foreign_key, unique, fk_ref_map, rid=rid, constraint_name=constraint_name, annotations=anotations, comment=comment, acls=acls, dynacls=dynacls)
+        super(PseudoKeyReference, self).__init__(foreign_key, unique, fk_ref_map, rid=rid, constraint_name=constraint_name, annotations=annotations, comment=comment, acls=acls, dynacls=dynacls)
 
     def set_comment(self, conn, cur, comment):
         if self.rid:
