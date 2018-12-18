@@ -272,7 +272,6 @@ class AclBinding (AltDict):
         self.resource = resource
         self.binding_name = binding_name
         self.binding_doc = doc
-        self.model_deps = set()
 
         # let AltDict validator behavior check each field above for simple stuff...
         for k, v in doc.items():
@@ -319,7 +318,6 @@ class AclBinding (AltDict):
         else:
             epath.set_base_entity(self.resource, 'base')
 
-        self.model_deps.add(epath.current_entity_table().rid)
         epath.add_filter(predicate.AclBasePredicate(), enforce_client=False)
 
         def compile_join(elem):
@@ -361,8 +359,6 @@ class AclBinding (AltDict):
                 fkeyref = find_fkeyref(ltable.fkeys, fkeyname)
                 refop = '=@'
             epath.add_link(fkeyref, refop, ralias=ralias, enforce_client=False)
-            self.model_deps.add(fkeyref.rid)
-            self.model_deps.add(epath.current_entity_table().rid)
 
         def compile_filter(elem):
             if 'and' in elem:
@@ -409,7 +405,6 @@ class AclBinding (AltDict):
             else:
                 filt = compile_filter(elem)
                 epath.add_filter(filt, enforce_client=False)
-                self.model_deps.add(filt.left_col.rid)
 
         # apply final projection
         if type(proj[-1]) not in [str, unicode]:
@@ -652,24 +647,11 @@ class HasDynacls (object):
         self.dynacls = DynaclDict(self)
 
     def _interp_dynacl(self, newval=None):
-        def stored_rep(v):
-            if hasattr(v, 'binding_doc'):
-                doc = dict(v.binding_doc)
-                for e in v.model_deps:
-                    if not isinstance(e, (str, unicode)):
-                        raise NotImplementedError('model dep %s' % e)
-                doc['model_deps'] = { e: None for e in v.model_deps }
-                return doc
-            else:
-                return v
         return {
             'RID': sql_literal(self.rid),
             'restype': self._model_restype,
             'newval': sql_literal(
-                json.dumps({
-                    k: stored_rep(v)
-                    for k, v in newval.items()
-                })
+                json.dumps(newval)
             ),
         }
 
@@ -689,9 +671,9 @@ class HasDynacls (object):
         interp = self._interp_dynacl(doc)
         cur.execute("""
 SELECT _ermrest.model_version_bump();
-UPDATE _ermrest.known_%(restype)ss
-SET acl_bindings = %(newval)s::jsonb
-WHERE "RID" = %(RID)s;
+UPDATE _ermrest.known_%(restype)ss v
+SET acl_bindings = _ermrest.compile_acl_bindings(v, %(newval)s::jsonb)
+WHERE v."RID" = %(RID)s;
 """ % interp)
 
     def set_dynacl(self, cur, name, binding):

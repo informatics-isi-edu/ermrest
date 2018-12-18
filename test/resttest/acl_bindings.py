@@ -39,7 +39,7 @@ class AclBindingT1 (common.ErmrestTest):
     additional_dynacls = {
         'my binding 2': {
             'types': ['owner'],
-            'projection': 'name',
+            'projection': ['name'],
             'projection_type': 'acl',
             'scope_acl': ['*'],
         }
@@ -173,7 +173,7 @@ class AclBindingT3 (AclBindingT1):
     initial_dynacls = {
         'my binding 1': {
             'types': ['owner'],
-            'projection': 'owner',
+            'projection': ['owner'],
             'projection_type': 'acl',
             'scope_acl': ['*'],
         }
@@ -216,7 +216,7 @@ class AclBindingT3Fkey (AclBindingT2Fkey):
     initial_dynacls = {
         'my binding 1': {
             'types': ['owner'],
-            'projection': 'name',
+            'projection': ['name'],
             'projection_type': 'acl',
             'scope_acl': ['*'],
         }

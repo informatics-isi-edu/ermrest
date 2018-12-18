@@ -259,8 +259,6 @@ FROM _ermrest.%(sqlfunc)s(%(when)s) a;
             resource = resourceset[rid]
             new_dynacls = {}
             for binding_name, binding_doc in dynacls.items():
-                if hasattr(binding_doc, 'pop'):
-                    binding_doc.pop('model_deps')
                 new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
             resource.dynacls.update(new_dynacls)
 

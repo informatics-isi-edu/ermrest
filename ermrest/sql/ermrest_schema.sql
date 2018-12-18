@@ -423,6 +423,7 @@ IF NOT _ermrest.table_exists('_ermrest', 'known_tables') THEN
     annotations jsonb NOT NULL DEFAULT '{}',
     UNIQUE(schema_rid, table_name) DEFERRABLE
   );
+  CREATE INDEX known_tables_model_deps_idx ON _ermrest.known_tables USING gin ( (_ermrest.model_deps(acl_bindings)) ) WHERE acl_bindings != '{}';
 END IF;
 
 IF NOT _ermrest.table_exists('_ermrest', 'table_last_modified') THEN
@@ -511,6 +512,7 @@ IF NOT _ermrest.table_exists('_ermrest', 'known_columns') THEN
     UNIQUE(table_rid, column_num) DEFERRABLE,
     UNIQUE(table_rid, column_name) DEFERRABLE
   );
+  CREATE INDEX known_columns_model_deps_idx ON _ermrest.known_columns USING gin ( (_ermrest.model_deps(acl_bindings)) ) WHERE acl_bindings != '{}';
 ELSE
   ALTER TABLE _ermrest.known_columns
     DROP CONSTRAINT known_columns_table_rid_column_name_key,
@@ -584,6 +586,7 @@ IF NOT _ermrest.table_exists('_ermrest', 'known_fkeys') THEN
     annotations jsonb NOT NULL DEFAULT '{}',
     UNIQUE(schema_rid, constraint_name) DEFERRABLE
   );
+  CREATE INDEX known_fkeys_model_deps_idx ON _ermrest.known_fkeys USING gin ( (_ermrest.model_deps(acl_bindings)) ) WHERE acl_bindings != '{}';
 END IF;
 
 IF NOT _ermrest.table_exists('_ermrest', 'known_pseudo_fkeys') THEN
@@ -602,6 +605,7 @@ IF NOT _ermrest.table_exists('_ermrest', 'known_pseudo_fkeys') THEN
     acl_bindings jsonb NOT NULL DEFAULT '{}',
     annotations jsonb NOT NULL DEFAULT '{}'
   );
+  CREATE INDEX known_pseudo_fkeys_model_deps_idx ON _ermrest.known_pseudo_fkeys USING gin ( (_ermrest.model_deps(acl_bindings)) ) WHERE acl_bindings != '{}';
 END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.refmap_invert(orig jsonb) RETURNS jsonb IMMUTABLE AS $$
@@ -632,16 +636,16 @@ CREATE OR REPLACE FUNCTION _ermrest.model_elements_invalidate() RETURNS TRIGGER 
 BEGIN
   IF TG_OP = 'DELETE' THEN
     UPDATE _ermrest.known_tables v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
-    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID" AND v.acl_bindings != '{}';
 
     UPDATE _ermrest.known_columns v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
-    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID" AND v.acl_bindings != '{}';
 
     UPDATE _ermrest.known_fkeys v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
-    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID" AND v.acl_bindings != '{}';
 
     UPDATE _ermrest.known_pseudo_fkeys v SET acl_bindings = _ermrest.prune_acl_bindings(v.acl_bindings, d."RID")
-    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID";
+    FROM _ermrest_dropped_model d WHERE _ermrest.model_deps(v.acl_bindings) ? d."RID" AND v.acl_bindings != '{}';
   END IF;
   RETURN NULL;
 END;
@@ -938,6 +942,7 @@ DECLARE
   old_trigger_exists bool;
   new_trigger_exists bool;
   old_exclusion_exists bool;
+  gist_idx_exists bool;
 BEGIN
   SELECT s.schema_name, t.table_name INTO sname, tname
   FROM _ermrest.known_tables t
@@ -961,6 +966,7 @@ BEGIN
     it.relname IS NOT NULL,
     tgo.trigger_name IS NOT NULL,
     tgn.trigger_name IS NOT NULL,
+    idx.indexname IS NOT NULL,
     xc.conname IS NOT NULL
   INTO
     sname,
@@ -968,6 +974,7 @@ BEGIN
     htable_exists,
     old_trigger_exists,
     new_trigger_exists,
+    gist_idx_exists,
     old_exclusion_exists
   FROM _ermrest.known_tables t
   JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
@@ -975,6 +982,10 @@ BEGIN
   LEFT OUTER JOIN pg_catalog.pg_class it
     ON (it.relnamespace = hs.oid
         AND it.relname = CASE WHEN s.schema_name = '_ermrest' THEN t.table_name ELSE 't' || t."RID" END)
+  LEFT OUTER JOIN pg_catalog.pg_indexes idx
+    ON (idx.schemaname = '_ermrest_history'
+        AND idx.tablename = it.relname
+	AND idx.indexname = idx.tablename || '_during_gist_idx')
   LEFT OUTER JOIN information_schema.triggers tgo
     ON (tgo.event_object_schema = s.schema_name
         AND tgo.event_object_table = t.table_name
@@ -1100,6 +1111,20 @@ BEGIN
       'CREATE TRIGGER ermrest_history_delete AFTER DELETE ON ' || quote_ident(sname) || '.' || quote_ident(tname)
       || ' REFERENCING OLD TABLE AS ' || quote_ident(otname)
       || ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
+  END IF;
+
+  IF NOT gist_idx_exists
+  THEN
+    EXECUTE
+      'CREATE INDEX ' || quote_ident(htname || '_during_gist_idx')
+        || ' ON _ermrest_history.' || quote_ident(htname)
+        || ' USING GIST (during);';
+    IF htname IN ('known_tables', 'known_columns', 'known_fkeys', 'known_pseudo_fkeys') THEN
+      EXECUTE
+      'CREATE INDEX ' || quote_ident(htname || '_during_gist_dynacl_idx')
+        || ' ON _ermrest_history.' || quote_ident(htname)
+        || ' USING GIST (during) WHERE (rowdata->''acl_bindings'') != ''{}'';';
+    END IF;
   END IF;
 
   -- this function becomes a no-op under steady state operations but handles one-time resolver upgrade
@@ -1894,6 +1919,413 @@ SET CONSTRAINTS ALL DEFERRED;
 PERFORM _ermrest.model_change_event();
 SET CONSTRAINTS ALL IMMEDIATE;
 
+CREATE OR REPLACE FUNCTION _ermrest.compile_filter(aliases jsonb, ltable_rid text, filter jsonb) RETURNS jsonb STABLE AS $$
+DECLARE
+  lname jsonb;
+  colrid text;
+  combiner text;
+  lalias text;
+  mdeps jsonb;
+BEGIN
+  IF filter ?| ARRAY['and', 'or']::text[] THEN
+    IF elem ? 'and' THEN
+      combiner := 'and';
+    ELSE
+      combiner := 'or';
+    END IF;
+
+    SELECT
+      jsonb_build_object(
+        combiner,
+        to_jsonb(array_agg(_ermrest.compile_filter(aliases, ltable_rid, a.e)))
+      )
+    INTO filter
+    FROM jsonb_array_elements(filter->combiner) a(e);
+
+    -- m.k for children w/ model_deps, filter for other children
+    SELECT jsonb_object_agg(COALESCE(m.k, (a.e)->>'filter'), NULL)
+    INTO mdeps
+    FROM jsonb_array_elements(filter->combiner) a(e)
+    LEFT JOIN LATERAL jsonb_each((a.e)->'model_deps') m(k, v) ON ((a.e) ? 'model_deps');
+
+    filter := filter || jsonb_build_object('model_deps', mdeps);
+  ELSIF filter ? 'filter' THEN
+    lname := filter->'filter';
+
+    IF jsonb_typeof(lname) = 'array' THEN
+      IF jsonb_array_length(lname) = 1 THEN
+        lname := lname->>0;
+      ELSIF jsonb_array_length(lname) = 2 THEN
+        lalias := lname->>0;
+        lname := lname->>1;
+      ELSE
+        RAISE SQLSTATE '22000' USING DETAIL = filter, HINT = 'Invalid "filter" column specification.';
+      END IF;
+    END IF;
+
+    IF aliases ? lalias THEN
+      ltable_rid := aliases->>lalias;
+    ELSIF lalias IS NOT NULL THEN
+      RAISE SQLSTATE '22000' USING DETAIL = filter, HINT = 'Unknown table alias in "filter" column specification.';
+    END IF;
+
+    SELECT c."RID" INTO colrid
+    FROM _ermrest.known_columns c
+    WHERE c.table_rid = ltable_rid
+      AND c.column_name = lname#>>'{}'; -- #>>'{}' extracts lname as text...
+
+    IF colrid IS NULL THEN
+      RAISE SQLSTATE '23000' USING DETAIL = filter, HINT = 'Column not found for "filter" column specification.';
+    END IF;
+
+    IF lalias IS NOT NULL THEN
+      filter := filter || jsonb_build_object('context', lalias);
+    END IF;
+
+    filter := filter || jsonb_build_object('filter', colrid);
+  ELSE
+    RAISE SQLSTATE '22000' USING DETAIL = filter, HINT = 'Malformed filter specification.';
+  END IF;
+  RETURN filter;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.compile_acl_binding(bt_rid text, binding_name text, acl_binding jsonb) RETURNS jsonb STABLE AS $$
+DECLARE
+  proj jsonb;
+  proj_compiled jsonb = '[]';
+  deps jsonb;
+  nelems int;
+  elem jsonb;
+  pos int;
+  ltable_rid text;
+  fkey_name jsonb;
+  fkey_rid text;
+  fkey_bound boolean;
+  rtable_rid text;
+  aliases jsonb;
+  lalias text;
+  ralias text;
+  colrid text;
+  direction text;
+  combiner text;
+BEGIN
+  IF acl_binding = 'false'::jsonb THEN
+    RETURN acl_binding;
+  ELSE
+    deps := jsonb_build_object(bt_rid, NULL);
+    aliases := jsonb_build_object('base', bt_rid);
+
+    proj := acl_binding->'projection';
+    IF jsonb_typeof(proj) = 'string' THEN
+      -- desugar bare column name as simple projection list
+      proj = jsonb_build_array(proj);
+    END IF;
+
+    ltable_rid := bt_rid;
+    nelems := jsonb_array_length(proj);
+
+    FOR pos IN 0 .. (nelems - 2) -- loop over all but final proj element
+    LOOP
+      elem := proj->pos;
+      IF elem ?| ARRAY['inbound', 'outbound']::text[] THEN
+        -- compile a path joining element
+
+        IF elem ? 'context' THEN
+	  lalias := elem->>'context';
+	  IF aliases ? lalias THEN
+            ltable_rid := aliases->>lalias;
+	  ELSE
+	    RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Unknown table alias in "context" field.';
+          END IF;
+	END IF;
+
+        IF elem ? 'outbound' THEN
+	  direction := 'outbound';
+	  fkey_name := elem->'outbound';
+	  IF jsonb_typeof(fkey_name) != 'array' THEN
+	    RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Invalid "outbound" fkey name.';
+	  END IF;
+	  SELECT fk."RID", fk.pk_table_rid, fk.fk_table_rid = ltable_rid
+	  INTO fkey_rid, rtable_rid, fkey_bound
+	  FROM _ermrest.known_fkeys fk
+	  JOIN _ermrest.known_schemas s ON (fk.schema_rid = s."RID")
+	  WHERE s.schema_name = fkey_name->>0
+	    AND fk.constraint_name = fkey_name->>1;
+	ELSE
+	  direction := 'inbound';
+	  fkey_name := elem->'inbound';
+	  IF jsonb_typeof(fkey_name) != 'array' THEN
+	    RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Invalid "inbound" fkey name.';
+	  END IF;
+	  SELECT fk."RID", fk.fk_table_rid, fk.pk_table_rid = ltable_rid
+	  INTO fkey_rid, rtable_rid, fkey_bound
+	  FROM _ermrest.known_fkeys fk
+	  JOIN _ermrest.known_schemas s ON (fk.schema_rid = s."RID")
+	  WHERE s.schema_name = fkey_name->>0
+	    AND fk.constraint_name = fkey_name->>1;
+	END IF;
+
+	IF fkey_rid IS NULL THEN
+	  RAISE SQLSTATE '23000' USING DETAIL = fkey_name, HINT = 'Unknown foreign key constraint.';
+	ELSIF NOT fkey_bound THEN
+	  RAISE SQLSTATE '23000' USING DETAIL = elem, HINT = 'Named foreign key not connected to table.';
+	END IF;
+
+        -- replace fkey name with fkey RID, preserving context and/or alias
+        elem := elem || jsonb_build_object(direction, fkey_rid);
+	deps := deps || jsonb_build_object(fkey_rid, NULL, ltable_rid, NULL);
+
+        IF elem ? 'alias' THEN
+	  ralias := elem->>'alias';
+	  IF aliases ? ralias THEN
+	    RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Duplicate "alias" in ACL binding path.';
+	  END IF;
+	  aliases := aliases || jsonb_object_build(ralias, rtable_rid);
+	END IF;
+
+        ltable_rid := rtable_rid;
+      ELSE
+        elem := _ermrest.compile_filter(aliases, ltable_rid, elem);
+	deps := deps || COALESCE(elem->'model_deps', jsonb_build_object(elem->>'filter', NULL));
+      END IF;
+
+      proj_compiled := proj_compiled || jsonb_build_array(elem);
+    END LOOP;
+
+    -- compile final projection
+    IF jsonb_typeof(proj->(nelems-1)) = 'string' THEN
+      SELECT c."RID" INTO colrid
+      FROM _ermrest.known_columns c
+      WHERE c.table_rid = ltable_rid
+        AND c.column_name = proj->>(nelems-1);
+      IF colrid IS NULL THEN
+        RAISE SQLSTATE '23000' USING DETAIL = proj, HINT = 'Final projection column not found.';
+      END IF;
+      elem := to_jsonb(colrid);
+      deps := deps || jsonb_build_object(colrid, NULL);
+    ELSE
+      RAISE SQLSTATE '22000' USING DETAIL = proj->(nelems-1), HINT = 'Invalid final projection name.';
+    END IF;
+
+    proj_compiled := proj_compiled || jsonb_build_array(elem);
+
+    RETURN acl_binding || jsonb_build_object(
+      'projection', proj_compiled,
+      'model_deps', deps
+    );
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.decompile_filter(aliases jsonb, ltable_rid text, filter jsonb, ts timestamptz) RETURNS jsonb STABLE AS $$
+DECLARE
+  colrid text;
+  colname text;
+  tname text;
+  combiner text;
+BEGIN
+  IF filter ?| ARRAY['and', 'or']::text[] THEN
+    IF elem ? 'and' THEN
+      combiner := 'and';
+    ELSE
+      combiner := 'or';
+    END IF;
+
+    SELECT
+      (filter || jsonb_build_object(
+        combiner,
+        to_jsonb(array_agg(_ermrest.decompile_filter(aliases, ltable_rid, a.e, ts)))
+       )) - 'model_deps'
+    INTO filter
+    FROM jsonb_array_elements(filter->combiner) a(e);
+  ELSIF filter ? 'filter' THEN
+    -- compiled filters are already desugared
+    colrid := filter->>'filter';
+
+    SELECT (c.rowdata)->>'column_name' INTO colname
+    FROM _ermrest_history.known_columns c
+    WHERE c."RID" = colrid
+      AND c.during @> COALESCE(ts, now());
+
+    IF colname IS NULL THEN
+      RAISE SQLSTATE '23000' USING DETAIL = filter, HINT = 'Column not found for "filter" column specification.';
+    END IF;
+
+    IF filter ? 'context' THEN
+      filter := (filter || jsonb_build_object('filter', jsonb_build_array(filter->>'context', colname))) - 'context';
+    ELSE
+      filter := filter || jsonb_build_object('filter', colname);
+    END IF;
+  ELSE
+    RAISE SQLSTATE '22000' USING DETAIL = filter, HINT = 'Malformed filter specification.';
+  END IF;
+  RETURN filter;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION _ermrest.decompile_acl_binding(bt_rid text, binding_name text, acl_binding jsonb, ts timestamptz) RETURNS jsonb STABLE AS $$
+DECLARE
+  proj jsonb;
+  proj_decompiled jsonb = '[]';
+  nelems int;
+  elem jsonb;
+  pos int;
+  ltable_rid text;
+  fkey_name jsonb;
+  fkey_rid text;
+  fkey_bound boolean;
+  rtable_rid text;
+  aliases jsonb;
+  lalias text;
+  ralias text;
+  colname text;
+  direction text;
+  combiner text;
+BEGIN
+  IF acl_binding = 'false'::jsonb THEN
+    RETURN acl_binding;
+  ELSE
+    aliases := jsonb_build_object('base', bt_rid);
+
+    -- compiled form is already de-sugared
+    proj := acl_binding->'projection';
+    ltable_rid := bt_rid;
+    nelems := jsonb_array_length(proj);
+
+    FOR pos IN 0 .. (nelems - 2) -- loop over all but final proj element
+    LOOP
+      elem := proj->pos;
+      IF elem ?| ARRAY['inbound', 'outbound']::text[] THEN
+        -- compile a path joining element
+
+        IF elem ? 'context' THEN
+	  lalias := elem->>'context';
+	  IF aliases ? lalias THEN
+            ltable_rid := aliases->>lalias;
+	  ELSE
+	    RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Unknown table alias in "context" field.';
+          END IF;
+	END IF;
+
+        IF elem ? 'outbound' THEN
+	  direction := 'outbound';
+	  fkey_rid := elem->>'outbound';
+	  SELECT jsonb_build_array((s.rowdata)->>'schema_name', (fk.rowdata)->>'constraint_name'), (fk.rowdata)->>'pk_table_rid', t."RID" = ltable_rid
+	  INTO fkey_name, rtable_rid
+	  FROM _ermrest_history.known_fkeys fk
+	  JOIN _ermrest_history.known_schemas s ON ((fk.rowdata)->>'schema_rid' = s."RID")
+	  LEFT JOIN _ermrest_history.known_tables t ON ((fk.rowdata)->>'fk_table_rid' = t."RID")
+	  WHERE fk."RID" = fkey_rid
+	    AND (fk.rowdata)->>'fk_table_rid' = ltable_rid
+	    AND fk.during @> COALESCE(ts, now())
+	    AND s.during @> COALESCE(ts, now());
+	ELSE
+	  direction := 'inbound';
+	  fkey_rid := elem->>'inbound';
+	  SELECT jsonb_build_array((s.rowdata)->>'schema_name', (fk.rowdata)->>'constraint_name'), (fk.rowdata)->>'fk_table_rid', t."RID" = ltable_rid
+	  INTO fkey_name, rtable_rid, fkey_bound
+	  FROM _ermrest_history.known_fkeys fk
+	  JOIN _ermrest_history.known_schemas s ON ((fk.rowdata)->>'schema_rid' = s."RID")
+	  LEFT JOIN _ermrest_history.known_tables t ON ((fk.rowdata)->>'pk_table_rid' = t."RID")
+	  WHERE fk."RID" = fkey_rid
+	    AND fk.during @> COALESCE(ts, now())
+	    AND s.during @> COALESCE(ts, now());
+	END IF;
+
+	IF fkey_name IS NULL THEN
+	  RAISE SQLSTATE '23000' USING DETAIL = fkey_rid, HINT = 'Unknown foreign key constraint.';
+	ELSIF NOT fkey_bound THEN
+	  RAISE SQLSTATE '23000' USING DETAIL = elem, HINT = 'Named foreign key not connected to table.';
+	END IF;
+
+        -- replace fkey RID with fkey name, preserving context and/or alias
+        elem := elem || jsonb_build_object(direction, fkey_name);
+
+        IF elem ? 'alias' THEN
+	  ralias := elem->>'alias';
+	  IF aliases ? ralias THEN
+	    RAISE SQLSTATE '22000' USING DETAIL = elem, HINT = 'Duplicate "alias" in ACL binding path.';
+	  END IF;
+	  aliases := aliases || jsonb_object_build(ralias, rtable_rid);
+	END IF;
+
+        ltable_rid := rtable_rid;
+      ELSE
+        elem := _ermrest.decompile_filter(aliases, ltable_rid, elem, ts);
+      END IF;
+
+      elem := elem - 'model_deps';
+      proj_decompiled := proj_decompiled || jsonb_build_array(elem);
+    END LOOP;
+
+    -- decompile final projection
+    IF jsonb_typeof(proj->(nelems-1)) = 'string' THEN
+      SELECT c.column_name INTO colname
+      FROM _ermrest.known_columns c
+      WHERE c.table_rid = ltable_rid
+        AND c."RID" = proj->>(nelems-1);
+      IF colname IS NULL THEN
+        RAISE SQLSTATE '23000' USING DETAIL = proj, HINT = 'Final projection column not found.';
+      END IF;
+      elem := to_jsonb(colname);
+    ELSE
+      RAISE SQLSTATE '22000' USING DETAIL = proj->(nelems-1), HINT = 'Invalid final projection name.';
+    END IF;
+
+    proj_decompiled := proj_decompiled || jsonb_build_array(elem);
+
+    acl_binding := acl_binding - 'model_deps';
+    RETURN acl_binding || jsonb_build_object(
+      'projection', proj_decompiled
+    );
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION _ermrest.compile_acl_bindings(_ermrest.known_tables, acl_bindings jsonb) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.compile_acl_binding(($1)."RID", b.n, b.b)), '{}'::jsonb)
+FROM jsonb_each(acl_bindings) b(n, b);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.compile_acl_bindings(_ermrest.known_columns, acl_bindings jsonb) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.compile_acl_binding(($1).table_rid, b.n, b.b)), '{}'::jsonb)
+FROM jsonb_each(acl_bindings) b(n, b);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.compile_acl_bindings(_ermrest.known_fkeys, acl_bindings jsonb) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.compile_acl_binding(($1).pk_table_rid, b.n, b.b)), '{}'::jsonb)
+FROM jsonb_each(acl_bindings) b(n, b);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.compile_acl_bindings(_ermrest.known_pseudo_fkeys, acl_bindings jsonb) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.compile_acl_binding(($1).pk_table_rid, b.n, b.b)), '{}'::jsonb)
+FROM jsonb_each(acl_bindings) b(n, b);
+$$ LANGUAGE SQL;
+
+
+CREATE OR REPLACE FUNCTION _ermrest.decompile_acl_bindings(_ermrest_history.known_tables, ts timestamptz) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.decompile_acl_binding($1."RID", b.n, b.b, $2)), '{}'::jsonb)
+FROM jsonb_each( ($1.rowdata)->'acl_bindings') b(n, b);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.decompile_acl_bindings(_ermrest_history.known_columns, ts timestamptz) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.decompile_acl_binding(($1.rowdata)->>'table_rid', b.n, b.b, $2)), '{}'::jsonb)
+FROM jsonb_each( ($1.rowdata)->'acl_bindings') b(n, b);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.decompile_acl_bindings(_ermrest_history.known_fkeys, ts timestamptz) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.decompile_acl_binding(($1.rowdata)->>'pk_table_rid', b.n, b.b, $2)), '{}'::jsonb)
+FROM jsonb_each( ($1.rowdata)->'acl_bindings') b(n, b);
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.decompile_acl_bindings(_ermrest_history.known_pseudo_fkeys, ts timestamptz) RETURNS jsonb STABLE AS $$
+SELECT COALESCE(jsonb_object_agg(b.n, _ermrest.decompile_acl_binding(($1.rowdata)->>'pk_table_rid', b.n, b.b, $2)), '{}'::jsonb)
+FROM jsonb_each( ($1.rowdata)->'acl_bindings') b(n, b);
+$$ LANGUAGE SQL;
+
+
 CREATE OR REPLACE FUNCTION _ermrest.known_catalogs(ts timestamptz)
 RETURNS TABLE ("RID" text, acls jsonb, annotations jsonb) AS $$
   SELECT s."RID", (s.rowdata)->'acls', (s.rowdata)->'annotations'
@@ -2144,8 +2576,9 @@ BEGIN
   EXECUTE
     'CREATE OR REPLACE FUNCTION _ermrest.known_' || rname || '_dynacls(ts timestamptz)'
     'RETURNS TABLE ("RID" text,' || 'acl_bindings jsonb) AS $$'
-    ' SELECT s."RID", s.acl_bindings'
-    ' FROM _ermrest.known_' || rname || 's(ts) s'
+    ' SELECT s."RID", _ermrest.decompile_acl_bindings(s, $1)'
+    ' FROM _ermrest_history.known_' || rname || 's s'
+    ' WHERE s.during @> COALESCE($1, now()) AND (s.rowdata->''acl_bindings'') != ''{}'';'
     '$$ LANGUAGE SQL;' ;
 END;
 $def$ LANGUAGE plpgsql;
