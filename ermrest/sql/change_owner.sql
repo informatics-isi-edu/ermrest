@@ -69,7 +69,7 @@ BEGIN
       SELECT
         specific_schema,
 	specific_name,
-	array_agg(parameter_mode || ' ' || udt_name ORDER BY ordinal_position) AS argtypes
+	array_agg(parameter_mode || ' ' || udt_schema || '.' || udt_name ORDER BY ordinal_position) AS argtypes
       FROM information_schema.parameters p
       GROUP BY specific_schema, specific_name
     ) p ON (r.specific_schema = p.specific_schema AND r.specific_name = p.specific_name)

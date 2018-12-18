@@ -137,13 +137,19 @@ IF _ermrest.table_exists('_ermrest_history', 'known_schema_acls') THEN
   DROP TABLE _ermrest_history.known_schema_annotations;
 END IF;
 
+CREATE OR REPLACE FUNCTION _ermrest.compile_acl_binding_filtered(bt_rid text, binding_name text, acl_binding jsonb) RETURNS jsonb STABLE AS $$
+BEGIN
+  RETURN _ermrest.compile_acl_binding($1, $2, $3);
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 IF _ermrest.table_exists('_ermrest_history', 'known_table_acls') THEN
-  WITH orig AS (
-    DELETE FROM _ermrest_history.known_tables
-    RETURNING *
-  ), timepoints("RID", ts) AS (
-    SELECT "RID", lower(during) FROM orig
-    UNION SELECT "RID", upper(during) FROM orig
+  WITH timepoints("RID", ts) AS (
+    SELECT "RID", lower(during) FROM _ermrest_history.known_tables
+    UNION SELECT "RID", upper(during) FROM _ermrest_history.known_tables
     UNION SELECT rowdata->>'table_rid', lower(during) FROM _ermrest_history.known_table_acls
     UNION SELECT rowdata->>'table_rid', upper(during) FROM _ermrest_history.known_table_acls
     UNION SELECT rowdata->>'table_rid', lower(during) FROM _ermrest_history.known_table_dynacls
@@ -154,14 +160,6 @@ IF _ermrest.table_exists('_ermrest_history', 'known_table_acls') THEN
     SELECT "RID", tstzrange(ts, lead(ts, 1) OVER (PARTITION BY "RID" ORDER BY ts NULLS LAST), '[)')
     FROM timepoints
     WHERE ts IS NOT NULL
-  ), rebuilt("RID", during, "RMB", rowdata) AS (
-    SELECT
-      s."RID",
-      s.during,
-      a."RMB",
-      a.rowdata
-    FROM subranges s
-    JOIN orig a ON (s."RID" = a."RID" AND s.during && a.during)
   ), acls("RID", during, acls) AS (
     SELECT
       s."RID",
@@ -174,9 +172,11 @@ IF _ermrest.table_exists('_ermrest_history', 'known_table_acls') THEN
     SELECT
       s."RID",
       s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', (a.rowdata)->'binding'), '{}'::jsonb)
+      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', bc.b), '{}'::jsonb)
     FROM subranges s
     JOIN _ermrest_history.known_table_dynacls a ON (s."RID" = (a.rowdata)->>'table_rid' AND s.during && a.during)
+    JOIN LATERAL _ermrest.compile_acl_binding_filtered(s."RID", (a.rowdata)->>'binding_name', (a.rowdata)->'binding') bc(b)
+      ON (bc.b IS NOT NULL)
     GROUP BY s."RID", s.during
   ), annotations("RID", during, annotations) AS (
     SELECT
@@ -186,6 +186,17 @@ IF _ermrest.table_exists('_ermrest_history', 'known_table_acls') THEN
     FROM subranges s
     JOIN _ermrest_history.known_table_annotations a ON (s."RID" = (a.rowdata)->>'table_rid' AND s.during && a.during)
     GROUP BY s."RID", s.during
+  ), orig AS (
+    DELETE FROM _ermrest_history.known_tables
+    RETURNING *
+  ), rebuilt("RID", during, "RMB", rowdata) AS (
+    SELECT
+      s."RID",
+      s.during,
+      a."RMB",
+      a.rowdata
+    FROM subranges s
+    JOIN orig a ON (s."RID" = a."RID" AND s.during && a.during)
   ) INSERT INTO _ermrest_history.known_tables ("RID", during, "RMB", rowdata)
   SELECT
     s."RID",
@@ -215,12 +226,9 @@ IF _ermrest.table_exists('_ermrest_history', 'known_table_acls') THEN
 END IF;
 
 IF _ermrest.table_exists('_ermrest_history', 'known_column_acls') THEN
-  WITH orig AS (
-    DELETE FROM _ermrest_history.known_columns
-    RETURNING *
-  ), timepoints("RID", ts) AS (
-    SELECT "RID", lower(during) FROM orig
-    UNION SELECT "RID", upper(during) FROM orig
+  WITH timepoints("RID", ts) AS (
+    SELECT "RID", lower(during) FROM _ermrest_history.known_columns
+    UNION SELECT "RID", upper(during) FROM _ermrest_history.known_columns
     UNION SELECT rowdata->>'column_rid', lower(during) FROM _ermrest_history.known_column_acls
     UNION SELECT rowdata->>'column_rid', upper(during) FROM _ermrest_history.known_column_acls
     UNION SELECT rowdata->>'column_rid', lower(during) FROM _ermrest_history.known_column_dynacls
@@ -231,14 +239,6 @@ IF _ermrest.table_exists('_ermrest_history', 'known_column_acls') THEN
     SELECT "RID", tstzrange(ts, lead(ts, 1) OVER (PARTITION BY "RID" ORDER BY ts NULLS LAST), '[)')
     FROM timepoints
     WHERE ts IS NOT NULL
-  ), rebuilt("RID", during, "RMB", rowdata) AS (
-    SELECT
-      s."RID",
-      s.during,
-      a."RMB",
-      a.rowdata
-    FROM subranges s
-    JOIN orig a ON (s."RID" = a."RID" AND s.during && a.during)
   ), acls("RID", during, acls) AS (
     SELECT
       s."RID",
@@ -251,9 +251,11 @@ IF _ermrest.table_exists('_ermrest_history', 'known_column_acls') THEN
     SELECT
       s."RID",
       s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', (a.rowdata)->'binding'), '{}'::jsonb)
+      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', bc.b), '{}'::jsonb)
     FROM subranges s
     JOIN _ermrest_history.known_column_dynacls a ON (s."RID" = (a.rowdata)->>'column_rid' AND s.during && a.during)
+    JOIN LATERAL _ermrest.compile_acl_binding_filtered(s."RID", (a.rowdata)->>'binding_name', (a.rowdata)->'binding') bc(b)
+      ON (bc.b IS NOT NULL)
     GROUP BY s."RID", s.during
   ), annotations("RID", during, annotations) AS (
     SELECT
@@ -263,6 +265,17 @@ IF _ermrest.table_exists('_ermrest_history', 'known_column_acls') THEN
     FROM subranges s
     JOIN _ermrest_history.known_column_annotations a ON (s."RID" = (a.rowdata)->>'column_rid' AND s.during && a.during)
     GROUP BY s."RID", s.during
+  ), orig AS (
+    DELETE FROM _ermrest_history.known_columns
+    RETURNING *
+  ), rebuilt("RID", during, "RMB", rowdata) AS (
+    SELECT
+      s."RID",
+      s.during,
+      a."RMB",
+      a.rowdata
+    FROM subranges s
+    JOIN orig a ON (s."RID" = a."RID" AND s.during && a.during)
   ) INSERT INTO _ermrest_history.known_columns ("RID", during, "RMB", rowdata)
   SELECT
     s."RID",
@@ -414,12 +427,9 @@ IF _ermrest.table_exists('_ermrest_history', 'known_pseudo_key_annotations') THE
 END IF;
 
 IF _ermrest.table_exists('_ermrest_history', 'known_fkey_acls') THEN
-  WITH orig AS (
-    DELETE FROM _ermrest_history.known_fkeys
-    RETURNING *
-  ), timepoints("RID", ts) AS (
-    SELECT "RID", lower(during) FROM orig
-    UNION SELECT "RID", upper(during) FROM orig
+  WITH timepoints("RID", ts) AS (
+    SELECT "RID", lower(during) FROM _ermrest_history.known_fkeys
+    UNION SELECT "RID", upper(during) FROM _ermrest_history.known_fkeys
     UNION SELECT rowdata->>'fkey_rid', lower(during) FROM _ermrest_history.known_fkey_acls
     UNION SELECT rowdata->>'fkey_rid', upper(during) FROM _ermrest_history.known_fkey_acls
     UNION SELECT rowdata->>'fkey_rid', lower(during) FROM _ermrest_history.known_fkey_dynacls
@@ -432,6 +442,35 @@ IF _ermrest.table_exists('_ermrest_history', 'known_fkey_acls') THEN
     SELECT "RID", tstzrange(ts, lead(ts, 1) OVER (PARTITION BY "RID" ORDER BY ts NULLS LAST), '[)')
     FROM timepoints
     WHERE ts IS NOT NULL
+  ), acls("RID", during, acls) AS (
+    SELECT
+      s."RID",
+      s.during,
+      COALESCE(jsonb_object_agg((a.rowdata)->>'acl', (a.rowdata)->'members'), '{}'::jsonb)
+    FROM subranges s
+    JOIN _ermrest_history.known_fkey_acls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
+    GROUP BY s."RID", s.during
+  ), acl_bindings("RID", during, acl_bindings) AS (
+    SELECT
+      s."RID",
+      s.during,
+      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', bc.b), '{}'::jsonb)
+    FROM subranges s
+    JOIN _ermrest_history.known_fkey_dynacls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
+    JOIN LATERAL _ermrest.compile_acl_binding_filtered(s."RID", (a.rowdata)->>'binding_name', (a.rowdata)->'binding') bc(b)
+      ON (bc.b IS NOT NULL)
+    GROUP BY s."RID", s.during
+  ), annotations("RID", during, annotations) AS (
+    SELECT
+      s."RID",
+      s.during,
+      COALESCE(jsonb_object_agg((a.rowdata)->>'annotation_uri', (a.rowdata)->'annotation_value'), '{}'::jsonb)
+    FROM subranges s
+    JOIN _ermrest_history.known_fkey_annotations a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
+    GROUP BY s."RID", s.during
+  ), orig AS (
+    DELETE FROM _ermrest_history.known_fkeys
+    RETURNING *
   ), rebuilt("RID", during, "RMB", rowdata) AS (
     SELECT
       s."RID",
@@ -453,30 +492,6 @@ IF _ermrest.table_exists('_ermrest_history', 'known_fkey_acls') THEN
       WHERE s."RID" = (fkc.rowdata)->>'fkey_rid' AND s.during && fkc.during
       GROUP BY (fkc.rowdata)->>'fkey_rid', s.during
     ) fkc ("RID", during, fkc_pkc_rids) ON (True)
-  ), acls("RID", during, acls) AS (
-    SELECT
-      s."RID",
-      s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'acl', (a.rowdata)->'members'), '{}'::jsonb)
-    FROM subranges s
-    JOIN _ermrest_history.known_fkey_acls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
-    GROUP BY s."RID", s.during
-  ), acl_bindings("RID", during, acl_bindings) AS (
-    SELECT
-      s."RID",
-      s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', (a.rowdata)->'binding'), '{}'::jsonb)
-    FROM subranges s
-    JOIN _ermrest_history.known_fkey_dynacls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
-    GROUP BY s."RID", s.during
-  ), annotations("RID", during, annotations) AS (
-    SELECT
-      s."RID",
-      s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'annotation_uri', (a.rowdata)->'annotation_value'), '{}'::jsonb)
-    FROM subranges s
-    JOIN _ermrest_history.known_fkey_annotations a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
-    GROUP BY s."RID", s.during
   ) INSERT INTO _ermrest_history.known_fkeys ("RID", during, "RMB", rowdata)
   SELECT
     s."RID",
@@ -507,12 +522,9 @@ IF _ermrest.table_exists('_ermrest_history', 'known_fkey_acls') THEN
 END IF;
 
 IF _ermrest.table_exists('_ermrest_history', 'known_pseudo_fkey_acls') THEN
-  WITH orig AS (
-    DELETE FROM _ermrest_history.known_pseudo_fkeys
-    RETURNING *
-  ), timepoints("RID", ts) AS (
-    SELECT "RID", lower(during) FROM orig
-    UNION SELECT "RID", upper(during) FROM orig
+  WITH timepoints("RID", ts) AS (
+    SELECT "RID", lower(during) FROM _ermrest_history.known_pseudo_fkeys
+    UNION SELECT "RID", upper(during) FROM _ermrest_history.known_pseudo_fkeys
     UNION SELECT rowdata->>'fkey_rid', lower(during) FROM _ermrest_history.known_pseudo_fkey_acls
     UNION SELECT rowdata->>'fkey_rid', upper(during) FROM _ermrest_history.known_pseudo_fkey_acls
     UNION SELECT rowdata->>'fkey_rid', lower(during) FROM _ermrest_history.known_pseudo_fkey_dynacls
@@ -525,6 +537,35 @@ IF _ermrest.table_exists('_ermrest_history', 'known_pseudo_fkey_acls') THEN
     SELECT "RID", tstzrange(ts, lead(ts, 1) OVER (PARTITION BY "RID" ORDER BY ts NULLS LAST), '[)')
     FROM timepoints
     WHERE ts IS NOT NULL
+  ), acls("RID", during, acls) AS (
+    SELECT
+      s."RID",
+      s.during,
+      COALESCE(jsonb_object_agg((a.rowdata)->>'acl', (a.rowdata)->'members'), '{}'::jsonb)
+    FROM subranges s
+    JOIN _ermrest_history.known_pseudo_fkey_acls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
+    GROUP BY s."RID", s.during
+  ), acl_bindings("RID", during, acl_bindings) AS (
+    SELECT
+      s."RID",
+      s.during,
+      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', bc.b), '{}'::jsonb)
+    FROM subranges s
+    JOIN _ermrest_history.known_pseudo_fkey_dynacls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
+    JOIN LATERAL _ermrest.compile_acl_binding_filtered(s."RID", (a.rowdata)->>'binding_name', (a.rowdata)->'binding') bc(b)
+      ON (bc.b IS NOT NULL)
+    GROUP BY s."RID", s.during
+  ), annotations("RID", during, annotations) AS (
+    SELECT
+      s."RID",
+      s.during,
+      COALESCE(jsonb_object_agg((a.rowdata)->>'annotation_uri', (a.rowdata)->'annotation_value'), '{}'::jsonb)
+    FROM subranges s
+    JOIN _ermrest_history.known_pseudo_fkey_annotations a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
+    GROUP BY s."RID", s.during
+  ), orig AS (
+    DELETE FROM _ermrest_history.known_pseudo_fkeys
+    RETURNING *
   ), rebuilt("RID", during, "RMB", rowdata) AS (
     SELECT
       s."RID",
@@ -546,30 +587,6 @@ IF _ermrest.table_exists('_ermrest_history', 'known_pseudo_fkey_acls') THEN
       WHERE s."RID" = (fkc.rowdata)->>'fkey_rid' AND s.during && fkc.during
       GROUP BY (fkc.rowdata)->>'fkey_rid', s.during
     ) fkc ("RID", during, fkc_pkc_rids) ON (True)
-  ), acls("RID", during, acls) AS (
-    SELECT
-      s."RID",
-      s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'acl', (a.rowdata)->'members'), '{}'::jsonb)
-    FROM subranges s
-    JOIN _ermrest_history.known_pseudo_fkey_acls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
-    GROUP BY s."RID", s.during
-  ), acl_bindings("RID", during, acl_bindings) AS (
-    SELECT
-      s."RID",
-      s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'binding_name', (a.rowdata)->'binding'), '{}'::jsonb)
-    FROM subranges s
-    JOIN _ermrest_history.known_pseudo_fkey_dynacls a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
-    GROUP BY s."RID", s.during
-  ), annotations("RID", during, annotations) AS (
-    SELECT
-      s."RID",
-      s.during,
-      COALESCE(jsonb_object_agg((a.rowdata)->>'annotation_uri', (a.rowdata)->'annotation_value'), '{}'::jsonb)
-    FROM subranges s
-    JOIN _ermrest_history.known_pseudo_fkey_annotations a ON (s."RID" = (a.rowdata)->>'fkey_rid' AND s.during && a.during)
-    GROUP BY s."RID", s.during
   ) INSERT INTO _ermrest_history.known_pseudo_fkeys ("RID", during, "RMB", rowdata)
   SELECT
     s."RID",
