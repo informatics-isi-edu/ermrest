@@ -21,7 +21,7 @@ import os.path
 
 def sample_config():
     """Emit sample ermrest_config.json to standard output."""
-    sys.stdout.write(pkgutil.get_data(__name__, 'ermrest_config.json'))
+    sys.stdout.write(pkgutil.get_data(__name__, 'ermrest_config.json').decode())
 
 def sample_httpd_config():
     """Emit sample wsgi_ermrest.conf to standard output."""
