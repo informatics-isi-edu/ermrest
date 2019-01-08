@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,11 +26,11 @@ This module provides catalog management features including:
 
 import web
 import psycopg2
-import sanepg2
 import pkgutil
 import datetime
 
-from util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
+from . import sanepg2
+from .util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
 from .model.introspect import introspect
 from .model import current_model_snaptime, normalized_history_snaptime
@@ -104,7 +104,7 @@ class CatalogFactory (object):
             try:
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
                 cur.execute("CREATE DATABASE " + sql_identifier(dbname))
-            except psycopg2.Error, ev:
+            except psycopg2.Error as ev:
                 msg = str(ev)
                 idx = msg.find("\n")  # DETAIL starts after the first line feed
                 if idx > -1:
@@ -122,7 +122,7 @@ class CatalogFactory (object):
 
         pc = sanepg2.PooledConnection(self._dsn)
         try:
-            return pc.perform(body, post_commit).next()
+            return next(pc.perform(body, post_commit))
         finally:
             pc.final()
     
@@ -155,7 +155,7 @@ WHERE datname = %(dbname)s
 
             cur.close()
             
-        except psycopg2.Error, ev:
+        except psycopg2.Error as ev:
             msg = str(ev)
             idx = msg.find("\n") # DETAIL starts after the first line feed
             if idx > -1:
@@ -259,7 +259,7 @@ class Catalog (object):
             try:
                 self._factory._destroy_catalog(self)
                 return
-            except RuntimeError, ev:
+            except RuntimeError as ev:
                 msg = str(ev)
                 continue
         raise RuntimeError(msg)

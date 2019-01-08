@@ -2,11 +2,11 @@
 # CONFIG for CentOS 7.x
 
 # where we install our Python module
-PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig.get_python_lib()')
+PYLIBDIR=$(shell python3 -c 'import distutils.sysconfig;print(distutils.sysconfig.get_python_lib())')
 
 SU=runuser
 
-BINDIR=/usr/bin
+BINDIR=/usr/local/bin
 
 HTTPCONFDIR=/etc/httpd/conf.d
 HTTPDGRP=apache

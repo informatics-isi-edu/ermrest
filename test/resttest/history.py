@@ -263,6 +263,7 @@ def _add_history_probes(klass):
     return klass
 
 @_add_history_probes
+@unittest.skipIf(common.secondary_session is None, "ZHistory test requires TEST_COOKIES2")
 class ZHistory (common.ErmrestTest):
     # Z prefix to run test class last in alphabetic order...
 

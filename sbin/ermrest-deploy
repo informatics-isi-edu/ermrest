@@ -102,7 +102,7 @@ fi
 if [[ ! -r ${HTTPCONFDIR}/wsgi_ermrest.conf ]]
 then
     # install default config
-    /usr/bin/python -c 'import ermrest as m; m.sample_httpd_config();' \
+    /usr/bin/python3 -c 'import ermrest as m; m.sample_httpd_config();' \
 	> ${HTTPCONFDIR}/wsgi_ermrest.conf \
 	|| error could not create ${HTTPCONFDIR}/wsgi_ermrest.conf
 fi
@@ -122,7 +122,7 @@ pg_redeploy_registry_sql()
     cat <<EOF
 \set ON_ERROR_STOP on
 EOF
-    $SU -c "/usr/bin/python -c 'import ermrest.sql.util as m; m.print_redeploy_registry_sql();'" - ${DAEMONUSER} \
+    $SU -c "/usr/bin/python3 -c 'import ermrest.sql.util as m; m.print_redeploy_registry_sql();'" - ${DAEMONUSER} \
 	|| error could not generate registry redeployment SQL
 }
 
@@ -131,7 +131,7 @@ pg_redeploy_catalogs_sql()
     cat <<EOF
 \set ON_ERROR_STOP on
 EOF
-    $SU -c "/usr/bin/python -c 'import ermrest.sql.util as m; m.print_redeploy_catalogs_sql();'" - ${DAEMONUSER} \
+    $SU -c "/usr/bin/python3 -c 'import ermrest.sql.util as m; m.print_redeploy_catalogs_sql();'" - ${DAEMONUSER} \
 	|| error could not generate catalog redeployment SQL
 }
 
@@ -140,13 +140,13 @@ pg_extupgrade_sql()
     cat <<EOF
 \set ON_ERROR_STOP on
 EOF
-    $SU -c "/usr/bin/python -c 'import ermrest.sql.util as m; m.print_extupgrade_sql(\"$1\")'" - ${DAEMONUSER} \
+    $SU -c "/usr/bin/python3 -c 'import ermrest.sql.util as m; m.print_extupgrade_sql(\"$1\")'" - ${DAEMONUSER} \
 	|| error could not generate extension upgrade SQL for database "$1"
 }
 
 # prevent overwrites
 [[ -r /home/${DAEMONUSER}/ermrest_config.json ]] \
-    || /usr/bin/python -c 'import ermrest as m; m.sample_config();' > /home/${DAEMONUSER}/ermrest_config.json \
+    || /usr/bin/python3 -c 'import ermrest as m; m.sample_config();' > /home/${DAEMONUSER}/ermrest_config.json \
     || error could not create /home/${DAEMONUSER}/ermrest_config.json
 
 chown ${DAEMONUSER} /home/${DAEMONUSER}/ermrest_config.json

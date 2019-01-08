@@ -15,13 +15,14 @@
 # limitations under the License.
 #
 
-from .. import exception
-from ..util import sql_identifier, sql_literal, view_exists, udecode
-from .misc import AltDict, AclDict, keying, annotatable, hasacls, enforce_63byte_id, current_request_snaptime
-from .table import Table
-
 import json
 import web
+
+from .. import exception
+from ..util import sql_identifier, sql_literal, view_exists
+from .misc import AltDict, AclDict, keying, annotatable, hasacls, enforce_63byte_id, current_request_snaptime
+from .table import Table
+from .name import Name
 
 @annotatable
 @hasacls(
@@ -94,6 +95,8 @@ class Model (object):
     def lookup_table(self, tname):
         """Lookup an unqualified table name if and only if it is unambiguous across schemas."""
         tables = set()
+        if isinstance(tname, Name):
+            tname = tname.one_str()
 
         for schema in self.schemas.values():
             if schema.has_right('enumerate'):
@@ -125,7 +128,7 @@ SELECT oid, schema_name, "comment"
  FROM _ermrest.introspect_schemas WHERE schema_name = %(schema_str)s
 RETURNING "RID";
 """ % dict(schema=sql_identifier(sname), schema_str=sql_literal(sname)))
-        srid = cur.next()[0]
+        srid = cur.fetchone()[0]
         newschema = Schema(self, sname, rid=srid)
         if not self.has_right('owner'):
             # client gets ownership by default
@@ -169,10 +172,10 @@ class Schema (object):
         self.name = name
         self.comment = comment
         self.tables = AltDict(
-            lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))),
+            lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, self.name)),
             lambda k, v: enforce_63byte_id(k, "Table")
         )
-        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on schema "%s"' % (k, unicode(self.name))))
+        self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on schema "%s"' % (k, self.name)))
         self.annotations.update(annotations)
 
         self.acls = AclDict(self)
@@ -207,8 +210,8 @@ class Schema (object):
             
         return schema
         
-    def __unicode__(self):
-        return u"%s" % self.name
+    def __str__(self):
+        return self.name
 
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
@@ -252,7 +255,7 @@ SELECT _ermrest.model_version_bump();
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""
         if tname not in self.tables:
-            raise exception.ConflictModel(u'Requested table %s does not exist in schema %s.' % (udecode(tname), udecode(self.name)))
+            raise exception.ConflictModel(u'Requested table %s does not exist in schema %s.' % (tname, self.name))
         self.tables[tname].delete(conn, cur)
         del self.tables[tname]
 

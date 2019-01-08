@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@
 
 """
 
+import web
+
 from ..util import sql_literal
 from ..exception import *
 from .type import text_type
-
-import web
 
 class Value (object):
     """Represent a literal value in an ERMREST URL.

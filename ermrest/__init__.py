@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2017 University of Southern California
+# Copyright 2012-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ def sample_httpd_config():
             path
         )
     sys.stdout.write(
-        pkgutil.get_data(__name__, 'wsgi_ermrest.conf').replace(
-            '/usr/lib/python2.7/site-packages/ermrest',
+        pkgutil.get_data(__name__, 'wsgi_ermrest.conf').decode().replace(
+            '/usr/local/lib/python3.7/site-packages/ermrest',
             path
         )
     )

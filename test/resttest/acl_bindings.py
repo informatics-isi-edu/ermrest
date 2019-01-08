@@ -76,7 +76,7 @@ class AclBindingT1 (common.ErmrestTest):
         if binding_name is None:
             return url
         else:
-            return '%s/%s' % (url, urllib.quote(binding_name))
+            return '%s/%s' % (url, urllib.parse.quote(binding_name))
 
     def _check(self, expected):
         r = self.session.get(self._url())

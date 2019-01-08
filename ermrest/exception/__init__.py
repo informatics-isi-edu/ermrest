@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 """
 
-import rest
+from . import rest
 
 class LexicalError (ValueError):
     """Exception for lexical errors in URL parsing"""
@@ -59,7 +59,7 @@ class ConflictData (ValueError):
     def __init__(self, message=None):
         ValueError.__init__(self, message)
         self.message = message
-        
+
 class ConflictModel (ConflictData):
     """Exception for model conflicts, i.e. unbound table or column names"""
     pass
@@ -73,5 +73,8 @@ class NotFound (ValueError):
 
 class Forbidden (ValueError):
     """Exception for permission errors"""
-    pass
 
+    def __init__(self, message=None):
+        ValueError.__init__(self, message)
+        self.message = message
+        

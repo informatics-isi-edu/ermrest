@@ -1,3 +1,4 @@
+
 # 
 # Copyright 2013-2017 University of Southern California
 # 
@@ -62,7 +63,7 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
         assert amendver is not None
 
     cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(%s);" % sql_literal(snapwhen))
-    annotations, acls = cur.next()
+    annotations, acls = cur.fetchone()
     model = Model(snapwhen, amendver, annotations, acls)
 
     #

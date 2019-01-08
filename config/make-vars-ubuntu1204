@@ -2,7 +2,7 @@
 # CONFIG for Ubuntu 12.04
 
 # where we install our Python module
-PYLIBDIR=$(shell python -c 'import distutils.sysconfig;print distutils.sysconfig.get_python_lib()')
+PYLIBDIR=$(shell python3 -c 'import distutils.sysconfig;print(distutils.sysconfig.get_python_lib())')
 
 SU=su
 

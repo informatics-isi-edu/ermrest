@@ -47,7 +47,7 @@ def add_etype_vk_wk_rk(klass, vk, wk, rk):
     def check_csv(self):
         r = self.session.get(self._read_urls()[rk], headers={"Accept": "text/csv"})
         self.assertHttp(r, 200, 'text/csv')
-        self.assertEqual(csv_strip_system_cols(r.content), self._data_csv(vk))
+        self.assertEqual(csv_strip_system_cols(r.text), self._data_csv(vk))
     setattr(klass, 'test_%s_%s_csv_2_read_%s' % (vk, wk, rk), check_csv)
 
 def add_etype_vk_wk(klass, vk, wk):
@@ -120,7 +120,7 @@ class EtypeJson (common.ErmrestTest):
     def _read_urls(cls):
         return {
             k: v + '@sort(id)'
-            for k, v in cls._write_urls().items() + [("3attribute", 'attribute/%s:%s/id,name,payload' % (_schema, cls._table_name()))]
+            for k, v in list(cls._write_urls().items()) + [("3attribute", 'attribute/%s:%s/id,name,payload' % (_schema, cls._table_name()))]
         }
 
     _values = {
@@ -281,7 +281,7 @@ class CtypeText (common.ErmrestTest):
         self.assertEqual(
             got_count,
             expected_count,
-            'Column %s should %s match %s %s times, not %s.\n%s\n' % (colname, op, self.pattern, expected_count, got_count, r.content)
+            'Column %s should %s match %s %s times, not %s.\n%s\n' % (colname, op, self.pattern, expected_count, got_count, r.text)
         )
 
     def _check_aggfunc(self, aggfunc, column, resultval=None, resultmembers=None):
@@ -292,7 +292,9 @@ class CtypeText (common.ErmrestTest):
         if resultval is not None:
             self.assertEqual(doc[0]['agg'], resultval)
         if resultmembers is not None:
-            self.assertEqual(sorted(doc[0]['agg']), sorted(resultmembers))
+            def key(v):
+                return (hash(type(v)), v if v is not None else False)
+            self.assertEqual(sorted(doc[0]['agg'], key=key), sorted(resultmembers, key=key))
 
     def test_05a_agg_arrays(self):
         if not self.test_agg_array:

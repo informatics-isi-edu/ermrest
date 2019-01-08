@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,14 +20,9 @@
 """
 
 import web
-import urllib
-
-urlquote = urllib.quote
 
 class WebException (web.HTTPError):
     def __init__(self, status, data=u'', headers={}, desc=u'%s'):
-        if isinstance(data, str):
-            data = data.decode('utf8')
         if data is not None and desc is not None:
             data = ('%s\n%s\n' % (status, desc)) % data
             headers['Content-Type'] = 'text/plain'
