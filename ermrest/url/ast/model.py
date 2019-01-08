@@ -80,7 +80,7 @@ def _MODIFY(handler, thunk, _post_commit):
 
 def _MODIFY_with_json_input(handler, thunk, _post_commit):
     try:
-        doc = json.load(web.ctx.env['wsgi.input'])
+        doc = json.loads(web.ctx.env['wsgi.input'].read().decode())
     except:
         raise exception.rest.BadRequest('Could not deserialize JSON input.')
     return _MODIFY(handler, lambda conn, cur: thunk(conn, cur, doc), _post_commit)
