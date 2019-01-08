@@ -1,12 +1,12 @@
 
-# CONFIG for Ubuntu 12.04
+# CONFIG for Ubuntu 16.04
 
 # where we install our Python module
 PYLIBDIR=$(shell python3 -c 'import distutils.sysconfig;print(distutils.sysconfig.get_python_lib())')
 
 SU=su
 
-BINDIR=/usr/local/bin
+BINDIR=/usr/bin
 HTTPCONFDIR=/etc/apache2/conf.d
 HTTPDGRP=www-data
 
