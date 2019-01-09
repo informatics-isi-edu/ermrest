@@ -293,7 +293,20 @@ class CtypeText (common.ErmrestTest):
             self.assertEqual(doc[0]['agg'], resultval)
         if resultmembers is not None:
             def key(v):
-                return (hash(type(v)), v if v is not None else False)
+                def typekey(v):
+                    categories = [
+                        type(None),
+                        list,
+                        dict,
+                        bool,
+                        (int, float),
+                        str,
+                    ]
+                    for i in range(len(categories)):
+                        if isinstance(v, categories[i]):
+                            return i
+                    return hash(type(v))
+                return (typekey(v), v if v is not None else False)
             self.assertEqual(sorted(doc[0]['agg'], key=key), sorted(resultmembers, key=key))
 
     def test_05a_agg_arrays(self):
