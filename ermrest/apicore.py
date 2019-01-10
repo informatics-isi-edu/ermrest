@@ -96,6 +96,8 @@ try:
         def __init__(self, config):
             self._config = config
             self._lock = threading.Lock()
+            if self._config.get('host') is None:
+                self._config['host'] = 'localhost'
             self._connection_config = pika.ConnectionParameters(**config['connection'])
             self._exchange_name = config['exchange']
             self._routing_key = config['routing_key']
@@ -106,7 +108,7 @@ try:
         def _pika_init(self):
             connection = pika.BlockingConnection(self._connection_config)
             channel = connection.channel()
-            channel.exchange_declare(exchange=self._exchange_name, type="fanout")
+            channel.exchange_declare(exchange=self._exchange_name, exchange_type="fanout")
             self._connection = connection
             self._channel = channel
 
