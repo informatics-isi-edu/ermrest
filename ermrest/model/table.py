@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,13 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
+import urllib
+import json
+import web
+from functools import reduce
+
 from .. import exception, ermpath
-from ..util import sql_identifier, sql_literal, udecode, table_exists
+from ..util import sql_identifier, sql_literal, table_exists
 from .misc import AltDict, Annotatable, cache_rights, HasAcls, HasDynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
@@ -69,13 +74,13 @@ class Table (HasDynacls, HasAcls, Annotatable):
         )
         self.uniques = AltDict(
             lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (
-                ",".join([unicode(c.name) for c in k]), self.name)
+                ",".join([c.name for c in k]), self.name)
             )
         )
         self.fkeys = AltDict(
             lambda k: exception.ConflictModel(
                 u"Requested foreign-key %s does not exist in table %s." % (
-                    ",".join([unicode(c.name) for c in k]), self)
+                    ",".join([c.name for c in k]), self)
             )
         )
         self.annotations.update(annotations)
@@ -97,8 +102,8 @@ class Table (HasDynacls, HasAcls, Annotatable):
 
     def __str__(self):
         return ':%s:%s' % (
-            urllib.quote(unicode(self.schema.name).encode('utf8')),
-            urllib.quote(unicode(self.name).encode('utf8'))
+            urllib.parse.quote(self.schema.name),
+            urllib.parse.quote(self.name),
             )
 
     def __repr__(self):
@@ -157,8 +162,8 @@ class Table (HasDynacls, HasAcls, Annotatable):
 
     @staticmethod
     def create_fromjson(conn, cur, schema, tabledoc, ermrest_config):
-        sname = tabledoc.get('schema_name', unicode(schema.name))
-        if sname != unicode(schema.name):
+        sname = tabledoc.get('schema_name', schema.name)
+        if sname != schema.name:
             raise exception.ConflictModel('JSON schema name %s does not match URL schema name %s' % (sname, schema.name))
 
         if 'table_name' not in tabledoc:
@@ -203,7 +208,7 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
     comment=sql_literal(comment),
 )
         )
-        table.rid = cur.next()[0]
+        table.rid = cur.fetchone()[0]
 
         if not table.has_right('owner'):
             # client gets ownership by default
@@ -233,7 +238,8 @@ FROM _ermrest.known_columns
 WHERE table_rid = %s
 ORDER BY column_num;
 """ % sql_literal(table.rid))
-        for row, column in zip(cur, columns):
+        rows = list(cur)
+        for row, column in zip(rows, columns):
             assert row[2] == column.name
             column.rid, column.column_num = row[0:2]
             if column.comment is not None:
@@ -251,7 +257,7 @@ ORDER BY column_num;
             try:
                 execute_if(column.btree_index_sql())
                 execute_if(column.pg_trgm_index_sql())
-            except Exception, e:
+            except Exception as e:
                 web.debug(table, column, e)
                 raise
 
@@ -335,7 +341,7 @@ WHERE table_rid = %s AND column_name = %s
 RETURNING "RID", column_num;
 """ % (sql_literal(self.rid), sql_literal(column.name))
         )
-        column.rid, column.column_num = cur.next()
+        column.rid, column.column_num = cur.fetchone()
         column.set_comment(conn, cur, column.comment)
         self.columns[column.name] = column
         column.table = self
@@ -449,7 +455,7 @@ WHERE "RID" = %s;
         """
         if web.ctx.ermrest_history_snaptime is not None:
             if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
-                raise exception.ConflictModel(u'Historical data not available for table %s.' % unicode(self.name))
+                raise exception.ConflictModel(u'Historical data not available for table %s.' % self.name)
             tsql = """
 (SELECT %(projs)s
  FROM %(htable)s h,

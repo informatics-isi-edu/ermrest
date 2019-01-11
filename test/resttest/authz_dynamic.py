@@ -27,11 +27,9 @@ def _merge(d1, d2):
     return d1
 
 def _diff(d1, d2):
-    d1 = d1.items()
-    d1.sort()
+    d1 = sorted(d1.items())
     d1 = tuple(d1)
-    d2 = d2.items()
-    d2.sort()
+    d2 = sorted(d2.items())
     d2 = tuple(d2)
     return d1 != d2
 

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@
 
 """
 
-import cStringIO
+import io
 import web
 import tempfile
 import psycopg2
 import datetime
-import pytz
+from datetime import timezone
+
+from webauthn2.util import urlquote
 
 from ..api import Api
 from . import path
@@ -32,7 +34,6 @@ from ....model.predicate import predicatecls
 from ....model.name import Name
 from .... import ermpath, exception
 from ....util import sql_literal
-from webauthn2.util import urlquote
 
 def _preprocess_attributes(epath, attributes):
     """Expand '*' wildcards in attributes into explicit projections understood by ermpath."""
@@ -91,7 +92,7 @@ def _GET(handler, uri, dresource, vresource):
             try:
                 # try to set a transaction-local statement timeout before this potentially long-running query
                 request_timeout_s = float(web.ctx.ermrest_config.get('request_timeout_s'))
-                elapsed = datetime.datetime.now(pytz.timezone('UTC')) - web.ctx.ermrest_start_time
+                elapsed = datetime.datetime.now(timezone.utc) - web.ctx.ermrest_start_time
                 timeout_ms = int(1000.0 * max((request_timeout_s - elapsed.total_seconds()), 0.001))
                 cur.execute("SELECT set_config('statement_timeout', %s, true);" % sql_literal(timeout_ms))
             except Exception as e:
@@ -159,7 +160,7 @@ def _PUT(handler, uri, put_thunk, vresource):
 
     content_type = handler.negotiated_content_type(default=in_content_type)
 
-    input_data = cStringIO.StringIO(web.ctx.env['wsgi.input'].read())
+    input_data = io.BytesIO(web.ctx.env['wsgi.input'].read())
 
     def body(conn, cur):
         input_data.seek(0) # rewinds buffer, in case of retry
@@ -255,7 +256,7 @@ class Entity (Api):
             if len(elem.name.nameparts) > 1:
                 raise exception.BadSyntax('Context name %s is not a valid syntax for an entity alias.' % elem.name)
             try:
-                alias = self.epath[unicode(elem.name.nameparts[0])].alias
+                alias = self.epath[elem.name.nameparts[0]].alias
             except KeyError:
                 raise exception.BadData('Context name %s is not a bound alias in entity path.' % elem.name)
                 

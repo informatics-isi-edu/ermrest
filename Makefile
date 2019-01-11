@@ -14,7 +14,7 @@ include config/make-vars-$(PLATFORM)
 
 # make this the default target
 install:
-	python ./setup.py install --single-version-externally-managed --record install-record.txt
+	python3 ./setup.py install --single-version-externally-managed --record install-record.txt
 
 # get platform-specific rules (e.g. actual predeploy recipe)
 include config/make-rules-$(PLATFORM)

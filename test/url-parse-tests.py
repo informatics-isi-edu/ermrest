@@ -47,7 +47,7 @@ for url in [
     ]:
     try:
         url_parse_func(url)
-    except Exception, e:
+    except Exception as e:
         sys.stderr.write('got exception for: %s\n' % url)
         raise
 

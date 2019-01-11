@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ navigating, and manipulating data in an ERMREST catalog.
 
 """
 import psycopg2
-import urllib
 import csv
 import web
 import json
@@ -124,7 +123,7 @@ def current_request_snaptime(cur):
     cur.execute("""
 SELECT now();
 """)
-    return cur.next()[0]
+    return cur.fetchone()[0]
 
 def current_catalog_snaptime(cur, encode=False):
     """The whole catalog snaptime is the latest transaction of any type.
@@ -142,14 +141,14 @@ SELECT %(prefix)s GREATEST(
     'prefix': '_ermrest.tstzencode(' if encode else '',
     'suffix': ')' if encode else '',
 })
-    return cur.next()[0]
+    return cur.fetchone()[0]
 
 def current_model_snaptime(cur):
     """The current model snaptime is the most recent change to the live model."""
     cur.execute("""
 SELECT ts FROM _ermrest.model_last_modified ORDER BY ts DESC LIMIT 1;
 """)
-    return cur.next()[0]
+    return cur.fetchone()[0]
 
 def normalized_history_snaptime(cur, snapwhen, encoded=True):
     """Clamp snapwhen to the latest historical snapshot which precedes it.
@@ -166,7 +165,7 @@ SELECT GREATEST(
 """ % {
     'when': ("_ermrest.tstzdecode(%s)" % sql_literal(snapwhen)) if encoded else sql_literal(snapwhen)
 })
-    when2 = cur.next()[0]
+    when2 = cur.fetchone()[0]
     if when2 is None:
         raise ConflictData('Requested catalog revision "%s" is prior to any known revision.' % snapwhen)
     return when2
@@ -180,7 +179,7 @@ SELECT GREATEST(
 """ % {
     'when': sql_literal(snapwhen)
 })
-    return cur.next()[0]
+    return cur.fetchone()[0]
 
 def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
     def row_thunk():
@@ -405,16 +404,15 @@ def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_al
     if use_defaults is None:
         use_defaults = set()
 
-    hdr = csv.reader([ input_data.readline() ]).next()
+    hdr = next(csv.reader([ input_data.readline().decode() ]))
 
     inputcol_names = set(
-        [ unicode(mkcol_aliases.get(c, c.name)) for c in mkcols ]
-        + [ unicode(nmkcol_aliases.get(c, c.name)) for c in nmkcols ]
+        [ mkcol_aliases.get(c, c.name) for c in mkcols ]
+        + [ nmkcol_aliases.get(c, c.name) for c in nmkcols ]
     )
     csvcol_names = set()
     csvcol_names_ordered = []
     for cn in hdr:
-        cn = cn.decode('utf8')
         try:
             inputcol_names.remove(cn)
             csvcol_names.add(cn)
@@ -446,8 +444,8 @@ FROM STDIN WITH (
 },
             input_data
         )
-    except psycopg2.DataError, e:
-        raise BadData(u'Bad CSV input. ' + e.pgerror.decode('utf8'))
+    except psycopg2.DataError as e:
+        raise BadData(u'Bad CSV input. ' + e.pgerror)
 
 def _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     if use_defaults is None:
@@ -474,7 +472,7 @@ FROM (
     'json_projection': ','.join(json_projection)
 }
         )
-    except psycopg2.DataError, e:
+    except psycopg2.DataError as e:
         raise BadData('Bad JSON array input. ' + e.pgerror)
 
 def _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
@@ -498,7 +496,7 @@ FROM (
     'json_projection': ','.join(json_projection),
 }
         )
-    except psycopg2.DataError, e:
+    except psycopg2.DataError as e:
         raise BadData('Bad JSON stream input. ' + e.pgerror)
 
 def _load_input_data(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, use_defaults=None):
@@ -703,7 +701,7 @@ LIMIT 1;""" % {
 }
     )
     for row in cur:
-        raise ConflictData('Input row key (%s) does not match existing entity.' % unicode(row))
+        raise ConflictData('Input row key (%s) does not match existing entity.' % row)
 
 def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     if use_defaults is None:
@@ -712,7 +710,7 @@ def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkco
     icols = _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
 
     mkcol_fkrs, nmkcol_fkrs = _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
-    for fkr in set().union(*[ set(fkrs) for fkrs in nmkcol_fkrs.values() + mkcol_fkrs.values() ]):
+    for fkr in set().union(*[ set(fkrs) for fkrs in list(nmkcol_fkrs.values()) + list(mkcol_fkrs.values()) ]):
         if fkr.has_right('insert') is not None:
             continue
         fkr_cols = [
@@ -939,7 +937,7 @@ class EntityElem (object):
         return ltable, self.refop
 
     def __str__(self):
-        s = unicode(self.table)
+        s = str(self.table)
 
         if self.alias:
             s += ' AS %s' % self.alias
@@ -955,12 +953,12 @@ class EntityElem (object):
             s += ' ON (%s)' % self.keyref.join_str(refop, ltname, '.')
 
         if self.filters:
-            s += ' WHERE ' + ' AND '.join([ unicode(f) for f in self.filters ])
+            s += ' WHERE ' + ' AND '.join([ str(f) for f in self.filters ])
 
         return s
 
     def __repr__(self):
-        return '<ermrest.ermpath.EntityElem %s>' % unicode(self)
+        return '<ermrest.ermpath.EntityElem %s>' % self
 
     def add_filter(self, filt, enforce_client=True):
         """Add a filtersql_name condition to this path element.
@@ -1164,7 +1162,7 @@ class EntityElem (object):
             for table in drop_tables:
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
 
-        except psycopg2.IntegrityError, e:
+        except psycopg2.IntegrityError as e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
 
         if content_type == 'application/json':
@@ -1333,7 +1331,7 @@ class EntityElem (object):
             for table in drop_tables:
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
 
-        except psycopg2.IntegrityError, e:
+        except psycopg2.IntegrityError as e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
 
         return results
@@ -1452,7 +1450,7 @@ class EntityElem (object):
             for table in drop_tables:
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
 
-        except psycopg2.IntegrityError, e:
+        except psycopg2.IntegrityError as e:
             raise ConflictModel('Input data violates model. ' + e.pgerror)
 
         return results
@@ -1521,7 +1519,7 @@ class AnyPath (object):
         for attribute, col, base in self.attributes:
             col.enforce_data_right('select')
 
-            output_name = unicode(attribute.alias) if attribute.alias is not None else unicode(col.name)
+            output_name = str(attribute.alias) if attribute.alias is not None else col.name
             sql_attr = sql_identifier(output_name)
 
             if hasattr(attribute, 'aggfunc'):
@@ -1628,7 +1626,7 @@ class EntityPath (AnyPath):
 
     def __str__(self):
         return ' / '.join(
-            [ unicode(e) for e in self._path ] 
+            [ str(e) for e in self._path ] 
             + self._context_index >= 0 and [ '$%s' % self._path[self._context_index].alias ] or []
             )
 
@@ -1827,7 +1825,7 @@ FROM %(tables)s
 	# This subquery is ugly and inefficient but necessary due to DISTINCT ON above
         sortvec, sort1, sort2 = self._get_sortvec()
         limit = 'LIMIT %d' % limit if limit is not None else ''
-    	if sort1 is not None:
+        if sort1 is not None:
             page = self._get_page_sql(sortvec)
             sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
             if sort2 is not None:
@@ -2179,16 +2177,16 @@ END
                 # short-circuit for dynacl decision output
                 selects.append(select)
             elif attribute.alias is not None:
-                if unicode(attribute.alias) in outputs:
+                if str(attribute.alias) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
-                outputs.add(unicode(attribute.alias))
-                output_types[unicode(attribute.alias)] = col.type
+                outputs.add(str(attribute.alias))
+                output_types[str(attribute.alias)] = col.type
                 selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
             else:
-                if unicode(col.name) in outputs:
+                if col.name in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % col.name)
-                outputs.add(unicode(col.name))
-                output_types[unicode(col.name)] = col.type
+                outputs.add(col.name)
+                output_types[col.name] = col.type
                 selects.append('%s AS %s' % (select, col.sql_name()))
 
         # HACK: _get_sortvec() calls _get_sort_element() which looks at self.outputs and self.output_types
@@ -2367,9 +2365,9 @@ class AttributeGroupPath (AnyPath):
 
         for key, col, base in self.groupkeys:
             if key.alias is not None:
-                groupkeys.append( sql_identifier(unicode(key.alias)) )
+                groupkeys.append( sql_identifier(str(key.alias)) )
             else:
-                groupkeys.append( sql_identifier(unicode(col.name)) )
+                groupkeys.append( sql_identifier(col.name) )
 
         asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
         aggregates, extras, self.output_type_overrides = self._sql_get_agg_attributes()
@@ -2566,8 +2564,8 @@ def row_to_dict(cur, row):
 
 def val_to_csv(v, cdesc=None):
     def condquote(v):
-        if v.find(u',') > -1 or v.find(u'"') > -1:
-            return u'"%s"' % (v.replace(u'"', u'""'))
+        if v.find(',') > -1 or v.find('"') > -1:
+            return '"%s"' % (v.replace('"', '""'))
         else:
             return v
 
@@ -2576,26 +2574,23 @@ def val_to_csv(v, cdesc=None):
             return condquote(json.dumps(v))
 
     if v is None:
-        return u''
+        return ''
 
-    if type(v) in [ int, float, long ]:
-        return u'%s' % v
+    if isinstance(v, (int, float)):
+        return '%s' % v
 
-    if type(v) is list:
-        return condquote(u'{%s}' % u",".join([ val_to_csv(e) for e in v ]))
+    if isinstance(v, list):
+        return condquote('{%s}' % ",".join([ val_to_csv(e) for e in v ]))
 
-    elif type(v) is str:
-        return condquote(v.decode('utf8'))
-    
     else:
-        return condquote(unicode(v))
+        return condquote(str(v))
 
 def row_to_csv(row, desc=None):
     try:
-        return (u','.join([ val_to_csv(row[i], desc[i] if desc is not None else None) for i in range(len(row)) ])).encode('utf8')
-    except Exception, e:
+        return ','.join([ val_to_csv(row[i], desc[i] if desc is not None else None) for i in range(len(row)) ])
+    except Exception as e:
         web.debug('row_to_csv', row, e)
-
+        raise
        
 class TextFacet (AnyPath):
 
@@ -2649,7 +2644,7 @@ class TextFacet (AnyPath):
                 stext=sql_literal(sname),
                 ttext=sql_literal(tname),
                 ctext=sql_literal(column.name),
-                pattern=sql_literal(unicode(self.pattern)),
+                pattern=sql_literal(str(self.pattern)),
                 sid=sql_identifier(sname),
                 tid=sql_identifier(tname),
                 cid=sql_identifier(column.name)

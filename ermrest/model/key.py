@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
 # limitations under the License.
 #
 
+import web
+import json
+
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
 from .misc import frozendict, AltDict, Annotatable, cache_rights, HasAcls, HasDynacls, enforce_63byte_id, truncated_identifier
 from .name import _keyref_join_str, _keyref_join_sql
-
-import web
-import json
 
 @Annotatable.annotatable
 class Unique (Annotatable):
@@ -49,7 +49,7 @@ class Unique (Annotatable):
             self.table.uniques[cols] = self
 
     def _annotation_key_error(self, key):
-        return exception.NotFound(u'annotation "%s" on key %s' % (k, unicode(self.constraint_name)))
+        return exception.NotFound(u'annotation "%s" on key %s' % (k, self.constraint_name))
 
     def enforce_right(self, aclname):
         """Proxy enforce_right to self.table for interface consistency."""
@@ -63,9 +63,9 @@ COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
 UPDATE _ermrest.known_keys SET "comment" = %(comment)s WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
 """ % {
-    'constraint_name': sql_identifier(unicode(pk_name)),
-    'sname': sql_identifier(unicode(self.table.schema.name)),
-    'tname': sql_identifier(unicode(self.table.name)),
+    'constraint_name': sql_identifier(pk_name),
+    'sname': sql_identifier(self.table.schema.name),
+    'tname': sql_identifier(self.table.name),
     'rid': sql_literal(self.rid),
     'comment': sql_literal(comment),
 })
@@ -97,7 +97,7 @@ SELECT _ermrest.model_version_bump();
 
     def _column_names(self):
         """Canonicalized column names list."""
-        cnames = [ unicode(col.name) for col in self.columns ]
+        cnames = [ col.name for col in self.columns ]
         cnames.sort()
         return cnames
         
@@ -111,7 +111,7 @@ SELECT _ermrest.model_version_bump();
                 if type(n) is not list \
                    or len(n) != 2:
                     raise exception.BadData('Key name %s must be an 2-element array [ schema_name, constraint_name ].' % n)
-                if type(n[1]) not in [str, unicode]:
+                if not isinstance(n[1], str):
                     raise exception.BadData('Key constraint_name %s must be textual' % n[1])
             return names
 
@@ -180,7 +180,7 @@ RETURNING "RID";
     'c_name': sql_literal(self.constraint_name[1])
 }
         )
-        self.rid = cur.next()[0]
+        self.rid = cur.fetchone()[0]
         cur.execute("""
 UPDATE _ermrest.known_keys v
 SET column_rids = i.column_rids
@@ -191,6 +191,7 @@ WHERE v."RID" = i.key_rid
     'rid': sql_literal(self.rid),
 }
         )
+
         self.set_comment(conn, cur, self.comment)
 
     def delete(self, conn, cur):
@@ -251,7 +252,7 @@ WHERE constraint_name = %(constraint_name)s;
 """ % {
     'constraint_name': name,
 })
-        return cur.next()[0]
+        return cur.fetchone()[0]
 
     def add(self, conn, cur):
         self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
@@ -401,7 +402,7 @@ class KeyReference (HasDynacls, HasAcls, Annotatable):
         self.comment = comment
 
     def _annotation_key_error(self, key):
-        return exception.NotFound(u'annotation "%s" on foreign key %s' % (k, unicode(self.constraint_name)))
+        return exception.NotFound(u'annotation "%s" on foreign key %s' % (k, self.constraint_name))
 
     def _acls_getparent(self):
         return self.foreign_key.table
@@ -414,9 +415,9 @@ COMMENT ON CONSTRAINT %(constraint_name)s ON %(sname)s.%(tname)s IS %(comment)s;
 UPDATE _ermrest.known_fkeys SET "comment" = %(comment)s WHERE "RID" = %(rid)s;
 SELECT _ermrest.model_version_bump();
 """ % {
-    'constraint_name': sql_identifier(unicode(fkr_name)),
-    'sname': sql_identifier(unicode(self.foreign_key.table.schema.name)),
-    'tname': sql_identifier(unicode(self.foreign_key.table.name)),
+    'constraint_name': sql_identifier(fkr_name),
+    'sname': sql_identifier(self.foreign_key.table.schema.name),
+    'tname': sql_identifier(self.foreign_key.table.name),
     'rid': sql_literal(self.rid),
     'comment': sql_literal(comment),
 })
@@ -474,7 +475,7 @@ RETURNING "RID";
     'constraint_name': sql_literal(self.constraint_name[1]),
 }
         )
-        self.rid = cur.next()[0]
+        self.rid = cur.fetchone()[0]
         cur.execute("""
 UPDATE _ermrest.known_fkeys v
 SET fkc_pkc_rids = i.fkc_pkc_rids
@@ -485,6 +486,7 @@ WHERE v."RID" = i.fkey_rid
     'rid': sql_literal(self.rid),
 }
         )
+
         self.set_comment(conn, cur, self.comment)
                 
     def delete(self, conn, cur):
@@ -498,14 +500,14 @@ WHERE v."RID" = i.fkey_rid
 
     def _from_column_names(self):
         """Canonicalized from-column names list."""
-        f_cnames = [ unicode(col.name) for col in self.foreign_key.columns ]
+        f_cnames = [ str(col.name) for col in self.foreign_key.columns ]
         f_cnames.sort()
         return f_cnames
 
     def _to_column_names(self):
         """Canonicalized to-column names list."""
         return [
-            unicode(self.reference_map[self.foreign_key.table.columns[colname]].name)
+            str(self.reference_map[self.foreign_key.table.columns[colname]].name)
             for colname in self._from_column_names()
         ]
 
@@ -522,7 +524,7 @@ WHERE v."RID" = i.fkey_rid
                 if type(n) is not list \
                    or len(n) != 2:
                     raise exception.BadData('Foreign key name %s must be an 2-element array [ schema_name, constraint_name ].' % n)
-                if type(n[1]) not in [str, unicode]:
+                if not isinstance(n[1], str):
                     raise exception.BadData('Foreign key constraint_name %s must be textual' % n[1])
             return names
                 

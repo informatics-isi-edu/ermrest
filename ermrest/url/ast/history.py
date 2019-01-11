@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2017-2018 University of Southern California
+# Copyright 2017-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ SELECT LEAST(
     'h_from': sql_literal(h_from),
     'h_until': sql_literal(h_until),
 })
-        h_from = cur.next()[0]
+        h_from = cur.fetchone()[0]
 
     if h_until is None:
         cur.execute("""
@@ -88,7 +88,7 @@ SELECT GREATEST(
     'h_from': sql_literal(h_from),
     'h_until': sql_literal(h_until),
 })
-        h_until = cur.next()[0]
+        h_until = cur.fetchone()[0]
 
     if h_from is None or h_until is None:
         raise exception.rest.NotFound('history range [%s,%s)' % (h_from, h_until))
@@ -109,11 +109,11 @@ def _etag(cur):
         'h_from': sql_literal(h_from),
         'h_until': sql_literal(h_until),
     })
-    return cur.next()[0]
+    return cur.fetchone()[0]
 
 def _encode_ts(cur, ts):
     cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz)::text;" % sql_literal(ts))
-    return cur.next()[0]
+    return cur.fetchone()[0]
 
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
@@ -140,7 +140,7 @@ def _MODIFY(handler, thunk, _post_commit):
 
 def _MODIFY_with_json_input(handler, thunk, _post_commit):
     try:
-        doc = json.load(web.ctx.env['wsgi.input'])
+        doc = json.loads(web.ctx.env['wsgi.input'].read().decode())
     except:
         raise exception.rest.BadRequest('Could not deserialize JSON input.')
     return _MODIFY(handler, lambda conn, cur: thunk(conn, cur, doc), _post_commit)
@@ -579,7 +579,7 @@ def _amend_acl_binding(cur, h_from, h_until, restype, rid, content):
         raise exception.rest.Conflict('ACL bindings are not supported on selected %s resource.' % restype)
 
     for name, value in content.items():
-        if not isinstance(name, (str, unicode)):
+        if not isinstance(name, str):
             raise exception.rest.Conflict('ACL binding names must be textual.')
 
         if not (isinstance(value, dict) or value is False):
@@ -590,7 +590,7 @@ def _amend_acl_binding(cur, h_from, h_until, restype, rid, content):
 
 def _amend_annotation(cur, h_from, h_until, restype, rid, content):
     for name, value in content.items():
-        if not isinstance(name, (str, unicode)):
+        if not isinstance(name, str):
             raise exception.rest.Conflict('Annotation keys must be textual.')
 
     _amend_config_embedded(cur, h_from, h_until, restype, 'annotation', rid, 'annotations', content)

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import re
 import web
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, udecode
+from ..util import sql_identifier, sql_literal
 from .type import tsvector_type, Type
 from .misc import Annotatable, cache_rights, HasAcls, HasDynacls, truncated_identifier, get_dynacl_clauses
 
@@ -92,9 +92,9 @@ SELECT _ermrest.model_version_bump();
 
     def __str__(self):
         return ':%s:%s:%s' % (
-            urllib.quote(unicode(self.table.schema.name).encode('utf8')),
-            urllib.quote(unicode(self.table.name).encode('utf8')),
-            urllib.quote(unicode(self.name).encode('utf8'))
+            urllib.parse.quote(self.table.schema.name),
+            urllib.parse.quote(self.table.name),
+            urllib.parse.quote(self.name),
             )
 
     @cache_rights
@@ -191,7 +191,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
     def sql_def(self):
         """Render SQL column clause for managed table DDL."""
         parts = [
-            sql_identifier(unicode(self.name)),
+            sql_identifier(self.name),
             self.type.sql()
             ]
         if self.default_value is not None:
@@ -244,7 +244,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
                 columndoc.get('acl_bindings', {}),
                 None, # rid
             )
-        except KeyError, te:
+        except KeyError as te:
             raise exception.BadData('Table document missing required field "%s"' % te)
 
     @staticmethod
@@ -378,7 +378,7 @@ class FreetextColumn (Column):
 
         self.table = table
         
-        self.srccols = [ c for c in table.columns.itervalues() if c.istext() and c.has_right('enumerate') ]
+        self.srccols = [ c for c in table.columns.values() if c.istext() and c.has_right('enumerate') ]
         self.srccols.sort(key=lambda c: c.position)
 
     def sql_name_astext_with_talias(self, talias):

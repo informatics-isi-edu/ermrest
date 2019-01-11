@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +63,7 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
         assert amendver is not None
 
     cur.execute("SELECT * FROM _ermrest.known_catalog_denorm(%s);" % sql_literal(snapwhen))
-    ignore_rid, annotations, acls = cur.next()
+    ignore_rid, annotations, acls = cur.fetchone()
     model = Model(snapwhen, amendver, annotations, acls)
 
     #

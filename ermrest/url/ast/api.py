@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,13 +23,12 @@ import web
 import traceback
 import sys
 import re
+import json
 
 from ...exception import *
 from ... import sanepg2
 from ...model import normalized_history_snaptime
 from ...util import sql_literal, negotiated_content_type
-import json
-
 
 class Api (object):
 
@@ -177,7 +176,7 @@ RETURNING *;
             else:
                 try:
                     limit = int(limit)
-                except ValueError, e:
+                except ValueError as e:
                     raise rest.BadRequest('The "limit" query-parameter requires an integer or the string "none".')
             return limit
         else:
@@ -329,7 +328,7 @@ SELECT set_config('webauthn2.attributes_array', (ARRAY[%s]::text[])::text, false
 )
                 )
                 return body(conn, cur)
-            except psycopg2.InterfaceError, e:
+            except psycopg2.InterfaceError as e:
                 raise rest.ServiceUnavailable("Please try again.")
             
         return web.ctx.ermrest_catalog_pc.perform(wrapbody, finish)

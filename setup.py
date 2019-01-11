@@ -40,7 +40,7 @@ setup(
         'sbin/ermrest-freetext-indices',
         'sbin/ermrest-registry-purge',
     ],
-    #requires=['webauthn2', 'web.py', 'psycopg2', 'simplejson', 'python-dateutil'],
+    #requires=['webauthn2', 'web.py', 'psycopg2'],
     maintainer_email='support@misd.isi.edu',
     license='Apache License, Version 2.0',
     classifiers=[

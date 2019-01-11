@@ -54,24 +54,24 @@ class LongIdentifiers (common.ErmrestTest):
         self.assertHttp(self.session.delete('schema/%s' % self.urlcoded), 204)
 
     def test_2_schemaname(self):
-        self.assertHttp(self.session.post('schema', json=self.sdef('x' + self.utf8, 'LIT2', 'LIT2', 'LIT2K', 'LIT2FK')), 400)
-        self.assertHttp(self.session.post('schema', json=self.sdef(self.utf8, 'LIT2', 'LIT2', 'LIT2K', 'LIT2FK')), 201)
+        self.assertHttp(self.session.post('schema', json=self.sdef('x' + self.identifier, 'LIT2', 'LIT2', 'LIT2K', 'LIT2FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef(self.identifier, 'LIT2', 'LIT2', 'LIT2K', 'LIT2FK')), 201)
 
     def test_3_tablename(self):
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT3', 'x' + self.utf8, 'LIT3', 'LIT3K', 'LIT3FK')), 400)
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT3', self.utf8, 'LIT3', 'LIT3K', 'LIT3FK')), 201)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT3', 'x' + self.identifier, 'LIT3', 'LIT3K', 'LIT3FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT3', self.identifier, 'LIT3', 'LIT3K', 'LIT3FK')), 201)
 
     def test_4_columnname(self):
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT4', 'LIT4', 'x' + self.utf8, 'LIT4K', 'LIT4FK')), 400)
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT4', 'LIT4', self.utf8, 'LIT4K', 'LIT4FK')), 201)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT4', 'LIT4', 'x' + self.identifier, 'LIT4K', 'LIT4FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT4', 'LIT4', self.identifier, 'LIT4K', 'LIT4FK')), 201)
 
     def test_5_keyname(self):
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT5', 'LIT5', 'LIT5', 'x' + self.utf8, 'LIT5FK')), 400)
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT5', 'LIT5', 'LIT5', self.utf8, 'LIT5FK')), 201)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT5', 'LIT5', 'LIT5', 'x' + self.identifier, 'LIT5FK')), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT5', 'LIT5', 'LIT5', self.identifier, 'LIT5FK')), 201)
 
     def test_6_fkeyname(self):
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', 'x' + self.utf8)), 400)
-        self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', self.utf8)), 201)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', 'x' + self.identifier)), 400)
+        self.assertHttp(self.session.post('schema', json=self.sdef('LIT6', 'LIT6', 'LIT6', 'LIT6K', self.identifier)), 201)
 
 class BadModelDocs (common.ErmrestTest):
 
@@ -477,7 +477,7 @@ class Unicode (common.ErmrestTest):
     def test_6_download(self):
         r = self.session.get('entity/%s:%s?download=%s' % (self.sname_url, self.tname_url, self.tname_url))
         self.assertHttp(r, 200)
-        self.assertRegexpMatches(
+        self.assertRegex(
             r.headers.get('content-disposition'),
             "attachment; filename[*]=UTF-8''%s.*" % self.tname_url
         )

@@ -1,5 +1,5 @@
 # 
-# Copyright 2012-2016 University of Southern California
+# Copyright 2012-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,6 @@ General utilities for ERMREST.
 
 # Right now these are all DB related utilities. We should keep it that way.
 
-__all__ = ['table_exists', 'schema_exists', 'sql_identifier', 'sql_literal', 'negotiated_content_type', 'urlquote', 'urlunquote', 'udecode']
-
 import web
 import urllib
 import uuid
@@ -28,22 +26,8 @@ import base64
 from webauthn2.util import urlquote, negotiated_content_type
 
 def urlunquote(url):
-    if type(url) not in [ str, unicode ]:
-        url = str(url)
-    text = urllib.unquote_plus(url)
-    if type(text) == str:
-        text = unicode(text, 'utf8')
-    elif type(text) == unicode:
-        pass
-    else:
-        raise TypeError('unexpected decode type %s in urlunquote()' % type(text))
+    text = urllib.parse.unquote_plus(url)
     return text
-
-def udecode(s):
-    if type(s) is str:
-        return s.decode('utf8')
-    else:
-        return s
 
 def schema_exists(cur, schemaname):
     """Return True or False depending on whether schema exists in our 
@@ -124,12 +108,11 @@ WHERE c.relnamespace = nc.oid
 
 def _string_wrap(s, escape=u'\\', protect=[]):
     try:
-        s = udecode(s)
         s = s.replace(escape, escape + escape)
         for c in set(protect):
             s = s.replace(c, escape + c)
         return s
-    except Exception, e:
+    except Exception as e:
         web.debug('_string_wrap', s, escape, protect, e)
         raise
 
@@ -156,5 +139,5 @@ def random_name(prefix=''):
 
     """
     # TODO: trim out uuid version 4 static bits?  Is 122 random bits overkill?
-    return prefix + base64.urlsafe_b64encode(uuid.uuid4().bytes).replace('=','')
+    return prefix + base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().replace('=','')
 

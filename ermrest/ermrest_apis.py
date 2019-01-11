@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2013 University of Southern California
+# Copyright 2012-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,9 +61,7 @@ import web
 import random
 import base64
 import datetime
-import pytz
 import struct
-import urllib
 import sys
 import traceback
 import psycopg2
@@ -111,14 +109,14 @@ class Dispatcher (object):
         
         try:
             return uri, url_parse_func(uri)
-        except (LexicalError, ParseError), te:
+        except (LexicalError, ParseError) as te:
             raise rest.BadRequest(str(te))
-        except rest.WebException, te:
+        except rest.WebException as te:
             raise te
-        except psycopg2.Error, te:
+        except psycopg2.Error as te:
             # e.g. DB connection errors while getting Catalog instance, already logged by web_method
             raise
-        except (ConflictModel, Forbidden, BadData), te:
+        except (ConflictModel, Forbidden, BadData) as te:
             # don't trace these normal response exceptions
             raise
         except:
@@ -143,7 +141,7 @@ class Dispatcher (object):
                 # put AMQP advisory message here?
                 web.ctx.ermrest_change_notify()
             
-            if hasattr(result, 'next'):
+            if hasattr(result, '__next__'):
                 # force any transaction deferred in iterator
                 for res in result:
                     yield res

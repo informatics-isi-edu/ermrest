@@ -32,7 +32,7 @@ def for_each_catalog(thunk, id=None):
         catalog = Catalog(catalog_factory, result['descriptor'])
         # a non-shared pool is just our same API w/o pooling...
         pc = sanepg2.PooledConnection(catalog.dsn, shared=False)
-        pc.perform(lambda conn, cur: thunk(catalog, conn, cur), verbose=False).next()
+        next(pc.perform(lambda conn, cur: thunk(catalog, conn, cur), verbose=False))
         pc.final()
 
 def extupgrade_sql(dbname):
@@ -101,9 +101,9 @@ COMMIT;
 ANALYZE;
 """ % {
     "template1_extupgrade": extupgrade_sql('template1'),
-    "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql'),
-    "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_registry.sql'),
-    "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql'),
+    "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql').decode(),
+    "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_registry.sql').decode(),
+    "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql').decode(),
 })
 
 def print_redeploy_catalogs_sql():
@@ -128,10 +128,10 @@ ANALYZE;
 """ % {
     "catalog_extupgrade": extupgrade_sql(catalog.descriptor['dbname']),
     "dbname": sql_identifier(catalog.descriptor['dbname']),
-    "preupgrade_sql": pkgutil.get_data(sql.__name__, 'preupgrade_schema.sql'),
-    "ermrest_sql": pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'),
-    "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_schema.sql'),
-    "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql'),
+    "preupgrade_sql": pkgutil.get_data(sql.__name__, 'preupgrade_schema.sql').decode(),
+    "ermrest_sql": pkgutil.get_data(sql.__name__, 'ermrest_schema.sql').decode(),
+    "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_schema.sql').decode(),
+    "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql').decode(),
 })
 
     for_each_catalog(catalog_helper)

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ navigating, and manipulating data in an ERMREST catalog.
 
 """
 import psycopg2
-import urllib
 import csv
 import web
 
@@ -241,20 +240,22 @@ class Name (object):
         self.alias = alias
         return self
 
-    def __unicode__(self):
+    def __str__(self):
         return ':'.join(self.nameparts)
 
-    def __str__(self):
-        return (unicode(self)).encode('utf8')
-    
     def __repr__(self):
-        return '<ermrest.url.ast.Name %s>' % str(self)
+        return '<ermrest.model.name.Name %s>' % str(self)
 
     def __len__(self):
         return len(self.nameparts)
 
     def __iter__(self):
         return iter(self.nameparts)
+
+    def one_str(self):
+        if len(self.nameparts) != 1:
+            raise NotImplementedError(self)
+        return self.nameparts[0]
 
     def with_suffix(self, namepart):
         """Append a namepart to a qualifying prefix, returning full name.
@@ -312,7 +313,7 @@ class Name (object):
                 else:
                     try:
                         return (ptable.columns.get_enumerable(self.nameparts[0], skip_enum_check=not enforce_client), epath)
-                    except exception.ConflictModel, e:
+                    except exception.ConflictModel as e:
                         if self.nameparts[0] == '*':
                             return (ptable.freetext_column(), epath)
                         raise
@@ -322,7 +323,7 @@ class Name (object):
                 if n0 in epath.aliases:
                     try:
                         return (epath[n0].table.columns.get_enumerable(n1, skip_enum_check=not enforce_client), n0)
-                    except exception.ConflictModel, e:
+                    except exception.ConflictModel as e:
                         if self.nameparts[1] == '*':
                             return (epath[n0].table.freetext_column(), n0)
                         raise
@@ -330,8 +331,8 @@ class Name (object):
                 table = model.lookup_table(n0)
                 return (table.columns.get_enumerable(n1, skip_enum_check=not enforce_client), None)
 
-        except exception.NotFound, e:
-            raise exception.ConflictModel(unicode(e))
+        except exception.NotFound as e:
+            raise exception.ConflictModel(e)
 
         raise exception.BadSyntax('Name %s is not a valid syntax for columns.' % self)
 

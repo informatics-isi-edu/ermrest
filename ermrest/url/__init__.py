@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,6 @@ url_parse_func( uri_text ):
 
 """
 
-from parse import url_parse_func
-import ast
+from .parse import url_parse_func
+from . import ast
 
