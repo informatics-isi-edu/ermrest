@@ -81,6 +81,7 @@ script:
   - curl --fail -k -b ${TEST_COOKIES1} -c ${TEST_COOKIES1} -d username=test1 -d password=dummypassword https://${HOSTNAME}/authn/session
   - curl --fail -k -b ${TEST_COOKIES2} -c ${TEST_COOKIES2} -d username=test2 -d password=dummypassword https://${HOSTNAME}/authn/session
   - python3 ./test/resttest
+  - sudo cat ${HTTPD_ERROR_LOG}
 
 after_failure:
   - /usr/bin/python3 -c "import ermrest as m; print(m.__file__);"
