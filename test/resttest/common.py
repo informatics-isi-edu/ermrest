@@ -172,8 +172,8 @@ class TestSession (requests.Session):
             self, _server_url + '/',
             requests.adapters.HTTPAdapter(
                 max_retries=requests.packages.urllib3.util.retry.Retry(
-                    connect=5,
-                    read=5,
+                    connect=2,
+                    read=2,
                     backoff_factor=1.0,
                     status_forcelist=[500, 502, 503, 504],
                 )

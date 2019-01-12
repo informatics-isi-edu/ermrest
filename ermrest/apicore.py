@@ -243,25 +243,13 @@ def web_method():
             request_init()
             try:
                 try:
-                    try:
-                        result = original_method(*args)
-                        if hasattr(result, '__next__'):
-                            # force any transaction deferred in iterator
-                            for res in result:
-                                yield res
-                        else:
-                            yield result
-                    except psycopg2.ProgrammingError as e:
-                        if e.pgcode == '42501':
-                            # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
-                            raise rest.Forbidden(e.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
-                        elif e.pgcode == '42601':
-                            # SQL syntax error means we have buggy code!
-                            web.debug(e.pgcode, e.pgerror)
-                            raise rest.RuntimeError('Query generation error, contact ERMrest administrator')
-                        else:
-                            # re-raise and let outer handlers below do something more generic
-                            raise
+                    result = original_method(*args)
+                    if hasattr(result, '__next__'):
+                        # force any transaction deferred in iterator
+                        for res in result:
+                            yield res
+                    else:
+                        yield result
                 except (rest.WebException, web.HTTPError) as e:
                     # exceptions signal normal REST response scenarios
                     raise e
@@ -275,12 +263,8 @@ def web_method():
                     raise rest.BadRequest(e.message)
                 except UnsupportedMediaType as e:
                     raise rest.UnsupportedMediaType(e.message)
-                except (psycopg2.pool.PoolError, psycopg2.OperationalError) as e:
-                    #raise rest.ServiceUnavailable(e.message)
-                    web.debug('got %s %s' % (type(e), e))
-                    raise rest.Conflict(e.message)
                 except psycopg2.Error as e:
-                    request_trace(u"Postgres error: %s (%s)" % ((e.pgerror if e.pgerror is not None else 'None'), e.pgcode))
+                    request_trace(u"Postgres error %s: %s (%s)" % (type(e), (e.pgerror if e.pgerror is not None else 'None'), e.pgcode))
                     if e.pgcode is not None:
                         if e.pgcode[0:2] == '08':
                             raise rest.ServiceUnavailable('Database connection error.')
@@ -292,16 +276,27 @@ def web_method():
                             raise rest.BadRequest('Program limit exceeded: %s.' % e.message.strip())
                         elif e.pgcode[0:2] == 'XX':
                             raise rest.ServiceUnavailable('Internal error.')
+                        elif e.pgcode == '42501':
+                            # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
+                            raise rest.Forbidden(e.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
+                        elif e.pgcode == '42601':
+                            # SQL syntax error means we have buggy code!
+                            et, ev, tb = sys.exc_info()
+                            web.debug('got SQL syntax error in apicode', e, e.pgcode, e.pgerror, traceback.format_exception(et, ev, tb))
+                            raise rest.RuntimeError('Service implementation error.')
                         elif e.pgcode == '57014':
                             raise rest.BadRequest('Query run time limit exceeded.')
-                        elif e.pgcode[0:2] == '23':
+                        elif e.pgcode == '57':
+                            raise rest.ServiceUnavailable('Database unavailable.')
+                        elif e.pgcode[0:2] in {'21', '22', '23', '2B'}:
                             raise rest.Conflict(str(e))
-
-                    # TODO: simplify postgres error text?
-                    web.debug(e, e.pgcode, e.pgerror)
-                    et, ev, tb = sys.exc_info()
-                    web.debug('got psycopg2 exception "%s"' % str(ev))
-                    raise rest.Conflict( str(e) )
+                        else:
+                            # TODO: simplify postgres error text?
+                            web.debug('got psycopg2.Error in apicore', e, e.pgcode, e.pgerror)
+                            raise rest.RuntimeError(str(e))
+                    else:
+                        web.debug('got low-level psycopg2.Error in apicore', e, e.pgcode, e.pgerror)
+                        raise rest.ServiceUnavailable('Database connection error.')
                 except Exception as e:
                     et, ev, tb = sys.exc_info()
                     web.debug('got unrecognized %s exception "%s"' % (type(ev), str(ev)), traceback.format_exception(et, ev, tb))
