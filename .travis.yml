@@ -39,13 +39,14 @@ env:
     - PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 before_install:
+  - sudo mount -o remount,size=50% /var/ramfs
+  - sudo df /var/ramfs
   - sudo su -c 'echo /usr/lib/python3.5/site-packages > /usr/local/lib/python3.5/dist-packages/sys-site-packages.pth'
   - sudo ln -s /etc/apache2/conf-enabled /etc/apache2/conf.d
   - sudo service postgresql stop
   - sudo apt-get -y purge postgresql-9.1 postgresql-9.2 postgresql-9.3 postgresql-9.4 postgresql-9.5 postgresql-9.6
   - sudo service postgresql start 10
   - sudo -H -u postgres psql -c "SHOW ALL"
-  - sudo ls -lR /var/ramfs/postgresql/10
   - sudo a2enmod ssl
   - sudo a2ensite default-ssl
   - sudo groupadd -o -g $(id -g www-data) apache

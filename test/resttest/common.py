@@ -175,8 +175,7 @@ class TestSession (requests.Session):
                     connect=2,
                     read=2,
                     backoff_factor=1.0,
-                    #status_forcelist=[500, 502, 503, 504],
-                    status_forcelist=[502, 504],
+                    status_forcelist=[500, 502, 503, 504],
                 )
             )
         )
