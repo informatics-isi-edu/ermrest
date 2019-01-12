@@ -276,7 +276,8 @@ def web_method():
                 except UnsupportedMediaType as e:
                     raise rest.UnsupportedMediaType(e.message)
                 except (psycopg2.pool.PoolError, psycopg2.OperationalError) as e:
-                    raise rest.ServiceUnavailable(e.message)
+                    #raise rest.ServiceUnavailable(e.message)
+                    raise rest.BadRequest(e.message)
                 except psycopg2.Error as e:
                     request_trace(u"Postgres error: %s (%s)" % ((e.pgerror if e.pgerror is not None else 'None'), e.pgcode))
                     if e.pgcode is not None:
