@@ -77,6 +77,7 @@ before_script:
   - sudo -H -u webauthn webauthn2-manage assign test1 admin
 
 script:
+  - false
   - sudo ./test/ermrest-registry-purge-tests.sh
   - curl --fail -k -b ${TEST_COOKIES1} -c ${TEST_COOKIES1} -d username=test1 -d password=dummypassword https://${HOSTNAME}/authn/session
   - curl --fail -k -b ${TEST_COOKIES2} -c ${TEST_COOKIES2} -d username=test2 -d password=dummypassword https://${HOSTNAME}/authn/session
@@ -93,5 +94,7 @@ after_failure:
   - sudo cat /etc/apache2/conf.d/wsgi_ermrest.conf
   - sudo cat install-record.txt
   - sudo cat ${HTTPD_ERROR_LOG}
-  - sudo ls -lR /var/lib/pgsql/10/data/log
-  - sudo cat /var/lib/pgsql/10/data/log/*.log
+  - sudo su -H -u postgres psql -c "SHOW data_directory"
+  - sudo ls -lR /var/lib/postgresql/
+  - sudo ls -lR /var/log/postgresql/
+  - sudo cat /var/lib/postgresql/10/data/log/*.log
