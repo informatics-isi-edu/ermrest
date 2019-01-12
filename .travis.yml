@@ -44,7 +44,7 @@ before_install:
   - sudo service postgresql stop
   - sudo apt-get -y purge postgresql-9.1 postgresql-9.2 postgresql-9.3 postgresql-9.4 postgresql-9.5 postgresql-9.6
   - sudo service postgresql start 10
-  - sudo su -H -u postgres psql -c "SHOW ALL"
+  - sudo -H -u postgres psql -c "SHOW ALL"
   - sudo a2enmod ssl
   - sudo a2ensite default-ssl
   - sudo groupadd -o -g $(id -g www-data) apache
