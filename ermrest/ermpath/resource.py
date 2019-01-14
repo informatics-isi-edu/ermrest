@@ -1010,6 +1010,7 @@ class EntityElem (object):
         elif access_type == 'select' \
              and self.table.skip_cols_dynauthz(access_type) \
              and self.outer_type in {'left', None} \
+             and dynauthz is not None \
              and dynauthz_testcol is None:
             # common case where we can lift row-dynauthz into join condition as optimization
             clauses = get_dynacl_clauses(self.table, 'select', alias)
