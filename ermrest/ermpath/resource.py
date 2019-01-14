@@ -1629,7 +1629,7 @@ class EntityPath (AnyPath):
     def __str__(self):
         return ' / '.join(
             [ unicode(e) for e in self._path ] 
-            + self._context_index >= 0 and [ '$%s' % self._path[self._context_index].alias ] or []
+            + ([ '$%s' % self._path[self._context_index].alias ] if self._context_index >= 0 else [])
             )
 
     def __getitem__(self, k):
