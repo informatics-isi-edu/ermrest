@@ -1008,6 +1008,7 @@ class EntityElem (object):
         elif access_type == 'select' \
              and self.table.skip_cols_dynauthz(access_type) \
              and self.outer_type in {'left', None} \
+             and dynauthz is not None \
              and dynauthz_testcol is None:
             # common case where we can lift row-dynauthz into join condition as optimization
             clauses = get_dynacl_clauses(self.table, 'select', alias)
@@ -1627,7 +1628,7 @@ class EntityPath (AnyPath):
     def __str__(self):
         return ' / '.join(
             [ str(e) for e in self._path ] 
-            + self._context_index >= 0 and [ '$%s' % self._path[self._context_index].alias ] or []
+            + ([ '$%s' % self._path[self._context_index].alias ] if self._context_index >= 0 else [])
             )
 
     def __getitem__(self, k):

@@ -106,6 +106,12 @@ _did_owner_nonnull = {
     "projection_type": "nonnull"
 }
 
+_category_id2_owner_nonnull = {
+    "types": ["owner"],
+    "projection": [{"outbound": [_S, "fkey Category.id2"]}, "id"],
+    "projection_type": "nonnull"
+}
+
 class Expectation (object):
     def __init__(self, status, content_type=None, response_check=None):
         self.status = status
@@ -669,7 +675,7 @@ class RowMemberOwner (StaticUnhidden):
     bindings = {
         "Data": { "member": _member_owner_acl },
         "Extension": { "member": _member_owner_acl },
-        "Category": { "member": _member_owner_acl },
+        "Category": { "member": _member_owner_acl, "member2": _category_id2_owner_nonnull },
         "Data_Category": { "member": _assoccid_member_owner_acl }
     }
 
@@ -1012,11 +1018,11 @@ class UnscopedBindings (ImplicitEnumeration):
 _data = [
     (
         'entity/%s:Category' % _S,
-        """id,name,ACL,member
-1,public,"{""*""}",*
-2,restricted group,"{""%(secondary)s"",""%(primary)s""}",%(primary)s
-3,restricted member,"{""%(primary)s""}",%(secondary)s
-4,private,"{""%(primary)s""}",%(primary)s
+        """id,name,ACL,member,id2
+1,public,"{""*""}",*,
+2,restricted group,"{""%(secondary)s"",""%(primary)s""}",%(primary)s,
+3,restricted member,"{""%(primary)s""}",%(secondary)s,
+4,private,"{""%(primary)s""}",%(primary)s,
 """ % dict(primary=common.primary_client_id, secondary=common.secondary_client_id)
     ),
     (
@@ -1159,8 +1165,12 @@ _defs = ModelDoc(
                         ColumnDoc("name", Text),
                         ColumnDoc("ACL", TextArray),
                         ColumnDoc("member", Text),
+                        ColumnDoc("id2", Int4, nullok=True),
                     ],
-                    [ RidKey, KeyDoc(["id"]) ]
+                    [ RidKey, KeyDoc(["id"]) ],
+                    [
+                        FkeyDoc(_S, "Category", ["id2"], _S, "Category", ["id"], names=[[_S, "fkey Category.id2"]]),
+                    ],
                 ),
                 TableDoc(
                     "Data_Category",
