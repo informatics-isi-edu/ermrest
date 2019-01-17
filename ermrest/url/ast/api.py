@@ -43,10 +43,10 @@ class Api (object):
             self.client_register_body(
                 web.ctx.ermrest_catalog_pc.conn,
                 web.ctx.ermrest_catalog_pc.cur,
-        )
+            )
         except Exception as te:
             # allow service to function even if this mechanism is broken
-            web.debug('Got exception during ermrest_client registration: %s.' % te)
+            web.debug('Got exception during ERMrest client registration: %s.' % te)
             web.ctx.ermrest_catalog_pc.conn.rollback()
 
         web.ctx.ermrest_catalog_model = catalog.manager.get_model(
@@ -58,7 +58,7 @@ class Api (object):
 
     def client_register_body(self, conn, cur):
         client = web.ctx.webauthn2_context.client
-        if type(client) is dict:
+        if isinstance(client, dict):
             client_obj = client
             client = client['id']
         else:
@@ -74,12 +74,12 @@ class Api (object):
             }
             cur.execute("""
 SELECT True
-FROM public.ermrest_client
-WHERE id = %(id)s
-  AND display_name IS NOT DISTINCT FROM %(display_name)s
-  AND full_name IS NOT DISTINCT FROM %(full_name)s
-  AND email IS NOT DISTINCT FROM %(email)s
-  AND client_obj IS NOT DISTINCT FROM %(client_obj)s::jsonb
+FROM public."ERMrest_Client"
+WHERE "ID" = %(id)s
+  AND "Display_Name" IS NOT DISTINCT FROM %(display_name)s
+  AND "Full_Name" IS NOT DISTINCT FROM %(full_name)s
+  AND "Email" IS NOT DISTINCT FROM %(email)s
+  AND "Client_Object" IS NOT DISTINCT FROM %(client_obj)s::jsonb
 LIMIT 1;
 """ % parts
             )
@@ -88,14 +88,13 @@ LIMIT 1;
                 pass
             else:
                 cur.execute("""
-INSERT INTO public.ermrest_client (id, display_name, full_name, email, client_obj)
+INSERT INTO public."ERMrest_Client" ("ID", "Display_Name", "Full_Name", "Email", "Client_Object")
 VALUES (%(id)s, %(display_name)s, %(full_name)s, %(email)s, %(client_obj)s::jsonb)
-ON CONFLICT (id) DO UPDATE
-SET display_name = excluded.display_name,
-    full_name = excluded.full_name,
-    email = excluded.email,
-    client_obj = excluded.client_obj
-RETURNING *;
+ON CONFLICT ("ID") DO UPDATE
+SET "Display_Name" = excluded."Display_Name",
+    "Full_Name" = excluded."Full_Name",
+    "Email" = excluded."Email",
+    "Client_Object" = excluded."Client_Object";
 """ % parts
                 )
                 # When we are causing a side-effect, commit it before

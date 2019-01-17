@@ -2248,28 +2248,37 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_client') IS NULL THEN
-  CREATE TABLE public.ermrest_client (
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_client') THEN
+  ALTER TABLE public.ermrest_client RENAME TO "ERMrest_Client";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN id TO "ID";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN display_name TO "Display_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN full_name TO "Full_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN email TO "Email";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN client_obj TO "Client_Object";
+ELSIF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ERMrest_Client') IS NULL THEN
+  CREATE TABLE public."ERMrest_Client" (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    id text UNIQUE NOT NULL,
-    display_name text,
-    full_name text,
-    email text,
-    client_obj jsonb NOT NULL
+    "ID" text UNIQUE NOT NULL,
+    "Display_Name" text,
+    "Full_Name" text,
+    "Email" text,
+    "Client_Object" jsonb NOT NULL
   );
-  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ermrest_client');
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Client');
   INSERT INTO _ermrest.known_table_acls (table_rid, acl, members)
   VALUES
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'insert', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'update', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'delete', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'select', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'enumerate', ARRAY[]::text[]);
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'insert', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'update', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'delete', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'select', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'enumerate', ARRAY[]::text[]);
 END IF;
+
+
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, comment text) AS $$

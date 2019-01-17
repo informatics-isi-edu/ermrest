@@ -1,7 +1,7 @@
 
 # Client table
 
-The `ermrest_client` table in the `public` schema is created
+The `ERMrest_Client` table in the `public` schema is created
 automatically in newly created catalogs and is also added to existing
 catalogs when `ermrest-deploy` upgrades a system.
 
@@ -11,15 +11,15 @@ encountered. No attempt is made to purge records.
 
 At time of writing, this contains these columns:
 
-- `id`: The `text` unique identifier of the client (possibly a URI).
-- `display_name`: A more human-readable `text` representation of the
+- `ID`: The `text` unique identifier of the client (possibly a URI).
+- `Display_Name`: A more human-readable `text` representation of the
   client identity (possibly a domain-qualified username which looks
   similar to an email address).
-- `full_name`: The human-readable `text` name of the client.
-- `email`: A `text` email address to contact the client.
-- `client_obj`: A `jsonb` object containing client metadata.
+- `Full_Name`: The human-readable `text` name of the client.
+- `Email`: A `text` email address to contact the client.
+- `Client_Object`: A `jsonb` object containing client metadata.
 
-The `id` field is the primary key and cannot be NULL.  Each of the
+The `ID` field is the primary key and cannot be NULL.  Each of the
 other fields MAY be NULL, depending on what information is available
 from the configured webauthn2 identity provider.
 
@@ -34,7 +34,7 @@ requests.
 ## Extensibility and Localization
 
 The DBA is allowed to add additional human-managed columns to the
-`ermrest_client` table. These columns MUST have a properly configured
+`ERMrest_Client` table. These columns MUST have a properly configured
 default value and/or allow NULL values so that ERMrest can insert
 newly discovered clients while only configuring the subset of columns
 which it understands.  Failure to do so may render the service
@@ -50,12 +50,12 @@ When the table is introduced into a catalog, it is assigned a
 default table-level policy:
 
     {
-	  "insert": [],
-	  "update": [],
-	  "delete": [],
-	  "select": [],
-	  "enumerate": []
-	}
+      "insert": [],
+      "update": [],
+      "delete": [],
+      "select": [],
+      "enumerate": []
+    }
 
 This effectively hides the table from clients who are not owners of
 the whole catalog or the `public` schema.  A catalog administrator MAY
@@ -70,7 +70,7 @@ present for correct function.
 
 A future version of ERMrest MAY:
 
-1. Change the set of properties in the `client_obj` field
+1. Change the set of properties in the `Client_Object` field
 2. Extend the list of client metadata columns
    - Include additional columns when creating the table
    - Add columns to existing table instances in ermrest-deploy
@@ -78,7 +78,7 @@ A future version of ERMrest MAY:
    - Omit obsolete columns when creating the table
    - Ignore obsolete columns when operating on existing tables
 
-The DBA is also allowed to mutate the `ermrest_client` table contents
+The DBA is also allowed to mutate the `ERMrest_Client` table contents
 to import knowledge about clients who have not yet been discovered by
 the ERMrest service logic. However, when ERMrest encounters a client
 corresponding to such an entry, it will automatically mutate the
@@ -90,7 +90,7 @@ those fields, as they will become confused or frustrated when values
 revert to the webauthn-established values.
 
 Likewise, the DBA is allowed to purge stale entries from the
-`ermrest_client` table, but catalog access by a purged client will
+`ERMrest_Client` table, but catalog access by a purged client will
 automatically reinsert their information.  If a DBA wishes to hide
 certain clients' information from the userbase, a dynamic ACL binding
 should be defined to control access to individual rows while allowing
