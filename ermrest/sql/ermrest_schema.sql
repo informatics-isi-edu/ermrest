@@ -2278,7 +2278,7 @@ ELSIF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' 
     (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'enumerate', ARRAY[]::text[]);
 END IF;
 
-IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_group') IS NULL THEN
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ERMrest_Group') IS NULL THEN
   CREATE TABLE public."ERMrest_Group" (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
