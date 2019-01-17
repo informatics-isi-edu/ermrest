@@ -24,6 +24,7 @@ import traceback
 import sys
 import re
 import json
+import datetime
 
 from ...exception import *
 from ... import sanepg2
@@ -31,6 +32,18 @@ from ...model import normalized_history_snaptime
 from ...util import sql_literal, negotiated_content_type
 
 class Api (object):
+
+    # caches keyed by identifier URI/guid
+    CLIENT_CACHE = dict()
+    GROUP_CACHE = dict()
+    CACHE_SIZE = 128
+
+    @classmethod
+    def _cache_conditional_purge(cls, cache):
+        if len(cache) > 2 * cls.CACHE_SIZE:
+            items = sorted(cache.items(), key=lambda k, ts: (ts, k), reverse=True)
+            for k, ts in items[cls.CACHE_SIZE:]:
+                del cache[k]
 
     def __init__(self, catalog):
         self.catalog = catalog
@@ -64,7 +77,7 @@ class Api (object):
         else:
             client_obj = { 'id': client }
 
-        if client_obj['id']:
+        if client and client not in self.CLIENT_CACHE:
             parts = {
                 'id': sql_literal(client_obj['id']),
                 'display_name': sql_literal(client_obj.get('display_name')),
@@ -102,6 +115,52 @@ SET "Display_Name" = excluded."Display_Name",
                 #  1. So its effect is visible to ETag conditional processing
                 #  2. If the request handler resets connection, we don't lose this update
                 conn.commit()
+
+            self.CLIENT_CACHE[client] = datetime.datetime.utcnow()
+            self._cache_conditional_purge(self.CLIENT_CACHE)
+
+        attrs = web.ctx.webauthn2_context.attributes if web.ctx.webauthn2_context.attributes else []
+        groups = []
+        
+        for g in attrs:
+            if not isinstance(g, dict):
+                g = {'id': g}
+            if g['id'] not in self.GROUP_CACHE:
+                groups.append(g)
+
+        if groups:
+            parts = {
+                'groups': sql_literal(json.dumps(groups))
+            }
+            mismatch_query = """
+SELECT c_g.id, c_g.display_name
+FROM jsonb_array_elements( %(groups)s::jsonb ) j(j)
+JOIN LATERAL jsonb_to_record(j.j) c_g(id text, display_name text) ON (True)
+LEFT OUTER JOIN public."ERMrest_Group" g
+ ON (    c_g.id = g."ID"
+     AND c_g.display_name IS NOT DISTINCT FROM g."Display_Name")
+WHERE g."ID" IS NULL
+  AND (NOT j.j ? 'identities')
+"""
+            cur.execute((mismatch_query + " LIMIT 1;") % parts)
+            if list(cur):
+                # found at least one non-matching group
+                cur.execute(("""
+INSERT INTO public."ERMrest_Group" ("ID", "Display_Name")
+SELECT id, display_name FROM (""" + mismatch_query + """) s
+ON CONFLICT ("ID") DO UPDATE
+SET "Display_Name" = excluded."Display_Name";
+""") % parts
+                )
+                # When we are causing a side-effect, commit it before
+                # handling client request.
+                #  1. So its effect is visible to ETag conditional processing
+                #  2. If the request handler resets connection, we don't lose this update
+                conn.commit()
+
+            for g in groups:
+                self.GROUP_CACHE[g['id']] = datetime.datetime.utcnow()
+            self._cache_conditional_purge(self.GROUP_CACHE)
 
     def history_range(self, h_from, h_until):
         if web.ctx.ermrest_history_snaptime is not None:

@@ -2278,7 +2278,27 @@ ELSIF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' 
     (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'enumerate', ARRAY[]::text[]);
 END IF;
 
-
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_group') IS NULL THEN
+  CREATE TABLE public."ERMrest_Group" (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
+    "ID" text UNIQUE NOT NULL,
+    "URL" text,
+    "Display_Name" text,
+    "Description" text
+  );
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Group');
+  INSERT INTO _ermrest.known_table_acls (table_rid, acl, members)
+  VALUES
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'insert', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'update', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'delete', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'select', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'enumerate', ARRAY[]::text[]);
+END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, comment text) AS $$
