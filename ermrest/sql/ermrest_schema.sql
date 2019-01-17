@@ -2464,23 +2464,48 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-IF NOT _ermrest.table_exists('public', 'ermrest_client') THEN
-  CREATE TABLE public.ermrest_client (
+IF _ermrest.table_exists('public', 'ermrest_client') THEN
+  ALTER TABLE public.ermrest_client RENAME TO "ERMrest_Client";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN id TO "ID";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN display_name TO "Display_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN full_name TO "Full_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN email TO "Email";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN client_obj TO "Client_Object";
+ELSIF NOT _ermrest.table_exists('public', 'ERMrest_Client') THEN
+  CREATE TABLE public."ERMrest_Client" (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    id text UNIQUE NOT NULL,
-    display_name text,
-    full_name text,
-    email text,
-    client_obj jsonb NOT NULL
+    "ID" text UNIQUE NOT NULL,
+    "Display_Name" text,
+    "Full_Name" text,
+    "Email" text,
+    "Client_Object" jsonb NOT NULL
   );
-  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ermrest_client');
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Client');
   UPDATE _ermrest.known_tables
   SET acls = '{"insert": [], "update": [], "delete": [], "select": [], "enumerate": []}'
-  WHERE "RID" = _ermrest.find_table_rid('public', 'ermrest_client');
+  WHERE "RID" = _ermrest.find_table_rid('public', 'ERMrest_Client');
+END IF;
+
+IF NOT _ermrest.table_exists('public', 'ERMrest_Group') THEN
+  CREATE TABLE public."ERMrest_Group" (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
+    "ID" text UNIQUE NOT NULL,
+    "URL" text,
+    "Display_Name" text,
+    "Description" text
+  );
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Group');
+  UPDATE _ermrest.known_tables
+  SET acls = '{"insert": [], "update": [], "delete": [], "select": [], "enumerate": []}'
+  WHERE "RID" = _ermrest.find_table_rid('public', 'ERMrest_Group');
 END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
