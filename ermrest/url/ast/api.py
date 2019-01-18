@@ -125,7 +125,7 @@ SET "Display_Name" = excluded."Display_Name",
         for g in attrs:
             if not isinstance(g, dict):
                 g = {'id': g}
-            if g['id'] not in self.GROUP_CACHE:
+            if g['id'] not in self.GROUP_CACHE and 'identities' not in g and 'display_name' in g:
                 groups.append(g)
 
         if groups:
@@ -140,7 +140,6 @@ LEFT OUTER JOIN public."ERMrest_Group" g
  ON (    c_g.id = g."ID"
      AND c_g.display_name IS NOT DISTINCT FROM g."Display_Name")
 WHERE g."ID" IS NULL
-  AND (NOT j.j ? 'identities')
 """
             cur.execute((mismatch_query + " LIMIT 1;") % parts)
             if list(cur):
