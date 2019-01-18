@@ -77,7 +77,8 @@ class Api (object):
         else:
             client_obj = { 'id': client }
 
-        if client and client not in self.CLIENT_CACHE:
+        cache_key = (str(self.catalog.manager.descriptor), client)
+        if client and cache_key not in self.CLIENT_CACHE:
             parts = {
                 'id': sql_literal(client_obj['id']),
                 'display_name': sql_literal(client_obj.get('display_name')),
@@ -116,17 +117,21 @@ SET "Display_Name" = excluded."Display_Name",
                 #  2. If the request handler resets connection, we don't lose this update
                 conn.commit()
 
-            self.CLIENT_CACHE[client] = datetime.datetime.utcnow()
+            self.CLIENT_CACHE[cache_key] = datetime.datetime.utcnow()
             self._cache_conditional_purge(self.CLIENT_CACHE)
 
         attrs = web.ctx.webauthn2_context.attributes if web.ctx.webauthn2_context.attributes else []
         groups = []
+        cache_keys = []
         
         for g in attrs:
             if not isinstance(g, dict):
                 g = {'id': g}
-            if g['id'] not in self.GROUP_CACHE:
-                groups.append(g)
+            if 'identities' not in g and 'display_name' in g:
+                cache_key = (str(self.catalog.manager.descriptor), g['id'])
+                if cache_key not in self.GROUP_CACHE:
+                    groups.append(g)
+                    cache_keys.append(cache_key)
 
         if groups:
             parts = {
@@ -140,7 +145,6 @@ LEFT OUTER JOIN public."ERMrest_Group" g
  ON (    c_g.id = g."ID"
      AND c_g.display_name IS NOT DISTINCT FROM g."Display_Name")
 WHERE g."ID" IS NULL
-  AND (NOT j.j ? 'identities')
 """
             cur.execute((mismatch_query + " LIMIT 1;") % parts)
             if list(cur):
@@ -158,8 +162,8 @@ SET "Display_Name" = excluded."Display_Name";
                 #  2. If the request handler resets connection, we don't lose this update
                 conn.commit()
 
-            for g in groups:
-                self.GROUP_CACHE[g['id']] = datetime.datetime.utcnow()
+            for cache_key in cache_keys:
+                self.GROUP_CACHE[cache_key] = datetime.datetime.utcnow()
             self._cache_conditional_purge(self.GROUP_CACHE)
 
     def history_range(self, h_from, h_until):
