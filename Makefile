@@ -1,5 +1,5 @@
 # arguments that can be set via make target params or environment?
-PLATFORM=centos7
+PLATFORM=fedora
 
 PGADMIN=postgres
 DAEMONUSER=ermrest
@@ -20,7 +20,7 @@ install:
 include config/make-rules-$(PLATFORM)
 
 deploy: force install
-	$(BINDIR)/ermrest-deploy HTTPCONFDIR=$(HTTPCONFDIR) HTTPDGRP=$(HTTPDGRP)
+	ermrest-deploy HTTPCONFDIR=$(HTTPCONFDIR) HTTPDGRP=$(HTTPDGRP)
 
 restart: force install
 	make httpd_restart

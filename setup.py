@@ -32,7 +32,7 @@ setup(
         'ermrest.url.ast.data',
     ],
     package_data={
-        'ermrest': ['*.wsgi', 'ermrest_config.json', 'wsgi_ermrest.conf'],
+        'ermrest': ['*.wsgi', 'ermrest_config.json'],
         'ermrest.sql': ['*.sql'],
     },
     scripts=[
