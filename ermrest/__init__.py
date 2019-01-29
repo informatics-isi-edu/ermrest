@@ -40,7 +40,7 @@ WSGIPythonOptimize 1
 WSGIDaemonProcess ermrest processes=1 threads=4 user=ermrest maximum-requests=2000
 # adjust this to your ermrest package install installation
 # e.g. python3 -c 'import distutils.sysconfig;print(distutils.sysconfig.get_python_lib())'
-WSGIScriptAlias /ermrest %(ermrest_location)s
+WSGIScriptAlias /ermrest %(ermrest_location)s/ermrest.wsgi
 WSGIPassAuthorization On
 
 # adjust this to your Apache wsgi socket prefix
