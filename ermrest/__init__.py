@@ -27,14 +27,34 @@ def sample_httpd_config():
     """Emit sample wsgi_ermrest.conf to standard output."""
     path = __path__[0]
     if path[0] != '/':
-        loader = pkgutil.get_loader('ermrest')
         path = '%s/%s' % (
             os.path.dirname(loader.get_filename('ermrest')),
             path
         )
     sys.stdout.write(
-        pkgutil.get_data(__name__, 'wsgi_ermrest.conf').decode().replace(
-            '/usr/local/lib/python3.7/site-packages/ermrest',
-            path
-        )
+        """
+# this file must be loaded (alphabetically) after wsgi.conf
+AllowEncodedSlashes On
+
+WSGIPythonOptimize 1
+WSGIDaemonProcess ermrest processes=1 threads=4 user=ermrest maximum-requests=2000
+# adjust this to your ermrest package install installation
+# e.g. python3 -c 'import distutils.sysconfig;print(distutils.sysconfig.get_python_lib())'
+WSGIScriptAlias /ermrest %(ermrest_location)s/ermrest.wsgi
+WSGIPassAuthorization On
+
+# adjust this to your Apache wsgi socket prefix
+WSGISocketPrefix /var/run/httpd/wsgi
+
+<Location "/ermrest" >
+   AuthType webauthn
+   Require webauthn-optional
+   WSGIProcessGroup ermrest
+
+   # site can disable redundant service logging by adding env=!dontlog to their CustomLog or similar directives
+   SetEnv dontlog
+</Location>
+""" % {
+    'ermrest_location': path,
+}
     )

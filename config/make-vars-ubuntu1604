@@ -4,9 +4,6 @@
 # where we install our Python module
 PYLIBDIR=$(shell python3 -c 'import distutils.sysconfig;print(distutils.sysconfig.get_python_lib())')
 
-SU=su
-
-BINDIR=/usr/bin
 HTTPCONFDIR=/etc/apache2/conf.d
 HTTPDGRP=www-data
 

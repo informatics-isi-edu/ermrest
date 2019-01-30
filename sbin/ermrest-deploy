@@ -29,9 +29,9 @@ then
 fi
 
 # paths set for installation
-BINDIR=/usr/bin
 HTTPCONFDIR=${HTTPCONFDIR:-/etc/httpd/conf.d}
 HTTPDGRP=${HTTPDGRP:-apache}
+
 SU=su
 
 # named parameters that can be set by caller or on command-line above to override defaults...
