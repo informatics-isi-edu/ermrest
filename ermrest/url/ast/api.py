@@ -25,6 +25,7 @@ import sys
 import re
 import json
 import datetime
+from collections import OrderedDict
 
 from ...exception import *
 from ... import sanepg2
@@ -33,17 +34,33 @@ from ...util import sql_literal, negotiated_content_type
 
 class Api (object):
 
-    # caches keyed by identifier URI/guid
-    CLIENT_CACHE = dict()
-    GROUP_CACHE = dict()
+    # caches keyed by (catalog descriptor, identifier URI/guid)
+    CLIENT_CACHE = OrderedDict()
+    GROUP_CACHE = OrderedDict()
     CACHE_SIZE = 128
+    CACHE_EXPIRE_SECONDS = 30
 
     @classmethod
-    def _cache_conditional_purge(cls, cache):
-        if len(cache) > 2 * cls.CACHE_SIZE:
-            items = sorted(cache.items(), key=lambda k, ts: (ts, k), reverse=True)
-            for k, ts in items[cls.CACHE_SIZE:]:
-                del cache[k]
+    def _cache_has_key(cls, cache, key):
+        threshold = datetime.datetime.utcnow() - datetime.timedelta(seconds=cls.CACHE_EXPIRE_SECONDS)
+        victims = []
+        if len(cache) > cls.CACHE_SIZE:
+            # prune oldest members if cache is too large
+            victims.extend(itertools.islice(cache, len(cache) - cls.CACHE_SIZE))
+        for k, v in cache.items():
+            if v < threshold:
+                # prune stale members even if cache is small enough
+                victims.append((k, v))
+            else:
+                break
+        for k, v in victims:
+            cache.pop(k, None)
+        return key in cache
+
+    @classmethod
+    def _cache_insert(cls, cache, key):
+        cache.pop(key, None)
+        cache[key] = datetime.datetime.utcnow()
 
     def __init__(self, catalog):
         self.catalog = catalog
@@ -78,7 +95,7 @@ class Api (object):
             client_obj = { 'id': client }
 
         cache_key = (str(self.catalog.manager.descriptor), client)
-        if client and cache_key not in self.CLIENT_CACHE:
+        if client and not self._cache_has_key(self.CLIENT_CACHE, cache_key):
             parts = {
                 'id': sql_literal(client_obj['id']),
                 'display_name': sql_literal(client_obj.get('display_name')),
@@ -117,8 +134,7 @@ SET "Display_Name" = excluded."Display_Name",
                 #  2. If the request handler resets connection, we don't lose this update
                 conn.commit()
 
-            self.CLIENT_CACHE[cache_key] = datetime.datetime.utcnow()
-            self._cache_conditional_purge(self.CLIENT_CACHE)
+            self._cache_insert(self.CLIENT_CACHE, cache_key)
 
         attrs = web.ctx.webauthn2_context.attributes if web.ctx.webauthn2_context.attributes else []
         groups = []
@@ -129,7 +145,7 @@ SET "Display_Name" = excluded."Display_Name",
                 g = {'id': g}
             if 'identities' not in g and 'display_name' in g:
                 cache_key = (str(self.catalog.manager.descriptor), g['id'])
-                if cache_key not in self.GROUP_CACHE:
+                if not self._cache_has_key(self.GROUP_CACHE, cache_key):
                     groups.append(g)
                     cache_keys.append(cache_key)
 
@@ -163,8 +179,7 @@ SET "Display_Name" = excluded."Display_Name";
                 conn.commit()
 
             for cache_key in cache_keys:
-                self.GROUP_CACHE[cache_key] = datetime.datetime.utcnow()
-            self._cache_conditional_purge(self.GROUP_CACHE)
+                self._cache_insert(self.GROUP_CACHE, cache_key)
 
     def history_range(self, h_from, h_until):
         if web.ctx.ermrest_history_snaptime is not None:
