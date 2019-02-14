@@ -1898,18 +1898,21 @@ CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid text) RETURNS void
 DECLARE
   last_ts timestamptz;
 BEGIN
-  SELECT ts INTO last_ts FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
-  IF last_ts > now() THEN
+  INSERT INTO _ermrest.table_modified (table_rid, ts) VALUES ($1, now())
+  ON CONFLICT (ts, table_rid) DO NOTHING
+  RETURNING ts INTO last_ts;
+
+  IF last_ts IS NULL THEN
+    RETURN;
+  END IF;
+  
+  INSERT INTO _ermrest.table_last_modified AS t (table_rid, ts) VALUES ($1, now())
+  ON CONFLICT (table_rid) DO UPDATE SET ts = EXCLUDED.ts WHERE t.ts < EXCLUDED.ts
+  RETURNING ts INTO last_ts;
+    
+  IF last_ts IS NULL THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest table version clock reversal!';
-  ELSIF last_ts = now() THEN
-    RETURN;
-  ELSE
-    IF last_ts < now() THEN
-      DELETE FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
-    END IF;
-    INSERT INTO _ermrest.table_last_modified (table_rid, ts) VALUES ($1, now());
-    INSERT INTO _ermrest.table_modified (table_rid, ts) VALUES ($1, now());
   END IF;
 END;
 $$ LANGUAGE plpgsql;
