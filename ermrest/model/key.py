@@ -210,6 +210,10 @@ RETURNING key_rid;
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
         for c in self.columns:
+            # hide key if any column is non-enumerable (even if dynacl gives it None select rights)
+            if not c.has_right('enumerate', roles):
+                return False
+        for c in self.columns:
             if c.has_right('select', roles) is False:
                 return False
         return True
@@ -326,6 +330,10 @@ SELECT _ermrest.model_version_bump();
     @cache_rights
     def has_right(self, aclname, roles=None):
         assert aclname == 'enumerate'
+        for c in self.columns:
+            # hide key if any column is non-enumerable (even if dynacl gives it None select rights)
+            if not c.has_right('enumerate', roles):
+                return False
         for c in self.columns:
             if c.has_right('select', roles) is False:
                 return False
