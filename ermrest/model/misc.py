@@ -702,7 +702,7 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
 
     def rights(self):
         return {
-            aclname: self.has_right(aclname)
+            aclname: self.has_right(aclname) if aclname == 'select' or web.ctx.ermrest_history_snaptime is None else False
             for aclname in self._acls_rights
         }
 
