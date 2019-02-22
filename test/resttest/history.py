@@ -151,6 +151,20 @@ class TableWhen (common.ErmrestTest):
     def test_no_attribute_delete(self):
         self.assertHttp(self.session.delete((_data_t0_version, 'attribute/%s:%s/name' % (_S, _T1))), 403)
 
+    def test_rights(self):
+        r = self.session.get((_data_t4_version, 'schema/%s/table/%s' % (_S, _T1)))
+        self.assertHttp(r, 200, 'application/json')
+        self.assertDictEqual(
+            {
+                "delete": False,
+                "insert": False,
+                "owner": False,
+                "select": True,
+                "update": False,
+            },
+            r.json()["rights"]
+        )
+
     def test_initial_filled(self):
         self._test_snapshot(_data_t0_version, 4, 5, 4, True, True)
 

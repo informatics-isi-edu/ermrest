@@ -451,7 +451,7 @@ def _keyref_prejson(self):
 def _keyref_rights(self):
     rights = self._rights()
     for aclname in {'insert', 'update'}:
-        if rights[aclname]:
+        if rights[aclname] and web.ctx.ermrest_history_snaptime is None:
             rights[aclname] = self.foreign_key.columns_have_right(aclname)
     return rights
 
