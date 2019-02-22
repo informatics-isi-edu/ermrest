@@ -992,6 +992,31 @@ class ImplicitHiddenFkr (ImplicitEnumeration):
         table = self._get_table_doc('Data')
         self.assertEqual(len(table['foreign_keys']), 0)
 
+class ImplicitHiddenPk (ImplicitEnumeration):
+
+    col_acls = dict(ImplicitEnumeration.col_acls)
+    col_acls.update({
+        "Data": {
+            "id": {
+                "enumerate": [],
+                "select": [],
+                "update": [],
+            },
+            "c_id": {
+                "select": [],
+                "update": [],
+            }
+        }
+    })
+
+    def test_id_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertNotIn('id', [ col['name'] for col in table['column_definitions'] ])
+
+    def test_key_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertEqual(len(table['keys']), 1)
+
 class UnscopedBindings (ImplicitEnumeration):
 
     col_bindings = {

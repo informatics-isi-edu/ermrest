@@ -519,6 +519,13 @@ class AuthzHideT1id (Authz):
             'id',
             [ c['name'] for c in r.json()['schemas'][_S]['tables']['T1']['column_definitions'] ]
         )
+        self.assertNotIn(
+            ('id',),
+            {
+                tuple(sorted(keydoc['unique_columns']))
+                for keydoc in r.json()['schemas'][_S]['tables']['T1'].get('keys', [])
+            }
+        )
         self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables']['T2'].get('foreign_keys', []), 0)
         self._hidden_in_model(lambda schema: schema['schemas'][_S2]['tables']['T3'].get('foreign_keys', []), 0)
 
