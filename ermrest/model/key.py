@@ -687,7 +687,7 @@ WHERE v."RID" = i.fkey_rid
     def rights(self):
         rights = HasAcls.rights(self)
         for aclname in {'insert', 'update'}:
-            if rights[aclname]:
+            if rights[aclname] and web.ctx.ermrest_history_snaptime is None:
                 rights[aclname] = self.foreign_key.columns_have_right(aclname)
         return rights
 
