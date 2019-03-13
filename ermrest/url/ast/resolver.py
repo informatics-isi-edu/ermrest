@@ -1,6 +1,6 @@
 
 #
-# Copyright 2018 University of Southern California
+# Copyright 2018-2019 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,19 +44,23 @@ class EntityRidResolver (Api):
 SELECT
   ve.entity_rid,
   ve.table_rid,
-  CASE WHEN o.during @> %(snaptime)s THEN NULL ELSE upper(o.during) END
+  CASE
+    WHEN %(snaptime)s IS NULL THEN upper(o.during)
+    WHEN o.during @> %(snaptime)s THEN NULL
+    ELSE upper(o.during)
+  END
 FROM _ermrest_history.visible_entities ve
 JOIN _ermrest_history.known_tables t ON (ve.table_rid = t."RID" AND ve.during && t.during)
 JOIN LATERAL (SELECT ve.during * t.during) o(during) ON (True)
 WHERE (entity_rid = %(rid)s OR entity_rid = _ermrest.urlb32_encode(_ermrest.urlb32_decode(%(rid)s, False)))
-  AND (o.during @> %(snaptime)s OR upper(o.during) <= %(snaptime)s)
+  AND (o.during @> COALESCE(%(snaptime)s, now()) OR upper(o.during) <= COALESCE(%(snaptime)s, now()))
 ORDER BY o.during DESC
 LIMIT 1;
 """ % {
     'rid': sql_literal(self._resolve_rid),
-    'snaptime': '%s::timestamptz' % (sql_literal(snaptime) if snaptime is not None else 'now()'),
+    'snaptime': '%s::timestamptz' % (sql_literal(snaptime) if snaptime is not None else 'NULL::timestamptz'),
 }
-            )
+        )
         for row in cur:
             return row
         return None
@@ -91,7 +95,9 @@ LIMIT 1;
     'gonetime': '%s::timestamptz' % (sql_literal(gonetime) if gonetime is not None else 'NULL'),
 }
         )
-        return cur.fetchone()[0]
+        for row in cur:
+            return row[0]
+        return None
 
     def _table_info(self, cur, table_rid, snaptime=None):
         """Find (sname, tname) for table_rid at snaptime."""
