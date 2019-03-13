@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,15 +23,44 @@ import web
 import traceback
 import sys
 import re
+import json
+import datetime
+from collections import OrderedDict
 
 from ...exception import *
 from ... import sanepg2
 from ...model import normalized_history_snaptime
 from ...util import sql_literal, negotiated_content_type
-import json
-
 
 class Api (object):
+
+    # caches keyed by (catalog descriptor, identifier URI/guid)
+    CLIENT_CACHE = OrderedDict()
+    GROUP_CACHE = OrderedDict()
+    CACHE_SIZE = 128
+    CACHE_EXPIRE_SECONDS = 30
+
+    @classmethod
+    def _cache_has_key(cls, cache, key):
+        threshold = datetime.datetime.utcnow() - datetime.timedelta(seconds=cls.CACHE_EXPIRE_SECONDS)
+        victims = []
+        if len(cache) > cls.CACHE_SIZE:
+            # prune oldest members if cache is too large
+            victims.extend(itertools.islice(cache, len(cache) - cls.CACHE_SIZE))
+        for k, v in cache.items():
+            if v < threshold:
+                # prune stale members even if cache is small enough
+                victims.append((k, v))
+            else:
+                break
+        for k, v in victims:
+            cache.pop(k, None)
+        return key in cache
+
+    @classmethod
+    def _cache_insert(cls, cache, key):
+        cache.pop(key, None)
+        cache[key] = datetime.datetime.utcnow()
 
     def __init__(self, catalog):
         self.catalog = catalog
@@ -44,10 +73,10 @@ class Api (object):
             self.client_register_body(
                 web.ctx.ermrest_catalog_pc.conn,
                 web.ctx.ermrest_catalog_pc.cur,
-        )
+            )
         except Exception as te:
             # allow service to function even if this mechanism is broken
-            web.debug('Got exception during ermrest_client registration: %s.' % te)
+            web.debug('Got exception during ERMrest client registration: %s.' % te)
             web.ctx.ermrest_catalog_pc.conn.rollback()
 
         web.ctx.ermrest_catalog_model = catalog.manager.get_model(
@@ -59,13 +88,14 @@ class Api (object):
 
     def client_register_body(self, conn, cur):
         client = web.ctx.webauthn2_context.client
-        if type(client) is dict:
+        if isinstance(client, dict):
             client_obj = client
             client = client['id']
         else:
             client_obj = { 'id': client }
 
-        if client_obj['id']:
+        cache_key = (str(self.catalog.manager.descriptor), client)
+        if client and not self._cache_has_key(self.CLIENT_CACHE, cache_key):
             parts = {
                 'id': sql_literal(client_obj['id']),
                 'display_name': sql_literal(client_obj.get('display_name')),
@@ -75,12 +105,12 @@ class Api (object):
             }
             cur.execute("""
 SELECT True
-FROM public.ermrest_client
-WHERE id = %(id)s
-  AND display_name IS NOT DISTINCT FROM %(display_name)s
-  AND full_name IS NOT DISTINCT FROM %(full_name)s
-  AND email IS NOT DISTINCT FROM %(email)s
-  AND client_obj IS NOT DISTINCT FROM %(client_obj)s::jsonb
+FROM public."ERMrest_Client"
+WHERE "ID" = %(id)s
+  AND "Display_Name" IS NOT DISTINCT FROM %(display_name)s
+  AND "Full_Name" IS NOT DISTINCT FROM %(full_name)s
+  AND "Email" IS NOT DISTINCT FROM %(email)s
+  AND "Client_Object" IS NOT DISTINCT FROM %(client_obj)s::jsonb
 LIMIT 1;
 """ % parts
             )
@@ -89,14 +119,13 @@ LIMIT 1;
                 pass
             else:
                 cur.execute("""
-INSERT INTO public.ermrest_client (id, display_name, full_name, email, client_obj)
+INSERT INTO public."ERMrest_Client" ("ID", "Display_Name", "Full_Name", "Email", "Client_Object")
 VALUES (%(id)s, %(display_name)s, %(full_name)s, %(email)s, %(client_obj)s::jsonb)
-ON CONFLICT (id) DO UPDATE
-SET display_name = excluded.display_name,
-    full_name = excluded.full_name,
-    email = excluded.email,
-    client_obj = excluded.client_obj
-RETURNING *;
+ON CONFLICT ("ID") DO UPDATE
+SET "Display_Name" = excluded."Display_Name",
+    "Full_Name" = excluded."Full_Name",
+    "Email" = excluded."Email",
+    "Client_Object" = excluded."Client_Object";
 """ % parts
                 )
                 # When we are causing a side-effect, commit it before
@@ -104,6 +133,53 @@ RETURNING *;
                 #  1. So its effect is visible to ETag conditional processing
                 #  2. If the request handler resets connection, we don't lose this update
                 conn.commit()
+
+            self._cache_insert(self.CLIENT_CACHE, cache_key)
+
+        attrs = web.ctx.webauthn2_context.attributes if web.ctx.webauthn2_context.attributes else []
+        groups = []
+        cache_keys = []
+        
+        for g in attrs:
+            if not isinstance(g, dict):
+                g = {'id': g}
+            if 'identities' not in g and 'display_name' in g:
+                cache_key = (str(self.catalog.manager.descriptor), g['id'])
+                if not self._cache_has_key(self.GROUP_CACHE, cache_key):
+                    groups.append(g)
+                    cache_keys.append(cache_key)
+
+        if groups:
+            parts = {
+                'groups': sql_literal(json.dumps(groups))
+            }
+            mismatch_query = """
+SELECT c_g.id, c_g.display_name
+FROM jsonb_array_elements( %(groups)s::jsonb ) j(j)
+JOIN LATERAL jsonb_to_record(j.j) c_g(id text, display_name text) ON (True)
+LEFT OUTER JOIN public."ERMrest_Group" g
+ ON (    c_g.id = g."ID"
+     AND c_g.display_name IS NOT DISTINCT FROM g."Display_Name")
+WHERE g."ID" IS NULL
+"""
+            cur.execute((mismatch_query + " LIMIT 1;") % parts)
+            if list(cur):
+                # found at least one non-matching group
+                cur.execute(("""
+INSERT INTO public."ERMrest_Group" ("ID", "Display_Name")
+SELECT id, display_name FROM (""" + mismatch_query + """) s
+ON CONFLICT ("ID") DO UPDATE
+SET "Display_Name" = excluded."Display_Name";
+""") % parts
+                )
+                # When we are causing a side-effect, commit it before
+                # handling client request.
+                #  1. So its effect is visible to ETag conditional processing
+                #  2. If the request handler resets connection, we don't lose this update
+                conn.commit()
+
+            for cache_key in cache_keys:
+                self._cache_insert(self.GROUP_CACHE, cache_key)
 
     def history_range(self, h_from, h_until):
         if web.ctx.ermrest_history_snaptime is not None:
@@ -177,7 +253,7 @@ RETURNING *;
             else:
                 try:
                     limit = int(limit)
-                except ValueError, e:
+                except ValueError as e:
                     raise rest.BadRequest('The "limit" query-parameter requires an integer or the string "none".')
             return limit
         else:
@@ -329,7 +405,7 @@ SELECT set_config('webauthn2.attributes_array', (ARRAY[%s]::text[])::text, false
 )
                 )
                 return body(conn, cur)
-            except psycopg2.InterfaceError, e:
+            except psycopg2.InterfaceError as e:
                 raise rest.ServiceUnavailable("Please try again.")
             
         return web.ctx.ermrest_catalog_pc.perform(wrapbody, finish)

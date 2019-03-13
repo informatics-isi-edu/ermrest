@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2017 University of Southern California
+# Copyright 2010-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ class Catalogs (object):
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)).next()
+            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)))
         finally:
             pc.final()
 

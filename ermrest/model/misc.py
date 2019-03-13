@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +15,13 @@
 # limitations under the License.
 #
 
+import json
+import web
+import hashlib
+import base64
+
 from .. import exception
-from ..util import sql_identifier, sql_literal, table_exists, udecode
+from ..util import sql_identifier, sql_literal, table_exists
 from .. import ermpath
 from .type import _default_config
 from .name import Name
@@ -25,17 +31,10 @@ from ..ermpath.resource import get_dynacl_clauses
 # these are in ermpath to avoid recursive imports
 from ..ermpath import current_request_snaptime, current_catalog_snaptime, current_model_snaptime, normalized_history_snaptime, current_history_amendver
 
-import json
-import web
-import hashlib
-import base64
-
 def frozendict (d):
     """Convert a dictionary to a canonical and immutable form."""
-    items = d.items()
-    items.sort() # sort by key, value pair
-    return tuple(items)
-        
+    return frozenset(d.items())
+
 def _get_ermrest_config():
     """Helper method to return the ERMrest config.
     """ 
@@ -45,32 +44,32 @@ def _get_ermrest_config():
         return _default_config
 
 def enforce_63byte_id(s, prefix="Identifier"):
-    s = udecode(s)
-    if type(s) is not unicode:
-        raise exception.BadData(u'%s "%s" "%s" is unsupported and should be unicode.' % (prefix, s, type(s)))
+    if isinstance(s, Name):
+        s = s.one_str()
+    if not isinstance(s, str):
+        raise exception.BadData(u'%s "%s" "%s" is unsupported and should be unicode string.' % (prefix, s, type(s)))
     if len(s.encode('utf8')) > 63:
         raise exception.BadData(u'%s "%s" exceeded 63-byte limit when encoded as UTF-8.' % (prefix, s))
 
 def truncated_identifier(parts, threshold=4):
     """Build a 63 byte (or less) postgres identifier out of sequentially concatenated parts.
     """
-    parts = [ udecode(p).encode('utf8') for p in parts ]
-    len_static = len(''.join([ p for p in parts if len(p) <= threshold ]))
-    assert len_static < 20
-    num_components = len([ p for p in parts if len(p) > threshold ])
-    max_component_len = (63 - len_static) / (num_components or 1)
+    len_static = len((''.join([ p for p in parts if len(p.encode()) <= threshold ]).encode()))
+    if len_static >= 26:
+        raise NotImplementedError('truncated_identifier static parts exceed length limit %s' % parts)
+    num_components = len([ p for p in parts if len(p.encode()) > threshold ])
+    max_component_len = (63 - len_static) // (num_components or 1)
 
     def convert(p):
-        if len(p) <= max_component_len:
+        if len(p.encode()) <= max_component_len:
             return p
         # return a truncated hash using base64 chars
         h = hashlib.md5()
-        h.update(p)
-        return base64.b64encode(h.digest())[0:max_component_len]
+        h.update(p.encode())
+        return base64.b64encode(h.digest()).decode()[0:max_component_len]
 
     result = ''.join([ convert(p) for p in parts ])
     assert len(result) <= 63
-    result = udecode(result)
     return result
 
 sufficient_rights = {
@@ -93,8 +92,8 @@ class AltDict (dict):
 
     def __getitem__(self, k):
         try:
-            if type(k) is str:
-                k = k.decode('utf8')
+            if isinstance(k, Name):
+                k = k.one_str()
             return dict.__getitem__(self, k)
         except KeyError:
             raise self._keyerror(k)
@@ -148,11 +147,13 @@ class AclDict (dict):
                     self._acls[aclname2].update(members)
 
     def __getitem__(self, k):
+        if isinstance(k, Name):
+            k = k.one_str()
         if k not in self._subject._acls_supported:
             raise exception.NotFound('ACL %s on %s' % (k, self._subject))
         try:
             return dict.__getitem__(self, k)
-        except KeyError, e:
+        except KeyError as e:
             return None
 
     def __contains__(self, k):
@@ -206,8 +207,6 @@ class DynaclDict (dict):
 
     def __getitem__(self, k):
         try:
-            if type(k) is str:
-                k = k.decode('utf8')
             result = dict.__getitem__(self, k)
             return result
         except KeyError:
@@ -256,13 +255,13 @@ class AclBinding (AltDict):
                 if v not in ['acl', 'nonnull']:
                     raise exception.BadData('ACL binding projection-type %r is not supported.' % (v,))
             elif k == 'comment':
-                if type(v) not in [str, unicode]:
+                if not isinstance(v, str):
                     raise exception.BadData('ACL binding comment must be of string type.')
             elif k == 'scope_acl':
                 if not isinstance(v, list) or len(v) == 0:
                     raise exception.BadData('Field "scope_acl" in ACL binding "%s" must be a non-empty list of members.' % binding_name)
                 for m in v:
-                    if not isinstance(m, (str, unicode)):
+                    if not isinstance(m, str):
                         raise exception.BadData('Field "scope_acl" in ACL binding "%s" must only contain textual member attribute names or the wildcard string.' % binding_name)
             else:
                 raise exception.BadData('Field "%s" in ACL binding "%s" not recognized.' % (k, binding_name))
@@ -303,7 +302,7 @@ class AclBinding (AltDict):
     def _compile_projection(self):
         proj = self['projection']
 
-        if type(proj) in [str, unicode]:
+        if isinstance(proj, str):
             # expand syntactic sugar for bare column name projection
             proj = [proj]
 
@@ -322,20 +321,20 @@ class AclBinding (AltDict):
             # HACK: this repeats some of the path resolution logic that is tangled in the URL parser/AST code...
             lalias = elem.get('context')
             if lalias is not None:
-                if type(lalias) not in [str, unicode]:
+                if not isinstance(lalias, str):
                     raise exception.BadData('Context %r in ACL binding %s must be a string literal alias name.' % (lalias, self.binding_name))
                 epath.set_context(elem['context'])
 
             ltable = epath.current_entity_table()
             ralias = elem.get('alias')
             if ralias is not None:
-                if type(ralias) not in [str, unicode]:
+                if not isinstance(ralias, str):
                     raise exception.BadData('Alias %r in ACL binding %s must be a string literal alias name.' % (lalias, self.binding_name))
             fkeyname = elem.get('inbound', elem.get('outbound'))
             if (type(fkeyname) is not list \
                 or len(fkeyname) != 2 \
-                or type(fkeyname[0]) not in [str, unicode] \
-                or type(fkeyname[1]) not in [str, unicode]
+                or (not isinstance(fkeyname[0], str)) \
+                or (not isinstance(fkeyname[1], str)) \
             ):
                 raise exception.BadData('Foreign key name %r in ACL binding %s not valid.' % (fkeyname, self.binding_name))
             fkeyname = tuple(fkeyname)
@@ -365,15 +364,15 @@ class AclBinding (AltDict):
                 filt = predicate.Disjunction([ compile_filter(e) for e in elem['or'] ])
             elif 'filter' in elem:
                 lname = elem['filter']
-                if type(lname) in [str, unicode]:
+                if isinstance(lname, str):
                     # expand syntactic sugar for bare column name filter
                     lname = [ lname ]
                 if type(lname) is list and lname[0] is None:
                     lname = lname[1:]
                 if (type(lname) is not list \
                     or len(lname) < 1 \
-                    or type(lname[0]) not in [str, unicode] \
-                    or len(lname) >= 2 and type(lname[1]) not in [str, unicode] \
+                    or (not isinstance(lname[0], str)) \
+                    or len(lname) >= 2 and (not isinstance(lname[1], str)) \
                     or len(lname) > 2
                 ):
                     raise exception.BadData('Invalid filter column name %r in ACL binding %s.' % (lname, self.binding_name))
@@ -405,7 +404,7 @@ class AclBinding (AltDict):
                 epath.add_filter(filt, enforce_client=False)
 
         # apply final projection
-        if type(proj[-1]) not in [str, unicode]:
+        if not isinstance(proj[-1], str):
             raise exception.BadData('Projection for ACL binding %s must conclude with a string literal column name.' % self.binding_name)
 
         col = epath.current_entity_table().columns[proj[-1]]

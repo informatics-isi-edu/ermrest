@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -158,7 +159,7 @@ def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
         if typestr in policy:
             return rewrite_type(typestr)
 
-        for preftype, alternatives in policy.iteritems():
+        for preftype, alternatives in policy.items():
             if alternatives is not None:
                 if typestr in alternatives.get('aliases', []):
                     # direct use of term alias
@@ -169,14 +170,14 @@ def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
 
     try:
         preftype = match_type(typestr, defaultval, config['column_types'])
-    except (KeyError), te:
+    except KeyError as te:
         raise ValueError('ERMrest config missing required policy: %s' % str(te))
     if preftype is not None:
         return preftype
     elif readonly:
         try:
             preftype = match_type(typestr, defaultval, config['column_types_readonly'])
-        except (KeyError), te:
+        except KeyError as te:
             raise ValueError('ERMrest config missing required policy: %s' % str(te))
         if preftype is not None:
             return preftype
@@ -218,7 +219,7 @@ class Type (object):
                 return json.loads(v)
             else:
                 # text and text-like...
-                return unicode(v)
+                return str(v)
         except ValueError:
             raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 
@@ -233,7 +234,7 @@ class Type (object):
                 if typname in [ 'json', 'jsonb' ]:
                     v = json.dumps(v)
                 # text and text-like...
-                return u"'" + unicode(v).replace(u"'", u"''") + u"'::%s" % self.sql()
+                return u"'" + str(v).replace(u"'", u"''") + u"'::%s" % self.sql()
         except ValueError:
             raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 

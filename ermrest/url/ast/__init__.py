@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class Aggregate (Name):
         self.aggfunc = aggfunc
 
     def __str__(self):
-        return '%s(%s)' % (self.aggfunc, ':'.join(map(urllib.quote, self.nameparts)))
+        return '%s(%s)' % (self.aggfunc, ':'.join(map(urllib.parse.quote, self.nameparts)))
     
     def __repr__(self):
         return '<ermrest.url.ast.aggregate %s %s>' % (str(self.aggfunc), Name.__str__(self))

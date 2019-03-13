@@ -7,8 +7,7 @@ import platform
 import atexit
 
 import requests
-import cookielib
-from cookielib import IPV4_RE
+from http import cookiejar
 
 import io
 import csv
@@ -17,7 +16,7 @@ import urllib
 
 #import logging
 #logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-#cookielib.debug = True
+#cookiejar.debug = True
 
 _scheme = os.getenv('TEST_SCHEME', 'https')
 _server = os.getenv('TEST_HOSTNAME', platform.uname()[1])
@@ -184,15 +183,15 @@ class TestSession (requests.Session):
         self.verify = _verify
     
         if cookiefilename:
-            cj = cookielib.MozillaCookieJar(cookiefilename)
+            cj = cookiejar.MozillaCookieJar(cookiefilename)
             cj.load(ignore_expires=True)
             for cookie in cj:
                 kwargs={
                     "domain": cookie.domain,
                     "path": cookie.path,
                 }
-                if cookie.domain.find('.') == -1 and not IPV4_RE.search(cookie.domain):
-                    # mangle this the same way cookielib does or domain matching will fail!
+                if cookie.domain.find('.') == -1 and not cookiejar.IPV4_RE.search(cookie.domain):
+                    # mangle this the same way cookiejar does or domain matching will fail!
                     kwargs['domain'] = cookie.domain + '.local'
                 if cookie.expires:
                     kwargs['expires'] = cookie.expires
@@ -297,7 +296,7 @@ try:
     sys.stderr.write('\nCreated %s at initial revision %s.\n' % (cpath, catalog_initial_version))
     primary_session.put('acl', json=catalog_acls).raise_for_status()
     sys.stderr.write('OK.\n\n')
-except Exception, e:
+except Exception as e:
     sys.stderr.write('ERROR: %s.\n\n' % e)
     sys.stderr.write('REQUEST: %r %r\n%r\n\n\nRESPONSE: %r\n%r\n%r\n' % (
         _r.request.method,
@@ -314,7 +313,7 @@ anonymous_session = TestSession()
 anonymous_session._test_mount(reportname='anonymous session')
 try:
     anonymous_session.get('').raise_for_status()
-except Exception, e:
+except Exception as e:
     sys.stderr.write('Disabling anonymous_session due to error: %s\n\n' % e)
     anonymous_session = None
 
@@ -326,15 +325,15 @@ def _cleanup():
         try:
             r.raise_for_status()
             sys.stderr.write('OK.\n')
-        except Exception, e:
+        except Exception as e:
             sys.stderr.write('ERROR: %s.\n' % e)
 
 class ErmrestTest (unittest.TestCase):
     session = primary_session
 
     def assertJsonEqual(self, actual, expected):
-        if type(expected) in (str, unicode):
-            self.assertIn(type(actual), (str, unicode))
+        if isinstance(expected, str):
+            self.assertIn(type(actual), (str,))
         else:
             self.assertIsInstance(actual, type(expected))
         if type(actual) is list:
@@ -358,7 +357,7 @@ class ErmrestTest (unittest.TestCase):
                 self.assertIn(r.status_code, status)
             if content_type is None:
                 pass
-            elif type(content_type) in (str, unicode):
+            elif isinstance(content_type, str):
                 self.assertEqual(r.headers.get('content-type')[0:len(content_type)], content_type)
             else:
                 self.assertIn(r.headers.get('content-type'), content_type)
@@ -397,7 +396,7 @@ def array_to_csv(a, json_array=False):
         else:
             return "%s" % v
     
-    output = io.BytesIO()
+    output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(keys)
     for row in a:
@@ -405,4 +404,4 @@ def array_to_csv(a, json_array=False):
     return output.getvalue()
     
 def urlquote(s):
-    return urllib.quote(s, safe="")
+    return urllib.parse.quote(s, safe="")

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2015 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,5 +21,5 @@ The data path is the core ERM-aware mechanism for searching,
 navigating, and manipulating data in an ERMREST catalog.
 
 """
-from resource import *
+from .resource import *
 

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ class PoolManager (object):
 
         """
         # abandon old pools so they can be garbage collected
-        for key in self.pools.keys():
+        for key in list(self.pools.keys()):
             try:
                 pair = self.pools.pop(key)
                 delta = (datetime.datetime.now() - pair[1])
@@ -154,19 +154,19 @@ class PooledConnection (object):
             result = bodyfunc(self.conn, self.cur)
             self.conn.commit()
             result = finalfunc(result)
-            if hasattr(result, 'next'):
+            if hasattr(result, '__next__'):
                 # need to defer cleanup to after result is drained
                 for d in result:
                     yield d
             else:
                 yield result
-        except (psycopg2.InterfaceError, psycopg2.OperationalError), e:
+        except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
             # reset bad connection
             if self.used_pool:
                 self.used_pool.putconn(self.conn, close=True)
             self.conn = None
             raise e
-        except GeneratorExit, e:
+        except GeneratorExit as e:
             # happens normally at end of result yielding sequence
             raise
         except:
@@ -174,7 +174,7 @@ class PooledConnection (object):
                 self.conn.rollback()
             if verbose:
                 et, ev, tb = sys.exc_info()
-                web.debug(u'got exception "%s" during sanepg2.PooledConnection.perform()' % unicode(ev),
+                web.debug(u'got exception "%s" during sanepg2.PooledConnection.perform()' % ev,
                           traceback.format_exception(et, ev, tb))
             raise
 

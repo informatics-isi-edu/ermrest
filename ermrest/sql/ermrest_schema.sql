@@ -1898,18 +1898,21 @@ CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid text) RETURNS void
 DECLARE
   last_ts timestamptz;
 BEGIN
-  SELECT ts INTO last_ts FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
-  IF last_ts > now() THEN
+  INSERT INTO _ermrest.table_modified (table_rid, ts) VALUES ($1, now())
+  ON CONFLICT (ts, table_rid) DO NOTHING
+  RETURNING ts INTO last_ts;
+
+  IF last_ts IS NULL THEN
+    RETURN;
+  END IF;
+  
+  INSERT INTO _ermrest.table_last_modified AS t (table_rid, ts) VALUES ($1, now())
+  ON CONFLICT (table_rid) DO UPDATE SET ts = EXCLUDED.ts WHERE t.ts < EXCLUDED.ts
+  RETURNING ts INTO last_ts;
+    
+  IF last_ts IS NULL THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest table version clock reversal!';
-  ELSIF last_ts = now() THEN
-    RETURN;
-  ELSE
-    IF last_ts < now() THEN
-      DELETE FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
-    END IF;
-    INSERT INTO _ermrest.table_last_modified (table_rid, ts) VALUES ($1, now());
-    INSERT INTO _ermrest.table_modified (table_rid, ts) VALUES ($1, now());
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -2248,27 +2251,56 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_client') IS NULL THEN
-  CREATE TABLE public.ermrest_client (
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_client') THEN
+  ALTER TABLE public.ermrest_client RENAME TO "ERMrest_Client";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN id TO "ID";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN display_name TO "Display_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN full_name TO "Full_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN email TO "Email";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN client_obj TO "Client_Object";
+ELSIF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ERMrest_Client') IS NULL THEN
+  CREATE TABLE public."ERMrest_Client" (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    id text UNIQUE NOT NULL,
-    display_name text,
-    full_name text,
-    email text,
-    client_obj jsonb NOT NULL
+    "ID" text UNIQUE NOT NULL,
+    "Display_Name" text,
+    "Full_Name" text,
+    "Email" text,
+    "Client_Object" jsonb NOT NULL
   );
-  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ermrest_client');
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Client');
   INSERT INTO _ermrest.known_table_acls (table_rid, acl, members)
   VALUES
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'insert', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'update', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'delete', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'select', ARRAY[]::text[]),
-    (_ermrest.find_table_rid('public', 'ermrest_client'), 'enumerate', ARRAY[]::text[]);
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'insert', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'update', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'delete', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'select', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Client'), 'enumerate', ARRAY[]::text[]);
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ERMrest_Group') IS NULL THEN
+  CREATE TABLE public."ERMrest_Group" (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
+    "ID" text UNIQUE NOT NULL,
+    "URL" text,
+    "Display_Name" text,
+    "Description" text
+  );
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Group');
+  INSERT INTO _ermrest.known_table_acls (table_rid, acl, members)
+  VALUES
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'insert', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'update', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'delete', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'select', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'enumerate', ARRAY[]::text[]);
 END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
