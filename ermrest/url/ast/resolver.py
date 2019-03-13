@@ -44,11 +44,13 @@ class EntityRidResolver (Api):
 SELECT
   ve.entity_rid,
   ve.table_rid,
-  CASE WHEN ve.during @> %(snaptime)s THEN NULL ELSE upper(ve.during) END
+  CASE WHEN o.during @> %(snaptime)s THEN NULL ELSE upper(o.during) END
 FROM _ermrest_history.visible_entities ve
+JOIN _ermrest_history.known_tables t ON (ve.table_rid = t."RID" AND ve.during && t.during)
+JOIN LATERAL (SELECT ve.during * t.during) o(during) ON (True)
 WHERE (entity_rid = %(rid)s OR entity_rid = _ermrest.urlb32_encode(_ermrest.urlb32_decode(%(rid)s, False)))
-  AND (ve.during @> %(snaptime)s OR upper(ve.during) <= %(snaptime)s)
-ORDER BY during DESC
+  AND (o.during @> %(snaptime)s OR upper(o.during) <= %(snaptime)s)
+ORDER BY o.during DESC
 LIMIT 1;
 """ % {
     'rid': sql_literal(self._resolve_rid),
@@ -69,18 +71,18 @@ SELECT
   GREATEST(
     (SELECT m.ts
      FROM _ermrest.model_modified m
-     WHERE m.ts < upper(h.during)
+     WHERE m.ts < LEAST(upper(h.during), %(gonetime)s)
      ORDER BY m.ts DESC
      LIMIT 1),
     (SELECT m.ts
      FROM _ermrest.table_modified m
-     WHERE m.ts < upper(h.during)
+     WHERE m.ts < LEAST(upper(h.during), %(gonetime)s)
      ORDER BY m.ts DESC
      LIMIT 1)
   )
 FROM _ermrest_history.%(htable)s h
 WHERE h."RID" = %(rid)s
-  AND (upper(h.during) <= %(gonetime)s)
+  AND (h.during @> %(gonetime)s OR upper(h.during) <= %(gonetime)s)
 ORDER BY h.during DESC
 LIMIT 1;
 """ % {
