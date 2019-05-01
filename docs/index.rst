@@ -5,7 +5,6 @@ Entity Relationship Store (ERMrest)
    :maxdepth: 4
    :caption: ERMrest User Documents
 
-   user-doc/annotation.md
    user-doc/ermrest-registry-purge.md
    user-doc/ermrest-client-table.md
 
