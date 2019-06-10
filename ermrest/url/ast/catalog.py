@@ -177,8 +177,11 @@ class Catalog (Api):
         if web.ctx.ermrest_history_snaptime is not None:
             cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_snaptime))
             self.catalog_snaptime = cur.fetchone()[0]
+            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_amendver))
+            self.catalog_amendver = cur.fetchone()[0]
         else:
             self.catalog_snaptime = current_catalog_snaptime(cur, encode=True)
+            self.catalog_amendver = None
         return _model
 
     def GET(self, uri):
@@ -195,7 +198,10 @@ class Catalog (Api):
             resource = _model.prejson(brief=True, snaptime=self.catalog_snaptime)
             resource["id"] = self.catalog_id
             response = json.dumps(resource) + '\n'
-            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            if self.catalog_amendver:
+                self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )
+            else:
+                self.set_http_etag( self.catalog_snaptime )
             self.http_check_preconditions()
             self.emit_headers()
             web.header('Content-Type', content_type)

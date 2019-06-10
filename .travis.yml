@@ -58,7 +58,7 @@ before_install:
   - cd ..
   - git clone https://github.com/informatics-isi-edu/webauthn.git
   - cd webauthn
-  - git checkout py3
+  - git checkout origin/master
   - sudo make install
   - sudo make deploy
   - sudo bash ./test/ubuntu-travis-setup.sh
