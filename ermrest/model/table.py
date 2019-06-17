@@ -454,18 +454,12 @@ WHERE "RID" = %s;
                 raise exception.ConflictModel(u'Historical data not available for table %s.' % self.name)
             tsql = """
 (SELECT %(projs)s
- FROM %(htable)s h,
- LATERAL jsonb_to_record(h.rowdata) r(%(jfields)s)
+ FROM %(htable)s h
  WHERE h.during @> %(when)s::timestamptz )
 """ % {
     'projs': ','.join([
         c.type.history_projection(c)
         for c in self.columns_in_order()
-    ]),
-    'jfields': ','.join([
-        c.type.history_unpack(c)
-        for c in self.columns_in_order()
-        if c.type.history_unpack(c)
     ]),
     'htable': "_ermrest_history.%s" % sql_identifier("t%s" % self.rid),
     'when': sql_literal(web.ctx.ermrest_history_snaptime),
