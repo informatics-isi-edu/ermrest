@@ -766,6 +766,27 @@ class Column (Api):
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
+    def PUT_body(self, conn, cur, columndoc):
+        columndoc['name'] = columndoc.get('name', self.name.one_str())
+        table = self.table.GET_body(conn, cur)
+        try:
+            # handle alteration of existing column
+            column = table.columns.get_enumerable(self.name.one_str())
+            update = self.queryopts.get('update')
+            if isinstance(update, str):
+                # promote single field name from URL to set of field names
+                update = set([update])
+            return column.update(conn, cur, columndoc, web.ctx.ermrest_config, update)
+        except exception.ConflictModel as e:
+            # handle creation of new column, same as POST /column/
+            columns = Columns(self.table)
+            return columns.POST_body(conn, cur, columndoc)
+
+    def PUT(self, uri):
+        def post_commit(self, column):
+            return _post_commit_json(self, column)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+
 class Keys (Api):
     """A set of keys."""
     def __init__(self, table, catalog=None):

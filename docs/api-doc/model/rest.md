@@ -337,7 +337,7 @@ In this operation, the `application/json` _column representation_ is supplied as
       "name": column name,
       "type": column type,
       "default": default value,
-	  "nullok": boolean,
+      "nullok": boolean,
       "comment": column comment,
       "annotations": {
         annotation key: annotation document, ...
@@ -352,6 +352,8 @@ The input _column representation_ is a long JSON document too verbose to show ve
 - `nullok`: JSON `true` if NULL values are allowed or `false` if NULL values are disallowed in this column (default `true` if this field is absent in the input column representation)
 - `comment`: whose value is the human-readable comment string for the column
 - `annotations`: whose value is a sub-object use as a dictionary where each field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
+- `acls`: whose value is a sub-object specifying ACLs for the new column
+- `acl_bindings`: whose value is a sub-object specifying ACL bindings for the new column
 
 On success, the response is:
 
@@ -391,6 +393,63 @@ On success, the response is:
 The response body is a _column representation_ as described in [Column Creation](#column-creation).
 
 Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+## Column Alteration
+
+The PUT operation is used to alter an existing column's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `?update=` _fieldname_
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `?update=` _fieldname_ `,` _fieldname_ ...
+
+In this operation, the `application/json` _column representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name/table/table_name/column/column_name HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+      "name": new column name,
+      "type": new column type,
+      "default": new default value,
+      "nullok": new boolean,
+      "comment": new column comment,
+      "annotations": {
+        annotation key: annotation document, ...
+      }
+    }
+
+The input _column representation_ is as for column creation via the POST request. Instead of creating a new column, the existing column with _column name_ as specified in the URL is altered to match the input representation. By default, each of these fields, if present, will be processed as a target configuration for that aspect of the column definition:
+
+- `name`: a new name to support renaming from _column name_ to _new column name_
+- `type`: a new type to support changing from existing to new column type
+- `default`: a new default value for future row insertions
+- `nullok`: a new nullok status
+- `comment`: a new comment string
+- `annotations`: a replacement annotation map
+- `acls`: a replacement ACL set
+- `acl_bindings`: a replacement ACL bindings set
+
+The optional query parameter `update` can enumerate one or more comma-separated field names which the client wishes to update. The default behavior, when `update` is absent or empty, is as if each field name present in the input _column representation_ were also listed in the `update` parameter.
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    column representation
+
+where the body content represents the column status at the end of the request.
+
+*NOTE*: In the case that the column name is changed with the `"name": ` _new column name_ input syntax, the returned document will indicate the new name, and subsequent access to the model resource will require using the updated URL:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _new column name_
+
+Typical error response codes include:
+- 400 Bad Request
 - 404 Not Found
 - 403 Forbidden
 - 401 Unauthorized

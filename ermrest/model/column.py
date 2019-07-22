@@ -203,7 +203,134 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             self.type.sql(basic_storage=True),
             "NOT NULL" if self.nullok is False and enforce_notnull else ""
             )
-    
+
+    def update(self, conn, cur, columndoc, ermrest_config, update=None):
+        """Idempotently update existing column state on part-by-part basis.
+
+        The parts to update can be masked by passing a set (or dict)
+        of field names in the `update` parameter. Only named fields
+        will be updated:
+
+        - 'name'
+        - 'type'
+        - 'nullok'
+        - 'default'
+        - 'comment'
+        - 'acls'
+        - 'acl_bindings'
+        - 'annotations'
+
+        With the default update=None, the effective mask of
+        set(columndoc.keys()) will be used automatically.
+
+        """
+        # allow sparse update documents as a (not so restful) convenience
+        newdoc = self.prejson()
+        newdoc.update(columndoc)
+        newcol = Column.fromjson_single(newdoc, self.position, ermrest_config)
+        actions = []
+        persists = []
+
+        if update is None:
+            update = set(columndoc.keys())
+
+        if self.type.name != newcol.type.name:
+            if 'type' in update:
+                actions.append('SET DATA TYPE %s' % newcol.type.sql())
+                persists.append('type_rid')
+            else:
+                newcol.type = self.type
+
+        if self.nullok != newcol.nullok:
+            if 'nullok' in update:
+                actions.append('%s NOT NULL' % ('DROP' if newcol.nullok else 'SET'))
+                persists.append('not_null')
+            else:
+                newcol.nullok = self.nullok
+
+        if self.default_value != newcol.default_value:
+            if 'default' in update:
+                if newcol.default_value is None:
+                    actions.append('DROP DEFAULT')
+                else:
+                    actions.append('SET DEFAULT %s' % self.type.sql_literal(newcol.default_value))
+                persists.append('column_default')
+            else:
+                newcol.default_value = self.default_value
+
+        if actions:
+            actions = [
+                'ALTER COLUMN %s %s' % (sql_identifier(self.name), action)
+                for action in actions
+            ]
+
+            self.table.alter_table(
+                conn, cur,
+                ', '.join(actions),
+                """
+UPDATE _ermrest.known_columns ec
+SET %(persists)s
+FROM _ermrest.introspect_columns nc
+WHERE ec."RID" = %(rid)s
+  AND ec.table_rid = nc.table_rid
+  AND ec.column_name = nc.column_name
+  AND ec.column_num = nc.column_num
+""" % {
+    'rid': sql_literal(self.rid),
+    'persists': ', '.join([
+        '%(cname)s = nc.%(cname)s' % { 'cname': cname }
+        for cname in persists
+    ]),
+}
+            )
+
+        if self.comment != newcol.comment:
+            if 'comment' in update:
+                self.set_comment(conn, cur, newcol.comment)
+            else:
+                newcol.comment = self.comment
+
+        if 'annotations' in update:
+            self.set_annotations(conn, cur, newcol.annotations)
+        else:
+            newcol.annotations = self.annotations
+
+        if 'acls' in update:
+            self.set_acls(cur, newcol.acls)
+        else:
+            newcol.acls = self.acls
+
+        if 'acl_bindings' in update:
+            self.set_dynacls(cur, newcol.dynacls)
+        else:
+            newcol.dynacls = self.dynacls
+
+        # column rename cannot be combined with other actions above
+        # and must be done after we finish running any SQL or DDL using old column name
+        if self.name != newcol.name:
+            if 'name' in update:
+                self.table.alter_table(
+                    conn, cur,
+                    'RENAME COLUMN %s TO %s' % (
+                        sql_identifier(self.name),
+                        sql_identifier(newcol.name),
+                    ),
+                    """
+UPDATE _ermrest.known_columns ec
+SET column_name = %(cname)s
+WHERE ec."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'cname': sql_literal(newcol.name),
+}
+                )
+            else:
+                newcol.name = self.name
+
+        newcol.rid = self.rid
+        newcol.table = self.table
+        return newcol
+
     @staticmethod
     def fromjson_single(columndoc, position, ermrest_config):
         try:
