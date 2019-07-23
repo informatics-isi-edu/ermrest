@@ -144,6 +144,63 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Schema Alteration
+
+The PUT operation is used to alter an existing schema's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_
+
+In this operation, the `application/json` _schema representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+      "schema_name": new schema name,
+      "comment": new column comment,
+      "annotations": {
+        annotation key: annotation document, ...
+      }
+    }
+
+The input _schema representation_ is as for schema creation via the POST request. Instead of creating a new schema, the existing schema with _schema name_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the table definition:
+
+- `schema_name`: a new schema name to support renaming from _schema name_ to _new schema name_
+- `comment`: a new comment string
+- `annotations`: a replacement annotation map
+- `acls`: a replacement ACL set
+
+Other schema fields are immutable through this interface, and such input fields will be ignored.
+
+Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a schema and set a comment would look like:
+
+    {
+      "schema_name": "the new name",
+      "comment": "This is my new named table."
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    schema representation
+
+where the body content represents the schema status at the end of the request.
+
+*NOTE*: In the case that the schema name is changed, the returned document will indicate the new name, and subsequent access to the model resource will require using the updated URL:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _new schema name_
+
+The old URL will immediately start responding with a schema not found error.
+
+Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
 ## Schema Deletion
 
 The DELETE method is used to delete a schema:
@@ -296,14 +353,14 @@ In this operation, the `application/json` _table representation_ is supplied as 
 
 The input _table representation_ is as for table creation via the POST request. Instead of creating a new table, the existing table with _table name_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the table definition:
 
-- `schema_name`: an existing schema name to support moving from _schema name_ to _destination table name_
+- `schema_name`: an existing schema name to support moving from _schema name_ to _destination schema name_
 - `table_name`: a new name to support renaming from _table name_ to _new table name_
 - `comment`: a new comment string
 - `annotations`: a replacement annotation map
 - `acls`: a replacement ACL set
 - `acl_bindings`: a replacement ACL bindings set
 
-Other table fields are immutable through this interface, and any input fields will be ignored.
+Other table fields are immutable through this interface, and such input fields will be ignored.
 
 Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a table and set a comment would look like:
 

@@ -269,7 +269,22 @@ class Schema (Api):
             
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
-        
+
+    def PUT_body(self, conn, cur, schemadoc):
+        schemadoc['schema_name'] = schemadoc.get('schema_name', self.name.one_str())
+        try:
+            # handle alteration of existing schema
+            schema = web.ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
+            return schema.update(conn, cur, schemadoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new schema, same as POST /schema/
+            schemas = Schemas(self.catalog)
+            return schemas.POST_body(conn, cur, schemadoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
 
 class Tables (Api):
     """A table set."""
@@ -702,7 +717,7 @@ class Table (Api):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
     def PUT_body(self, conn, cur, tabledoc):
-        tabledoc['name'] = tabledoc.get('table_name', self.name.one_str())
+        tabledoc['table_name'] = tabledoc.get('table_name', self.name.one_str())
         schema = self.schema.GET_body(conn, cur)
         try:
             # handle alteration of existing table

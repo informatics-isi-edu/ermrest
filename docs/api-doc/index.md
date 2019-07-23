@@ -207,6 +207,7 @@ The ERMrest interface supports typical HTTP operations to manage these different
    1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)
    1. [Schema Creation](model/rest.md#schema-creation)
    1. [Schema Retrieval](model/rest.md#schema-retrieval)
+   1. [Schema Alteration](model/rest.md#schema-alteration)
    1. [Schema Deletion](model/rest.md#schema-deletion)
       1. [Table List Retrieval](model/rest.md#table-list-retrieval)
       1. [Table Creation](model/rest.md#table-creation)

@@ -184,6 +184,62 @@ class Schema (object):
         if name not in self.model.schemas:
             self.model.schemas[name] = self
 
+    def update(self, conn, cur, schemadoc, ermrest_config):
+        """Idempotently update existing schema state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input schemadoc:
+
+        - 'schema_name'
+        - 'comment'
+        - 'acls'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing table in the model. To be clear, "absent" means the
+        field key is not present in the input document. Presence with
+        an empty value such as `"acls": {}` will mutate the model
+        aspect to reach that state.
+
+        """
+        newschema = Schema(
+            self.model,
+            schemadoc.get('schema_name', self.name),
+            schemadoc.get('comment', self.comment),
+            schemadoc.get('annotations', self.annotations),
+            schemadoc.get('acls', self.acls),
+            self.rid,
+        )
+
+        if self.comment != newschema.comment:
+            self.set_comment(conn, cur, newschema.comment)
+
+        if self.annotations != newschema.annotations:
+            self.set_annotations(conn, cur, newschema.annotations)
+
+        if self.acls != newschema.acls:
+            self.set_acls(cur, newschema.acls)
+
+        if self.name != newschema.name:
+            cur.execute(
+                """
+SELECT _ermrest.model_version_bump();
+ALTER SCHEMA %(sname1i)s RENAME TO %(sname2i)s;
+
+UPDATE _ermrest.known_schemas e
+SET schema_name = %(sname2)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'sname1i': sql_identifier(self.name),
+    'sname2i': sql_identifier(newschema.name),
+    'sname2': sql_literal(newschema.name),
+}
+            )
+
+        # leave newschema.tables empty for brief response to alteration request
+        return newschema
+
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):
         sname = schemadoc.get('schema_name')
