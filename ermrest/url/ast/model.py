@@ -772,11 +772,7 @@ class Column (Api):
         try:
             # handle alteration of existing column
             column = table.columns.get_enumerable(self.name.one_str())
-            update = self.queryopts.get('update')
-            if isinstance(update, str):
-                # promote single field name from URL to set of field names
-                update = set([update])
-            return column.update(conn, cur, columndoc, web.ctx.ermrest_config, update)
+            return column.update(conn, cur, columndoc, web.ctx.ermrest_config)
         except exception.ConflictModel as e:
             # handle creation of new column, same as POST /column/
             columns = Columns(self.table)

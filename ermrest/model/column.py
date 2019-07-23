@@ -204,12 +204,11 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
             "NOT NULL" if self.nullok is False and enforce_notnull else ""
             )
 
-    def update(self, conn, cur, columndoc, ermrest_config, update=None):
+    def update(self, conn, cur, columndoc, ermrest_config):
         """Idempotently update existing column state on part-by-part basis.
 
-        The parts to update can be masked by passing a set (or dict)
-        of field names in the `update` parameter. Only named fields
-        will be updated:
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input columndoc:
 
         - 'name'
         - 'type'
@@ -220,8 +219,11 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         - 'acl_bindings'
         - 'annotations'
 
-        With the default update=None, the effective mask of
-        set(columndoc.keys()) will be used automatically.
+        An absent field will retain its current state from the
+        existing column in the model. To be clear, "absent" means the
+        field key is not present in the input document. Presence with
+        an empty value such as `"default": null` or `"acls": {}` 
+        will mutate the model aspect to reach that state.
 
         """
         # allow sparse update documents as a (not so restful) convenience
@@ -231,32 +233,22 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         actions = []
         persists = []
 
-        if update is None:
-            update = set(columndoc.keys())
+        update = set(columndoc.keys())
 
         if self.type.name != newcol.type.name:
-            if 'type' in update:
-                actions.append('SET DATA TYPE %s' % newcol.type.sql())
-                persists.append('type_rid')
-            else:
-                newcol.type = self.type
+            actions.append('SET DATA TYPE %s' % newcol.type.sql())
+            persists.append('type_rid')
 
         if self.nullok != newcol.nullok:
-            if 'nullok' in update:
-                actions.append('%s NOT NULL' % ('DROP' if newcol.nullok else 'SET'))
-                persists.append('not_null')
-            else:
-                newcol.nullok = self.nullok
+            actions.append('%s NOT NULL' % ('DROP' if newcol.nullok else 'SET'))
+            persists.append('not_null')
 
         if self.default_value != newcol.default_value:
-            if 'default' in update:
-                if newcol.default_value is None:
-                    actions.append('DROP DEFAULT')
-                else:
-                    actions.append('SET DEFAULT %s' % self.type.sql_literal(newcol.default_value))
-                persists.append('column_default')
+            if newcol.default_value is None:
+                actions.append('DROP DEFAULT')
             else:
-                newcol.default_value = self.default_value
+                actions.append('SET DEFAULT %s' % self.type.sql_literal(newcol.default_value))
+            persists.append('column_default')
 
         if actions:
             actions = [
@@ -285,37 +277,27 @@ WHERE ec."RID" = %(rid)s
             )
 
         if self.comment != newcol.comment:
-            if 'comment' in update:
-                self.set_comment(conn, cur, newcol.comment)
-            else:
-                newcol.comment = self.comment
+            self.set_comment(conn, cur, newcol.comment)
 
-        if 'annotations' in update:
+        if self.annotations != newcol.annotations:
             self.set_annotations(conn, cur, newcol.annotations)
-        else:
-            newcol.annotations = self.annotations
 
-        if 'acls' in update:
+        if self.acls != newcol.acls:
             self.set_acls(cur, newcol.acls)
-        else:
-            newcol.acls = self.acls
 
-        if 'acl_bindings' in update:
+        if self.dynacls != newcol.dynacls:
             self.set_dynacls(cur, newcol.dynacls)
-        else:
-            newcol.dynacls = self.dynacls
 
         # column rename cannot be combined with other actions above
         # and must be done after we finish running any SQL or DDL using old column name
         if self.name != newcol.name:
-            if 'name' in update:
-                self.table.alter_table(
-                    conn, cur,
-                    'RENAME COLUMN %s TO %s' % (
-                        sql_identifier(self.name),
-                        sql_identifier(newcol.name),
-                    ),
-                    """
+            self.table.alter_table(
+                conn, cur,
+                'RENAME COLUMN %s TO %s' % (
+                    sql_identifier(self.name),
+                    sql_identifier(newcol.name),
+                ),
+                """
 UPDATE _ermrest.known_columns ec
 SET column_name = %(cname)s
 WHERE ec."RID" = %(rid)s;
@@ -323,9 +305,7 @@ WHERE ec."RID" = %(rid)s;
     'rid': sql_literal(self.rid),
     'cname': sql_literal(newcol.name),
 }
-                )
-            else:
-                newcol.name = self.name
+            )
 
         newcol.rid = self.rid
         newcol.table = self.table

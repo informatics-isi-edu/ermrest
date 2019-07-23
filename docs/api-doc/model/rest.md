@@ -402,8 +402,6 @@ Typical error response codes include:
 The PUT operation is used to alter an existing column's definition:
 
 - _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `?update=` _fieldname_
-- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_ `?update=` _fieldname_ `,` _fieldname_ ...
 
 In this operation, the `application/json` _column representation_ is supplied as input:
 
@@ -422,7 +420,7 @@ In this operation, the `application/json` _column representation_ is supplied as
       }
     }
 
-The input _column representation_ is as for column creation via the POST request. Instead of creating a new column, the existing column with _column name_ as specified in the URL is altered to match the input representation. By default, each of these fields, if present, will be processed as a target configuration for that aspect of the column definition:
+The input _column representation_ is as for column creation via the POST request. Instead of creating a new column, the existing column with _column name_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the column definition:
 
 - `name`: a new name to support renaming from _column name_ to _new column name_
 - `type`: a new type to support changing from existing to new column type
@@ -433,7 +431,13 @@ The input _column representation_ is as for column creation via the POST request
 - `acls`: a replacement ACL set
 - `acl_bindings`: a replacement ACL bindings set
 
-The optional query parameter `update` can enumerate one or more comma-separated field names which the client wishes to update. The default behavior, when `update` is absent or empty, is as if each field name present in the input _column representation_ were also listed in the `update` parameter.
+Absence of a named field indicates that the existing state for that aspect of the column definition should be retained without change. For example, an input to rename a column, disallow nulls, and set a new default value would look like:
+
+    {
+      "name": "the new name",
+      "nullok": false,
+      "default": "the new default value"
+    }
 
 On success, the response is:
 
@@ -447,6 +451,8 @@ where the body content represents the column status at the end of the request.
 *NOTE*: In the case that the column name is changed with the `"name": ` _new column name_ input syntax, the returned document will indicate the new name, and subsequent access to the model resource will require using the updated URL:
 
 - _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _new column name_
+
+The old URL will immediately start responding with a column not found error.
 
 Typical error response codes include:
 - 400 Bad Request
