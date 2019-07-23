@@ -211,6 +211,7 @@ The ERMrest interface supports typical HTTP operations to manage these different
       1. [Table List Retrieval](model/rest.md#table-list-retrieval)
       1. [Table Creation](model/rest.md#table-creation)
       1. [Table Retrieval](model/rest.md#table-retrieval)
+      1. [Table Alteration](model/rest.md#table-alteration)
       1. [Table Deletion](model/rest.md#table-deletion)
          1. [Column List Retrieval](model/rest.md#column-list-retrieval)
          1. [Column Creation](model/rest.md#column-creation)

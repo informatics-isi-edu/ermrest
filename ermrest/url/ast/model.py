@@ -700,6 +700,23 @@ class Table (Api):
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, tabledoc):
+        tabledoc['name'] = tabledoc.get('table_name', self.name.one_str())
+        schema = self.schema.GET_body(conn, cur)
+        try:
+            # handle alteration of existing table
+            table = schema.tables.get_enumerable(self.name.one_str())
+            return table.update(conn, cur, tabledoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new table, same as POST /table/
+            tables = Tables(self.schema)
+            return tables.POST_body(conn, cur, tabledoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
         
 class Columns (Api):
     """A column set."""

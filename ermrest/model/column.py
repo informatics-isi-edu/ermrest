@@ -233,8 +233,6 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         actions = []
         persists = []
 
-        update = set(columndoc.keys())
-
         if self.type.name != newcol.type.name:
             actions.append('SET DATA TYPE %s' % newcol.type.sql())
             persists.append('type_rid')

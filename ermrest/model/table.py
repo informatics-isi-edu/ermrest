@@ -156,6 +156,84 @@ class Table (object):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def update(self, conn, cur, tabledoc, ermrest_config):
+        """Idempotently update existing table state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input tabledoc:
+
+        - 'schema_name'
+        - 'table_name'
+        - 'comment'
+        - 'acls'
+        - 'acl_bindings'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing table in the model. To be clear, "absent" means the
+        field key is not present in the input document. Presence with
+        an empty value such as `"acls": {}` will mutate the model
+        aspect to reach that state.
+
+        """
+        newtable = Table(
+            self.schema,
+            tabledoc.get('table_name', self.name),
+            [],
+            self.kind,
+            tabledoc.get('comment', self.comment),
+            tabledoc.get('annotations', self.annotations),
+            tabledoc.get('acls', self.acls),
+            tabledoc.get('acl_bindings', self.dynacls),
+            self.rid,
+        )
+
+        if self.comment != newtable.comment:
+            self.set_comment(conn, cur, newtable.comment)
+
+        if self.annotations != newtable.annotations:
+            self.set_annotations(conn, cur, newtable.annotations)
+
+        if self.acls != newtable.acls:
+            self.set_acls(cur, newtable.acls)
+
+        if self.dynacls != newtable.dynacls:
+            self.set_dynacls(cur, newtable.dynacls)
+
+        if self.name != newtable.name:
+            self.alter_table(
+                conn, cur,
+                'RENAME TO %s' % (sql_identifier(newtable.name),),
+                """
+UPDATE _ermrest.known_tables e
+SET table_name = %(tname)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'tname': sql_literal(newtable.name),
+}
+            )
+
+        if 'schema_name' in tabledoc and str(self.schema.name) != tabledoc['schema_name']:
+            newschema = self.schema.model.schemas.get_enumerable(tabledoc['schema_name'])
+            newtable.alter_table(
+                conn, cur,
+                'SET SCHEMA %s' % (sql_identifier(newschema.name),),
+                """
+UPDATE _ermrest.known_tables e
+SET schema_rid = %(srid)s
+WHERE e."RID" = %(trid)s;
+""" % {
+    'trid': sql_literal(self.rid),
+    'srid': sql_literal(newschema.rid),
+}
+            )
+            newtable.schema = newschema
+
+        for c in self.columns_in_order():
+            newtable.columns[c.name] = c
+        return newtable
+
     @staticmethod
     def create_fromjson(conn, cur, schema, tabledoc, ermrest_config):
         sname = tabledoc.get('schema_name', schema.name)
