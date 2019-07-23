@@ -223,15 +223,33 @@ WHERE e."RID" = %(rid)s;
 UPDATE _ermrest.known_tables e
 SET schema_rid = %(srid)s
 WHERE e."RID" = %(trid)s;
+
+UPDATE _ermrest.known_keys e
+SET schema_rid = %(srid)s
+WHERE e.table_rid = %(trid)s;
+
+UPDATE _ermrest.known_fkeys e
+SET schema_rid = %(srid)s
+WHERE e.fk_table_rid = %(trid)s;
 """ % {
     'trid': sql_literal(self.rid),
     'srid': sql_literal(newschema.rid),
 }
             )
+            # fixup in-memory model just enough to render JSON responses
+            self.schema = newschema
             newtable.schema = newschema
+            for k in self.uniques.values():
+                k.constraint_name = (str(newschema.name), k.constraint_name[1])
+            for fk in self.fkeys.values():
+                for fkr in fk.references.values():
+                    fkr.constraint_name = (str(newschema.name), fkr.constraint_name[1])
 
+        newtable.uniques = self.uniques
+        newtable.fkeys = self.fkeys
         for c in self.columns_in_order():
             newtable.columns[c.name] = c
+
         return newtable
 
     @staticmethod
