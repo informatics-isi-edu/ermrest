@@ -249,6 +249,7 @@ WHERE e.fk_table_rid = %(trid)s;
         newtable.fkeys = self.fkeys
         for c in self.columns_in_order():
             newtable.columns[c.name] = c
+            c.table = newtable
 
         return newtable
 
