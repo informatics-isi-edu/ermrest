@@ -923,6 +923,60 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Foreign Key Alteration
+
+The PUT operation is used to alter an existing foreign key's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
+
+In this operation, the `application/json` _key representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,.../reference/table_referenace/key_column,... HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    [
+      {
+        "names": [ [ schema name, new constraint name ] ],
+        "comment": new comment,
+        "annotations": {
+          annotation key: annotation document, ...
+        }
+      }
+    ]
+
+The input _foreign key reference representation_ is as for key creation via the POST request. Instead of creating a new foreign key, the existing one as specified in the URL is altered to match the input representation. To be symmetric with [foreign key retrieval](#foreign-key-retrieval), the input is a JSON array with one sub-document. Each of these object fields, if present, will be processed as a target configuration for that aspect of the definition:
+
+- `names`: the _new constraint name_, i.e. second field of first element of `names` list, is a replacement constraint name
+- `comment`: a new comment string
+- `acls`: a replacement ACL configuration
+- `acl_bindings`: a replacement ACL binding configuration
+- `annotations`: a replacement annotation map
+
+Other key fields are immutable through this interface.
+
+Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a constraint and set a comment would look like:
+
+    {
+      "names": [ ["table schema name", "the new constraint name" ] ],
+      "comment": "This is my newly named key."
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    foreign key reference representation
+
+where the body content represents the foreign key status at the end of the request.
+
+Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
 ## Foreign Key Deletion
 
 The DELETE method is used to remove a foreign key constraint from a table using any of the foreign key list or foreign key resource name forms:

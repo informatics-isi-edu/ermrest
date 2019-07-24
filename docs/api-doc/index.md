@@ -227,6 +227,7 @@ The ERMrest interface supports typical HTTP operations to manage these different
          1. [Foreign Key List Retrieval](model/rest.md#foreign-key-list-retrieval)
          1. [Foreign Key Creation](model/rest.md#foreign-key-creation)
          1. [Foreign Key Retrieval](model/rest.md#foreign-key-retrieval)
+         1. [Foreign Key Alteration](model/rest.md#foreign-key-alteration)
          1. [Foreign Key Deletion](model/rest.md#foreign-key-deletion)
    1. [Annotations](model/rest.md#annotations)
       1. [Annotation List Retrieval](model/rest.md#annotation-list-retrieval)

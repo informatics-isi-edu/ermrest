@@ -1074,3 +1074,24 @@ class ForeignkeyReferences (Api):
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
+    def PUT_body(self, conn, cur, fkrdoc):
+        fkrs = self.GET_body(conn, cur)
+        if len(fkrs) == 1:
+            # handle alteration of existing constraint
+            fkr = fkrs[0]
+            return fkr.update(conn, cur, fkrdoc, web.ctx.ermrest_config)
+        elif len(fkrs) > 1:
+            raise NotImplementedError('PUT found more than one FKR for %s -> %s' % (self._from_key, self._to_key))
+        else:
+            # handle creation of new key, same as POST /key/
+            keys = Keys(self.table)
+            return keys.POST_body(conn, cur, fkrdoc)
+
+    def PUT(self, uri):
+        if self._from_key and self._to_key:
+            # only attempt PUT on full FKR URLs w/ from-key and to-key populated
+            def post_commit(self, fkr):
+                return _post_commit_json(self, fkr)
+            return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+        else:
+            raise exception.rest.NoMethod()
