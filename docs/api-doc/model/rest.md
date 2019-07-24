@@ -704,6 +704,56 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Key Alteration
+
+The PUT operation is used to alter an existing key's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _key columns_
+
+In this operation, the `application/json` _key representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name/table/table_name/key/key_columns HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+      "names": [ [ schema name, new constraint name ] ],
+      "comment": new comment,
+      "annotations": {
+        annotation key: annotation document, ...
+      }
+    }
+
+The input _key representation_ is as for key creation via the POST request. Instead of creating a new key, the existing key with _key columns_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the definition:
+
+- `names`: the _new constraint name_, i.e. second field of first element of `names` list, is a replacement constraint name
+- `comment`: a new comment string
+- `annotations`: a replacement annotation map
+
+Other key fields are immutable through this interface. The `unique_columns` field, if present, must match the _key columns_ in the URL.
+
+Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a key and set a comment would look like:
+
+    {
+      "names": [ ["table schema name", "the new constraint name" ] ],
+      "comment": "This is my newly named key."
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    key representation
+
+where the body content represents the key status at the end of the request.
+
+Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
 ## Key Deletion
 
 The DELETE method is used to remove a key constraint from a table or a pseudo-key constraint from a view:

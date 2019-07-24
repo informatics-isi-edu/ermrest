@@ -852,11 +852,14 @@ class Key (Api):
     def annotations(self):
         return KeyAnnotations(self)
         
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, conflict_model=False):
         table = self.table.GET_body(conn, cur)
         cols = frozenset([ table.columns.get_enumerable(c) for c in self.columns ])
         if cols not in table.uniques:
-            raise exception.rest.NotFound(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
+            if conflict_model:
+                raise exception.ConflictModel(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
+            else:
+                raise exception.rest.NotFound(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
         return table.uniques[cols]
         
     def GET(self, uri):
@@ -869,6 +872,21 @@ class Key (Api):
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, keydoc):
+        try:
+            # handle alteration of existing constraint
+            key = self.GET_body(conn, cur, conflict_model=True)
+            return key.update(conn, cur, keydoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new key, same as POST /key/
+            keys = Keys(self.table)
+            return keys.POST_body(conn, cur, keydoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
 
 class Foreignkeys (Api):
     """A set of foreign keys."""

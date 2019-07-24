@@ -95,8 +95,64 @@ SELECT _ermrest.model_version_bump();
         cnames.sort()
         return cnames
         
+    def update(self, conn, cur, keydoc, ermrest_config):
+        """Idempotently update existing key state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input doc:
+
+        - 'names'
+        - 'comment'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing column in the model. To be clear, "absent" means the
+        field key is not present in the input document.
+
+        """
+        # allow sparse update documents as a (not so restful) convenience
+        newdoc = self.prejson()
+        if 'names' not in keydoc \
+           or not keydoc['names'][0:1] \
+           or not keydoc['names'][0][1:2] \
+           or not keydoc['names'][0][1]:
+            del keydoc['names']
+        newdoc.update(keydoc)
+        newdoc['names'][0][0] = self.table.schema.name
+        newkey = list(Unique.fromjson_single(self.table, newdoc, reject_duplicates=False))[0]
+        newkey.rid = self.rid
+
+        if self.columns != newkey.columns:
+            raise exception.BadData('Key columns in URL and in JSON must match.')
+
+        if self.comment != newkey.comment:
+            self.set_comment(conn, cur, newkey.comment)
+
+        if self.annotations != newkey.annotations:
+            self.set_annotations(conn, cur, newkey.annotations)
+
+        # key rename cannot be combined with other actions above
+        if self.constraint_name[1] != newkey.constraint_name[1]:
+            self.table.alter_table(
+                conn, cur,
+                'RENAME CONSTRAINT %s TO %s' % (
+                    sql_identifier(self.constraint_name[1]),
+                    sql_identifier(newkey.constraint_name[1]),
+                ),
+                """
+UPDATE _ermrest.known_keys e
+SET constraint_name = %(name)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'name': sql_literal(newkey.constraint_name[1]),
+}
+            )
+
+        return newkey
+
     @staticmethod
-    def fromjson_single(table, keydoc):
+    def fromjson_single(table, keydoc, reject_duplicates=True):
         """Yield Unique instance if and only if keydoc describes a key not already in table."""
         def check_names(names):
             if not names:
@@ -125,7 +181,7 @@ SELECT _ermrest.model_version_bump();
 
         pk_namepair = pk_namepairs[0] if pk_namepairs else None
         
-        if keycolumns not in table.uniques:
+        if keycolumns not in table.uniques or not reject_duplicates:
             if table.kind == 'r':
                 yield Unique(keycolumns, constraint_name=pk_namepair, comment=comment, annotations=annotations)
             else:
