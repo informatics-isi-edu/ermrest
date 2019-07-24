@@ -202,6 +202,7 @@ class Schema (object):
         aspect to reach that state.
 
         """
+        self.enforce_right('owner')
         newschema = Schema(
             self.model,
             schemadoc.get('schema_name', self.name),

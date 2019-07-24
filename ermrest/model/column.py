@@ -226,6 +226,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         will mutate the model aspect to reach that state.
 
         """
+        self.enforce_right('owner')
         # allow sparse update documents as a (not so restful) convenience
         newdoc = self.prejson()
         newdoc.update(columndoc)

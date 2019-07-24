@@ -110,6 +110,7 @@ SELECT _ermrest.model_version_bump();
         field key is not present in the input document.
 
         """
+        self.enforce_right('owner')
         # allow sparse update documents as a (not so restful) convenience
         newdoc = self.prejson()
         if 'names' not in keydoc \
@@ -315,6 +316,7 @@ class PseudoUnique (object):
         field key is not present in the input document.
 
         """
+        self.enforce_right('owner')
         # allow sparse update documents as a (not so restful) convenience
         newdoc = self.prejson()
         if 'names' not in keydoc \

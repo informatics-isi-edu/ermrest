@@ -176,6 +176,7 @@ class Table (object):
         aspect to reach that state.
 
         """
+        self.enforce_right('owner')
         newtable = Table(
             self.schema,
             tabledoc.get('table_name', self.name),
