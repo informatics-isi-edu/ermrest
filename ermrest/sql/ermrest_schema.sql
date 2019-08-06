@@ -2090,9 +2090,11 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_schemas(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_name text, comment text) AS $$
-  SELECT s."RID", sr.schema_name, sr.comment
-  FROM _ermrest_history.known_schemas s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_name text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_name')::text AS "schema_name",
+    (s.rowdata->>'comment')::text AS "comment"
+  FROM _ermrest_history.known_schemas s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
@@ -2123,25 +2125,40 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_types(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, type_name text, array_element_type_rid text, domain_element_type_rid text, domain_notnull boolean, domain_default text, comment text) AS $$
-  SELECT s."RID", sr.schema_rid, sr.type_name, sr.array_element_type_rid, sr.domain_element_type_rid, sr.domain_notnull, sr.domain_default, sr.comment
-  FROM _ermrest_history.known_types s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, type_name text, array_element_type_rid text, domain_element_type_rid text, domain_notnull boolean, domain_default text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text AS "schema_rid",
+    (s.rowdata->>'type_name')::text AS "type_name",
+    (s.rowdata->>'array_element_type_rid')::text AS "array_element_type_rid",
+    (s.rowdata->>'domain_element_type_rid')::text AS "domain_element_type_rid",
+    (s.rowdata->>'domain_notnull')::boolean AS "domain_notnull",
+    (s.rowdata->>'domain_default')::text AS "domain_default",
+    (s.rowdata->>'comment')::text AS "comment"
+  FROM _ermrest_history.known_types s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text) AS $$
-  SELECT s."RID", sr.table_rid, sr.column_num, sr.column_name, sr.type_rid, sr.not_null, sr.column_default, sr.comment
-  FROM _ermrest_history.known_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'table_rid')::text AS "table_rid",
+    (s.rowdata->>'column_num')::int AS "column_num",
+    (s.rowdata->>'column_name')::text AS "column_name",
+    (s.rowdata->>'type_rid')::text AS "type_rid",
+    (s.rowdata->>'not_null')::boolean AS "not_null",
+    (s.rowdata->>'column_default')::text AS "column_default",
+    (s.rowdata->>'comment')::text AS "comment"
+  FROM _ermrest_history.known_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_notnulls(ts timestamptz)
 RETURNS TABLE ("RID" text, column_rid text) AS $$
-  SELECT s."RID", sr.column_rid
-  FROM _ermrest_history.known_pseudo_notnulls s,
-  LATERAL jsonb_to_record(s.rowdata) sr (column_rid text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'column_rid') AS "column_rid"
+  FROM _ermrest_history.known_pseudo_notnulls s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
@@ -2178,9 +2195,13 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_tables(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, comment text) AS $$
-  SELECT s."RID", sr.schema_rid, sr.table_name, sr.table_kind, sr.comment
-  FROM _ermrest_history.known_tables s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, table_name text, table_kind text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text "schema_rid",
+    (s.rowdata->>'table_name')::text "table_name",
+    (s.rowdata->>'table_kind')::text "table_kind",
+    (s.rowdata->>'comment')::text "comment"
+  FROM _ermrest_history.known_tables s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
@@ -2305,33 +2326,44 @@ END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, comment text) AS $$
-  SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.table_rid, sr.comment
-  FROM _ermrest_history.known_keys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, table_rid text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text "schema_rid",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'table_rid')::text "table_rid",
+    (s.rowdata->>'comment')::text "comment"
+  FROM _ermrest_history.known_keys s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_keys(ts timestamptz)
 RETURNS TABLE ("RID" text, constraint_name text, table_rid text, comment text) AS $$
-  SELECT s."RID", sr.constraint_name, sr.table_rid, sr.comment
-  FROM _ermrest_history.known_pseudo_keys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, table_rid text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'table_rid')::text "table_rid",
+    (s.rowdata->>'comment')::text "comment"
+  FROM _ermrest_history.known_pseudo_keys s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_key_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
-  SELECT s."RID", sr.key_rid, sr.column_rid
-  FROM _ermrest_history.known_key_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (key_rid text, column_rid text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'key_rid')::text "key_rid",
+    (s.rowdata->>'column_rid')::text "column_rid"
+  FROM _ermrest_history.known_key_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_key_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
-  SELECT s."RID", sr.key_rid, sr.column_rid
-  FROM _ermrest_history.known_pseudo_key_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (key_rid text, column_rid text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'key_rid')::text "key_rid",
+    (s.rowdata->>'column_rid')::text "column_rid"
+  FROM _ermrest_history.known_pseudo_key_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
@@ -2390,33 +2422,50 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkeys(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, fk_table_rid text, pk_table_rid text, delete_rule text, update_rule text, comment text) AS $$
-  SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.delete_rule, sr.update_rule, sr.comment
-  FROM _ermrest_history.known_fkeys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, fk_table_rid text, pk_table_rid text, delete_rule text, update_rule text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text "schema_rid",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'fk_table_rid')::text "fk_table_rid",
+    (s.rowdata->>'pk_table_rid')::text "pk_table_rid",
+    (s.rowdata->>'delete_rule')::text "delete_rule",
+    (s.rowdata->>'update_rule')::text "update_rule",
+    (s.rowdata->>'comment')::text "comment"
+  FROM _ermrest_history.known_fkeys s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkeys(ts timestamptz)
 RETURNS TABLE ("RID" text, constraint_name text, fk_table_rid text, pk_table_rid text, comment text) AS $$
-  SELECT s."RID", sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.comment
-  FROM _ermrest_history.known_pseudo_fkeys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, fk_table_rid text, pk_table_rid text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'fk_table_rid')::text "fk_table_rid",
+    (s.rowdata->>'pk_table_rid')::text "pk_table_rid",
+    (s.rowdata->>'comment')::text "comment"
+  FROM _ermrest_history.known_pseudo_fkeys s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkey_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
-  SELECT s."RID", sr.fkey_rid, sr.fk_column_rid, sr.pk_column_rid
-  FROM _ermrest_history.known_fkey_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid text, fk_column_rid text, pk_column_rid text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'fkey_rid')::text "fkey_rid",
+    (s.rowdata->>'fk_column_rid')::text "fk_column_rid",
+    (s.rowdata->>'pk_column_rid')::text "pk_column_rid"
+  FROM _ermrest_history.known_fkey_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkey_columns(ts timestamptz)
 RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
-  SELECT s."RID", sr.fkey_rid, sr.fk_column_rid, sr.pk_column_rid
-  FROM _ermrest_history.known_pseudo_fkey_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (fkey_rid text, fk_column_rid text, pk_column_rid text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'fkey_rid')::text "fkey_rid",
+    (s.rowdata->>'fk_column_rid')::text "fk_column_rid",
+    (s.rowdata->>'pk_column_rid')::text "pk_column_rid"
+  FROM _ermrest_history.known_pseudo_fkey_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 

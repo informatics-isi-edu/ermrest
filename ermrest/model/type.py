@@ -282,14 +282,6 @@ class Type (object):
             # fall back for text and text-like e.g. domains or other unknown types
             return raw
 
-    def history_unpack(self, c):
-        if c.name in {'RID','RMB','RMT'}:
-            return None
-        elif self.name in {'json','jsonb'}:
-            return None
-        else:
-            return '%s %s' % (sql_identifier(c.rid), self.sql(basic_storage=True))
-
     def history_projection(self, c):
         if c.name in {'RID','RMB'}:
             return 'h.%s::%s' % (sql_identifier(c.name), self.sql(basic_storage=True))
@@ -298,7 +290,7 @@ class Type (object):
         elif self.name in {'json','jsonb'}:
             return '(h.rowdata->%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
         else:
-            return 'r.%s AS %s' % (sql_identifier(c.rid), c.sql_name())
+            return '(h.rowdata->>%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
 
     @staticmethod
     def fromjson(typedoc, ermrest_config):
@@ -331,9 +323,6 @@ class ArrayType(Type):
                 ]
         else:
             return self.base_type.default_value(raw)
-
-    def history_unpack(self, c):
-        return None
 
     def history_projection(self, c):
         # json storage can be `null` or `[...]` for this type
@@ -375,9 +364,6 @@ class DomainType(Type):
             return None
         else:
             return self.base_type.default_value(raw)
-
-    def history_unpack(self, c):
-        return self.base_type.history_unpack(c)
 
     def history_projection(self, c):
         return self.base_type.history_projection(c)
