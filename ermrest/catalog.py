@@ -87,7 +87,7 @@ class CatalogFactory (object):
         self._dsn = dsn
         self._template = template
 
-    def create(self):
+    def create(self, id):
         """Create a Catalog.
         
            This operation creates a catalog (i.e., it creates a database) on 
@@ -97,7 +97,7 @@ class CatalogFactory (object):
            Returns the new catalog object representing the catalog.
         """
         # generate a random database name
-        dbname = random_name(prefix='_ermrest_')
+        dbname = "_ermrest_catalog_%s" % id
 
         def body(conn, cur):
             # create database
