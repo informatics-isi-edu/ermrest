@@ -154,12 +154,13 @@ SET "Display_Name" = excluded."Display_Name",
                 'groups': sql_literal(json.dumps(groups))
             }
             mismatch_query = """
-SELECT c_g.id, c_g.display_name
+SELECT
+  ((j.j)->>'id')::text AS "id",
+  ((j.j)->>'display_name')::text AS "display_name"
 FROM jsonb_array_elements( %(groups)s::jsonb ) j(j)
-JOIN LATERAL jsonb_to_record(j.j) c_g(id text, display_name text) ON (True)
 LEFT OUTER JOIN public."ERMrest_Group" g
- ON (    c_g.id = g."ID"
-     AND c_g.display_name IS NOT DISTINCT FROM g."Display_Name")
+ ON (    ((j.j)->>'id')::text = g."ID"
+     AND ((j.j)->>'display_name')::text IS NOT DISTINCT FROM g."Display_Name")
 WHERE g."ID" IS NULL
 """
             cur.execute((mismatch_query + " LIMIT 1;") % parts)
