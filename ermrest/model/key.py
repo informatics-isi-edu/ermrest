@@ -724,6 +724,8 @@ RETURNING fkey_rid;
         mutable fields from the input doc:
 
         - 'names'
+        - 'on_update'
+        - 'on_delete'
         - 'comment'
         - 'acls'
         - 'acl_bindings'
@@ -772,23 +774,35 @@ RETURNING fkey_rid;
         if self.dynacls != newfkr.dynacls:
             self.set_dynacls(cur, newfkr.dynacls)
 
-        # key rename cannot be combined with other actions above
-        if self.constraint_name[1] != newfkr.constraint_name[1]:
+        if (self.on_delete != newfkr.on_delete
+            or self.on_update != newfkr.on_update
+            or self.constraint_name[1] != newfkr.constraint_name[1]):
+            # update/delete actions cannot be altered via ALTER TABLE
+            # so just recreate in-place as a brute-force solution
             self.foreign_key.table.alter_table(
                 conn, cur,
-                'RENAME CONSTRAINT %s TO %s' % (
-                    sql_identifier(self.constraint_name[1]),
-                    sql_identifier(newfkr.constraint_name[1]),
-                ),
+                """
+DROP CONSTRAINT %(constraint_name)s,
+ADD %(constraint_def)s
+""" % {
+    "constraint_name": sql_identifier(self.constraint_name[1]),
+    "constraint_def": newfkr.sql_def(),
+},
                 """
 UPDATE _ermrest.known_fkeys e
-SET constraint_name = %(name)s
-WHERE e."RID" = %(rid)s;
+SET oid = i.oid,
+    constraint_name = i.constraint_name,
+    delete_rule = i.delete_rule,
+    update_rule = i.update_rule
+FROM _ermrest.introspect_fkeys i
+WHERE i.fk_table_rid = %(table_rid)s
+  AND i.constraint_name = %(new_constraint_name)s
+  AND e."RID" = %(rid)s;
 """ % {
-    'rid': sql_literal(self.rid),
-    'name': sql_literal(newfkr.constraint_name[1]),
-}
-            )
+    "rid": sql_literal(self.rid),
+    "table_rid": sql_literal(self.foreign_key.table.rid),
+    "new_constraint_name": sql_literal(newfkr.constraint_name[1]),
+})
 
         return newfkr
 

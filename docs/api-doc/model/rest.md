@@ -938,6 +938,8 @@ In this operation, the `application/json` _key representation_ is supplied as in
     [
       {
         "names": [ [ schema name, new constraint name ] ],
+	"on_update": new update action,
+	"on_delete": new delete action,
         "comment": new comment,
         "annotations": {
           annotation key: annotation document, ...
@@ -948,6 +950,8 @@ In this operation, the `application/json` _key representation_ is supplied as in
 The input _foreign key reference representation_ is as for key creation via the POST request. Instead of creating a new foreign key, the existing one as specified in the URL is altered to match the input representation. To be symmetric with [foreign key retrieval](#foreign-key-retrieval), the input is a JSON array with one sub-document. Each of these object fields, if present, will be processed as a target configuration for that aspect of the definition:
 
 - `names`: the _new constraint name_, i.e. second field of first element of `names` list, is a replacement constraint name
+- `on_update`: the _new update action_, e.g. one of `NO ACTION`, `RESTRICT`, `CASCADE`, `SET DEFAULT`, `SET NULL`
+- `on_delete`: the _new delete action_, e.g. one of `NO ACTION`, `RESTRICT`, `CASCADE`, `SET DEFAULT`, `SET NULL`
 - `comment`: a new comment string
 - `acls`: a replacement ACL configuration
 - `acl_bindings`: a replacement ACL binding configuration
