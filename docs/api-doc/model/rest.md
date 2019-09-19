@@ -144,6 +144,63 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Schema Alteration
+
+The PUT operation is used to alter an existing schema's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_
+
+In this operation, the `application/json` _schema representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+      "schema_name": new schema name,
+      "comment": new column comment,
+      "annotations": {
+        annotation key: annotation document, ...
+      }
+    }
+
+The input _schema representation_ is as for schema creation via the POST request. Instead of creating a new schema, the existing schema with _schema name_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the table definition:
+
+- `schema_name`: a new schema name to support renaming from _schema name_ to _new schema name_
+- `comment`: a new comment string
+- `annotations`: a replacement annotation map
+- `acls`: a replacement ACL set
+
+Other schema fields are immutable through this interface, and such input fields will be ignored.
+
+Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a schema and set a comment would look like:
+
+    {
+      "schema_name": "the new name",
+      "comment": "This is my new named table."
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    schema representation
+
+where the body content represents the schema status at the end of the request.
+
+*NOTE*: In the case that the schema name is changed, the returned document will indicate the new name, and subsequent access to the model resource will require using the updated URL:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _new schema name_
+
+The old URL will immediately start responding with a schema not found error.
+
+Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
 ## Schema Deletion
 
 The DELETE method is used to delete a schema:
@@ -273,6 +330,66 @@ Typical error response codes include:
 - 401 Unauthorized
 - 409 Conflict
 
+## Table Alteration
+
+The PUT operation is used to alter an existing table's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_
+
+In this operation, the `application/json` _table representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name/table/table_name HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+      "schema_name": destination schema name,
+      "table_name": new table name,
+      "comment": new column comment,
+      "annotations": {
+        annotation key: annotation document, ...
+      }
+    }
+
+The input _table representation_ is as for table creation via the POST request. Instead of creating a new table, the existing table with _table name_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the table definition:
+
+- `schema_name`: an existing schema name to support moving from _schema name_ to _destination schema name_
+- `table_name`: a new name to support renaming from _table name_ to _new table name_
+- `comment`: a new comment string
+- `annotations`: a replacement annotation map
+- `acls`: a replacement ACL set
+- `acl_bindings`: a replacement ACL bindings set
+
+Other table fields are immutable through this interface, and such input fields will be ignored.
+
+Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a table and set a comment would look like:
+
+    {
+      "table_name": "the new name",
+      "comment": "This is my new named table."
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    table representation
+
+where the body content represents the table status at the end of the request.
+
+*NOTE*: In the case that the table name is changed or the table is relocated to a different schema, the returned document will indicate the new names, and subsequent access to the model resource will require using the updated URL:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _new schema name_ `/table/` _new table name_
+
+The old URL will immediately start responding with a table not found error.
+
+Typical error response codes include:
+- 400 Bad Request
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
 ## Table Deletion
 
 The DELETE method is used to delete a table and all its content:
@@ -337,7 +454,7 @@ In this operation, the `application/json` _column representation_ is supplied as
       "name": column name,
       "type": column type,
       "default": default value,
-	  "nullok": boolean,
+      "nullok": boolean,
       "comment": column comment,
       "annotations": {
         annotation key: annotation document, ...
@@ -352,6 +469,8 @@ The input _column representation_ is a long JSON document too verbose to show ve
 - `nullok`: JSON `true` if NULL values are allowed or `false` if NULL values are disallowed in this column (default `true` if this field is absent in the input column representation)
 - `comment`: whose value is the human-readable comment string for the column
 - `annotations`: whose value is a sub-object use as a dictionary where each field of the sub-object is an _annotation key_ and its corresponding value a nested object structure representing the _annotation document_ content (as hierarchical content, not as a double-serialized JSON string!)
+- `acls`: whose value is a sub-object specifying ACLs for the new column
+- `acl_bindings`: whose value is a sub-object specifying ACL bindings for the new column
 
 On success, the response is:
 
@@ -391,6 +510,69 @@ On success, the response is:
 The response body is a _column representation_ as described in [Column Creation](#column-creation).
 
 Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+## Column Alteration
+
+The PUT operation is used to alter an existing column's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/column/` _column name_
+
+In this operation, the `application/json` _column representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name/table/table_name/column/column_name HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+      "name": new column name,
+      "type": new column type,
+      "default": new default value,
+      "nullok": new boolean,
+      "comment": new column comment,
+      "annotations": {
+        annotation key: annotation document, ...
+      }
+    }
+
+The input _column representation_ is as for column creation via the POST request. Instead of creating a new column, the existing column with _column name_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the column definition:
+
+- `name`: a new name to support renaming from _column name_ to _new column name_
+- `type`: a new type to support changing from existing to new column type
+- `default`: a new default value for future row insertions
+- `nullok`: a new nullok status
+- `comment`: a new comment string
+- `annotations`: a replacement annotation map
+- `acls`: a replacement ACL set
+- `acl_bindings`: a replacement ACL bindings set
+
+Absence of a named field indicates that the existing state for that aspect of the column definition should be retained without change. For example, an input to rename a column, disallow nulls, and set a new default value would look like:
+
+    {
+      "name": "the new name",
+      "nullok": false,
+      "default": "the new default value"
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    column representation
+
+where the body content represents the column status at the end of the request.
+
+*NOTE*: In the case that the column name is changed with the `"name": ` _new column name_ input syntax, the returned document will indicate the new name, and subsequent access to the model resource will require using the updated URL:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/schema/` _schema name_ `/table/` _table name_ `/column/` _new column name_
+
+The old URL will immediately start responding with a column not found error.
+
+Typical error response codes include:
+- 400 Bad Request
 - 404 Not Found
 - 403 Forbidden
 - 401 Unauthorized
@@ -518,6 +700,56 @@ On success, the response is:
 The response body is a _key representation_ as described in [Key Creation](#key-creation).
 
 Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+## Key Alteration
+
+The PUT operation is used to alter an existing key's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/key/` _key columns_
+
+In this operation, the `application/json` _key representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name/table/table_name/key/key_columns HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    {
+      "names": [ [ schema name, new constraint name ] ],
+      "comment": new comment,
+      "annotations": {
+        annotation key: annotation document, ...
+      }
+    }
+
+The input _key representation_ is as for key creation via the POST request. Instead of creating a new key, the existing key with _key columns_ as specified in the URL is altered to match the input representation. Each of these fields, if present, will be processed as a target configuration for that aspect of the definition:
+
+- `names`: the _new constraint name_, i.e. second field of first element of `names` list, is a replacement constraint name
+- `comment`: a new comment string
+- `annotations`: a replacement annotation map
+
+Other key fields are immutable through this interface. The `unique_columns` field, if present, must match the _key columns_ in the URL.
+
+Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a key and set a comment would look like:
+
+    {
+      "names": [ ["table schema name", "the new constraint name" ] ],
+      "comment": "This is my newly named key."
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    key representation
+
+where the body content represents the key status at the end of the request.
+
+Typical error response codes include:
+- 400 Bad Request
 - 404 Not Found
 - 403 Forbidden
 - 401 Unauthorized
@@ -687,6 +919,64 @@ On success, the response is:
 The response body is a _foreign key reference representation_ as described in [Foreign Key Creation](#foreign-key-creation).
 
 Typical error response codes include:
+- 404 Not Found
+- 403 Forbidden
+- 401 Unauthorized
+
+## Foreign Key Alteration
+
+The PUT operation is used to alter an existing foreign key's definition:
+
+- _service_ `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_ `/foreignkey/` _column name_ `,` ... `/reference/` _table reference_ `/` _key column_ `,` ...
+
+In this operation, the `application/json` _key representation_ is supplied as input:
+
+    PUT /ermrest/catalog/42/schema/schema_name/table/table_name/key/column_name,.../reference/table_referenace/key_column,... HTTP/1.1
+	Host: www.example.com
+	Content-Type: application/json
+
+    [
+      {
+        "names": [ [ schema name, new constraint name ] ],
+	"on_update": new update action,
+	"on_delete": new delete action,
+        "comment": new comment,
+        "annotations": {
+          annotation key: annotation document, ...
+        }
+      }
+    ]
+
+The input _foreign key reference representation_ is as for key creation via the POST request. Instead of creating a new foreign key, the existing one as specified in the URL is altered to match the input representation. To be symmetric with [foreign key retrieval](#foreign-key-retrieval), the input is a JSON array with one sub-document. Each of these object fields, if present, will be processed as a target configuration for that aspect of the definition:
+
+- `names`: the _new constraint name_, i.e. second field of first element of `names` list, is a replacement constraint name
+- `on_update`: the _new update action_, e.g. one of `NO ACTION`, `RESTRICT`, `CASCADE`, `SET DEFAULT`, `SET NULL`
+- `on_delete`: the _new delete action_, e.g. one of `NO ACTION`, `RESTRICT`, `CASCADE`, `SET DEFAULT`, `SET NULL`
+- `comment`: a new comment string
+- `acls`: a replacement ACL configuration
+- `acl_bindings`: a replacement ACL binding configuration
+- `annotations`: a replacement annotation map
+
+Other key fields are immutable through this interface.
+
+Absence of a named field indicates that the existing state for that aspect of the definition should be retained without change. For example, an input to rename a constraint and set a comment would look like:
+
+    {
+      "names": [ ["table schema name", "the new constraint name" ] ],
+      "comment": "This is my newly named key."
+    }
+
+On success, the response is:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+
+    foreign key reference representation
+
+where the body content represents the foreign key status at the end of the request.
+
+Typical error response codes include:
+- 400 Bad Request
 - 404 Not Found
 - 403 Forbidden
 - 401 Unauthorized

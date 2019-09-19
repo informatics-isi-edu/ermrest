@@ -95,8 +95,65 @@ SELECT _ermrest.model_version_bump();
         cnames.sort()
         return cnames
         
+    def update(self, conn, cur, keydoc, ermrest_config):
+        """Idempotently update existing key state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input doc:
+
+        - 'names'
+        - 'comment'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing column in the model. To be clear, "absent" means the
+        field key is not present in the input document.
+
+        """
+        self.enforce_right('owner')
+        # allow sparse update documents as a (not so restful) convenience
+        newdoc = self.prejson()
+        if 'names' not in keydoc \
+           or not keydoc['names'][0:1] \
+           or not keydoc['names'][0][1:2] \
+           or not keydoc['names'][0][1]:
+            del keydoc['names']
+        newdoc.update(keydoc)
+        newdoc['names'][0][0] = self.table.schema.name
+        newkey = list(Unique.fromjson_single(self.table, newdoc, reject_duplicates=False))[0]
+        newkey.rid = self.rid
+
+        if self.columns != newkey.columns:
+            raise exception.BadData('Key columns in URL and in JSON must match.')
+
+        if self.comment != newkey.comment:
+            self.set_comment(conn, cur, newkey.comment)
+
+        if self.annotations != newkey.annotations:
+            self.set_annotations(conn, cur, newkey.annotations)
+
+        # key rename cannot be combined with other actions above
+        if self.constraint_name[1] != newkey.constraint_name[1]:
+            self.table.alter_table(
+                conn, cur,
+                'RENAME CONSTRAINT %s TO %s' % (
+                    sql_identifier(self.constraint_name[1]),
+                    sql_identifier(newkey.constraint_name[1]),
+                ),
+                """
+UPDATE _ermrest.known_keys e
+SET constraint_name = %(name)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'name': sql_literal(newkey.constraint_name[1]),
+}
+            )
+
+        return newkey
+
     @staticmethod
-    def fromjson_single(table, keydoc):
+    def fromjson_single(table, keydoc, reject_duplicates=True):
         """Yield Unique instance if and only if keydoc describes a key not already in table."""
         def check_names(names):
             if not names:
@@ -125,7 +182,7 @@ SELECT _ermrest.model_version_bump();
 
         pk_namepair = pk_namepairs[0] if pk_namepairs else None
         
-        if keycolumns not in table.uniques:
+        if keycolumns not in table.uniques or not reject_duplicates:
             if table.kind == 'r':
                 yield Unique(keycolumns, constraint_name=pk_namepair, comment=comment, annotations=annotations)
             else:
@@ -243,6 +300,59 @@ class PseudoUnique (object):
 
     def __repr__(self):
         return '<ermrest.model.PseudoUnique %s>' % str(self)
+
+    def update(self, conn, cur, keydoc, ermrest_config):
+        """Idempotently update existing key state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input doc:
+
+        - 'names'
+        - 'comment'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing column in the model. To be clear, "absent" means the
+        field key is not present in the input document.
+
+        """
+        self.enforce_right('owner')
+        # allow sparse update documents as a (not so restful) convenience
+        newdoc = self.prejson()
+        if 'names' not in keydoc \
+           or not keydoc['names'][0:1] \
+           or not keydoc['names'][0][1:2] \
+           or not keydoc['names'][0][1]:
+            del keydoc['names']
+        newdoc.update(keydoc)
+        newdoc['names'][0][0] = self.constraint_name[0]
+        newkey = list(Unique.fromjson_single(self.table, newdoc, reject_duplicates=False))[0]
+        newkey.rid = self.rid
+
+        if self.columns != newkey.columns:
+            raise exception.BadData('Key columns in URL and in JSON must match.')
+
+        if self.comment != newkey.comment:
+            self.set_comment(conn, cur, newkey.comment)
+
+        if self.annotations != newkey.annotations:
+            self.set_annotations(conn, cur, newkey.annotations)
+
+        # key rename cannot be combined with other actions above
+        if self.constraint_name[1] != newkey.constraint_name[1]:
+            cur.execute(
+                """
+SELECT _ermrest.model_version_bump();
+UPDATE _ermrest.known_pseudo_keys e
+SET constraint_name = %(name)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'name': sql_literal(newkey.constraint_name[1]),
+}
+            )
+
+        return newkey
 
     def enforce_right(self, aclname):
         """Proxy enforce_right to self.table for interface consistency."""
@@ -397,9 +507,9 @@ class ForeignKey (object):
                     return True
         return False
 
-def _guarded_add(s, new_fkr):
+def _guarded_add(s, new_fkr, reject_duplicates=True):
     for fkr in s:
-        if fkr.reference_map_frozen == new_fkr.reference_map_frozen:
+        if fkr.reference_map_frozen == new_fkr.reference_map_frozen and reject_duplicates:
             raise NotImplementedError(
                 'Foreign key constraint %s collides with constraint %s on table %s.' % (
                     new_fkr.constraint_name,
@@ -483,7 +593,7 @@ def _keyref_has_right(self, aclname, roles=None):
 class KeyReference (object):
     """A reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}, rid=None):
+    def __init__(self, foreign_key, unique, fk_ref_map, on_delete='NO ACTION', on_update='NO ACTION', constraint_name=None, annotations={}, comment=None, acls={}, dynacls={}, rid=None, reject_duplicates=True):
         self.foreign_key = foreign_key
         self.unique = unique
         self.rid = rid
@@ -498,10 +608,10 @@ class KeyReference (object):
         self.constraint_name = constraint_name
         if unique.table not in foreign_key.table_references:
             foreign_key.table_references[unique.table] = set()
-        _guarded_add(foreign_key.table_references[unique.table], self)
+        _guarded_add(foreign_key.table_references[unique.table], self, reject_duplicates=reject_duplicates)
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
-        _guarded_add(unique.table_references[foreign_key.table], self)
+        _guarded_add(unique.table_references[foreign_key.table], self, reject_duplicates=reject_duplicates)
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, self.constraint_name)))
         self.annotations.update(annotations)
         self.acls = AclDict(self)
@@ -607,8 +717,97 @@ RETURNING fkey_rid;
         """Canonicalized to-column names list."""
         return _keyref_to_column_names(self)
         
+    def update(self, conn, cur, refdoc, ermrest_config):
+        """Idempotently update existing fkey state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input doc:
+
+        - 'names'
+        - 'on_update'
+        - 'on_delete'
+        - 'comment'
+        - 'acls'
+        - 'acl_bindings'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing column in the model. To be clear, "absent" means the
+        field key is not present in the input document.
+
+        """
+        self.enforce_right('owner')
+        # allow sparse update documents as a (not so restful) convenience
+        newdoc = self.prejson()
+        refdoc = refdoc[0] if isinstance(refdoc, list) else refdoc
+        newdoc.update(refdoc)
+        newfkr = list(KeyReference.fromjson(
+            self.foreign_key.table.schema.model,
+            newdoc,
+            self.foreign_key,
+            self.foreign_key.table,
+            self.unique,
+            self.unique.table,
+            reject_duplicates=False
+        ))[0]
+        newfkr.rid = self.rid
+
+        # undo default ACLs generated in fromjson on acls: {} input...
+        newfkr.acls.clear()
+        if 'acls' in refdoc:
+            newfkr.acls.update(refdoc['acls'])
+        else:
+            newfkr.acls.update(self.acls)
+
+        if self.reference_map_frozen != newfkr.reference_map_frozen:
+            raise exception.BadData('Foreign key column mapping in URL and in JSON must match.')
+
+        if self.comment != newfkr.comment:
+            self.set_comment(conn, cur, newfkr.comment)
+
+        if self.annotations != newfkr.annotations:
+            self.set_annotations(conn, cur, newfkr.annotations)
+
+        if self.acls != newfkr.acls:
+            self.set_acls(cur, newfkr.acls, anon_mutation_ok=True)
+
+        if self.dynacls != newfkr.dynacls:
+            self.set_dynacls(cur, newfkr.dynacls)
+
+        if (self.on_delete != newfkr.on_delete
+            or self.on_update != newfkr.on_update
+            or self.constraint_name[1] != newfkr.constraint_name[1]):
+            # update/delete actions cannot be altered via ALTER TABLE
+            # so just recreate in-place as a brute-force solution
+            self.foreign_key.table.alter_table(
+                conn, cur,
+                """
+DROP CONSTRAINT %(constraint_name)s,
+ADD %(constraint_def)s
+""" % {
+    "constraint_name": sql_identifier(self.constraint_name[1]),
+    "constraint_def": newfkr.sql_def(),
+},
+                """
+UPDATE _ermrest.known_fkeys e
+SET oid = i.oid,
+    constraint_name = i.constraint_name,
+    delete_rule = i.delete_rule,
+    update_rule = i.update_rule
+FROM _ermrest.introspect_fkeys i
+WHERE i.fk_table_rid = %(table_rid)s
+  AND i.constraint_name = %(new_constraint_name)s
+  AND e."RID" = %(rid)s;
+""" % {
+    "rid": sql_literal(self.rid),
+    "table_rid": sql_literal(self.foreign_key.table.rid),
+    "new_constraint_name": sql_literal(newfkr.constraint_name[1]),
+})
+
+        return newfkr
+
     @staticmethod
-    def fromjson(model, refdoc, fkey=None, fktable=None, pkey=None, pktable=None, outfkeys=None):
+    def fromjson(model, refdoc, fkey=None, fktable=None, pkey=None, pktable=None, outfkeys=None, reject_duplicates=True):
         fk_cols = []
         pk_cols = []
         refs = []
@@ -678,12 +877,12 @@ RETURNING fkey_rid;
                     else:
                         key = table.uniques[colset]
 
-            elif is_fkey and fk_colset != fkey.columns:
+            elif is_fkey and colset != fkey.columns:
                 raise exception.ConflictModel(
                     'Reference map referring columns %s do not match foreign key columns %s.' 
                     % (colset, key.columns)
                     )
-            elif (not is_fkey) and fk_colset != fkey.columns:
+            elif (not is_fkey) and colset != fkey.columns:
                 raise exception.ConflictModel(
                     'Reference map referenced columns %s do not match unique columns %s.' 
                     % (colset, key.columns)
@@ -708,13 +907,13 @@ RETURNING fkey_rid;
         fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
         fk_name = fk_names[0] if fk_names else None
             
-        if fk_ref_map not in fkey.references:
+        if fk_ref_map not in fkey.references or not reject_duplicates:
             if fktable.kind == 'r' and pktable.kind == 'r':
                 on_delete = check_rule('on_delete')
                 on_update = check_rule('on_update')
-                fkr = KeyReference(fkey, pkey, fk_ref_map, on_delete, on_update, fk_name, annotations, comment, acls, dynacls)
+                fkr = KeyReference(fkey, pkey, fk_ref_map, on_delete, on_update, fk_name, annotations, comment, acls, dynacls, reject_duplicates=reject_duplicates)
             else:
-                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, None, fk_name, annotations, comment, acls, dynacls)
+                fkr = PseudoKeyReference(fkey, pkey, fk_ref_map, None, fk_name, annotations, comment, acls, dynacls, reject_duplicates=reject_duplicates)
             fkey.references[fk_ref_map] = fkr
         else:
             raise exception.ConflictModel("Foreign key %s already exists from table %s to %s with reference mapping %s." % (
@@ -752,7 +951,7 @@ RETURNING fkey_rid;
 class PseudoKeyReference (object):
     """A psuedo-reference from a foreign key to a primary key."""
     
-    def __init__(self, foreign_key, unique, fk_ref_map, rid=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}):
+    def __init__(self, foreign_key, unique, fk_ref_map, rid=None, constraint_name=("", None), annotations={}, comment=None, acls={}, dynacls={}, reject_duplicates=True):
         self.foreign_key = foreign_key
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
@@ -809,6 +1008,76 @@ SELECT _ermrest.model_version_bump();
 
     def __repr__(self):
         return '<ermrest.model.KeyReference %s>' % str(self)
+
+    def update(self, conn, cur, refdoc, ermrest_config):
+        """Idempotently update existing fkey state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input doc:
+
+        - 'names'
+        - 'comment'
+        - 'acls'
+        - 'acl_bindings'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing column in the model. To be clear, "absent" means the
+        field key is not present in the input document.
+
+        """
+        self.enforce_right('owner')
+        # allow sparse update documents as a (not so restful) convenience
+        newdoc = self.prejson()
+        refdoc = refdoc[0] if isinstance(refdoc, list) else refdoc
+        newdoc.update(refdoc)
+        newfkr = list(KeyReference.fromjson(
+            self.foreign_key.table.schema.model,
+            newdoc,
+            self.foreign_key,
+            self.foreign_key.table,
+            self.unique,
+            self.unique.table,
+            reject_duplicates=False
+        ))[0]
+        newfkr.rid = self.rid
+
+        # undo default ACLs generated in fromjson on acls: {} input...
+        newfkr.acls.clear()
+        if 'acls' in refdoc:
+            newfkr.acls.update(refdoc['acls'])
+        else:
+            newfkr.acls.update(self.acls)
+
+        if self.reference_map_frozen != newfkr.reference_map_frozen:
+            raise exception.BadData('Foreign key column mapping in URL and in JSON must match.')
+
+        if self.comment != newfkr.comment:
+            self.set_comment(conn, cur, newfkr.comment)
+
+        if self.annotations != newfkr.annotations:
+            self.set_annotations(conn, cur, newfkr.annotations)
+
+        if self.acls != newfkr.acls:
+            self.set_acls(cur, newfkr.acls, anon_mutation_ok=True)
+
+        if self.dynacls != newfkr.dynacls:
+            self.set_dynacls(cur, newfkr.dynacls)
+
+        # key rename cannot be combined with other actions above
+        if self.constraint_name[1] != newfkr.constraint_name[1]:
+            cur.execute("""
+SELECT _ermrest.model_version_bump();
+UPDATE _ermrest.known_pseudo_fkeys e
+SET constraint_name = %(name)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'name': sql_literal(newfkr.constraint_name[1]),
+}
+            )
+
+        return newfkr
 
     def add(self, conn, cur):
         self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs

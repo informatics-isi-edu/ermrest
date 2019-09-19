@@ -269,7 +269,22 @@ class Schema (Api):
             
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
-        
+
+    def PUT_body(self, conn, cur, schemadoc):
+        schemadoc['schema_name'] = schemadoc.get('schema_name', self.name.one_str())
+        try:
+            # handle alteration of existing schema
+            schema = web.ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
+            return schema.update(conn, cur, schemadoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new schema, same as POST /schema/
+            schemas = Schemas(self.catalog)
+            return schemas.POST_body(conn, cur, schemadoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
 
 class Tables (Api):
     """A table set."""
@@ -700,6 +715,23 @@ class Table (Api):
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, tabledoc):
+        tabledoc['table_name'] = tabledoc.get('table_name', self.name.one_str())
+        schema = self.schema.GET_body(conn, cur)
+        try:
+            # handle alteration of existing table
+            table = schema.tables.get_enumerable(self.name.one_str())
+            return table.update(conn, cur, tabledoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new table, same as POST /table/
+            tables = Tables(self.schema)
+            return tables.POST_body(conn, cur, tabledoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
         
 class Columns (Api):
     """A column set."""
@@ -766,6 +798,23 @@ class Column (Api):
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
+    def PUT_body(self, conn, cur, columndoc):
+        columndoc['name'] = columndoc.get('name', self.name.one_str())
+        table = self.table.GET_body(conn, cur)
+        try:
+            # handle alteration of existing column
+            column = table.columns.get_enumerable(self.name.one_str())
+            return column.update(conn, cur, columndoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new column, same as POST /column/
+            columns = Columns(self.table)
+            return columns.POST_body(conn, cur, columndoc)
+
+    def PUT(self, uri):
+        def post_commit(self, column):
+            return _post_commit_json(self, column)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+
 class Keys (Api):
     """A set of keys."""
     def __init__(self, table, catalog=None):
@@ -803,11 +852,14 @@ class Key (Api):
     def annotations(self):
         return KeyAnnotations(self)
         
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, conflict_model=False):
         table = self.table.GET_body(conn, cur)
         cols = frozenset([ table.columns.get_enumerable(c) for c in self.columns ])
         if cols not in table.uniques:
-            raise exception.rest.NotFound(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
+            if conflict_model:
+                raise exception.ConflictModel(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
+            else:
+                raise exception.rest.NotFound(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
         return table.uniques[cols]
         
     def GET(self, uri):
@@ -820,6 +872,21 @@ class Key (Api):
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, keydoc):
+        try:
+            # handle alteration of existing constraint
+            key = self.GET_body(conn, cur, conflict_model=True)
+            return key.update(conn, cur, keydoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new key, same as POST /key/
+            keys = Keys(self.table)
+            return keys.POST_body(conn, cur, keydoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
 
 class Foreignkeys (Api):
     """A set of foreign keys."""
@@ -1007,3 +1074,24 @@ class ForeignkeyReferences (Api):
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
+    def PUT_body(self, conn, cur, fkrdoc):
+        fkrs = self.GET_body(conn, cur)
+        if len(fkrs) == 1:
+            # handle alteration of existing constraint
+            fkr = fkrs[0]
+            return fkr.update(conn, cur, fkrdoc, web.ctx.ermrest_config)
+        elif len(fkrs) > 1:
+            raise NotImplementedError('PUT found more than one FKR for %s -> %s' % (self._from_key, self._to_key))
+        else:
+            # handle creation of new key, same as POST /key/
+            keys = Keys(self.table)
+            return keys.POST_body(conn, cur, fkrdoc)
+
+    def PUT(self, uri):
+        if self._from_key and self._to_key:
+            # only attempt PUT on full FKR URLs w/ from-key and to-key populated
+            def post_commit(self, fkr):
+                return _post_commit_json(self, fkr)
+            return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+        else:
+            raise exception.rest.NoMethod()
