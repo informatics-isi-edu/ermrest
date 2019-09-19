@@ -52,7 +52,8 @@ class Catalogs (object):
             raise rest.Forbidden(uri)
 
         # create the catalog instance
-        catalog = web.ctx.ermrest_catalog_factory.create()
+        catalog_id = web.ctx.ermrest_registry.claim_id()
+        catalog = web.ctx.ermrest_catalog_factory.create(catalog_id)
 
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
@@ -62,17 +63,16 @@ class Catalogs (object):
             pc.final()
 
         # register the catalog descriptor
-        entry = web.ctx.ermrest_registry.register(catalog.descriptor)
-        catalog_id = entry['id']
-        
+        entry = web.ctx.ermrest_registry.register(catalog.descriptor, catalog_id)
+
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
-        
+
         # set location header and status
         location = '/ermrest/catalog/%s' % catalog_id
         web.header('Location', location)
         web.ctx.status = '201 Created'
-        
+
         if content_type == _text_plain:
             return str(catalog_id)
         else:
