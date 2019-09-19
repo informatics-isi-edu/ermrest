@@ -959,6 +959,7 @@ class PseudoKeyReference (object):
         self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
         self.on_delete = None
         self.on_update = None
+        self.constraint_name = constraint_name
         # Link into foreign key's key reference list, by table ref
         if unique.table not in foreign_key.table_references:
             foreign_key.table_references[unique.table] = set()
@@ -967,7 +968,6 @@ class PseudoKeyReference (object):
             unique.table_references[foreign_key.table] = set()
         _guarded_add(unique.table_references[foreign_key.table], self)
         self.rid = rid
-        self.constraint_name = constraint_name
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, self.constraint_name)))
         self.annotations.update(annotations)
         self.acls = AclDict(self)
