@@ -285,7 +285,7 @@ def web_method():
                         elif e.pgcode[0:2] == '40':
                             raise rest.ServiceUnavailable('Transaction aborted.')
                         elif e.pgcode[0:2] == '54':
-                            raise rest.BadRequest('Program limit exceeded: %s.' % e.message.strip())
+                            raise rest.BadRequest(str(e))
                         elif e.pgcode[0:2] == 'XX':
                             raise rest.ServiceUnavailable('Internal error.')
                         elif e.pgcode == '57014':
