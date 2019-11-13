@@ -97,6 +97,7 @@ keywords = [
     'right',
     'schema',
     'sort',
+    'sum',
     'table',
     'textfacet',
     'ts'
