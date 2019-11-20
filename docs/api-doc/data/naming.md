@@ -80,6 +80,7 @@ The _out alias_ is the name given to the computed field. The _function_ is one o
 - `min`: the minimum non-NULL value (or NULL)
 - `max`: the maximum non-NULL value (or NULL)
 - `avg`: the average non-NULL value (or NULL)
+- `sum`: the sum of non-NULL values (or NULL)
 - `cnt_d`: the count of distinct non-NULL values
 - `cnt`: the count of non-NULL values
 - `array`: an array containing all values (including NULL)

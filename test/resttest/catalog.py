@@ -7,7 +7,7 @@ class CatalogBasic (common.ErmrestTest):
     def test_catalog_id(self):
         r = self.session.get('')
         self.assertHttp(r, 200, 'application/json')
-        self.assertEqual(r.json()['id'], unicode(common.cid))
+        self.assertEqual(str(r.json()['id']), str(common.cid))
 
     def test_catalog_acl(self):
         r = self.session.get('acl')

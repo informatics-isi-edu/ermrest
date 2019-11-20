@@ -65,6 +65,7 @@ keywords = [
     'array_d',
     'attribute',
     'attributegroup',
+    'avg',
     'before',
     'bin',
     'catalog',
@@ -95,6 +96,7 @@ keywords = [
     'right',
     'schema',
     'sort',
+    'sum',
     'table',
     'textfacet',
     'ts'

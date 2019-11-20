@@ -11,7 +11,7 @@ import ermrest.exception
 
 def catalog_auto_index(catalog, conn, cur, schema_names):
     cur.execute("SELECT count(*) = 0 FROM pg_catalog.pg_extension WHERE extname = 'pg_trgm';")
-    if cur.next()[0]:
+    if cur.fetchone()[0]:
         raise ValueError('Please run "CREATE EXTENSION pg_trgm" on database "%s" as Postgres superuser.' % catalog._dbname)
 
     model = catalog.get_model(cur, ermrest.ermrest_apis.global_env)
@@ -99,12 +99,12 @@ def main(argv):
     
     try:
         pc = ermrest.sanepg2.PooledConnection(catalog.dsn)
-        pc.perform(lambda conn, cur: catalog_auto_index(catalog, conn, cur, schema_names), verbose=False).next()
+        pc.perform(lambda conn, cur: catalog_auto_index(catalog, conn, cur, schema_names), verbose=False).fetchone()
         pc.final()
-    except ermrest.exception.ConflictModel, e:
+    except ermrest.exception.ConflictModel as e:
         sys.stderr.write(str(e) + "\n")
         return 4
-    except Exception, e:
+    except Exception as e:
         sys.stderr.write(str("%s: %s\n" % (type(e), e)))
         return 5
 

@@ -61,16 +61,14 @@ we can use a query similar to this:
 
     SELECT
       t."RID" AS "RID",
-      d."Cx" AS "RCT",
+      (t.rowdata->>'Cx')::timestamptz AS "RCT",
       lower(t.during) AS "RMT",
-      d."Cy" AS "RMT",
       t."RMB",
-      d."C1" AS "Column name 1",
-      d."C2" AS "Column name 2",
+      (t.rowdata->>'C1')::type1 AS "Column name 1",
+      (t.rowdata->>'C2')::type2 AS "Column name 2",
       ...
-      d."Ck" AS "Column name k"
-    FROM _ermrest_history.tT1 t,
-    LATERAL jsonb_to_record(t.rowdata) d("C1" type1, "C2" type2, ... "Ck" typek)
+      (t.rowdata->>'Ck')::typek AS "Column name k"
+    FROM _ermrest_history.tT1 t
     WHERE t.during @> V1::timestamptz;
 
 This approach allows us to handle three difference scenarios that can
@@ -78,45 +76,34 @@ occur during the history of the user data table:
 
 1. A new column added after the table acquires data can implicitly add
    columns with `NULL` value without generating new storage
-   tuples. The expansion of the JSON `rowdata` blob will fill in the
-   missing NULL values.
+   tuples. The missing keys will project as NULL as desired.
 2. An existing column deleted after the table acquires data can
    implicitly drop columns without generating new storage tuples. The
-   expansion of the JSON `rowdata` blob will ignore extra values.
+   projection list will only use the desired subset of columns.
 3. Renaming an existing column after the table acquires data can
    implicitly rename fields without generating new storage tuples. The
-   expansion of the JSON `rowdata` blob will map the persistent
-   column-level `RID` to the currently active column name.
+   projection assigns a current human-readable name to the stable,
+   RID-based blob storage.
 
 ### Special-case Handling of JSON
 
 The preceding example to query a user data history table is sufficient
 for basic column types like integers, text, and
-numbers. Unfortunately, the PostgreSQL JSON support has some
-asymmetries and requires special case handling of those columns. We
-can pack them into the `rowdata` JSON blobs using a generic method in
-our history-tracking trigger functions, but we must unpack them
-differently:
+numbers. For JSON-typed values, we use a different JSON operator
+`->` which preserves the stored JSON type rather than converting it to
+a text representation:
 
     SELECT
       t."RID" AS "RID",
-      d."Cx" AS "RCT",
+      (t.rowdata->>'Cx')::timestamptz AS "RCT",
       lower(t.during) AS "RMT",
-      d."Cy" AS "RMT",
       t."RMB",
-      d."C1" AS "Column name 1",
+      (t.rowdata->>'C1')::type1 AS "Column name 1",
       t.rowdata->"C2" AS "Column name 2", -- json or jsonb column extraction
       ...
-      d."Ck" AS "Column name k"
-    FROM _ermrest_history.tT1 t,
-    LATERAL jsonb_to_record(t.rowdata) d("C1" type1, "C3" type3, ... "Ck" typek)
+      (t.rowdata->>'Ck')::typek AS "Column name k"
+    FROM _ermrest_history.tT1 t
     WHERE t.during @> V1::timestamptz;
-
-This example differs only in the extraction of the `C2` field. The
-`jsonb_to_record()` procedure would fail to round-trip the JSON
-value. Instead, we explicitly project that value directly from the raw
-`rowdata` blob while using the procedure to structure the other
-non-JSON values.
 
 ## Accessing Model History within SQL
 

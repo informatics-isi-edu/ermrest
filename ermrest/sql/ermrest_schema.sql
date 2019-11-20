@@ -367,7 +367,7 @@ BEGIN
       WHERE s.schema_name = TG_TABLE_SCHEMA
         AND t.table_name = TG_TABLE_NAME
 	AND typ.type_name IN ('ermrest_uri', 'ermrest_curie')
-	AND c.column_name IN ('uri', 'id')
+	AND c.column_name IN ('URI', 'ID', 'uri', 'id')
 	AND s2.schema_name = 'public'
     LOOP
       -- we can only handle these two standard column names
@@ -376,6 +376,10 @@ BEGIN
          val := NEW.uri;
       ELSIF colrow.column_name = 'id' THEN
          val := NEW.id;
+      ELSIF colrow.column_name = 'URI' THEN
+         val := NEW."URI";
+      ELSIF colrow.column_name = 'ID' THEN
+         val := NEW."ID";
       END IF;
 
       -- check whether supplied value looks like a template containing '{RID}' and expand it
@@ -385,6 +389,11 @@ BEGIN
             NEW.uri := val;
          ELSIF colrow.column_name = 'id' THEN
             NEW.id := val;
+         ELSIF colrow.column_name = 'URI' THEN
+            NEW."URI" := val;
+         ELSIF colrow.column_name = 'ID' THEN
+            NEW."ID" := val;
+	    
          END IF;
       END IF;
     END LOOP;
@@ -445,8 +454,8 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
-    schema_name text UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
+    schema_name text UNIQUE DEFERRABLE NOT NULL,
     "comment" text,
     acls jsonb NOT NULL DEFAULT '{}',
     annotations jsonb NOT NULL DEFAULT '{}'
@@ -460,7 +469,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     type_name text NOT NULL,
     array_element_type_rid text REFERENCES _ermrest.known_types("RID"),
@@ -468,7 +477,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     domain_notnull boolean,
     domain_default text,
     "comment" text,
-    UNIQUE(schema_rid, type_name),
+    UNIQUE(schema_rid, type_name) DEFERRABLE,
     CHECK(array_element_type_rid IS NULL OR domain_element_type_rid IS NULL)
   );
   CREATE INDEX known_types_basetype_idx
@@ -482,14 +491,13 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     table_name text NOT NULL,
     table_kind text NOT NULL,
     "comment" text,
     acls jsonb NOT NULL DEFAULT '{}',
-    annotations jsonb NOT NULL DEFAULT '{}',
-    UNIQUE(schema_rid, table_name)
+    annotations jsonb NOT NULL DEFAULT '{}'
   );
 END IF;
 
@@ -604,14 +612,14 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
     table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     column_rids jsonb NOT NULL, -- store as RID->null hashmap
     "comment" text,
     annotations jsonb NOT NULL DEFAULT '{}',
-    UNIQUE(schema_rid, constraint_name)
+    UNIQUE(schema_rid, constraint_name) DEFERRABLE
   );
 END IF;
 
@@ -622,7 +630,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    constraint_name text UNIQUE,
+    constraint_name text UNIQUE DEFERRABLE,
     table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     column_rids jsonb NOT NULL, -- store as RID->null hashmap
     "comment" text,
@@ -647,7 +655,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    oid oid UNIQUE NOT NULL,
+    oid oid UNIQUE DEFERRABLE NOT NULL,
     schema_rid text NOT NULL REFERENCES _ermrest.known_schemas("RID") ON DELETE CASCADE,
     constraint_name text NOT NULL,
     fk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
@@ -658,7 +666,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "comment" text,
     acls jsonb NOT NULL DEFAULT '{}',
     annotations jsonb NOT NULL DEFAULT '{}',
-    UNIQUE(schema_rid, constraint_name)
+    UNIQUE(schema_rid, constraint_name) DEFERRABLE
   );
 END IF;
 
@@ -669,7 +677,7 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    constraint_name text NOT NULL UNIQUE,
+    constraint_name text NOT NULL UNIQUE DEFERRABLE,
     fk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     pk_table_rid text NOT NULL REFERENCES _ermrest.known_tables("RID") ON DELETE CASCADE,
     column_rid_map jsonb NOT NULL, -- store as fk->pk RID hashmap
@@ -1842,18 +1850,21 @@ CREATE OR REPLACE FUNCTION _ermrest.data_change_event(tab_rid text) RETURNS void
 DECLARE
   last_ts timestamptz;
 BEGIN
-  SELECT ts INTO last_ts FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
-  IF last_ts > now() THEN
+  INSERT INTO _ermrest.table_modified (table_rid, ts) VALUES ($1, now())
+  ON CONFLICT (ts, table_rid) DO NOTHING
+  RETURNING ts INTO last_ts;
+
+  IF last_ts IS NULL THEN
+    RETURN;
+  END IF;
+  
+  INSERT INTO _ermrest.table_last_modified AS t (table_rid, ts) VALUES ($1, now())
+  ON CONFLICT (table_rid) DO UPDATE SET ts = EXCLUDED.ts WHERE t.ts < EXCLUDED.ts
+  RETURNING ts INTO last_ts;
+    
+  IF last_ts IS NULL THEN
     -- paranoid integrity check in case we aren't using SERIALIZABLE isolation somehow...
     RAISE EXCEPTION serialization_failure USING MESSAGE = 'ERMrest table version clock reversal!';
-  ELSIF last_ts = now() THEN
-    RETURN;
-  ELSE
-    IF last_ts < now() THEN
-      DELETE FROM _ermrest.table_last_modified t WHERE t.table_rid = $1;
-    END IF;
-    INSERT INTO _ermrest.table_last_modified (table_rid, ts) VALUES ($1, now());
-    INSERT INTO _ermrest.table_modified (table_rid, ts) VALUES ($1, now());
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -2725,9 +2736,11 @@ IF ts IS NULL THEN
   WHERE s."RID" = '0';
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.acls, sr.annotations
-  FROM _ermrest_history.known_catalogs s,
-  LATERAL jsonb_to_record(s.rowdata) sr (acls jsonb, annotations jsonb)
+  SELECT
+    s."RID",
+    (s.rowdata->'acls') AS "acls",
+    (s.rowdata->'annotations') AS "annotations"
+  FROM _ermrest_history.known_catalogs s
   WHERE s.during @> COALESCE($1, now())
     AND s."RID" = '0';
 END IF;
@@ -2760,9 +2773,16 @@ IF ts IS NULL THEN
   FROM _ermrest.known_types s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.schema_rid, sr.type_name, sr.array_element_type_rid, sr.domain_element_type_rid, sr.domain_notnull, sr.domain_default, sr.comment
-  FROM _ermrest_history.known_types s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, type_name text, array_element_type_rid text, domain_element_type_rid text, domain_notnull boolean, domain_default text, comment text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text AS "schema_rid",
+    (s.rowdata->>'type_name')::text AS "type_name",
+    (s.rowdata->>'array_element_type_rid')::text AS "array_element_type_rid",
+    (s.rowdata->>'domain_element_type_rid')::text AS "domain_element_type_rid",
+    (s.rowdata->>'domain_notnull')::boolean AS "domain_notnull",
+    (s.rowdata->>'domain_default')::text AS "domain_default",
+    (s.rowdata->>'comment')::text AS "comment"
+  FROM _ermrest_history.known_types s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;
@@ -2777,9 +2797,18 @@ IF ts IS NULL THEN
   FROM _ermrest.known_columns s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.table_rid, sr.column_num, sr.column_name, sr.type_rid, sr.not_null, sr.column_default, sr.comment, sr.acls, sr.annotations
-  FROM _ermrest_history.known_columns s,
-  LATERAL jsonb_to_record(s.rowdata) sr (table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text, acls jsonb, annotations jsonb)
+  SELECT
+    s."RID",
+    (s.rowdata->>'table_rid')::text AS "table_rid",
+    (s.rowdata->>'column_num')::int AS "column_num",
+    (s.rowdata->>'column_name')::text AS "column_name",
+    (s.rowdata->>'type_rid')::text AS "type_rid",
+    (s.rowdata->>'not_null')::boolean AS "not_null",
+    (s.rowdata->>'column_default')::text AS "column_default",
+    (s.rowdata->>'comment')::text AS "comment",
+    (s.rowdata->'acls') AS "acls",
+    (s.rowdata->'annotations') AS "annotations"
+  FROM _ermrest_history.known_columns s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;
@@ -2794,9 +2823,10 @@ IF ts is NULL THEN
   FROM _ermrest.known_pseudo_notnulls s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.column_rid
-  FROM _ermrest_history.known_pseudo_notnulls s,
-  LATERAL jsonb_to_record(s.rowdata) sr (column_rid text)
+  SELECT
+    s."RID",
+    (s.rowdata->>'column_rid') AS "column_rid"
+  FROM _ermrest_history.known_pseudo_notnulls s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;
@@ -2811,9 +2841,15 @@ IF ts IS NULL THEN
   FROM _ermrest.known_tables s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.schema_rid, sr.table_name, sr.table_kind, sr.comment, sr.acls, sr.annotations
-  FROM _ermrest_history.known_tables s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, table_name text, table_kind text, comment text, acls jsonb, annotations jsonb)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text "schema_rid",
+    (s.rowdata->>'table_name')::text "table_name",
+    (s.rowdata->>'table_kind')::text "table_kind",
+    (s.rowdata->>'comment')::text "comment",
+    (s.rowdata->'acls') AS "acls",
+    (s.rowdata->'annotations') AS "annotations"
+  FROM _ermrest_history.known_tables s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;
@@ -2872,23 +2908,48 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_client') IS NULL THEN
-  CREATE TABLE public.ermrest_client (
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ermrest_client') THEN
+  ALTER TABLE public.ermrest_client RENAME TO "ERMrest_Client";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN id TO "ID";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN display_name TO "Display_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN full_name TO "Full_Name";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN email TO "Email";
+  ALTER TABLE public."ERMrest_Client" RENAME COLUMN client_obj TO "Client_Object";
+ELSIF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ERMrest_Client') IS NULL THEN
+  CREATE TABLE public."ERMrest_Client" (
     "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
     "RCT" ermrest_rct NOT NULL DEFAULT now(),
     "RMT" ermrest_rmt NOT NULL DEFAULT now(),
     "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
-    id text UNIQUE NOT NULL,
-    display_name text,
-    full_name text,
-    email text,
-    client_obj jsonb NOT NULL
+    "ID" text UNIQUE NOT NULL,
+    "Display_Name" text,
+    "Full_Name" text,
+    "Email" text,
+    "Client_Object" jsonb NOT NULL
   );
-  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ermrest_client');
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Client');
   UPDATE _ermrest.known_tables
   SET acls = '{"insert": [], "update": [], "delete": [], "select": [], "enumerate": []}'
-  WHERE "RID" = _ermrest.find_table_rid('public', 'ermrest_client');
+  WHERE "RID" = _ermrest.find_table_rid('public', 'ERMrest_Client');
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ERMrest_Group') IS NULL THEN
+  CREATE TABLE public."ERMrest_Group" (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
+    "ID" text UNIQUE NOT NULL,
+    "URL" text,
+    "Display_Name" text,
+    "Description" text
+  );
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_Group');
+  UPDATE _ermrest.known_tables
+  SET acls = '{"insert": [], "update": [], "delete": [], "select": [], "enumerate": []}'
+  WHERE "RID" = _ermrest.find_table_rid('public', 'ERMrest_Group');
 END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)
@@ -2900,9 +2961,15 @@ IF ts IS NULL THEN
   FROM _ermrest.known_keys s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.table_rid, sr.column_rids, sr.comment, sr.annotations
-  FROM _ermrest_history.known_keys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, table_rid text, column_rids jsonb, comment text, annotations jsonb)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text "schema_rid",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'table_rid')::text "table_rid",
+    (s.rowdata->'column_rids') "column_rids",
+    (s.rowdata->>'comment')::text "comment",
+    (s.rowdata->'annotations') "annotations"
+  FROM _ermrest_history.known_keys s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;
@@ -2917,9 +2984,14 @@ IF ts IS NULL THEN
   FROM _ermrest.known_pseudo_keys s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.constraint_name, sr.table_rid, sr.column_rids, sr.comment, sr.annotations
-  FROM _ermrest_history.known_pseudo_keys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, table_rid text, column_rids jsonb, comment text, annotations jsonb)
+  SELECT
+    s."RID",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'table_rid')::text "table_rid",
+    (s.rowdata->'column_rids') "column_rids",
+    (s.rowdata->>'comment')::text "comment",
+    (s.rowdata->'annotations') "annotations"
+  FROM _ermrest_history.known_pseudo_keys s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;
@@ -2969,9 +3041,19 @@ IF ts IS NULL THEN
   FROM _ermrest.known_fkeys s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.schema_rid, sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.column_rid_map, sr.delete_rule, sr.update_rule, sr.comment, sr.acls, sr.annotations
-  FROM _ermrest_history.known_fkeys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (schema_rid text, constraint_name text, fk_table_rid text, pk_table_rid text, column_rid_map jsonb, delete_rule text, update_rule text, comment text, acls jsonb, annotations jsonb)
+  SELECT
+    s."RID",
+    (s.rowdata->>'schema_rid')::text "schema_rid",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'fk_table_rid')::text "fk_table_rid",
+    (s.rowdata->>'pk_table_rid')::text "pk_table_rid",
+    (s.rowdata->'column_rid_map') "column_rid_map",
+    (s.rowdata->>'delete_rule')::text "delete_rule",
+    (s.rowdata->>'update_rule')::text "update_rule",
+    (s.rowdata->>'comment')::text "comment",
+    (s.rowdata->'acls') "acls",
+    (s.rowdata->'annotations') "annotations"
+  FROM _ermrest_history.known_fkeys s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;
@@ -2986,9 +3068,16 @@ IF ts IS NULL THEN
   FROM _ermrest.known_pseudo_fkeys s;
 ELSE
   RETURN QUERY
-  SELECT s."RID", sr.constraint_name, sr.fk_table_rid, sr.pk_table_rid, sr.column_rid_map, sr.comment, sr.acls, sr.annotations
-  FROM _ermrest_history.known_pseudo_fkeys s,
-  LATERAL jsonb_to_record(s.rowdata) sr (constraint_name text, fk_table_rid text, pk_table_rid text, column_rid_map jsonb, comment text, acls jsonb, annotations jsonb)
+  SELECT
+    s."RID",
+    (s.rowdata->>'constraint_name')::text "constraint_name",
+    (s.rowdata->>'fk_table_rid')::text "fk_table_rid",
+    (s.rowdata->>'pk_table_rid')::text "pk_table_rid",
+    (s.rowdata->'column_rid_map') "column_rid_map",
+    (s.rowdata->>'comment')::text "comment",
+    (s.rowdata->'acls') "acls",
+    (s.rowdata->'annotations') "annotations"
+  FROM _ermrest_history.known_pseudo_fkeys s
   WHERE s.during @> COALESCE($1, now());
 END IF;
 END;

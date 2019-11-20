@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -82,7 +83,7 @@ def introspect(cur, config=None, snapwhen=None, amendver=None):
 EXECUTE ermrest_introspect_catalogs(%s);
 """ % sql_literal(snapwhen)
     )
-    acls, annotations = cur.next()
+    acls, annotations = cur.fetchone()
     model = Model(snapwhen if snapwhen is not None else current_model_snaptime(cur), amendver, annotations, acls)
 
     #

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2018 University of Southern California
+# Copyright 2010-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ import urllib
 from ..exception import *
 from ..model import predicate, normalized_history_snaptime, current_history_amendver
 
-from lex import make_lexer, tokens, keywords
-import ast
+from .lex import make_lexer, tokens, keywords
+from . import ast
 
 url_parse_func = None
 
@@ -395,6 +395,8 @@ def p_attrcore(p):
 def p_aggfunc_name(p):
     """aggfunc_name : ARRAY
                     | ARRAY_D
+                    | AVG
+                    | SUM
                     | CNT
                     | CNT_D
                     | MIN
@@ -733,7 +735,7 @@ def queryopts_add(q, k, v=None):
        We follow a promotion from one case to the next as keys and
        values are added.
     """
-    if q.has_key(k):
+    if k in q:
         v0 = q[k]
         if v0 is None:
             q[k] = v

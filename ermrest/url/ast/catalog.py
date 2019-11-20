@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2017 University of Southern California
+# Copyright 2010-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,27 +52,27 @@ class Catalogs (object):
             raise rest.Forbidden(uri)
 
         # create the catalog instance
-        catalog = web.ctx.ermrest_catalog_factory.create()
+        catalog_id = web.ctx.ermrest_registry.claim_id()
+        catalog = web.ctx.ermrest_catalog_factory.create(catalog_id)
 
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client['id'])).next()
+            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client['id'])))
         finally:
             pc.final()
 
         # register the catalog descriptor
-        entry = web.ctx.ermrest_registry.register(catalog.descriptor)
-        catalog_id = entry['id']
-        
+        entry = web.ctx.ermrest_registry.register(catalog.descriptor, catalog_id)
+
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
-        
+
         # set location header and status
         location = '/ermrest/catalog/%s' % catalog_id
         web.header('Location', location)
         web.ctx.status = '201 Created'
-        
+
         if content_type == _text_plain:
             return str(catalog_id)
         else:
@@ -95,8 +95,8 @@ class Catalog (Api):
             web.ctx.ermrest_catalog_factory, 
             entries[0]['descriptor'],
             web.ctx.ermrest_config
-            )
-        
+        )
+
         assert web.ctx.ermrest_catalog_pc is None
         web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
 
@@ -150,16 +150,15 @@ class Catalog (Api):
         return resolver.EntityRidResolver(self, rid)
 
     def GET_body(self, conn, cur):
-        #_model = web.ctx.ermrest_catalog_model
-        _model = self.catalog.manager.get_model(
-            snapwhen=web.ctx.ermrest_history_snaptime,
-            amendver=web.ctx.ermrest_history_amendver,
-        )
+        _model = web.ctx.ermrest_catalog_model
         if web.ctx.ermrest_history_snaptime is not None:
             cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_snaptime))
             self.catalog_snaptime = cur.fetchone()[0]
+            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_amendver))
+            self.catalog_amendver = cur.fetchone()[0]
         else:
             self.catalog_snaptime = current_catalog_snaptime(cur, encode=True)
+            self.catalog_amendver = None
         return _model
 
     def GET(self, uri):
@@ -176,7 +175,10 @@ class Catalog (Api):
             resource = _model.prejson(brief=True, snaptime=self.catalog_snaptime)
             resource["id"] = self.catalog_id
             response = json.dumps(resource) + '\n'
-            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            if self.catalog_amendver:
+                self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )
+            else:
+                self.set_http_etag( self.catalog_snaptime )
             self.http_check_preconditions()
             self.emit_headers()
             web.header('Content-Type', content_type)

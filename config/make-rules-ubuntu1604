@@ -1,5 +1,5 @@
 
-# Recipes for Ubuntu 12.04
+# Recipes for Ubuntu 16.04
 
 $(VARLIBDIR):
 	mkdir -p $(VARLIBDIR)

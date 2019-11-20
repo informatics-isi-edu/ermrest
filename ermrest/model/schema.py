@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,14 +15,15 @@
 # limitations under the License.
 #
 
+import json
+import web
+
 from .. import exception
-from ..util import sql_identifier, sql_literal, view_exists, udecode
+from ..util import sql_identifier, sql_literal, view_exists
 from .misc import AltDict, Annotatable, HasAcls, enforce_63byte_id, current_request_snaptime
 from .table import Table, LiveTableLazy, HistTableLazy
 from .column import Column
-
-import json
-import web
+from .name import Name
 
 @Annotatable.annotatable
 @HasAcls.hasacls
@@ -104,6 +105,8 @@ class Model (HasAcls, Annotatable):
     def lookup_table(self, tname):
         """Lookup an unqualified table name if and only if it is unambiguous across schemas."""
         tables = set()
+        if isinstance(tname, Name):
+            tname = tname.one_str()
 
         for schema in self.schemas.values():
             if schema.has_right('enumerate'):
@@ -135,11 +138,12 @@ SELECT oid, schema_name, "comment"
  FROM _ermrest.introspect_schemas WHERE schema_name = %(schema_str)s
 RETURNING "RID";
 """ % dict(schema=sql_identifier(sname), schema_str=sql_literal(sname)))
-        srid = cur.next()[0]
+        srid = cur.fetchone()[0]
         newschema = Schema(self, sname, rid=srid)
         if not self.has_right('owner'):
-            newschema.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
-            newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
+            # client gets ownership by default
+            newschema.acls['owner'] = [web.ctx.webauthn2_context.get_client_id()]
+            newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.get_client_id()])
         return newschema
 
     def delete_schema(self, conn, cur, sname):
@@ -178,7 +182,7 @@ class Schema (HasAcls, Annotatable):
         self.name = name
         self.comment = comment
         self.tables = AltDict(
-            lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, unicode(self.name))),
+            lambda k: exception.ConflictModel(u"Table %s does not exist in schema %s." % (k, self.name)),
             lambda k, v: enforce_63byte_id(k, "Table"),
             lazy_get=self._lazy_get_table,
         )
@@ -197,6 +201,63 @@ class Schema (HasAcls, Annotatable):
     def _lazy_get_table(self, tname):
         raise KeyError(tname)
 
+    def update(self, conn, cur, schemadoc, ermrest_config):
+        """Idempotently update existing schema state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input schemadoc:
+
+        - 'schema_name'
+        - 'comment'
+        - 'acls'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing table in the model. To be clear, "absent" means the
+        field key is not present in the input document. Presence with
+        an empty value such as `"acls": {}` will mutate the model
+        aspect to reach that state.
+
+        """
+        self.enforce_right('owner')
+        newschema = Schema(
+            self.model,
+            schemadoc.get('schema_name', self.name),
+            schemadoc.get('comment', self.comment),
+            schemadoc.get('annotations', self.annotations),
+            schemadoc.get('acls', self.acls),
+            self.rid,
+        )
+
+        if self.comment != newschema.comment:
+            self.set_comment(conn, cur, newschema.comment)
+
+        if self.annotations != newschema.annotations:
+            self.set_annotations(conn, cur, newschema.annotations)
+
+        if self.acls != newschema.acls:
+            self.set_acls(cur, newschema.acls)
+
+        if self.name != newschema.name:
+            cur.execute(
+                """
+SELECT _ermrest.model_version_bump();
+ALTER SCHEMA %(sname1i)s RENAME TO %(sname2i)s;
+
+UPDATE _ermrest.known_schemas e
+SET schema_name = %(sname2)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'sname1i': sql_identifier(self.name),
+    'sname2i': sql_identifier(newschema.name),
+    'sname2': sql_literal(newschema.name),
+}
+            )
+
+        # leave newschema.tables empty for brief response to alteration request
+        return newschema
+
     @staticmethod
     def create_fromjson(conn, cur, model, schemadoc, ermrest_config):
         sname = schemadoc.get('schema_name')
@@ -206,11 +267,14 @@ class Schema (HasAcls, Annotatable):
         tables = schemadoc.get('tables', {})
         
         schema = model.create_schema(conn, cur, sname)
+        # merge client-specified ACLs on top of current state
+        schema.acls.update(acls)
+        acls = schema.acls.copy()
         
         schema.set_comment(conn, cur, comment)
         schema.set_annotations(conn, cur, annotations)
         schema.set_acls(cur, acls)
-            
+
         for k, tabledoc in tables.items():
             tname = tabledoc.get('table_name', k)
             if k != tname:
@@ -220,8 +284,8 @@ class Schema (HasAcls, Annotatable):
             
         return schema
         
-    def __unicode__(self):
-        return u"%s" % self.name
+    def __str__(self):
+        return self.name
 
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
@@ -265,7 +329,7 @@ SELECT _ermrest.model_version_bump();
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""
         if tname not in self.tables:
-            raise exception.ConflictModel(u'Requested table %s does not exist in schema %s.' % (udecode(tname), udecode(self.name)))
+            raise exception.ConflictModel(u'Requested table %s does not exist in schema %s.' % (tname, self.name))
         self.tables[tname].delete(conn, cur)
         del self.tables[tname]
 

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2018 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,15 +25,17 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
+import urllib
+import json
+import web
+from functools import reduce
+
 from .. import exception, ermpath
-from ..util import sql_identifier, sql_literal, udecode, table_exists
+from ..util import sql_identifier, sql_literal, table_exists
 from .misc import AltDict, Annotatable, HasAcls, HasDynacls, cache_rights, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn, HistColumnLazy, LiveColumnLazy
 from .key import Unique, ForeignKey, KeyReference
 
-import urllib
-import json
-import web
 
 @Annotatable.annotatable
 @HasDynacls.hasdynacls
@@ -69,13 +71,13 @@ class Table (HasDynacls, HasAcls, Annotatable):
         )
         self.uniques = AltDict(
             lambda k: exception.ConflictModel(u"Requested key %s does not exist in table %s." % (
-                ",".join([unicode(c.name) for c in k]), self.name)
+                ",".join([c.name for c in k]), self.name)
             )
         )
         self.fkeys = AltDict(
             lambda k: exception.ConflictModel(
                 u"Requested foreign-key %s does not exist in table %s." % (
-                    ",".join([unicode(c.name) for c in k]), self)
+                    ",".join([c.name for c in k]), self)
             )
         )
         self.annotations.update(annotations)
@@ -97,8 +99,8 @@ class Table (HasDynacls, HasAcls, Annotatable):
 
     def __str__(self):
         return ':%s:%s' % (
-            urllib.quote(unicode(self.schema.name).encode('utf8')),
-            urllib.quote(unicode(self.name).encode('utf8'))
+            urllib.parse.quote(self.schema.name),
+            urllib.parse.quote(self.name),
             )
 
     def __repr__(self):
@@ -155,10 +157,108 @@ class Table (HasDynacls, HasAcls, Annotatable):
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def update(self, conn, cur, tabledoc, ermrest_config):
+        """Idempotently update existing table state on part-by-part basis.
+
+        The parts to update can be made sparse by excluding any of the
+        mutable fields from the input tabledoc:
+
+        - 'schema_name'
+        - 'table_name'
+        - 'comment'
+        - 'acls'
+        - 'acl_bindings'
+        - 'annotations'
+
+        An absent field will retain its current state from the
+        existing table in the model. To be clear, "absent" means the
+        field key is not present in the input document. Presence with
+        an empty value such as `"acls": {}` will mutate the model
+        aspect to reach that state.
+
+        """
+        self.enforce_right('owner')
+        newtable = Table(
+            self.schema,
+            tabledoc.get('table_name', self.name),
+            [],
+            self.kind,
+            tabledoc.get('comment', self.comment),
+            tabledoc.get('annotations', self.annotations),
+            tabledoc.get('acls', self.acls),
+            tabledoc.get('acl_bindings', self.dynacls),
+            self.rid,
+        )
+
+        if self.comment != newtable.comment:
+            self.set_comment(conn, cur, newtable.comment)
+
+        if self.annotations != newtable.annotations:
+            self.set_annotations(conn, cur, newtable.annotations)
+
+        if self.acls != newtable.acls:
+            self.set_acls(cur, newtable.acls)
+
+        if self.dynacls != newtable.dynacls:
+            self.set_dynacls(cur, newtable.dynacls)
+
+        if self.name != newtable.name:
+            self.alter_table(
+                conn, cur,
+                'RENAME TO %s' % (sql_identifier(newtable.name),),
+                """
+UPDATE _ermrest.known_tables e
+SET table_name = %(tname)s
+WHERE e."RID" = %(rid)s;
+""" % {
+    'rid': sql_literal(self.rid),
+    'tname': sql_literal(newtable.name),
+}
+            )
+
+        if 'schema_name' in tabledoc and str(self.schema.name) != tabledoc['schema_name']:
+            newschema = self.schema.model.schemas.get_enumerable(tabledoc['schema_name'])
+            newtable.alter_table(
+                conn, cur,
+                'SET SCHEMA %s' % (sql_identifier(newschema.name),),
+                """
+UPDATE _ermrest.known_tables e
+SET schema_rid = %(srid)s
+WHERE e."RID" = %(trid)s;
+
+UPDATE _ermrest.known_keys e
+SET schema_rid = %(srid)s
+WHERE e.table_rid = %(trid)s;
+
+UPDATE _ermrest.known_fkeys e
+SET schema_rid = %(srid)s
+WHERE e.fk_table_rid = %(trid)s;
+""" % {
+    'trid': sql_literal(self.rid),
+    'srid': sql_literal(newschema.rid),
+}
+            )
+            # fixup in-memory model just enough to render JSON responses
+            self.schema = newschema
+            newtable.schema = newschema
+            for k in self.uniques.values():
+                k.constraint_name = (str(newschema.name), k.constraint_name[1])
+            for fk in self.fkeys.values():
+                for fkr in fk.references.values():
+                    fkr.constraint_name = (str(newschema.name), fkr.constraint_name[1])
+
+        newtable.uniques = self.uniques
+        newtable.fkeys = self.fkeys
+        for c in self.columns_in_order():
+            newtable.columns[c.name] = c
+            c.table = newtable
+
+        return newtable
+
     @staticmethod
     def create_fromjson(conn, cur, schema, tabledoc, ermrest_config):
-        sname = tabledoc.get('schema_name', unicode(schema.name))
-        if sname != unicode(schema.name):
+        sname = tabledoc.get('schema_name', schema.name)
+        if sname != schema.name:
             raise exception.ConflictModel('JSON schema name %s does not match URL schema name %s' % (sname, schema.name))
 
         if 'table_name' not in tabledoc:
@@ -181,9 +281,6 @@ class Table (HasDynacls, HasAcls, Annotatable):
         columns = Column.fromjson(tabledoc.get('column_definitions',[]), ermrest_config)
         comment = tabledoc.get('comment')
         table = Table(schema, tname, columns, 'r', comment, annotations)
-        if not schema.has_right('owner'):
-            table.acls['owner'] = [web.ctx.webauthn2_context.client] # so enforcement won't deny next step...
-            table.set_acl(cur, 'owner', [web.ctx.webauthn2_context.client])
 
         clauses = []
         for column in columns:
@@ -206,7 +303,14 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
     comment=sql_literal(comment),
 )
         )
-        table.rid = cur.next()[0]
+        table.rid = cur.fetchone()[0]
+
+        if not table.has_right('owner'):
+            # client gets ownership by default
+            table.acls['owner'] = [web.ctx.webauthn2_context.get_client_id()]
+            # merge client-specified ACLs on top
+            table.acls.update(acls)
+            acls = table.acls.copy()
 
         table.set_annotations(conn, cur, annotations)
         table.set_acls(cur, acls)
@@ -228,7 +332,8 @@ FROM _ermrest.known_columns
 WHERE table_rid = %s
 ORDER BY column_num;
 """ % sql_literal(table.rid))
-        for row, column in zip(cur, columns):
+        rows = list(cur)
+        for row, column in zip(rows, columns):
             assert row[2] == column.name
             column.rid, column.column_num = row[0:2]
             if column.comment is not None:
@@ -245,7 +350,7 @@ ORDER BY column_num;
             try:
                 execute_if(column.btree_index_sql())
                 execute_if(column.pg_trgm_index_sql())
-            except Exception, e:
+            except Exception as e:
                 web.debug(table, column, e)
                 raise
 
@@ -340,7 +445,7 @@ WHERE table_rid = %s AND column_name = %s
 RETURNING "RID", column_num;
 """ % (sql_literal(self.rid), sql_literal(column.name))
         )
-        column.rid, column.column_num = cur.next()
+        column.rid, column.column_num = cur.fetchone()
         column.set_comment(conn, cur, column.comment)
         self.columns[column.name] = column
         column.table = self
@@ -454,21 +559,15 @@ WHERE "RID" = %s;
         """
         if web.ctx.ermrest_history_snaptime is not None:
             if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
-                raise exception.ConflictModel(u'Historical data not available for table %s.' % unicode(self.name))
+                raise exception.ConflictModel(u'Historical data not available for table %s.' % self.name)
             tsql = """
 (SELECT %(projs)s
- FROM %(htable)s h,
- LATERAL jsonb_to_record(h.rowdata) r(%(jfields)s)
+ FROM %(htable)s h
  WHERE h.during @> %(when)s::timestamptz )
 """ % {
     'projs': ','.join([
         c.type.history_projection(c)
         for c in self.columns_in_order()
-    ]),
-    'jfields': ','.join([
-        c.type.history_unpack(c)
-        for c in self.columns_in_order()
-        if c.type.history_unpack(c)
     ]),
     'htable': "_ermrest_history.%s" % sql_identifier("t%s" % self.rid),
     'when': sql_literal(web.ctx.ermrest_history_snaptime),

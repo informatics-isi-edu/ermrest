@@ -85,7 +85,7 @@ class BasicKey (common.ErmrestTest):
     def test_download(self):
         r = self.session.get('entity/%s:%s?download=%s' % (_S, self.table, self.table))
         self.assertHttp(r, 200)
-        self.assertRegexpMatches(
+        self.assertRegex(
             r.headers.get('content-disposition'),
             "attachment; filename[*]=UTF-8''%s.*" % self.table
         )

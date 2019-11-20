@@ -27,11 +27,9 @@ def _merge(d1, d2):
     return d1
 
 def _diff(d1, d2):
-    d1 = d1.items()
-    d1.sort()
+    d1 = sorted(d1.items())
     d1 = tuple(d1)
-    d2 = d2.items()
-    d2.sort()
+    d2 = sorted(d2.items())
     d2 = tuple(d2)
     return d1 != d2
 
@@ -118,6 +116,12 @@ _did_owner_nonnull = {
     "projection": ["d_id"],
     "projection_type": "nonnull",
     "scope_acl": ["*"],
+}
+
+_category_id2_owner_nonnull = {
+    "types": ["owner"],
+    "projection": [{"outbound": [_S, "fkey Category.id2"]}, "id"],
+    "projection_type": "nonnull"
 }
 
 class Expectation (object):
@@ -684,7 +688,7 @@ class RowMemberOwner (StaticUnhidden):
     bindings = {
         "Data": { "member": _member_owner_acl },
         "Extension": { "member": _member_owner_acl },
-        "Category": { "member": _member_owner_acl },
+        "Category": { "member": _member_owner_acl, "member2": _category_id2_owner_nonnull },
         "Data_Category": { "member": _assoccid_member_owner_acl }
     }
 
@@ -1007,6 +1011,31 @@ class ImplicitHiddenFkr (ImplicitEnumeration):
         table = self._get_table_doc('Data')
         self.assertEqual(len(table['foreign_keys']), 0)
 
+class ImplicitHiddenPk (ImplicitEnumeration):
+
+    col_acls = dict(ImplicitEnumeration.col_acls)
+    col_acls.update({
+        "Data": {
+            "id": {
+                "enumerate": [],
+                "select": [],
+                "update": [],
+            },
+            "c_id": {
+                "select": [],
+                "update": [],
+            }
+        }
+    })
+
+    def test_id_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertNotIn('id', [ col['name'] for col in table['column_definitions'] ])
+
+    def test_key_visible(self):
+        table = self._get_table_doc('Data')
+        self.assertEqual(len(table['keys']), 1)
+
 class UnscopedBindings (ImplicitEnumeration):
 
     col_bindings = {
@@ -1033,11 +1062,11 @@ class UnscopedBindings (ImplicitEnumeration):
 _data = [
     (
         'entity/%s:Category' % _S,
-        """id,name,ACL,member
-1,public,"{""*""}",*
-2,restricted group,"{""%(secondary)s"",""%(primary)s""}",%(primary)s
-3,restricted member,"{""%(primary)s""}",%(secondary)s
-4,private,"{""%(primary)s""}",%(primary)s
+        """id,name,ACL,member,id2
+1,public,"{""*""}",*,
+2,restricted group,"{""%(secondary)s"",""%(primary)s""}",%(primary)s,
+3,restricted member,"{""%(primary)s""}",%(secondary)s,
+4,private,"{""%(primary)s""}",%(primary)s,
 """ % dict(primary=common.primary_client_id, secondary=common.secondary_client_id)
     ),
     (
@@ -1182,8 +1211,12 @@ _defs = ModelDoc(
                         ColumnDoc("name", Text),
                         ColumnDoc("ACL", TextArray),
                         ColumnDoc("member", Text),
+                        ColumnDoc("id2", Int4, nullok=True),
                     ],
-                    [ RidKey, KeyDoc(["id"]) ]
+                    [ RidKey, KeyDoc(["id"]) ],
+                    [
+                        FkeyDoc(_S, "Category", ["id2"], _S, "Category", ["id"], names=[[_S, "fkey Category.id2"]]),
+                    ],
                 ),
                 TableDoc(
                     "Data_Category",

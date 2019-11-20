@@ -17,8 +17,7 @@ stable database release for better performance.
 ERMrest depends on the following prerequisites:
 
 - Currently supported Fedora
-   - Or CentOS 7 and EPEL 7
-- PostgreSQL 9.6 or above (10 recommended)
+- PostgreSQL 10 or above
 - WebAuthn
 
 This guide assumes only that you have installed the [Fedora Linux distribution](https://getfedora.org).
@@ -110,14 +109,13 @@ system_u:system_r:unconfined_service_t:s0 22195 ? 00:00:00 postmaster
 ### Other Prerequisites
 
 ```
-# dnf install httpd mod_{ssl,wsgi} python{,-psycopg2,-dateutil,-setuptools,-ply} pytz
-# dnf install python-webpy
+# dnf install httpd mod_{ssl,wsgi} python3{,-psycopg2,-setuptools,-ply}
 ```
 
-If `python-webpy` does not exist in the package repo, install it with `pip`.
+Install a recent web.py development version from GitHub for Python 3 support, e.g.:
 
 ```
-# pip install web.py
+# pip3 install git+https://github.com/webpy/webpy.git
 ```
 
 ### WebAuthn
@@ -146,7 +144,7 @@ $ git clone https://github.com/informatics-isi-edu/webauthn.git webauthn
    to review the Makefile and install packages manually instead.
 
    This will install the WebAuthn Python module under
-   `/usr/lib/python2*/site-packages/webauthn2/`. It will also create a
+   `/usr/local/lib/python3*/site-packages/webauthn2/`. It will also create a
    daemon account `webauthn` and place a default security config under
    `~webauthn/webauthn2_config.json`. A new web service will be
    enabled under `/etc/httpd/conf.d/wsgi_webauthn2.conf`.
@@ -170,10 +168,10 @@ $ git clone https://github.com/informatics-isi-edu/ermrest.git ermrest
 
    The install script:
    - installs the ERMrest Python module under
-     `/usr/lib/python2*/site-packages`
-   - installs command-line interface (CLI) tools under `/usr/bin`.
+     `/usr/lib/python3*/site-packages`
+   - installs command-line interface (CLI) tools under `/usr/local/bin`.
 
-   Note, the Makefile install target just invokes `python ./setup.py install`
+   Note, the Makefile install target just invokes `python3 ./setup.py install`
 
 3. From the same directory, run the deployment script.
 
@@ -211,7 +209,7 @@ commands.
 ```
 
 The `install` target updates files under
-`/usr/lib/python2*/site-packages/ermrest`.  The `deploy` target runs
+`/usr/local/lib/python3*/site-packages/ermrest`.  The `deploy` target runs
 idempotent deploy processes which MAY upgrade the database schema in
 existing catalogs. For small changes to service code, the `deploy`
 target is unnecessary; however, it is safe to always run to be sure

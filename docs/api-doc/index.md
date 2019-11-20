@@ -32,7 +32,7 @@ The ERMrest web service model exposes resources to support management of dataset
 1. Service: the entire multi-tenant service end-point
 1. [Catalog](model/naming.md#catalog-names): a particular dataset (in one service)
 1. [Schema or model resources](model/naming.md)
-   1. [Schemata](model/naming.md#schema-names): entire data model of a dataset (in one catalog)
+   1. [Schemata](model/naming.md#model-names): entire data model of a dataset (in one catalog)
    1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
       1. [Table definition](model/naming.md#table-names): a particular named set of data tuples (in one schema)
          1. [Column definition](model/naming.md#column-names): a particular named field of data tuples (in one table)
@@ -192,9 +192,7 @@ The [data resources](data/naming.md) make use of a model-driven language for den
 1. [Nondefaults Query Parameter](data/naming.md#nondefaults-query-parameter)
 1. [Limit Query Parameter](data/naming.md#limit-query-parameter)
 
-The sort, paging, and limit syntax together can support [paged data access](data/naming.md#data-paging):
-   1. [Simple Paging by Entity Key](data/naming.md#simple-paging-by-entity-key)
-   1. [Paging with Application Sort Order](data/naming.md#paging-with-application-sort-order)
+The sort, paging, and limit syntax together can support [paged data access](data/naming.md#data-paging).
 
 ### RESTful Operations Overview
 
@@ -209,22 +207,27 @@ The ERMrest interface supports typical HTTP operations to manage these different
    1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)
    1. [Schema Creation](model/rest.md#schema-creation)
    1. [Schema Retrieval](model/rest.md#schema-retrieval)
+   1. [Schema Alteration](model/rest.md#schema-alteration)
    1. [Schema Deletion](model/rest.md#schema-deletion)
       1. [Table List Retrieval](model/rest.md#table-list-retrieval)
       1. [Table Creation](model/rest.md#table-creation)
       1. [Table Retrieval](model/rest.md#table-retrieval)
+      1. [Table Alteration](model/rest.md#table-alteration)
       1. [Table Deletion](model/rest.md#table-deletion)
          1. [Column List Retrieval](model/rest.md#column-list-retrieval)
          1. [Column Creation](model/rest.md#column-creation)
          1. [Column Retrieval](model/rest.md#column-retrieval)
+         1. [Column Alteration](model/rest.md#column-alteration)
          1. [Column Deletion](model/rest.md#column-deletion)
          1. [Key List Retrieval](model/rest.md#key-list-retrieval)
          1. [Key Creation](model/rest.md#key-creation)
          1. [Key Retrieval](model/rest.md#key-retrieval)
+         1. [Key Alteration](model/rest.md#key-alteration)
          1. [Key Deletion](model/rest.md#key-deletion)
          1. [Foreign Key List Retrieval](model/rest.md#foreign-key-list-retrieval)
          1. [Foreign Key Creation](model/rest.md#foreign-key-creation)
          1. [Foreign Key Retrieval](model/rest.md#foreign-key-retrieval)
+         1. [Foreign Key Alteration](model/rest.md#foreign-key-alteration)
          1. [Foreign Key Deletion](model/rest.md#foreign-key-deletion)
    1. [Annotations](model/rest.md#annotations)
       1. [Annotation List Retrieval](model/rest.md#annotation-list-retrieval)

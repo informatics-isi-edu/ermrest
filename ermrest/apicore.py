@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2018 University of Southern California
+# Copyright 2012-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,9 +27,8 @@ import logging
 from logging.handlers import SysLogHandler
 import web
 import datetime
-import pytz
+from datetime import timezone
 import struct
-import urllib
 import json
 import sys
 import re
@@ -98,6 +97,8 @@ try:
         def __init__(self, config):
             self._config = config
             self._lock = threading.Lock()
+            if self._config.get('host') is None:
+                self._config['host'] = 'localhost'
             self._connection_config = pika.ConnectionParameters(**config['connection'])
             self._exchange_name = config['exchange']
             self._routing_key = config['routing_key']
@@ -108,7 +109,7 @@ try:
         def _pika_init(self):
             connection = pika.BlockingConnection(self._connection_config)
             channel = connection.channel()
-            channel.exchange_declare(exchange=self._exchange_name, type="fanout")
+            channel.exchange_declare(exchange=self._exchange_name, exchange_type="fanout")
             self._connection = connection
             self._channel = channel
 
@@ -126,7 +127,7 @@ try:
                     if self._connection is None:
                         self._pika_init()
                     self._pika_publish()
-                except pika.exceptions.AMQPError, e:
+                except pika.exceptions.AMQPError as e:
                     # retry once more on errors?
                     try:
                         self._connection.close()
@@ -166,7 +167,7 @@ def request_trace(tracedata):
 def request_init():
     """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
     web.ctx.ermrest_request_guid = random_name()
-    web.ctx.ermrest_start_time = datetime.datetime.now(pytz.timezone('UTC'))
+    web.ctx.ermrest_start_time = datetime.datetime.now(timezone.utc)
     web.ctx.ermrest_request_content_range = None
     web.ctx.ermrest_content_type = None
     web.ctx.webauthn2_manager = webauthn2_manager
@@ -227,9 +228,9 @@ def request_final():
 
     extra = {}
     if web.ctx.ermrest_history_snaptime:
-        extra['snaptime'] = unicode(web.ctx.ermrest_history_snaptime)
+        extra['snaptime'] = str(web.ctx.ermrest_history_snaptime)
     if web.ctx.ermrest_history_snaprange:
-        extra['snaprange'] = [ unicode(ts) if ts else None for ts in web.ctx.ermrest_history_snaprange ]
+        extra['snaprange'] = [ str(ts) if ts else None for ts in web.ctx.ermrest_history_snaprange ]
 
     logger.info( request_final_json(log_parts(), extra) )
 
@@ -246,7 +247,7 @@ def web_method():
 
     """
     def pg_message_shorten(e):
-        mesg = e.message.decode('utf8').strip()
+        mesg = e.pgerror.strip()
         m = re.match('^.*\nDETAIL: (?P<detail>[^\n]+)\nHINT: (?P<hint>[^\n]+).*', mesg)
         if m:
             g = m.groupdict()
@@ -264,16 +265,16 @@ def web_method():
                 try:
                     try:
                         result = original_method(*args)
-                        if hasattr(result, 'next'):
+                        if hasattr(result, '__next__'):
                             # force any transaction deferred in iterator
                             for res in result:
                                 yield res
                         else:
                             yield result
-                    except psycopg2.ProgrammingError, e:
+                    except psycopg2.ProgrammingError as e:
                         if e.pgcode == '42501':
                             # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
-                            raise rest.Forbidden(e.pgerror.decode('utf8').replace('ERROR:  ','').replace('\n','') + ' and is')
+                            raise rest.Forbidden(e.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
                         elif e.pgcode == '42601':
                             # SQL syntax error means we have buggy code!
                             web.debug(e.pgcode, e.pgerror)
@@ -281,21 +282,21 @@ def web_method():
                         else:
                             # re-raise and let outer handlers below do something more generic
                             raise
-                except (rest.WebException, web.HTTPError), e:
+                except (rest.WebException, web.HTTPError) as e:
                     # exceptions signal normal REST response scenarios
                     raise e
-                except (ConflictModel, ConflictData), e:
+                except (ConflictModel, ConflictData) as e:
                     raise rest.Conflict(e.message)
-                except Forbidden, e:
+                except Forbidden as e:
                     raise rest.Forbidden(e.message)
-                except NotFound, e:
+                except NotFound as e:
                     raise rest.NotFound(e.message)
-                except BadData, e:
+                except BadData as e:
                     raise rest.BadRequest(e.message)
-                except UnsupportedMediaType, e:
+                except UnsupportedMediaType as e:
                     raise rest.UnsupportedMediaType(e.message)
-                except psycopg2.Error, e:
-                    request_trace(u"Postgres error: %s (%s)" % ((e.pgerror if e.pgerror is not None else 'None').decode('utf8'), e.pgcode))
+                except psycopg2.Error as e:
+                    request_trace(u"Postgres error: %s (%s)" % ((e.pgerror if e.pgerror is not None else 'None'), e.pgcode))
                     if e.pgcode is not None:
                         if e.pgcode[0:2] == '08':
                             raise rest.ServiceUnavailable('Database connection error.')
@@ -304,7 +305,7 @@ def web_method():
                         elif e.pgcode[0:2] == '40':
                             raise rest.ServiceUnavailable('Transaction aborted.')
                         elif e.pgcode[0:2] == '54':
-                            raise rest.BadRequest('Program limit exceeded: %s.' % e.message.decode('utf8').strip())
+                            raise rest.BadRequest(str(e))
                         elif e.pgcode[0:2] == '22':
                             raise rest.BadRequest('Bad data: %s' % pg_message_shorten(e))
                         elif e.pgcode[0:2] == '23':
@@ -313,17 +314,19 @@ def web_method():
                             raise rest.ServiceUnavailable('Internal error.')
                         elif e.pgcode == '57014':
                             raise rest.BadRequest('Query run time limit exceeded.')
+                        elif e.pgcode[0:2] == '23':
+                            raise rest.Conflict(str(e))
 
                     # TODO: simplify postgres error text?
                     web.debug(e, e.pgcode, e.pgerror)
                     et, ev, tb = sys.exc_info()
-                    web.debug('got exception "%s"' % str(ev), traceback.format_exception(et, ev, tb))
+                    web.debug('got psycopg2 exception "%s"' % str(ev))
                     raise rest.Conflict( str(e) )
-                except (psycopg2.pool.PoolError, psycopg2.OperationalError), e:
+                except (psycopg2.pool.PoolError, psycopg2.OperationalError) as e:
                     raise rest.ServiceUnavailable(e.message)
-                except Exception, e:
+                except Exception as e:
                     et, ev, tb = sys.exc_info()
-                    web.debug('got exception "%s"' % str(ev), traceback.format_exception(et, ev, tb))
+                    web.debug('got unrecognized %s exception "%s"' % (type(ev), str(ev)), traceback.format_exception(et, ev, tb))
                     raise
             finally:
                 request_final()

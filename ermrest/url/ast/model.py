@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ def _MODIFY(handler, thunk, _post_commit):
 
 def _MODIFY_with_json_input(handler, thunk, _post_commit):
     try:
-        doc = json.load(web.ctx.env['wsgi.input'])
+        doc = json.loads(web.ctx.env['wsgi.input'].read().decode())
     except:
         raise exception.rest.BadRequest('Could not deserialize JSON input.')
     return _MODIFY(handler, lambda conn, cur: thunk(conn, cur, doc), _post_commit)
@@ -147,7 +147,7 @@ class Schemas (Api):
             try:
                 sname = tdoc['schema_name']
                 tname = tdoc['table_name']
-            except KeyError, e:
+            except KeyError as e:
                 raise exception.BadData('Each table document must have a %s field.' % e)
             extract_fkeys(sname, tname, tdoc)
             extract_table_dynacls(sname, tname, tdoc)
@@ -274,8 +274,8 @@ class Schema (Api):
 
     def GET_body(self, conn, cur, final=False):
         try:
-            return web.ctx.ermrest_catalog_model.schemas.get_enumerable(unicode(self.name))
-        except exception.ConflictModel, e:
+            return web.ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
+        except exception.ConflictModel as e:
             if final:
                 raise exception.NotFound(u'schema %s' % self.name)
             raise
@@ -284,7 +284,7 @@ class Schema (Api):
         return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
 
     def POST_body(self, conn, cur):
-        return web.ctx.ermrest_catalog_model.create_schema(conn, cur, unicode(self.name))
+        return web.ctx.ermrest_catalog_model.create_schema(conn, cur, self.name.one_str())
 
     def POST(self, uri):
         def post_commit(self, ignored):
@@ -294,12 +294,27 @@ class Schema (Api):
 
     def DELETE_body(self, conn, cur):
         schema = self.GET_body(conn, cur, True)
-        web.ctx.ermrest_catalog_model.delete_schema(conn, cur, unicode(schema.name))
+        web.ctx.ermrest_catalog_model.delete_schema(conn, cur, schema.name)
         return ''
             
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
-        
+
+    def PUT_body(self, conn, cur, schemadoc):
+        schemadoc['schema_name'] = schemadoc.get('schema_name', self.name.one_str())
+        try:
+            # handle alteration of existing schema
+            schema = web.ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
+            return schema.update(conn, cur, schemadoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new schema, same as POST /schema/
+            schemas = Schemas(self.catalog)
+            return schemas.POST_body(conn, cur, schemadoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
 
 class Tables (Api):
     """A table set."""
@@ -424,7 +439,7 @@ class Acl (AclCommon):
         if type(element) is not list:
             raise exception.BadData('ACL representation must be an array.')
         for member in element:
-            if type(member) not in [str, unicode]:
+            if not isinstance(member, str):
                 raise exception.BadData('ACL member representation must be a string literal.')
         return element
 
@@ -525,7 +540,7 @@ class Comment (Api):
         subject = self.GET_subject(conn, cur)
         if subject.comment is None:
             raise exception.rest.NotFound('comment on "%s"' % subject)
-        return unicode(subject.comment) + '\n'
+        return subject.comment + '\n'
 
     def GET(self, uri):
         return _GET(self, self.GET_body, lambda self, response: _post_commit(self, response, 'text/plain'))
@@ -536,7 +551,7 @@ class Comment (Api):
 
     def PUT(self, uri):
         def body(conn, cur):
-            self.SET_body(conn, cur, self.GET_subject(conn, cur), web.ctx.env['wsgi.input'].read())
+            self.SET_body(conn, cur, self.GET_subject(conn, cur), web.ctx.env['wsgi.input'].read().decode())
             return ''
         return _MODIFY(self, body, _post_commit)
     
@@ -711,10 +726,10 @@ class Table (Api):
             schema = self.schema.GET_body(conn, cur)
         try:
             if self.schema is not None:
-                return schema.tables.get_enumerable(unicode(self.name))
+                return schema.tables.get_enumerable(self.name)
             else:
-                return web.ctx.ermrest_catalog_model.lookup_table(unicode(self.name))
-        except exception.ConflictModel, e:
+                return web.ctx.ermrest_catalog_model.lookup_table(self.name)
+        except exception.ConflictModel as e:
             if final:
                 raise exception.NotFound(u"table %s in schema %s" % (self.name, schema.name))
             raise
@@ -725,11 +740,28 @@ class Table (Api):
 
     def DELETE_body(self, conn, cur):
         table = self.GET_body(conn, cur, True)
-        table.schema.delete_table(conn, cur, str(self.name))
+        table.schema.delete_table(conn, cur, self.name.one_str())
         return ''
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, tabledoc):
+        tabledoc['table_name'] = tabledoc.get('table_name', self.name.one_str())
+        schema = self.schema.GET_body(conn, cur)
+        try:
+            # handle alteration of existing table
+            table = schema.tables.get_enumerable(self.name.one_str())
+            return table.update(conn, cur, tabledoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new table, same as POST /table/
+            tables = Tables(self.schema)
+            return tables.POST_body(conn, cur, tabledoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
         
 class Columns (Api):
     """A column set."""
@@ -781,8 +813,8 @@ class Column (Api):
     def GET_body(self, conn, cur, final=False):
         table = self.table.GET_body(conn, cur)
         try:
-            return table.columns.get_enumerable(unicode(self.name))
-        except exception.ConflictModel, e:
+            return table.columns.get_enumerable(self.name)
+        except exception.ConflictModel as e:
             raise exception.NotFound(u"column %s in table %s" % (self.name, table.name))
     
     def GET(self, uri):
@@ -795,6 +827,23 @@ class Column (Api):
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, columndoc):
+        columndoc['name'] = columndoc.get('name', self.name.one_str())
+        table = self.table.GET_body(conn, cur)
+        try:
+            # handle alteration of existing column
+            column = table.columns.get_enumerable(self.name.one_str())
+            return column.update(conn, cur, columndoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new column, same as POST /column/
+            columns = Columns(self.table)
+            return columns.POST_body(conn, cur, columndoc)
+
+    def PUT(self, uri):
+        def post_commit(self, column):
+            return _post_commit_json(self, column)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
 
 class Keys (Api):
     """A set of keys."""
@@ -833,11 +882,14 @@ class Key (Api):
     def annotations(self):
         return KeyAnnotations(self)
         
-    def GET_body(self, conn, cur):
+    def GET_body(self, conn, cur, conflict_model=False):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns.get_enumerable(unicode(c)) for c in self.columns ])
+        cols = frozenset([ table.columns.get_enumerable(c) for c in self.columns ])
         if cols not in table.uniques:
-            raise exception.rest.NotFound(u'key (%s)' % (u','.join([ unicode(c) for c in cols])))
+            if conflict_model:
+                raise exception.ConflictModel(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
+            else:
+                raise exception.rest.NotFound(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
         return table.uniques[cols]
         
     def GET(self, uri):
@@ -850,6 +902,21 @@ class Key (Api):
 
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, keydoc):
+        try:
+            # handle alteration of existing constraint
+            key = self.GET_body(conn, cur, conflict_model=True)
+            return key.update(conn, cur, keydoc, web.ctx.ermrest_config)
+        except exception.ConflictModel as e:
+            # handle creation of new key, same as POST /key/
+            keys = Keys(self.table)
+            return keys.POST_body(conn, cur, keydoc)
+
+    def PUT(self, uri):
+        def post_commit(self, table):
+            return _post_commit_json(self, table)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
 
 class Foreignkeys (Api):
     """A set of foreign keys."""
@@ -891,9 +958,9 @@ class Foreignkey (Api):
         cols = frozenset([ table.columns.get_enumerable(str(c)) for c in self.columns ])
         try:
             return table.fkeys.get_enumerable(cols)
-        except exception.ConflictModel, e:
+        except exception.ConflictModel as e:
             if final:
-                raise exception.NotFound(u'foreign key %s in table %s' % (u",".join([ c.name for c in cols]), table.name))
+                raise exception.NotFound(u'foreign key %s in table %s' % (u",".join([ str(c) for c in cols]), table.name))
             raise
     
     def GET(self, uri):
@@ -1037,3 +1104,24 @@ class ForeignkeyReferences (Api):
     def DELETE(self, uri):
         return _MODIFY(self, self.DELETE_body, _post_commit)
 
+    def PUT_body(self, conn, cur, fkrdoc):
+        fkrs = self.GET_body(conn, cur)
+        if len(fkrs) == 1:
+            # handle alteration of existing constraint
+            fkr = fkrs[0]
+            return fkr.update(conn, cur, fkrdoc, web.ctx.ermrest_config)
+        elif len(fkrs) > 1:
+            raise NotImplementedError('PUT found more than one FKR for %s -> %s' % (self._from_key, self._to_key))
+        else:
+            # handle creation of new key, same as POST /key/
+            keys = Keys(self.table)
+            return keys.POST_body(conn, cur, fkrdoc)
+
+    def PUT(self, uri):
+        if self._from_key and self._to_key:
+            # only attempt PUT on full FKR URLs w/ from-key and to-key populated
+            def post_commit(self, fkr):
+                return _post_commit_json(self, fkr)
+            return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+        else:
+            raise exception.rest.NoMethod()

@@ -1,5 +1,6 @@
+
 #
-# Copyright 2012-2018 University of Southern California
+# Copyright 2012-2019 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,7 +98,16 @@ class Registry(object):
         """
         raise NotImplementedError()
 
-    def register(self, descriptor, id=None):
+    def claim_id(self, id=None):
+        """Pre-claim a catalog identifier.
+
+           This does not create the catalog.
+
+           'id' : the id of the catalog to claim.
+        """
+        raise NotImplementedError()
+
+    def register(self, descriptor, id):
         """Register a catalog description.
 
            This does not create the catalog.
@@ -132,7 +142,7 @@ class SimpleRegistry(Registry):
     def pooled_perform(self, body, post_commit=lambda x: x):
         pc = sanepg2.PooledConnection(self.dsn)
         try:
-            return pc.perform(body, post_commit).next()
+            return next(pc.perform(body, post_commit))
         finally:
             if pc is not None:
                 pc.final()
@@ -153,19 +163,29 @@ EXECUTE ermrest_catalog_lookup(%s);
 
         return self.pooled_perform(body)
 
-    def register(self, descriptor, id=None):
+    def claim_id(self):
+        """Return a distinct catalog identifier."""
+        def body(conn, cur):
+            cur.execute("""
+SELECT nextval('simple_registry_id_seq');
+""")
+            return str(cur.fetchone()[0])
+
+        return self.pooled_perform(body, lambda x: x)
+
+    def register(self, descriptor, id):
         """See Registry.register()"""
         assert isinstance(descriptor, dict)
-        entry = dict(descriptor=json.dumps(descriptor))
 
         def body(conn, cur):
             cur.execute("""
-INSERT INTO ermrest.simple_registry (%(cols)s)
-VALUES (%(values)s)
+INSERT INTO ermrest.simple_registry (id, descriptor)
+VALUES (%(id)s::bigint, %(descriptor)s)
 RETURNING id;
-""" % dict(cols=','.join([sql_identifier(c) for c in entry.keys()]),
-           values=','.join([sql_literal(v) for v in entry.values()])))
-
+""" % {
+    'id': sql_literal(id),
+    'descriptor': sql_literal(json.dumps(descriptor)),
+})
             return cur.fetchone()[0]
 
         def post_commit(id):

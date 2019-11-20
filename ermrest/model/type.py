@@ -1,5 +1,6 @@
+
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2019 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -159,7 +160,7 @@ def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
         if typestr in policy:
             return rewrite_type(typestr)
 
-        for preftype, alternatives in policy.iteritems():
+        for preftype, alternatives in policy.items():
             if alternatives is not None:
                 if typestr in alternatives.get('aliases', []):
                     # direct use of term alias
@@ -170,14 +171,14 @@ def canonicalize_column_type(typestr, defaultval, config=None, readonly=False):
 
     try:
         preftype = match_type(typestr, defaultval, config['column_types'])
-    except (KeyError), te:
+    except KeyError as te:
         raise ValueError('ERMrest config missing required policy: %s' % str(te))
     if preftype is not None:
         return preftype
     elif readonly:
         try:
             preftype = match_type(typestr, defaultval, config['column_types_readonly'])
-        except (KeyError), te:
+        except KeyError as te:
             raise ValueError('ERMrest config missing required policy: %s' % str(te))
         if preftype is not None:
             return preftype
@@ -219,7 +220,7 @@ class Type (object):
                 return json.loads(v)
             else:
                 # text and text-like...
-                return unicode(v)
+                return str(v)
         except ValueError:
             raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 
@@ -234,7 +235,7 @@ class Type (object):
                 if typname in [ 'json', 'jsonb' ]:
                     v = json.dumps(v)
                 # text and text-like...
-                return u"'" + unicode(v).replace(u"'", u"''") + u"'::%s" % self.sql()
+                return u"'" + str(v).replace(u"'", u"''") + u"'::%s" % self.sql()
         except ValueError:
             raise exception.BadData('Invalid %s: "%s"' % (self.name, v))
 
@@ -282,14 +283,6 @@ class Type (object):
             # fall back for text and text-like e.g. domains or other unknown types
             return raw
 
-    def history_unpack(self, c):
-        if c.name in {'RID','RMB','RMT'}:
-            return None
-        elif self.name in {'json','jsonb'}:
-            return None
-        else:
-            return '%s %s' % (sql_identifier(c.rid), self.sql(basic_storage=True))
-
     def history_projection(self, c):
         if c.name in {'RID','RMB'}:
             return 'h.%s::%s' % (sql_identifier(c.name), self.sql(basic_storage=True))
@@ -298,7 +291,7 @@ class Type (object):
         elif self.name in {'json','jsonb'}:
             return '(h.rowdata->%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
         else:
-            return 'r.%s AS %s' % (sql_identifier(c.rid), c.sql_name())
+            return '(h.rowdata->>%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
 
     @staticmethod
     def fromjson(typedoc, ermrest_config):
@@ -331,9 +324,6 @@ class ArrayType(Type):
                 ]
         else:
             return self.base_type.default_value(raw)
-
-    def history_unpack(self, c):
-        return None
 
     def history_projection(self, c):
         # json storage can be `null` or `[...]` for this type
@@ -375,9 +365,6 @@ class DomainType(Type):
             return None
         else:
             return self.base_type.default_value(raw)
-
-    def history_unpack(self, c):
-        return self.base_type.history_unpack(c)
 
     def history_projection(self, c):
         return self.base_type.history_projection(c)
@@ -457,6 +444,15 @@ class AggAvg(AggFunc):
             raise exception.ConflictModel('Aggregate function "avg" not allowed on column %s with type %s.' % (col.name, col.type.name))
         AggFunc.__init__(self, attribute, col, sql_attr)
 
+class AggSum(AggFunc):
+    aggfunc = 'sum'
+    output_type = float8_type
+    
+    def __init__(self, attribute, col, sql_attr):
+        if col.type.sql(basic_storage=True) not in {'int2', 'int4', 'int8', 'float4', 'float8', 'numeric'}:
+            raise exception.ConflictModel('Aggregate function "sum" not allowed on column %s with type %s.' % (col.name, col.type.name))
+        AggFunc.__init__(self, attribute, col, sql_attr)
+
 class AggCntDistinct(AggFunc):
     aggfunc = 'cnt_d'
     aggfunc_sql = 'count'
@@ -498,6 +494,7 @@ aggfuncs = {
             AggMin,
             AggMax,
             AggAvg,
+            AggSum,
             AggCntDistinct,
             AggCnt,
             AggArrayDistinct,
