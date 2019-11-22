@@ -794,7 +794,7 @@ WHERE i.fk_table_rid = %(table_rid)s
                     'Reference map referring columns %s do not match foreign key columns %s.' 
                     % (colset, key.columns)
                     )
-            elif (not is_fkey) and colset != fkey.columns:
+            elif (not is_fkey) and colset != key.columns:
                 raise exception.ConflictModel(
                     'Reference map referenced columns %s do not match unique columns %s.' 
                     % (colset, key.columns)

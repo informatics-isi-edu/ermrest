@@ -405,6 +405,7 @@ def p_aggfunc_name(p):
     """aggfunc_name : ARRAY
                     | ARRAY_D
                     | AVG
+                    | SUM
                     | CNT
                     | CNT_D
                     | MIN

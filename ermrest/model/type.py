@@ -443,6 +443,15 @@ class AggAvg(AggFunc):
             raise exception.ConflictModel('Aggregate function "avg" not allowed on column %s with type %s.' % (col.name, col.type.name))
         AggFunc.__init__(self, attribute, col, sql_attr)
 
+class AggSum(AggFunc):
+    aggfunc = 'sum'
+    output_type = float8_type
+    
+    def __init__(self, attribute, col, sql_attr):
+        if col.type.sql(basic_storage=True) not in {'int2', 'int4', 'int8', 'float4', 'float8', 'numeric'}:
+            raise exception.ConflictModel('Aggregate function "sum" not allowed on column %s with type %s.' % (col.name, col.type.name))
+        AggFunc.__init__(self, attribute, col, sql_attr)
+
 class AggCntDistinct(AggFunc):
     aggfunc = 'cnt_d'
     aggfunc_sql = 'count'
@@ -484,6 +493,7 @@ aggfuncs = {
             AggMin,
             AggMax,
             AggAvg,
+            AggSum,
             AggCntDistinct,
             AggCnt,
             AggArrayDistinct,
