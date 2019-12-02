@@ -116,8 +116,8 @@ class Table (object):
                 return False
         return self._has_right(aclname, roles)
 
-    def columns_in_order(self):
-        cols = [ c for c in self.columns.values() if c.has_right('enumerate') ]
+    def columns_in_order(self, enforce_client=True):
+        cols = [ c for c in self.columns.values() if c.has_right('enumerate') or not enforce_client ]
         cols.sort(key=lambda c: c.position)
         return cols
 
@@ -557,7 +557,7 @@ WHERE "RID" = %s;
 """ % {
     'projs': ','.join([
         c.type.history_projection(c)
-        for c in self.columns_in_order()
+        for c in self.columns_in_order(enforce_client=False)
     ]),
     'htable': "_ermrest_history.%s" % sql_identifier("t%s" % self.rid),
     'when': sql_literal(web.ctx.ermrest_history_snaptime),

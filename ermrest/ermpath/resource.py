@@ -1759,9 +1759,9 @@ class EntityPath (AnyPath):
         context_pos = self.current_entity_position()
 
         if selects is None:
-            # non-enumerable columns will be omitted from entity results
-            for col in context_table.columns_in_order():
-                if enforce_client:
+            # non-enumerable columns will be omitted from entity results when enforcing
+            if enforce_client:
+                for col in context_table.columns_in_order(enforce_client=enforce_client):
                     col.enforce_data_right('select')
             selects = ", ".join([
                 "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
