@@ -308,8 +308,8 @@ GROUP BY a.%(grpcol)s ;
             for binding_name, binding_doc in dynacls.items():
                 try:
                     new_dynacls[binding_name] = AclBinding(model, resource, binding_name, binding_doc) if binding_doc else binding_doc
-                except exception.ConflictModel as te:
-                    msg = 'Pruning invalid dynamic ACL binding %s on %s due to error: %s. Was this invalidated by a previous model change?' % (
+                except (exception.ConflictModel, exception.BadData) as te:
+                    msg = 'Pruning invalid dynamic ACL binding %s on %s due to error: %s.' % (
                         binding_name,
                         resource,
                         te
@@ -331,6 +331,10 @@ SELECT _ermrest.model_version_bump();
 })
                     cur.fetchall()
                     pruned_any = True
+                except Exception as te:
+                    # server is likely broken at this point! allow investigation, don't blindly prune on any unknown error...
+                    web.debug('BUG: Got other exception while introspecting ACL binding %s on %s: %s (%s)' % (binding_name, resource, te, type(te)))
+                    raise
             resource.dynacls.update(new_dynacls)
 
     if pruned_any:
