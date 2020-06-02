@@ -1271,7 +1271,8 @@ class EntityElem (object):
         mkcols = set()
         for unique in self.table.uniques:
             for c in unique:
-                mkcols.add(c)
+                if c not in use_defaults:
+                    mkcols.add(c)
         nmkcols = [
             c
             for c in inputcols
