@@ -1184,7 +1184,7 @@ class EntityElem (object):
         results1.extend(results2)
         return results1
 
-    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None, non_defaults=None):
+    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None, non_defaults=None, only_nonmatch=False):
         """Insert entities.
 
            conn: sanepg2 connection to catalog
@@ -1229,6 +1229,9 @@ class EntityElem (object):
            non_defaults: customize entity processing
               { col, ... } --> use input data for zero or more columns
               None --> same as empty set
+
+           only_nonmatch: customize entity processing
+              skip input rows that collide with existing row
 
            If a column is named in both use_defaults and non_defaults,
            the latter takes precedence. In practice, the non_defaults
@@ -1326,7 +1329,8 @@ class EntityElem (object):
                 mkcol_aliases, nmkcol_aliases,
                 content_type,
                 use_defaults,
-                extra_return_cols
+                extra_return_cols,
+                only_nonmatch=only_nonmatch
             )
 
             for table in drop_tables:
@@ -1959,7 +1963,7 @@ WHERE %(keymatches)s
 
         return self._path[0].upsert(conn, cur, input_data, in_content_type, content_type, output_file)
 
-    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None, non_defaults=None):
+    def insert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, use_defaults=None, non_defaults=None, only_nonmatch=False):
         """Insert entities.
 
            conn: sanepg2 connection to catalog
@@ -2001,7 +2005,7 @@ WHERE %(keymatches)s
         if len(self._path) != 1:
             raise BadData("unsupported path length for insertion")
 
-        return self._path[0].insert(conn, cur, input_data, in_content_type, content_type, output_file, use_defaults, non_defaults)
+        return self._path[0].insert(conn, cur, input_data, in_content_type, content_type, output_file, use_defaults, non_defaults, only_nonmatch=only_nonmatch)
 
     def update(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None, attr_update=None, attr_aliases=None):
         """Update entities.

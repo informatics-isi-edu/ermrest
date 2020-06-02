@@ -22,6 +22,7 @@ where the components in this structure are:
    - the `limit` parameter to define query result paging length
    - the `accept` parameter to override HTTP `Accept` header for content negotiation
    - the `defaults` and `nondefaults` parameters to modify the behavior of POST operations to the `entity` API
+   - the `onconflict` paramter to modify the behavior of POST operations to the `entity` API
 
 ## Entity Resolution Names
 
@@ -454,6 +455,16 @@ An optional `nondefaults` query parameter can be used with the `POST` operation 
 - _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?nondefaults=` _column name_ `,` ...
 
 A list of one or more _column name_ indicates columns of the target table which should be populated using client-supplied values, overriding an implicit default behavior. This is primarily useful for administrative clients who are copying table data including existing `RID` values from one table or catalog to another. See the [Entity Creation with Defaults](rest.md#entity-creation-with-defaults) operation documentation for more explanation.
+
+## Onconflict Query Parameter
+
+An optional `onconflict` query parameter can be used with the `POST` operation on the `entity` API:
+
+- _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?onconflict=` _action_
+
+An action name specifies behavior when an input row matches an existing row in named table:
+- `skip`: discard the input row as a presumed idempotent duplicate
+- `abort`: abort the request on this collision of unique keys (default)
 
 ## Limit Query Parameter
 

@@ -137,6 +137,19 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+### Idempotent Entity Creation
+
+The POST operation is also used to create new entity records unless they already exist, using an entity resource data name of the form:
+
+- _service_ `/catalog/` _cid_ `/entity/` _table name_ `?onconflict=skip`
+- _service_ `/catalog/` _cid_ `/entity/` _schema name_ `:` _table name_ `?onconflict=skip`
+- _service_ `/catalog/` _cid_ `/entity/` _table name_ `?defaults=` _column name_ `&onconflict=skip`
+
+In this request variant, input rows with keys matching existing data are presumed to be redundant and are discarded. No attempt is made to
+compare or preserve non-key material from the discarded inputs. This `onconflict=skip` behavior may be mixed with the other `defaults` and `nondefaults` query parameters described previously.
+
+The input and output are identical to previous descriptions, except that discarded input rows will not be represented in the response.
+
 ## Entity Update
 
 The PUT operation is used to update entity records in a table, using an `entity` resource data name of the form:

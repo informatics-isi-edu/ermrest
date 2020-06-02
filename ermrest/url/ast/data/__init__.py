@@ -288,7 +288,14 @@ class Entity (Api):
                 defaults = set()
             # defaults is always a set at this point
             return defaults
-        return _PUT(self, uri, lambda args: self.epath.insert(*args, use_defaults=prepare_defaults('defaults'), non_defaults=prepare_defaults('nondefaults')), self.epath)
+        onconflict = self.queryopts.get('onconflict', 'abort').lower()
+        if onconflict == 'skip':
+            only_nonmatch = True
+        elif onconflict == 'abort':
+            only_nonmatch = False
+        else:
+            raise exception.BadSyntax('Unknown action name in query parameter onconflict="%s". Expected "skip" or "abort".' % onconflict)
+        return _PUT(self, uri, lambda args: self.epath.insert(*args, use_defaults=prepare_defaults('defaults'), non_defaults=prepare_defaults('nondefaults'), only_nonmatch=only_nonmatch), self.epath)
 
     def DELETE(self, uri):
         """Perform HTTP DELETE of entities.
