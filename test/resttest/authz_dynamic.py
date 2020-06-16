@@ -1040,6 +1040,117 @@ class UnscopedBindings (ImplicitEnumeration):
         table = self._get_table_doc('Data')
         self.assertEqual(len(table['foreign_keys']), 0)
 
+class ProjectionFilters (common.ErmrestTest):
+    # Hack: this class steals part of StaticHidden but doesn't want all the data-api tests
+
+    acls = {
+        "Data": {
+            # TODO: revisit if we broaden the implicit-enumerate right for dynacls...
+            "enumerate": ["*"],
+            "select": [],
+        },
+        "Category": {
+            "enumerate": ["*"],
+            "select": [],
+        },
+        "Extension": {
+            "enumerate": ["*"],
+            "select": [],
+        },
+    }
+
+    col_acls = {}
+    fkr_acls = {}
+
+    bindings = {
+        "Data": {
+            "conjunction_filter": {
+                "types": ["select"],
+                "projection_type": "acl",
+                "projection": [
+                    {"and": [
+                        {"filter": "id", "operand": "21"},
+                        {"filter": "name", "operand": "public", "operator": "regexp"},
+                        {"filter": "id", "operand": "23"},
+                    ]},
+                    "ACL"
+                ]
+            },
+            "disjunction_filter2": {
+                "scope_acl": [ common.secondary_client_id ],
+                "types": ["update"],
+                "projection_type": "acl",
+                "projection": [
+                    {"or": [
+                        {"filter": "id", "operand": "21"},
+                        {"filter": "name", "operand": "restricted", "operator": "regexp"},
+                        {"filter": "id", "operand": "23"},
+                    ]},
+                    "ACL"
+                ]
+            },
+        },
+        "Extension": {
+            "disjunction_filter": {
+                "types": ["update"],
+                "projection_type": "nonnull",
+                "projection": [
+                    {"or": [
+                        {"filter": "id", "operand": "11"},
+                        {"filter": "id", "operand": "12"},
+                        {"filter": "id", "operand": "13"},
+                    ]},
+                    "RID"
+                ]
+            },
+        },
+        "Category": {
+            "simple_filter": {
+                "types": ["select"],
+                "projection_type": "nonnull",
+                "projection": [
+                    {"filter": "id", "operand": "1"},
+                    "RID"
+                ]
+            },
+        },
+        "Data_Category": {
+        },
+    }
+
+    col_bindings = {}
+    fkr_bindings = {}
+
+    @classmethod
+    def setUpClass(cls):
+        # Hack: borrow the policy setup...
+        StaticHidden._setUpClass(cls)
+        # load data once for several filtering tests...
+        rdata = list(_data)
+        rdata.reverse()
+        for path, data in rdata:
+            common.primary_session.delete(path)
+        for path, data in _data:
+            common.primary_session.put(path, data=data, headers={"Content-Type": "text/csv"}).raise_for_status()
+
+    def _test_filter(self, session, tname, status=(200,), expect_rows=0):
+        r = session.get('entity/%s:%s' % (_S, tname))
+        self.assertHttp(r, status, 'application/json')
+        if expect_rows is not None:
+            self.assertEqual(len(r.json()), expect_rows)
+
+    def test_simple_filter(self):
+        self._test_filter(common.anonymous_session, "Category", expect_rows=1)
+
+    def test_conjunction(self):
+        self._test_filter(common.anonymous_session, "Data", expect_rows=0)
+
+    def test_disjunction(self):
+        self._test_filter(common.anonymous_session, "Extension", expect_rows=3)
+
+    def test_mixed_disjunction(self):
+        self._test_filter(common.secondary_session, "Data", expect_rows=4)
+
 _data = [
     (
         'entity/%s:Category' % _S,

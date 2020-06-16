@@ -350,7 +350,7 @@ class Disjunction (list):
 
     def sql_where(self, epath, elem, prefix=''):
         preds_sql = [ "(%s)" % f.sql_where(epath, elem, prefix=prefix) for f in self ]
-        return " OR ".join(preds_sql)
+        return "(%s)" % (" OR ".join(preds_sql))
 
 class Conjunction (list):
     def validate(self, epath, enforce_client=True):
@@ -358,6 +358,6 @@ class Conjunction (list):
 
     def sql_where(self, epath, elem, prefix=''):
         preds_sql = [ "(%s)" % f.sql_where(epath, elem, prefix=prefix) for f in self ]
-        return " AND ".join(preds_sql)
+        return "(%s)" % (" AND ".join(preds_sql))
 
 
