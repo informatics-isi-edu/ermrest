@@ -511,6 +511,6 @@ DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 """ % dict(
     schema=sql_identifier(self.table.schema.name),
-    index=sql_identifier(make_id(self.table.name, '_pgtrgm', 'idx'])),
+    index=sql_identifier(make_id(self.table.name, '_pgtrgm', 'idx')),
 )
 
