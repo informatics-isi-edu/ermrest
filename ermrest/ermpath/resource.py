@@ -364,25 +364,25 @@ def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_
             # if ELSE clause hits a non-array, we'll have a 400 Bad Request error as before
             json_proj = """
 (CASE
- WHEN json_typeof(j->'%(field)s') = 'null'
+ WHEN json_typeof(j->%(field)s) = 'null'
    THEN NULL::%(type)s[]
  ELSE
-   COALESCE((SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->'%(field)s') s (x)), ARRAY[]::%(type)s[])
+   COALESCE((SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->%(field)s) s (x)), ARRAY[]::%(type)s[])
  END) AS %(alias)s
 """ % {
     'type': c.type.base_type.sql(basic_storage=True),
-    'field': col_name,
+    'field': sql_literal(col_name),
     'alias': c.sql_name(col_name),
 }
         elif sql_type in ['json', 'jsonb']:
-            json_proj = "(j->'%s')::%s AS %s" % (
-                col_name,
+            json_proj = "(j->%s)::%s AS %s" % (
+                sql_literal(col_name),
                 sql_type,
                 c.sql_name(col_name)
             )
         else:
-            json_proj = "(j->>'%s')::%s AS %s" % (
-                col_name,
+            json_proj = "(j->>%s)::%s AS %s" % (
+                sql_literal(col_name),
                 sql_type,
                 c.sql_name(col_name)
             )

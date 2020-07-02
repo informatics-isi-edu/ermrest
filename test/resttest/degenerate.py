@@ -394,23 +394,24 @@ class Unicode (common.ErmrestTest):
     sname_url = urlquote(sname.encode('utf8'))
     tname_url = urlquote(tname.encode('utf8'))
     cname_url = urlquote(cname.encode('utf8'))
-    
-    defs = [
-        SchemaDoc(sname),
-        TableDoc(
-            tname,
-            [
-                RID, RCT, RMT, RCB, RMB,
-                ColumnDoc("id", Int8, nullok=False),
-                ColumnDoc(cname, Text),
-            ],
-            [ RidKey, KeyDoc(["id"]) ],
-            schema_name=sname
-        )
-    ]
+
+    def defs(self):
+        return [
+            SchemaDoc(self.sname),
+            TableDoc(
+                self.tname,
+                [
+                    RID, RCT, RMT, RCB, RMB,
+                    ColumnDoc("id", Int8, nullok=False),
+                    ColumnDoc(self.cname, Text),
+                ],
+                [ RidKey, KeyDoc(["id"]) ],
+                schema_name=self.sname
+            )
+        ]
 
     def test_1_create(self):
-        self.assertHttp(self.session.post('schema', json=self.defs), 201)
+        self.assertHttp(self.session.post('schema', json=self.defs()), 201)
 
     def test_2_introspect(self):
         self.assertHttp(
@@ -436,16 +437,17 @@ class Unicode (common.ErmrestTest):
         )
 
     def test_3_csv(self):
+        cname_csv = '"%s"' % (self.cname.replace('"', '""'))
         self.assertHttp(
             self.session.post(
                 'entity/%s:%s' % (self.sname_url, self.tname_url),
-                data=u"""id,ǝɯɐu%
+                data=(u"""id,%s
 1,foo 1
 2,foo 2
 3,bar 1
 4,baz 1
-6,foo ǝɯɐu%
-""".encode('utf8'),
+6,"foo %s"
+""" % (cname_csv, self.cname.replace('"', '""'))).encode('utf8'),
                 headers={"content-type": "text/csv"}
             ),
             200
@@ -457,7 +459,7 @@ class Unicode (common.ErmrestTest):
                 'entity/%s:%s' % (self.sname_url, self.tname_url),
                 json=[
                     {"id": 5, self.cname: "baz 2"},
-                    {"id": 7, self.cname: u"foo ǝɯɐu% 2"},
+                    {"id": 7, self.cname: u'"foo %s 2"' % (self.cname.replace('"', '""'))},
                 ]
             ),
             200
@@ -468,7 +470,7 @@ class Unicode (common.ErmrestTest):
             self.sname_url,
             self.tname_url,
             self.cname_url,
-            urlquote(u"foo ǝɯɐu%".encode('utf8')),
+            urlquote((u"foo %s" % self.cname).encode('utf8')),
             self.cname_url
         )
         self.assertHttp(self.session.get(url), 200, 'application/json')
@@ -483,14 +485,14 @@ class Unicode (common.ErmrestTest):
         )
 
     def test_7_badcsv(self):
+        cname_csv = '"%s"' % (self.cname.replace('"', '""'))
         for hdr in [
-                u"id,%s" % self.cname,
-                u"id,%s" % self.tname
+                u"id,%s" % cname_csv
         ]:
             for row in [
                     u"10",
-                    self.tname,
-                    u"10,10,%s" % self.tname
+                    cname_csv,
+                    u"10,10,%s" % cname_csv
             ]:
                 self.assertHttp(
                     self.session.post(
@@ -501,7 +503,14 @@ class Unicode (common.ErmrestTest):
                     [400, 409]
                 )
 
-    
+class Punctuation (Unicode):
+    sname = '`~!@#$%^&*()_+-={}|[]\\;:"\',./<>?'
+    tname = '`~!@#$%^&*()_+-={}|[]\\;:"\',./<>?'
+    cname = '`~!@#$%^&*()_+-={}|[]\\;:"\',./<>?'
+
+    sname_url = urlquote(sname.encode('utf8'))
+    tname_url = urlquote(tname.encode('utf8'))
+    cname_url = urlquote(cname.encode('utf8'))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

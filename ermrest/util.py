@@ -105,20 +105,9 @@ WHERE c.relnamespace = nc.oid
     exists = cur.rowcount > 0
     return exists
 
-
-def _string_wrap(s, escape=u'\\', protect=[]):
-    try:
-        s = s.replace(escape, escape + escape)
-        for c in set(protect):
-            s = s.replace(c, escape + c)
-        return s
-    except Exception as e:
-        web.debug('_string_wrap', s, escape, protect, e)
-        raise
-
 def sql_identifier(s):
     # double " to protect from SQL
-    return u'"%s"' % _string_wrap(s, u'"')
+    return '"%s"' % (s.replace('"', '""'))
 
 def sql_literal(v):
     if type(v) is list:
@@ -126,7 +115,7 @@ def sql_literal(v):
     elif v is not None:
         # double ' to protect from SQL
         s = '%s' % v
-        return "'%s'" % _string_wrap(s, u"'")
+        return "'%s'" % (s.replace("'", "''"))
     else:
         return 'NULL'
 
