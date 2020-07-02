@@ -20,7 +20,7 @@ import json
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists
-from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, truncated_identifier
+from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, make_id
 from .name import _keyref_join_str, _keyref_join_sql
 
 @annotatable
@@ -204,14 +204,15 @@ WHERE e."RID" = %(rid)s;
         return constraint_exists(cur, name)
 
     def _find_new_constraint_name(self, cur, sname):
-        n = 1
+        n = None
         while True:
-            name = truncated_identifier(
-                [self.table.name, '_', list(self.columns)[0].name, 'key', '%d' % n]
-            )
+            name = make_id(self.table.name, [c.name for c in self.columns], (('key%d' % n) if n else 'key'))
             if not self._constraint_name_exists(cur, sname, name):
                 break
-            n += 1
+            if n is None:
+                n = 1
+            else:
+                n += 1
         return (sname, name)
 
     def add(self, conn, cur):
@@ -664,14 +665,15 @@ SELECT _ermrest.model_version_bump();
 
     def add(self, conn, cur):
         if not self.constraint_name:
-            n = 1
+            n = None
             while True:
-                name = truncated_identifier(
-                    [ self.foreign_key.table.name, '_', list(self.foreign_key.columns)[0].name, '%d' % n ]
-                )
+                name = make_id(self.foreign_key.table.name, [c.name for c in self.foreign_key.columns], (('fkey%d' % n) if n else 'fkey'))
                 if not constraint_exists(cur, name):
                     break
-                n += 1
+                if n is None:
+                    n = 1
+                else:
+                    n += 1
             self.constraint_name = (self.foreign_key.table.schema.name, name)
         self.foreign_key.table.alter_table(
             conn, cur,

@@ -51,26 +51,73 @@ def enforce_63byte_id(s, prefix="Identifier"):
     if len(s.encode('utf8')) > 63:
         raise exception.BadData(u'%s "%s" exceeded 63-byte limit when encoded as UTF-8.' % (prefix, s))
 
-def truncated_identifier(parts, threshold=4):
-    """Build a 63 byte (or less) postgres identifier out of sequentially concatenated parts.
+def make_id(*components):
+    """Build an identifier that will be OK for ERMrest and Postgres.
+
+    Naively, append as '_'.join(components).
+
+    Fallback to heuristics mixing truncation with short hashes.
     """
-    len_static = len((''.join([ p for p in parts if len(p.encode()) <= threshold ]).encode()))
-    if len_static >= 26:
-        raise NotImplementedError('truncated_identifier static parts exceed length limit %s' % parts)
-    num_components = len([ p for p in parts if len(p.encode()) > threshold ])
-    max_component_len = (63 - len_static) // (num_components or 1)
+    # accept lists at top-level for convenience (compound keys, etc.)
+    expanded = []
+    for e in components:
+        if isinstance(e, list):
+            expanded.extend(e)
+        else:
+            expanded.append(e)
 
-    def convert(p):
-        if len(p.encode()) <= max_component_len:
-            return p
-        # return a truncated hash using base64 chars
-        h = hashlib.md5()
-        h.update(p.encode())
-        return base64.b64encode(h.digest()).decode()[0:max_component_len]
+    # prefer to use naive name as requested
+    naive_result = '_'.join(expanded)
+    naive_len = len(naive_result.encode('utf8'))
+    if naive_len <= 63:
+        return naive_result
 
-    result = ''.join([ convert(p) for p in parts ])
-    assert len(result) <= 63
-    return result
+    # we'll need to truncate and hash in some way...
+    def hash(s, nbytes):
+        return base64.urlsafe_b64encode(hashlib.md5(s.encode('utf8')).digest()).decode()[0:nbytes]
+
+    def truncate(s, maxlen):
+        encoded_len = len(s.encode('utf8'))
+        # we need to chop whole (unicode) chars but test encoded byte lengths!
+        for i in range(max(1, len(s) - maxlen), len(s) - 1):
+            result = s[0:-1 * i].rstrip()
+            if len(result.encode('utf8')) <= (maxlen - 2):
+                return result + '..'
+        return s
+
+    naive_hash = hash(naive_result, 5)
+    parts = [
+        (i, expanded[i])
+        for i in range(len(expanded))
+    ]
+
+    # try to find a solution truncating individual fields
+    for maxlen in [15, 12, 9]:
+        parts.sort(key=lambda p: (len(p[1].encode('utf8')), p[0]), reverse=True)
+        for i in range(len(parts)):
+            idx, part = parts[i]
+            if len(part.encode('utf8')) > maxlen:
+                parts[i] = (idx, truncate(part, maxlen))
+            candidate_result = '_'.join([
+                p[1]
+                for p in sorted(parts, key=lambda p: p[0])
+            ] + [naive_hash])
+            if len(candidate_result.encode('utf8')) < 63:
+                return candidate_result
+
+    # fallback to truncating original naive name
+    # try to preserve suffix and trim in middle
+    result = ''.join([
+        truncate(naive_result, len(naive_result)//3),
+        naive_result[-len(naive_result)//3:],
+        '_',
+        naive_hash
+    ])
+    if len(result.encode('utf8')) <= 63:
+        return result
+
+    # last-ditch (e.g. multibyte unicode suffix worst case)
+    return truncate(naive_result, 55) + naive_hash
 
 sufficient_rights = {
     "owner": set(),
