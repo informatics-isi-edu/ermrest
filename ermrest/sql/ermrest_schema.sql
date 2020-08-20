@@ -230,14 +230,20 @@ DECLARE
 BEGIN
   IF TG_OP = 'INSERT' THEN
     newj := to_jsonb(NEW);
-    IF newj ? 'RID' AND NEW."RID" IS NULL THEN
-      NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
+    IF newj ? 'RID' THEN
+      IF NEW."RID" IS NULL THEN
+        NEW."RID" := _ermrest.urlb32_encode(nextval('_ermrest.rid_seq'));
+      END IF;
     END IF;
-    IF newj ? 'RCB' AND NEW."RCB" IS NULL THEN
-      NEW."RCB" := _ermrest.current_client();
+    IF newj ? 'RCB' THEN
+      IF NEW."RCB" IS NULL THEN
+        NEW."RCB" := _ermrest.current_client();
+      END IF;
     END IF;
-    IF newj ? 'RCT' AND NEW."RCT" IS NULL THEN
-      NEW."RCT" := now();
+    IF newj ? 'RCT' THEN
+      IF NEW."RCT" IS NULL THEN
+        NEW."RCT" := now();
+      END IF;
     END IF;
     IF newj ? 'RMB' THEN NEW."RMB" := _ermrest.current_client(); END IF;
     IF newj ? 'RMT' THEN NEW."RMT" := now(); END IF;
