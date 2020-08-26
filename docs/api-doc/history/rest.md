@@ -158,3 +158,35 @@ may be considered in future enhancements to ERMrest. This syntax is
 sufficient to target one row by its actual `RID` or all rows with a
 certain *bad value* _X_ in the column being redacted.
 
+## Suppress Table History Collection
+
+A special table-level annotation can be supplied during table creation
+or set on an existing table to suppress the collection of row content
+history. Set the annotation URI
+`tag:isrd.isi.edu:2020,history-capture` with one of these annotation
+values to control per-table history capture:
+
+- `false`: Disable history capture and make the table invisible in versioned catalog snapshots
+- `true`: Enable normal history capture and make the table visible in versioned catalog snapshots
+
+In the absence of this annotation, the default behavior of ERMrest is
+the same as if this annotation where set with the value `true`.  Any
+other value besides the JSON boolean values may produce undefined
+behavior and is reserved for future use.
+
+A table which is created with history-capture disabled will avoid the
+storage and write operation overhead of maintaining history.
+
+If the history-capture mechanism is disabled during the table's
+lifecycle, prior history is retained but the history is not captured
+on subsequent writes to the live table content. Prior versions of the
+table are still visible in older snapshots, but the table is invisible
+in catalog snapshots beginning with the one where the history capture
+is disabled.
+
+If the history-capture mechanism is enabled during the table's
+lifecycle, the current state of the table is interred into history and
+collection resumes for subsequent writes to the live table
+content. The table remains invisible in older catalog snapshots, but
+new versions of the table become visible in catalog snapshots
+beginning with the one where history capture is enabled.

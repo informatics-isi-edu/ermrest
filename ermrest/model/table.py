@@ -58,6 +58,7 @@ class Table (object):
     also has a reference to its 'schema'.
     """
     tag_indexing_preferences = 'tag:isrd.isi.edu,2018:indexing-preferences'
+    tag_history_capture = 'tag:isrd.isi.edu,2020:history-capture'
     
     def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None):
         self.schema = schema
@@ -113,6 +114,8 @@ class Table (object):
         # a table without history is not enumerable during historical access
         if web.ctx.ermrest_history_snaptime is not None:
             if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
+                return False
+            if self.annotations.get(self.tag_history_capture, True) is False:
                 return False
         return self._has_right(aclname, roles)
 
