@@ -67,6 +67,7 @@ before_install:
 install:
   - sudo make install PLATFORM=ubuntu1604
   - sudo make deploy PLATFORM=ubuntu1604
+  - sudo bash ./test/ubuntu-travis-setup.sh
   - sudo service apache2 restart
 
 before_script:
@@ -96,4 +97,3 @@ after_failure:
   - sudo -H -u postgres psql -c '\dn' _ermrest_catalog_5
   - sudo cat /etc/apache2/sites-available/000-default.conf
   - sudo cat /etc/apache2/sites-available/default-ssl.conf
-  - sudo cat /etc/apache2/sites-available/default-ssl.conf.orig
