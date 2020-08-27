@@ -254,6 +254,8 @@ def _add_history_probes(klass):
     for ridkey in ['catalog', 'schema', 'table', 'ridcol', 'namecol', 'key', 'fkey']:
         _add_bad_amendment(1, 'annotation', ridkey, "not an annotations object")
 
+    _add_bad_amendment(1, 'annotation', 'table', {'tag:isrd.isi.edu,2020:history-capture': False})
+
     for ridkey in ['catalog', 'schema', 'table', 'ridcol', 'namecol', 'fkey']:
         _add_conflict_amendment(1, 'acl', ridkey, {"nonacl": []})
 
