@@ -2,7 +2,7 @@
 language: python
 
 sudo: required
-dist: bionic
+dist: focal
 
 python:
   - "3.7"
