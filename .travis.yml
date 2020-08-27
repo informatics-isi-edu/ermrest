@@ -93,3 +93,4 @@ after_failure:
   - sudo cat /etc/apache2/conf.d/wsgi_ermrest.conf
   - sudo cat install-record.txt
   - sudo cat ${HTTPD_ERROR_LOG}
+  - sudo -H -u postgres psql -c '\dn' _ermrest_catalog_5
