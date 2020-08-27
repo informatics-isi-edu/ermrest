@@ -19,9 +19,9 @@ addons:
     packages:
       - libpq-dev
       - libjson-c-dev
-      - postgresql-10
-      - postgresql-client-10
-      - postgresql-server-dev-10
+      - postgresql-11
+      - postgresql-client-11
+      - postgresql-server-dev-11
       - apache2
       - apache2-dev
       - ssl-cert
@@ -44,7 +44,7 @@ before_install:
   - sudo ln -s /etc/apache2/conf-enabled /etc/apache2/conf.d
   - sudo service postgresql stop
   - sudo apt-get -y purge postgresql-9.1 postgresql-9.2 postgresql-9.3 postgresql-9.4 postgresql-9.5 postgresql-9.6
-  - sudo service postgresql start 10
+  - sudo service postgresql start 11
   - sudo -H -u postgres psql -c "SHOW ALL"
   - sudo a2enmod ssl
   - sudo a2ensite default-ssl
