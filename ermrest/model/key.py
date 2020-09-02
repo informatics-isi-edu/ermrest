@@ -50,6 +50,8 @@ class Unique (object):
         self.table.enforce_right(aclname)
 
     def set_comment(self, conn, cur, comment):
+        if not isinstance(comment, (str, type(None))):
+            raise exception.BadData('Model comment "%s" must be a string or null.' % (comment,))
         if self.constraint_name:
             pk_schema, pk_name = self.constraint_name
             cur.execute("""
@@ -113,12 +115,17 @@ SELECT _ermrest.model_version_bump();
         self.enforce_right('owner')
         # allow sparse update documents as a (not so restful) convenience
         newdoc = self.prejson()
-        if 'names' not in keydoc \
-           or not keydoc['names'][0:1] \
+        if 'names' not in keydoc:
+            pass
+        elif not keydoc['names'][0:1] \
            or not keydoc['names'][0][1:2] \
            or not keydoc['names'][0][1]:
             del keydoc['names']
         newdoc.update(keydoc)
+        newdoc['names'] = [
+            [ s, n ]
+            for s, n in newdoc['names']
+        ]
         newdoc['names'][0][0] = self.table.schema.name
         newkey = list(Unique.fromjson_single(self.table, newdoc, reject_duplicates=False))[0]
         newkey.rid = self.rid
@@ -360,6 +367,8 @@ WHERE e."RID" = %(rid)s;
         self.table.enforce_right(aclname)
 
     def set_comment(self, conn, cur, comment):
+        if not isinstance(comment, (str, type(None))):
+            raise exception.BadData('Model comment "%s" must be a string or null.' % (comment,))
         if self.rid:
             cur.execute("""
 UPDATE _ermrest.known_pseudo_keys SET comment = %(comment)s WHERE "RID" = %(rid)s ;
@@ -622,6 +631,8 @@ class KeyReference (object):
         self.comment = comment
 
     def set_comment(self, conn, cur, comment):
+        if not isinstance(comment, (str, type(None))):
+            raise exception.BadData('Model comment "%s" must be a string or null.' % (comment,))
         if self.constraint_name:
             fkr_schema, fkr_name = self.constraint_name
             cur.execute("""
@@ -979,6 +990,8 @@ class PseudoKeyReference (object):
         self.comment = comment
 
     def set_comment(self, conn, cur, comment):
+        if not isinstance(comment, (str, type(None))):
+            raise exception.BadData('Model comment "%s" must be a string or null.' % (comment,))
         if self.rid:
             cur.execute("""
 UPDATE _ermrest.known_pseudo_fkeys SET comment = %(comment)s WHERE "RID" = %(rid)s;
