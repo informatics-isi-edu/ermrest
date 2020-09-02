@@ -65,6 +65,8 @@ class Column (object):
 
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
+        if not isinstance(comment, (str, type(None))):
+            raise exception.BadData('Model comment "%s" must be a string or null' % (comment,))
         self.enforce_right('owner')
         cur.execute("""
 COMMENT ON COLUMN %(sname)s.%(tname)s.%(cname)s IS %(comment)s;

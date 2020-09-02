@@ -67,6 +67,13 @@ def add_comment_tests(klass):
             return test_delete
         setattr(klass, 'test_%02d_4_delete' % i, make_test_delete(i))
 
+        def make_test_bad_apply(i):
+            newval = [ 'Comment on %s.' % resources[i], ]
+            def test_bad_apply(self):
+                self.assertHttp(self.session.put('%s' % resources[i], json={"comment": newval}, headers={"Content-Type": "text/plain"}), 400)
+            return test_bad_apply
+        setattr(klass, 'test_%02d_5_bad_apply' % i, make_test_bad_apply(i))
+
     return klass
 
 @add_comment_tests

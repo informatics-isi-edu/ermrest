@@ -402,6 +402,8 @@ ALTER TABLE %(sname)s.%(tname)s  %(alter)s ;
 
     def set_comment(self, conn, cur, comment):
         """Set SQL comment."""
+        if not isinstance(comment, (str, type(None))):
+            raise exception.BadData('Model comment "%s" must be a string or null' % (comment,))
         self.enforce_right('owner')
         cur.execute("""
 COMMENT ON TABLE %(sname)s.%(tname)s IS %(comment)s;
