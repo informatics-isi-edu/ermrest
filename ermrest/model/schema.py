@@ -63,6 +63,9 @@ class Model (object):
             "snaptime": snaptime,
             "annotations": self.annotations,
             "rights": self.rights(),
+            "features": {
+                "history_control": True,
+            },
         }
         if not brief:
             doc["schemas"] = {
