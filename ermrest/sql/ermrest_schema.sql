@@ -936,6 +936,7 @@ DECLARE
   old_trigger_exists bool;
   new_trigger_exists bool;
   old_exclusion_exists bool;
+  history_capture jsonb;
 BEGIN
   SELECT s.schema_name, t.table_name INTO sname, tname
   FROM _ermrest.known_tables t
@@ -959,14 +960,16 @@ BEGIN
     it.relname IS NOT NULL,
     tgo.trigger_name IS NOT NULL,
     tgn.trigger_name IS NOT NULL,
-    xc.conname IS NOT NULL
+    xc.conname IS NOT NULL,
+    COALESCE(ta.annotation_value, 'true'::jsonb)
   INTO
     sname,
     tname,
     htable_exists,
     old_trigger_exists,
     new_trigger_exists,
-    old_exclusion_exists
+    old_exclusion_exists,
+    history_capture
   FROM _ermrest.known_tables t
   JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
   JOIN pg_catalog.pg_namespace hs ON (hs.nspname = '_ermrest_history')
@@ -988,6 +991,9 @@ BEGIN
         AND xc.connamespace = hs.oid
 	AND xc.conrelid = it.oid
 	AND xc.contype = 'x')
+  LEFT OUTER JOIN _ermrest.known_table_annotations ta
+    ON (ta.table_rid = t."RID"
+        AND ta.annotation_uri = 'tag:isrd.isi.edu,2020:history-capture')
   WHERE t."RID" = $1
   AND t.table_kind = 'r'
   AND s.schema_name NOT IN ('pg_catalog')
@@ -1006,7 +1012,6 @@ BEGIN
 
   IF NOT htable_exists
   THEN
-    -- avoid doing dynamic SQL during every trigger event by generating a custom function per table here...
     EXECUTE
       'CREATE TABLE _ermrest_history.' || quote_ident(htname) || '('
       '  "RID" text NOT NULL,'
@@ -1032,6 +1037,7 @@ BEGIN
     EXECUTE 'DROP TRIGGER ermrest_history ON ' || quote_ident(sname) || '.' || quote_ident(tname) || ';' ;
   END IF;
 
+  -- avoid doing dynamic SQL during every trigger event by generating a custom function per table here...
   EXECUTE
     'CREATE OR REPLACE FUNCTION _ermrest_history.' || quote_ident('maintain_' || htname) || '() RETURNS TRIGGER AS $$'
     'DECLARE'
@@ -1082,8 +1088,9 @@ BEGIN
     '  RETURN NULL;'
     'END; $$ LANGUAGE plpgsql;' ;
 
-  IF NOT new_trigger_exists
+  IF NOT new_trigger_exists AND history_capture = 'true'::jsonb
   THEN
+    -- create triggers if absent and we want to collect history
     EXECUTE
       'CREATE TRIGGER ermrest_history_insert AFTER INSERT ON ' || quote_ident(sname) || '.' || quote_ident(tname)
       || ' REFERENCING NEW TABLE AS ' || quote_ident(ntname)
@@ -1098,6 +1105,14 @@ BEGIN
       'CREATE TRIGGER ermrest_history_delete AFTER DELETE ON ' || quote_ident(sname) || '.' || quote_ident(tname)
       || ' REFERENCING OLD TABLE AS ' || quote_ident(otname)
       || ' FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest_history.' || quote_ident('maintain_' || htname) || '();';
+  ELSIF new_trigger_exists AND history_capture != 'true'::jsonb
+  THEN
+     -- remove triggers when we don't want to collect history
+     EXECUTE 'DROP TRIGGER IF EXISTS ermrest_history_insert ON ' || quote_ident(sname) || '.' || quote_ident(tname) ;
+
+     EXECUTE 'DROP TRIGGER IF EXISTS ermrest_history_update ON ' || quote_ident(sname) || '.' || quote_ident(tname) ;
+
+     EXECUTE 'DROP TRIGGER IF EXISTS ermrest_history_delete ON ' || quote_ident(sname) || '.' || quote_ident(tname) ;
   END IF;
 
   -- this function becomes a no-op under steady state operations but handles one-time resolver upgrade
@@ -2018,6 +2033,68 @@ PERFORM _ermrest.create_annotation_table('key', 'key', 'keys');
 PERFORM _ermrest.create_annotation_table('pseudo_key', 'key', 'pseudo_keys');
 PERFORM _ermrest.create_annotation_table('fkey', 'fkey', 'fkeys');
 PERFORM _ermrest.create_annotation_table('pseudo_fkey', 'fkey', 'pseudo_fkeys');
+
+CREATE OR REPLACE FUNCTION _ermrest.track_history_capture_annotation() RETURNS TRIGGER AS $$
+DECLARE
+  record record;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    FOR record IN
+      SELECT *
+      FROM old_table_annotations
+      WHERE annotation_uri = 'tag:isrd.isi.edu,2020:history-capture'
+        AND annotation_value != 'true'::jsonb
+    LOOP
+      PERFORM _ermrest.enable_table_history(record.table_rid, true);
+    END LOOP;
+
+  ELSIF TG_OP = 'UPDATE' THEN
+    FOR record IN
+      SELECT o.table_rid
+      FROM old_table_annotations o
+      JOIN new_table_annotations n ON (o.table_rid = n.table_rid AND o.annotation_uri = n.annotation_uri)
+      WHERE o.annotation_uri = 'tag:isrd.isi.edu,2020:history-capture'
+        AND o.annotation_value != n.annotation_value
+    LOOP
+      PERFORM _ermrest.enable_table_history(record.table_rid, true);
+    END LOOP;
+
+  ELSIF TG_OP = 'INSERT' THEN
+    FOR record IN
+      SELECT *
+      FROM new_table_annotations
+      WHERE annotation_uri = 'tag:isrd.isi.edu,2020:history-capture'
+        AND annotation_value != 'true'::jsonb
+    LOOP
+      PERFORM _ermrest.enable_table_history(record.table_rid, true);
+    END LOOP;
+
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+IF COALESCE(
+  (SELECT False
+   FROM information_schema.triggers tg
+   WHERE tg.event_object_schema = '_ermrest'
+     AND tg.event_object_table = 'known_table_annotations'
+     AND tg.trigger_name = 'history_capture_insert'
+     AND tg.event_manipulation = 'INSERT'),
+   True)
+THEN
+  CREATE TRIGGER history_capture_insert AFTER INSERT ON _ermrest.known_table_annotations
+    REFERENCING NEW TABLE AS new_table_annotations
+    FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.track_history_capture_annotation();
+
+  CREATE TRIGGER history_capture_update AFTER UPDATE ON _ermrest.known_table_annotations
+    REFERENCING NEW TABLE AS new_table_annotations OLD TABLE AS old_table_annotations
+    FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.track_history_capture_annotation();
+
+  CREATE TRIGGER history_capture_delete AFTER DELETE ON _ermrest.known_table_annotations
+    REFERENCING OLD TABLE AS old_table_annotations
+    FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.track_history_capture_annotation();
+END IF;
 
 -- this is by-name to handle possible dump/restore scenarios
 -- a DBA who does many SQL DDL RENAME events and wants to link by OID rather than name

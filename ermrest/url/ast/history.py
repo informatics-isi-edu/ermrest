@@ -600,6 +600,8 @@ def _amend_annotation(cur, h_from, h_until, restype, rid, contentmap):
     for name, content in contentmap.items():
         if not isinstance(name, str):
             raise exception.rest.Conflict('Annotation keys must be textual.')
+        if name in {Table.tag_history_capture}:
+            raise exception.rest.BadRequest('Annotations with key %s cannot be amended.' % name)
 
     _amend_config(cur, h_from, h_until, restype, 'annotation', rid, 'annotation_uri', 'annotation_value', contentmap)
 

@@ -4,11 +4,12 @@ import common
 from common import catalog_initial_version, primary_client_id, urlquote, SchemaDoc, ColumnDoc, Int8
 import basics
 import data
-from data import _T1, _T2, _Tc1, _T2b
+from data import _T0, _T1, _T2, _Tc1, _T2b
 import json
 
 _S = 'history_read'
 _defs = basics.defs(_S)
+_defs['schemas'][_S]['tables'][_T0]['annotations'] = { 'tag:isrd.isi.edu,2020:history-capture': False }
 _table_defs = _defs['schemas'][_S]['tables']
 _model = None
 
@@ -29,6 +30,7 @@ def setUpModule():
     if r.status_code == 404:
         # idempotent because unittest can re-enter module several times...
         common.primary_session.post('schema', json=_defs).raise_for_status()
+        common.primary_session.post('entity/%s:%s' % (_S, _T0), json=data.Minimal._initial).raise_for_status()
         common.primary_session.post('entity/%s:%s' % (_S, _T1), json=data.BasicKey._initial).raise_for_status()
         common.primary_session.post('entity/%s:%s' % (_S, _T2), json=data.ForeignKey.data).raise_for_status()
         _data_t0_version = common.primary_session.get('').json()['snaptime']
@@ -39,6 +41,7 @@ def setUpModule():
         common.primary_session.delete('entity/%s:%s' % (_S, _T2)).raise_for_status()
         _data_t3_version = common.primary_session.get('').json()['snaptime']
         common.primary_session.delete('entity/%s:%s' % (_S, _T1)).raise_for_status()
+        common.primary_session.put('schema/%s/table/%s/annotation' % (_S, _T0), json={}).raise_for_status()
         _data_t4_version = common.primary_session.get('').json()['snaptime']
         r = common.primary_session.get('schema')
         r.raise_for_status()
@@ -109,6 +112,7 @@ class ModelWhen (CatalogWhen):
         self.assertHttp(self.session.post((catalog_initial_version, self.container_resource), json=[]), 403)
 
 class TableWhen (common.ErmrestTest):
+    _entity_T0 = 'entity/%s:%s' % (_S, _T0)
     _entity_T1 = 'entity/%s:%s' % (_S, _T1)
     _entity_T2 = 'entity/%s:%s' % (_S, _T2)
 
@@ -183,6 +187,12 @@ class TableWhen (common.ErmrestTest):
     def test_schema_not_found(self):
         self.assertHttp(self.session.get((catalog_initial_version, 'entity/%s:%s' % (_S, _T1))), 409)
 
+    def test_t0_no_history(self):
+        self.assertHttp(self.session.get((_data_t0_version, 'schema/%s/table/%s' % (_S, _T0))), 404)
+
+    def test_t0_enabled_history(self):
+        self._test_numrows(_data_t4_version, self._entity_T0, 2)
+
 def _add_history_probes(klass):
     ridfuncs = {
         'catalog': lambda m: None,
@@ -243,6 +253,8 @@ def _add_history_probes(klass):
     # phase 1: bad modifications
     for ridkey in ['catalog', 'schema', 'table', 'ridcol', 'namecol', 'key', 'fkey']:
         _add_bad_amendment(1, 'annotation', ridkey, "not an annotations object")
+
+    _add_bad_amendment(1, 'annotation', 'table', {'tag:isrd.isi.edu,2020:history-capture': False})
 
     for ridkey in ['catalog', 'schema', 'table', 'ridcol', 'namecol', 'fkey']:
         _add_conflict_amendment(1, 'acl', ridkey, {"nonacl": []})

@@ -522,22 +522,37 @@ def annotatable(orig_class):
         if not isinstance(doc, dict):
             raise exception.BadData(u'Annotation set %s must be a dictionary.' % json.dumps(doc))
         doc = dict(doc)
-        self.delete_annotation(conn, cur, None) # enforced owner rights for us...
+        self.enforce_right('owner')
         self.annotations.update(doc)
-        if doc:
-            interp = self._interp_annotation(None)
-            if interp['cols']:
-                interp['cols'] = interp['cols'] + ','
-                interp['vals'] = interp['vals'] + ','
-            # build rows for each field in doc
-            interp['vals'] = ', '.join([
-                '(%s %s, %s)' % (interp['vals'], sql_literal(key), sql_literal(json.dumps(value)))
-                for key, value in doc.items()
-            ])
-            cur.execute("""
+        keying = [
+            (k, '%s::%s' % (sql_literal(v[1](self)), v[0]))
+            for k, v in self._model_keying.items()
+        ]
+        cur.execute("""
 SELECT _ermrest.model_version_bump();
-INSERT INTO _ermrest.known_%(restype)s_annotations (%(cols)s annotation_uri, annotation_value) VALUES %(vals)s;
-""" % interp)
+DELETE FROM _ermrest.known_%(restype)s_annotations
+WHERE %(subj_keytests)s NOT %(doc)s::jsonb ? annotation_uri;
+INSERT INTO _ermrest.known_%(restype)s_annotations
+  (%(subj_keycols)s annotation_uri, annotation_value)
+SELECT
+  %(subj_keyvals)s k, v
+FROM jsonb_each(%(doc)s::jsonb) doc(k, v)
+EXCEPT
+SELECT
+  %(subj_keyvals)s annotation_uri, annotation_value
+FROM _ermrest.known_%(restype)s_annotations
+WHERE %(subj_keytests)s True
+ON CONFLICT (%(subj_keycols)s annotation_uri)
+DO UPDATE SET annotation_value = EXCLUDED.annotation_value;
+""" % {
+    'restype': self._model_restype,
+    'subj_keycols': ', '.join([ k for k, v in keying ]) + (', ' if keying else ''),
+    'subj_keyvals': ', '.join([ v for k, v in keying ]) + (', ' if keying else ''),
+    'subj_keytests': ' AND '.join([ '%s = %s' % (k, v) for k, v in keying ]) + (' AND ' if keying else ''),
+    'doc': sql_literal(json.dumps(doc)),
+})
+        self.annotations.clear()
+        self.annotations.update(doc)
 
     def set_annotation(self, conn, cur, key, value):
         """Set annotation on %s, returning previous value for updates or None.""" % orig_class._model_restype

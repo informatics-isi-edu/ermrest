@@ -2,10 +2,10 @@
 language: python
 
 sudo: required
-dist: xenial
+dist: focal
 
 python:
-  - "3.5"
+  - "3.8"
 
 virtualenv:
   system_site_packages: true
@@ -19,9 +19,9 @@ addons:
     packages:
       - libpq-dev
       - libjson-c-dev
-      - postgresql-10
-      - postgresql-client-10
-      - postgresql-server-dev-10
+      - postgresql-12
+      - postgresql-client-12
+      - postgresql-server-dev-12
       - apache2
       - apache2-dev
       - ssl-cert
@@ -40,11 +40,10 @@ env:
 
 before_install:
   - sudo mount -o remount,size=50% /var/ramfs
-  - sudo su -c 'echo /usr/lib/python3.5/site-packages > /usr/local/lib/python3.5/dist-packages/sys-site-packages.pth'
+  - sudo su -c 'echo /usr/lib/python3.8/site-packages > /usr/local/lib/python3.8/dist-packages/sys-site-packages.pth'
   - sudo ln -s /etc/apache2/conf-enabled /etc/apache2/conf.d
   - sudo service postgresql stop
-  - sudo apt-get -y purge postgresql-9.1 postgresql-9.2 postgresql-9.3 postgresql-9.4 postgresql-9.5 postgresql-9.6
-  - sudo service postgresql start 10
+  - sudo service postgresql start 12
   - sudo -H -u postgres psql -c "SHOW ALL"
   - sudo a2enmod ssl
   - sudo a2ensite default-ssl
@@ -68,6 +67,7 @@ before_install:
 install:
   - sudo make install PLATFORM=ubuntu1604
   - sudo make deploy PLATFORM=ubuntu1604
+  - sudo bash ./test/ubuntu-travis-setup.sh
   - sudo service apache2 restart
 
 before_script:
@@ -94,3 +94,6 @@ after_failure:
   - sudo cat /etc/apache2/conf.d/wsgi_ermrest.conf
   - sudo cat install-record.txt
   - sudo cat ${HTTPD_ERROR_LOG}
+  - sudo -H -u postgres psql -c '\dn' _ermrest_catalog_5
+  - sudo cat /etc/apache2/sites-available/000-default.conf
+  - sudo cat /etc/apache2/sites-available/default-ssl.conf
