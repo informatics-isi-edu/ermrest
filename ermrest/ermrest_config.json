@@ -35,6 +35,7 @@
         "interval": null,
 	"longtext": null,
 	"markdown": null,
+	"color_rgb_hex": null,
 	"gene_sequence": null,
         "serial2": { "aliases": [ "smallserial" ] },
         "serial4": { "aliases": [ "serial" ] },

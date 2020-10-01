@@ -219,6 +219,10 @@ PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rct', 'timestamp
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmt', 'timestamptz');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_uri', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_curie', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'color_rgb_hex', 'text');
+
+ALTER DOMAIN public.color_rgb_hex DROP CONSTRAINT IF EXISTS color_rgb_hex_format;
+ALTER DOMAIN public.color_rgb_hex ADD CONSTRAINT color_rgb_hex_format CHECK (VALUE ~ '^#[0-9a-fA-F]{6}$');
 
 -- use as a BEFORE INSERT UPDATE PER ROW trigger...
 CREATE OR REPLACE FUNCTION _ermrest.maintain_row() RETURNS TRIGGER AS $$

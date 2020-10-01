@@ -567,6 +567,29 @@ class CtypeMarkdown (CtypeLongtext):
     ctype = 'markdown'
     cval = '**one**'
 
+class CtypeColorRgbHex (CtypeLongtext):
+    ctype = 'color_rgb_hex'
+    cval = '#123456'
+    pattern = '123456'
+    bad_cval = '#12345678'
+
+    def _bad_data(self):
+        return [
+            {"sid": 1, "column1": self.cval, "column2": "value1", "column3": None},
+            {"sid": 1, "column1": self.bad_cval, "column2": "value1", "column3": None},
+        ]
+
+    def test_04_load_error(self):
+        self.assertHttp(
+            self.session.post(
+                self._entity_url(),
+                data=common.array_to_csv(self._bad_data()),
+                headers={"content-type": "text/csv"}
+            ),
+            409
+        )
+        self.assertHttp(self.session.put(self._entity_url(), json=self._bad_data()), 409)
+
 class DefaultValue (common.ErmrestTest):
     ctype = None
     defaults = []
