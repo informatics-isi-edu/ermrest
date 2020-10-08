@@ -43,7 +43,9 @@ start = 'start'
 
 # there are multiple productions for most APIs depending on level of detail encoded in URL
 def p_apis(p):
-    """api   : catalog
+    """api   : service
+             | serviceslash
+             | catalog
              | catalogslash
              | comment
              | acls
@@ -95,15 +97,23 @@ def p_slashopt(p):
                 | """
     p[0] = None
 
+def p_service(p):
+    """service : '/' string """
+    p[0] = ast.Service()
+
+def p_serviceslash(p):
+    """serviceslash : service '/' """
+    p[0] = p[1]
+
 def p_catalog(p):
-    """catalog : '/' string '/' CATALOG '/' NUMSTRING """ 
-    p[0] = ast.Catalog(p[6])
+    """catalog : serviceslash CATALOG '/' NUMSTRING """ 
+    p[0] = ast.Catalog(p[4])
 
 def p_catalog_when(p):
-    """catalog : '/' string '/' CATALOG '/' NUMSTRING '@' string"""
-    p[0] = ast.Catalog(p[6])
+    """catalog : serviceslash CATALOG '/' NUMSTRING '@' string"""
+    p[0] = ast.Catalog(p[4])
     cur = web.ctx.ermrest_catalog_pc.cur
-    web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[8])
+    web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[6])
     web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
 
 def p_resolve_entity_rid(p):
@@ -830,7 +840,7 @@ def make_parser():
     # NullLogger attribute not supported by Python 2.4
     # return yacc.yacc(debug=False, errorlog=yacc.NullLogger())
     return yacc.yacc(debug=False, optimize=1, tabmodule='url_parsetab', write_tables=0)
-    #return yacc.yacc()
+    #return yacc.yacc(debug=True, write_tables=1)
 
 def make_parse():
     lock = threading.Lock()

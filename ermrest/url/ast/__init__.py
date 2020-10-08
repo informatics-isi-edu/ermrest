@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2020 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ once an appropriate database connection is available.
 
 import urllib
 
-from .catalog import Catalogs, Catalog
+from .catalog import Service, Catalogs, Catalog
 from ...model.name import Name, NameList
 from . import history
 

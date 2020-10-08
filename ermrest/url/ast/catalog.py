@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2019 University of Southern California
+# Copyright 2010-2020 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,10 +28,50 @@ from ... import exception, catalog, sanepg2
 from ...apicore import web_method
 from ...exception import *
 from ...model import current_catalog_snaptime
-from ...util import sql_literal
+from ...util import sql_literal, service_features, __version__
 
 _application_json = 'application/json'
 _text_plain = 'text/plain'
+
+class Service (object):
+    """The top-level service advertisement."""
+
+    default_content_type = _application_json
+    supported_types = [default_content_type,]
+
+    @web_method()
+    def GET(self, uri=''):
+        """Perform HTTP GET of service advertisement
+        """
+        # content negotiation
+        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
+
+        try:
+            status = web.ctx.ermrest_registry.healthcheck()
+            response = {
+                "version": __version__,
+                "features": service_features(),
+            }
+        except Exception as e:
+            web.debug(e)
+            raise rest.ServiceUnavailable('Registry health-check failed.')
+
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_request_content_type = content_type
+
+        # set location header and status
+        web.ctx.status = '200 OK'
+
+        assert content_type == _application_json
+        return json.dumps(response) + '\n'
+
+    def with_queryopts(self, qopt):
+        # stub to satisfy ermrest.url.ast.api.Api interface
+        return self
+
+    def final(self):
+        # stub to satisfy ermrest.url.ast.api.Api interface
+        pass
 
 class Catalogs (object):
     """A multi-tenant catalog set."""

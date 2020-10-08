@@ -199,6 +199,8 @@ The sort, paging, and limit syntax together can support [paged data access](data
 
 The ERMrest interface supports typical HTTP operations to manage these different levels of resource:
 
+1. Service-level operations
+   1. [Service Advertisement Retrieval](rest-catalog.md#service-ad-retrieval)
 1. [Catalog-level operations](rest-catalog.md)
    1. [Catalog Creation](rest-catalog.md#catalog-creation)
    1. [Catalog Retrieval](rest-catalog.md#catalog-retrieval)

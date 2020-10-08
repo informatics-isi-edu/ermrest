@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2020 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import json
 import web
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, view_exists
+from ..util import sql_identifier, sql_literal, view_exists, service_features
 from .misc import AltDict, AclDict, keying, annotatable, hasacls, enforce_63byte_id, current_request_snaptime
 from .table import Table
 from .name import Name
@@ -63,9 +63,7 @@ class Model (object):
             "snaptime": snaptime,
             "annotations": self.annotations,
             "rights": self.rights(),
-            "features": {
-                "history_control": True,
-            },
+            "features": service_features(),
         }
         if not brief:
             doc["schemas"] = {

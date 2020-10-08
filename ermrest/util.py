@@ -1,5 +1,5 @@
 # 
-# Copyright 2012-2019 University of Southern California
+# Copyright 2012-2020 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ import urllib
 import uuid
 import base64
 from webauthn2.util import urlquote, negotiated_content_type
+
+__version__ = '0.2.0'
 
 def urlunquote(url):
     text = urllib.parse.unquote_plus(url)
@@ -130,3 +132,7 @@ def random_name(prefix=''):
     # TODO: trim out uuid version 4 static bits?  Is 122 random bits overkill?
     return prefix + base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().replace('=','')
 
+def service_features():
+    return {
+        "history_control": True,
+    }

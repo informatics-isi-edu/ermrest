@@ -1,6 +1,6 @@
 
 #
-# Copyright 2012-2019 University of Southern California
+# Copyright 2012-2020 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -88,6 +88,10 @@ class Registry(object):
         acl = set(acl) if acl else set()
         return len(roles & acl) > 0
 
+    def healthcheck(self):
+        """Do basic health-check and return True or raise error."""
+        raise NotImplementedError()
+
     def lookup(self, id=None):
         """Lookup a registry and retrieve its description.
 
@@ -146,6 +150,22 @@ class SimpleRegistry(Registry):
         finally:
             if pc is not None:
                 pc.final()
+
+    def healthcheck(self):
+        """Do basic health-check and return True or raise error."""
+        def body(conn, cur):
+            # a limited cost query to test registry DB path
+            cur.execute("""
+SELECT count(*)
+FROM ermrest.simple_registry
+WHERE id = 1;
+""")
+            if len(list(cur)) == 1:
+                return True
+            else:
+                raise ValueError('Registry probe query returned invalid result')
+
+        return self.pooled_perform(body)
 
     def lookup(self, id=None):
         """See Registry.lookup()"""

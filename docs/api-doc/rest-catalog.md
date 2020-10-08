@@ -2,6 +2,50 @@
 
 In this documentation and examples, the _service_ as described in the previous section on [model resource naming](model/naming.md) is assumed to be `https://www.example.com/ermrest`.
 
+## Service Ad Retrieval
+
+Outside of any catalog context, the __service__ itself offers a brief advertisement of its capability.
+
+The GET method is used to retrieve the service advertisement. This
+request also serves as a basic health-check of the ERMrest service:
+
+    GET /ermrest/ HTTP/1.1
+    Host: www.example.com
+
+On success, this request yields the service advertisement:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    
+    {
+      "version": "0.2.0",
+      "features": {
+        ...
+      }
+    }
+
+Typical error response codes include:
+- 400 Bad Request (on legacy versions lacking this feature)
+- 503 Service Unavailable (if basic service health-check is failing)
+
+The `"version"` field is the ermrest Python package version as
+installed.  The `"features"` field is where ERMrest may advertise
+software features added in subsequent revisions. This allows
+fine-grained feature detection by clients concerned with exploiting
+new features, when available, but falling back to simpler access modes
+if accessing older catalogs.
+
+Known feature flags at time of writing of this document:
+
+- `history_control`: Service supports `tag:isrd.isi.edu:2020,history-capture` table annotation to disable history capture.
+
+Generally, absence of a feature flag means the service is running
+older software which predates the release of the feature. A flag will
+be present with boolean value `true` to advertise presence of a
+feature. Specific flags may be documented with other advertisement
+values in the future, i.e. to indicate runtime status of a feature
+which can be disabled selectively by the administrator.
+
 ## Catalog Creation
 
 The POST method is used to create an empty catalog:
@@ -48,22 +92,8 @@ On success, this request yields a description:
       }
     }
 
-The `"features"` field is where ERMrest may advertise software
-features added in subsequent revisions. This allows fine-grained
-feature detection by clients concerned with exploiting new features,
-when available, but falling back to simpler access modes if accessing
-older catalogs.
-
-Known feature flags at time of writing of this document:
-
-- `history_control`: Service supports `tag:isrd.isi.edu:2020,history-capture` table annotation to disable history capture.
-
-Generally, absence of a feature flag means the service is running
-older software which predates the release of the feature. A flag will
-be present with boolean value `true` to advertise presence of a
-feature. Specific flags may be documented with other advertisement
-values in the future, i.e. to indicate runtime status of a feature
-which can be disabled selectively by the administrator.
+The `"features"` field is previously described in the [Service Ad
+Retrieval request](#service-ad-retrieval).
 
 Typical error response codes include:
 - 404 Not Found

@@ -183,6 +183,15 @@ class BasicColumn (common.ErmrestTest):
         self.assertHttp(self.session.post(self._cols_url(), json=self.coldef), 201)
         self.test_get_one()
 
+class ServiceAdvertisement (common.ErmrestTest):
+
+    def test_service_ad(self):
+        r = self.session.get('/ermrest')
+        self.assertHttp(r, 200, 'application/json')
+        ad = r.json()
+        self.assertIn('version', ad)
+        self.assertIn('features', ad)
+
 class BasicKey (common.ErmrestTest):
     table = _T1
     key = 'id'

@@ -14,12 +14,19 @@
 # limitations under the License.
 #
 
+import re
+import io
 from setuptools import setup
+
+__version__ = re.search(
+    r'__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
+    io.open('ermrest/util.py', encoding='utf_8_sig').read()
+    ).group(1)
 
 setup(
     name='ermrest',
     description='Entity Relationship Management via REpresentational State Transfer',
-    version='0.1-prerelease',
+    version=__version__,
     zip_safe=False, # we need to unpack for mod_wsgi to find ermrest.wsgi 
     packages=[
         'ermrest',
