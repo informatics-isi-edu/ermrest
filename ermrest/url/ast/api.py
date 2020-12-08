@@ -25,6 +25,7 @@ import sys
 import re
 import json
 import datetime
+import itertools
 from collections import OrderedDict
 
 from ...exception import *
