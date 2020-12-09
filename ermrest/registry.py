@@ -158,7 +158,7 @@ class SimpleRegistry(Registry):
             cur.execute("""
 SELECT count(*)
 FROM ermrest.simple_registry
-WHERE id = 1;
+WHERE id = '1';
 """)
             if len(list(cur)) == 1:
                 return True
