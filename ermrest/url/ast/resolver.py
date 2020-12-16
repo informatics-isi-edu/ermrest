@@ -127,7 +127,7 @@ WHERE t."RID" = %(table_rid)s
         entity_rid, table_rid, gone_when = row
 
         if gone_when is not None:
-            last_visible = self._last_visible_snaptime(cur, table_rid, self._resolve_rid, gone_when)
+            last_visible = self._last_visible_snaptime(cur, table_rid, entity_rid, gone_when)
             sname, tname = self._table_info(cur, table_rid, last_visible)
         else:
             sname, tname = self._table_info(cur, table_rid, web.ctx.ermrest_history_snaptime)
