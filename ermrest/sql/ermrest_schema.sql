@@ -220,6 +220,9 @@ PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_rmt', 'timestamp
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_uri', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'ermrest_curie', 'text');
 PERFORM _ermrest.create_domain_if_not_exists('public', 'color_rgb_hex', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'uri', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'url', 'text');
+PERFORM _ermrest.create_domain_if_not_exists('public', 'curie', 'text');
 
 ALTER DOMAIN public.color_rgb_hex DROP CONSTRAINT IF EXISTS color_rgb_hex_format;
 ALTER DOMAIN public.color_rgb_hex ADD CONSTRAINT color_rgb_hex_format CHECK (VALUE ~ '^#[0-9a-fA-F]{6}$');

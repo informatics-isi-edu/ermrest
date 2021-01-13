@@ -46,7 +46,10 @@
         "timetz": { "aliases": [ "time with time zone" ] },
         "time": { "aliases": [ "time without time zone" ] },
         "uuid": null,
-	"json": null,
+        "url": null,
+        "uri": null,
+        "curie": null,
+        "json": null,
 	"jsonb": null
     },
     
