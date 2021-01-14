@@ -2205,7 +2205,6 @@ END
                             else:
                                 raise NotImplementedError('unexpected column update right %r in entity rights summary' % (right,))
                         col_rights = [ '%s, %s' % (sql_literal(c.name), right) for c, right in col_rights.items() ]
-                        web.debug(col_rights)
                         rights['column_update'] = 'jsonb_build_object(%s)' % (','.join(col_rights))
                 select = 'jsonb_build_object(%s)' % (','.join([ '%s::text, %s' % (sql_literal(access), right) for access, right in rights.items() ]))
             elif hasattr(col, 'sql_name_with_talias'):
