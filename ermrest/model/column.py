@@ -236,15 +236,26 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trg
         actions = []
         persists = []
 
+        def enforce_nonsyscol(access):
+            if self.name in {'RID','RCT','RMT','RCB','RMB'}:
+                raise exception.Forbidden('%s on %s' % (access, self))
+
         if self.type.name != newcol.type.name:
-            actions.append('SET DATA TYPE %s' % newcol.type.sql())
+            enforce_nonsyscol('Alter type = %s' % newcol.type.name)
+            actions.append('SET DATA TYPE %s USING %s::%s' % (
+                newcol.type.sql(),
+                sql_identifier(self.name),
+                newcol.type.sql(basic_storage=True)
+            ))
             persists.append('type_rid')
 
         if self.nullok != newcol.nullok:
+            enforce_nonsyscol('Alter nullok = %s' % newcol.nullok)
             actions.append('%s NOT NULL' % ('DROP' if newcol.nullok else 'SET'))
             persists.append('not_null')
 
         if self.default_value != newcol.default_value:
+            enforce_nonsyscol('Alter default = %s' % newcol.default_value)
             if newcol.default_value is None:
                 actions.append('DROP DEFAULT')
             else:

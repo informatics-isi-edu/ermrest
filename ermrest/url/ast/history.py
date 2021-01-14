@@ -31,7 +31,7 @@ def _post_commit(handler, resource, content_type='text/plain', transform=lambda 
     handler.emit_headers()
     if resource is None and content_type == 'text/plain':
         return ''
-    if resource is '' and web.ctx.status == '200 OK':
+    if resource == '' and web.ctx.status == '200 OK':
         web.ctx.status = '204 No Content'
         return ''
     web.header('Content-Type', content_type)

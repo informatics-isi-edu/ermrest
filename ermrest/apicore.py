@@ -98,7 +98,13 @@ try:
             self._lock = threading.Lock()
             if self._config.get('host') is None:
                 self._config['host'] = 'localhost'
-            self._connection_config = pika.ConnectionParameters(**config['connection'])
+            connection = self._config.get('connection')
+            if isinstance(connection, str):
+                self._connection_config = pika.URLParameters(connection)
+            elif isinstance(connection, dict):
+                self._connection_config = pika.ConnectionParameters(**connection)
+            else:
+                self._connection_config = pika.ConnectionParameters(host=self._config['host'])
             self._exchange_name = config['exchange']
             self._routing_key = config['routing_key']
             self._connection = None
@@ -142,8 +148,9 @@ try:
                     self._lock.release()
                 except:
                     pass
-                
-    amqp_notifier = AmqpChangeNotifier(global_env['change_notification']['AMQP'])
+
+    conf = global_env.get('change_notification', {}).get('AMQP')
+    amqp_notifier = AmqpChangeNotifier(conf) if conf else None
 except:
     et, ev, tb = sys.exc_info()
     logger.info( ('Change notification via AMQP disabled due to initialization error: %s\n%s' % (

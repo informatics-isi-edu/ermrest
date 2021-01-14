@@ -106,11 +106,11 @@ def p_serviceslash(p):
     p[0] = p[1]
 
 def p_catalog(p):
-    """catalog : serviceslash CATALOG '/' NUMSTRING """ 
+    """catalog : serviceslash CATALOG '/' string """ 
     p[0] = ast.Catalog(p[4])
 
 def p_catalog_when(p):
-    """catalog : serviceslash CATALOG '/' NUMSTRING '@' string"""
+    """catalog : serviceslash CATALOG '/' string '@' string"""
     p[0] = ast.Catalog(p[4])
     cur = web.ctx.ermrest_catalog_pc.cur
     web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[6])
