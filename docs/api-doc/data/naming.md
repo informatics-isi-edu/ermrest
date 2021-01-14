@@ -140,6 +140,17 @@ The binning operator is only supported for certain basic column storage types:
 - `numeric`
 - `timestamptz`, `timestamp`
 
+## Rights Summary
+
+In order to discover dynamic, data-dependent access rights for specific records, special *rights summary* operators are allowed in an attribute projection in place of a bare column reference:
+
+- `trs(RID)`
+- `trs(` _in alias_ `:RID)`
+- `tcrs(RID)`
+- `tcrs(` _in alias_ `:RID)`
+
+These operators summarize the rights for the table instance containing the referenced RID column. The `trs` or _table rights summary_ operator yields a JSON formatted object with keys `update` and `delete` mapped to boolean values indicating whether that access is allowed on the record. The `tcrs` or _table and column rights summary_ operator includes the same content and extends it with a third `column_update` key mapped to a sub-object that is keyed by column names, each mapped to a boolean for whether update of that given column is allowed on the record.
+
 ## Data Paths
 
 ERMrest introduces a general path-based syntax for naming data resources with idioms for navigation and filtering of entity sets. The _path_ element of the data resource name always denotes a set of entities or joined entities.  The path must be interpreted from left to right in order to understand its meaning. The denoted entity set is understood upon reaching the right-most element of the path and may be modified by the resource space or _api_ under which the path occurs.

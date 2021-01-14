@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2020 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -83,3 +83,13 @@ class Binning (Name):
 
     def __str__(self):
         return 'bin(%s)' % (';'.join([Name.__str__(self), str(self.nbins), str(self.minv), str(self.maxv)]))
+
+class RightsSummary (Name):
+    """Represent a rights summary used as an attribute."""
+    def __init__(self, name, summarize_columns=False):
+        Name.__init__(self, name.nameparts)
+        self.rights_summary = True
+        self.summarize_columns = summarize_columns
+
+    def __str__(self):
+        return 'ers(%s)' % (Name.__str__(self),)

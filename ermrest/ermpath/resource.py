@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -2170,6 +2170,44 @@ CASE
   ELSE   jsonb_build_array(%(bucket)s, %(bminv)s, %(bmaxv)s)
 END
 """ % parts
+            elif hasattr(attribute, 'rights_summary'):
+                if not col.name == 'RID':
+                    raise ConflictModel('Rights summary not supported on column "%s".' % col.name)
+                rights = {
+                    'update': None,
+                    'delete': None,
+                }
+                for access in list(rights):
+                    right = col.table.has_right(access)
+                    if isinstance(right, bool):
+                        rights[access] = '%s::boolean' % right
+                    elif right is None:
+                        rights[access] = 'COALESCE(%s, False)' % (' OR '.join([
+                            '(%s)' % clause
+                            for clause in get_dynacl_clauses(col.table, access, alias)
+                        ]))
+                    else:
+                        raise NotImplementedError('unexpected access right %s = %r in entity rights summary' % (access, right))
+                    if attribute.summarize_columns:
+                        col_rights = {
+                            c: None
+                            for c in col.table.columns_in_order()
+                        }
+                        for c in list(col_rights):
+                            if c.name in {'RID', 'RMT', 'RCT', 'RMB', 'RCB'}:
+                                right = False
+                            else:
+                                right = c.has_right('update')
+                            if isinstance(right, bool):
+                                col_rights[c] = '%s::boolean' % right
+                            elif right is None:
+                                col_rights[c] = '(NOT (%s))' % c.sql_name_dynauthz(alias, dynauthz=False, access_type='update')
+                            else:
+                                raise NotImplementedError('unexpected column update right %r in entity rights summary' % (right,))
+                        col_rights = [ '%s, %s' % (sql_literal(c.name), right) for c, right in col_rights.items() ]
+                        web.debug(col_rights)
+                        rights['column_update'] = 'jsonb_build_object(%s)' % (','.join(col_rights))
+                select = 'jsonb_build_object(%s)' % (','.join([ '%s::text, %s' % (sql_literal(access), right) for access, right in rights.items() ]))
             elif hasattr(col, 'sql_name_with_talias'):
                 select = col.sql_name_with_talias(alias, output=True)
             elif col is None and attribute is True:
