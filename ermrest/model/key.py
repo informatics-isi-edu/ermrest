@@ -228,8 +228,8 @@ SELECT oid, schema_rid, constraint_name, table_rid, "comment"
 FROM _ermrest.introspect_keys
 WHERE table_rid = %(t_rid)s AND constraint_name = %(c_name)s;
 
-INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
-SELECT key_rid, column_rid
+INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
+SELECT key_rid, column_rid, "ordinality"
 FROM _ermrest.introspect_key_columns
 WHERE key_rid = (
   SELECT "RID" 
@@ -857,7 +857,7 @@ WHERE i.fk_table_rid = %(table_rid)s
             if len(columns) == 0:
                 raise exception.BadData('Foreign-key references require at least one column pair.')
 
-            colset = frozenset(columns)
+            colset = OrderedFrozenSet(columns)
 
             if table is None:
                 table = columns[0].table

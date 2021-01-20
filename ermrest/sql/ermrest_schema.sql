@@ -1475,7 +1475,7 @@ BEGIN
 
   WITH inserted AS (
     INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
-    SELECT key_rid, column_rid, "ordinality"
+    SELECT i.key_rid, i.column_rid, i."ordinality"
     FROM _ermrest.introspect_key_columns i
     LEFT JOIN _ermrest.known_key_columns k USING (key_rid, column_rid)
     WHERE k."RID" is NULL
@@ -1813,7 +1813,7 @@ BEGIN
 
   WITH inserted AS (
     INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
-    SELECT key_rid, column_rid, "ordinality"
+    SELECT i.key_rid, i.column_rid, i."ordinality"
     FROM _ermrest.introspect_key_columns i
     LEFT JOIN _ermrest.known_key_columns k USING (key_rid, column_rid)
     WHERE k."RID" IS NULL
@@ -2469,7 +2469,7 @@ RETURNS TABLE ("RID" text, constraint_name text, table_rid text, comment text) A
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_key_columns(ts timestamptz)
-RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
+RETURNS TABLE ("RID" text, key_rid text, column_rid text, "ordinality" int4) AS $$
   SELECT
     s."RID",
     (s.rowdata->>'key_rid')::text "key_rid",
@@ -2480,7 +2480,7 @@ RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_key_columns(ts timestamptz)
-RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
+RETURNS TABLE ("RID" text, key_rid text, column_rid text, "ordinality" int4) AS $$
   SELECT
     s."RID",
     (s.rowdata->>'key_rid')::text "key_rid",

@@ -151,5 +151,5 @@ class OrderedFrozenSet (collections.abc.Set):
     def __len__(self): return len(self._members_set)
     def __le__(self, other): return self._members_set <= other
     def __ge__(self, other): return self._members_set >= other
-    def __hash__(self): return hash(self._members)
+    def __hash__(self): return hash(self._members_set)
     def __repr__(self): return '<%s(%r)>' % (type(self).__name__, self._members)

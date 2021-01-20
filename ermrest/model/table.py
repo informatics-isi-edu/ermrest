@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import web
 from functools import reduce
 
 from .. import exception, ermpath
-from ..util import sql_identifier, sql_literal, table_exists
+from ..util import sql_identifier, sql_literal, table_exists, OrderedFrozenSet
 from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
@@ -138,7 +138,7 @@ class Table (object):
     def check_primary_keys(self, require):
         try:
             self.check_system_columns()
-            if frozenset([self.columns['RID']]) not in self.uniques:
+            if OrderedFrozenSet([self.columns['RID']]) not in self.uniques:
                 raise exception.ConflictModel('Column "%s"."RID" lacks uniqueness constraint.' % self.name)
         except exception.ConflictModel as te:
             if not require:
