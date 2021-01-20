@@ -1,5 +1,5 @@
 # 
-# Copyright 2012-2020 University of Southern California
+# Copyright 2012-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import web
 import urllib
 import uuid
 import base64
+import collections
 from webauthn2.util import urlquote, negotiated_content_type
 
 __version__ = '0.2.0'
@@ -136,3 +137,19 @@ def service_features():
     return {
         "history_control": True,
     }
+
+class OrderedFrozenSet (collections.abc.Set):
+    """Similar to a regular frozenset but remembers order of input iterable of members.
+    """
+    def __init__(self, iterable):
+        super(OrderedFrozenSet, self).__init__()
+        self._members = tuple(iterable)
+        self._members_set = frozenset(iterable)
+
+    def __contains__(self, x): return x in self._members_set
+    def __iter__(self): return iter(self._members)
+    def __len__(self): return len(self._members_set)
+    def __le__(self, other): return self._members_set <= other
+    def __ge__(self, other): return self._members_set >= other
+    def __hash__(self): return hash(self._members)
+    def __repr__(self): return '<%s(%r)>' % (type(self).__name__, self._members)

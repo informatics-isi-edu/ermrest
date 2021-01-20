@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2012-2018 University of Southern California
+-- Copyright 2012-2021 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -517,8 +517,11 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     key_rid text NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
     column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    "ordinality" int4 NOT NULL,
     UNIQUE(key_rid, column_rid)
   );
+ELSIF (SELECT True FROM information_schema.columns WHERE table_schema = '_ermrest' AND table_name = 'known_key_columns' AND column_name = 'ordinality') IS NULL THEN
+  ALTER TABLE _ermrest.known_key_columns ADD COLUMN "ordinality" int4; -- this will be nullable/sparse for upgraded catalogs
 END IF;
 
 IF COALESCE(
@@ -563,8 +566,11 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
     key_rid text NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
     column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    "ordinality" int4 NOT NULL,
     UNIQUE(key_rid, column_rid)
   );
+ELSIF (SELECT True FROM information_schema.columns WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_key_columns' AND column_name = 'ordinality') IS NULL THEN
+  ALTER TABLE _ermrest.known_pseudo_key_columns ADD COLUMN "ordinality" int4; -- this will be nullable/sparse for upgraded catalogs
 END IF;
 
 IF COALESCE(
@@ -820,13 +826,16 @@ CREATE OR REPLACE VIEW _ermrest.introspect_keys AS
 CREATE OR REPLACE VIEW _ermrest.introspect_key_columns AS
   SELECT
     k."RID" AS key_rid,
-    kc."RID" AS column_rid
+    kc."RID" AS column_rid,
+    ca.attord AS "ordinality"
   FROM _ermrest.known_keys k
   JOIN (
     SELECT
       con.oid,
-      unnest(con.conkey) AS attnum
+      a.attnum,
+      a.attord
     FROM pg_catalog.pg_constraint con
+    JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS a(attnum, attord) ON (True)
   ) ca ON (ca.oid = k.oid)
   JOIN _ermrest.known_columns kc ON (k.table_rid = kc."table_rid" AND ca.attnum = kc.column_num)
 ;
@@ -1455,10 +1464,21 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
+  WITH updated AS (
+    UPDATE _ermrest.known_key_columns k
+    SET "ordinality" = i."ordinality"
+    FROM _ermrest.introspect_key_columns i
+    WHERE k.key_rid = i.key_rid AND k.column_rid = i.column_rid
+      AND k."ordinality" IS DISTINCT FROM i."ordinality"
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+
   WITH inserted AS (
-    INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
-    SELECT key_rid, column_rid FROM _ermrest.introspect_key_columns
-    EXCEPT SELECT key_rid, column_rid FROM _ermrest.known_key_columns
+    INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
+    SELECT key_rid, column_rid, "ordinality"
+    FROM _ermrest.introspect_key_columns i
+    LEFT JOIN _ermrest.known_key_columns k USING (key_rid, column_rid)
+    WHERE k."RID" is NULL
     RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
@@ -1782,10 +1802,21 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
+  WITH updated AS (
+    UPDATE _ermrest.known_key_columns k
+    SET "ordinality" = i."ordinality"
+    FROM _ermrest.introspect_key_columns i
+    WHERE k.key_rid = i.key_rid AND k.column_rid = i.column_rid
+      AND k."ordinality" IS DISTINCT FROM i."ordinality"
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+
   WITH inserted AS (
-    INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
-    SELECT key_rid, column_rid FROM _ermrest.introspect_key_columns
-    EXCEPT SELECT key_rid, column_rid FROM _ermrest.known_key_columns
+    INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
+    SELECT key_rid, column_rid, "ordinality"
+    FROM _ermrest.introspect_key_columns i
+    LEFT JOIN _ermrest.known_key_columns k USING (key_rid, column_rid)
+    WHERE k."RID" IS NULL
     RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
@@ -2442,7 +2473,8 @@ RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
   SELECT
     s."RID",
     (s.rowdata->>'key_rid')::text "key_rid",
-    (s.rowdata->>'column_rid')::text "column_rid"
+    (s.rowdata->>'column_rid')::text "column_rid",
+    (s.rowdata->>'ordinality')::int4 "ordinality" -- this will be NULL for pre-upgrade snapshots
   FROM _ermrest_history.known_key_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
@@ -2452,7 +2484,8 @@ RETURNS TABLE ("RID" text, key_rid text, column_rid text) AS $$
   SELECT
     s."RID",
     (s.rowdata->>'key_rid')::text "key_rid",
-    (s.rowdata->>'column_rid')::text "column_rid"
+    (s.rowdata->>'column_rid')::text "column_rid",
+    (s.rowdata->>'ordinality')::int4 "ordinality" -- this will be NULL for pre-upgrade snapshots
   FROM _ermrest_history.known_pseudo_key_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
@@ -2471,7 +2504,7 @@ FROM _ermrest.known_keys($1) k
 JOIN (
   SELECT
     kc.key_rid,
-    array_agg(kc.column_rid ORDER BY kc.column_rid)::text[] AS column_rids
+    array_agg(kc.column_rid ORDER BY kc."ordinality", kc.column_rid)::text[] AS column_rids
   FROM _ermrest.known_key_columns($1) kc
   GROUP BY kc.key_rid
 ) kc ON (k."RID" = kc.key_rid)
@@ -2497,7 +2530,7 @@ FROM _ermrest.known_pseudo_keys($1) k
 LEFT OUTER JOIN (
   SELECT
     kc.key_rid,
-    array_agg(kc.column_rid ORDER BY kc.column_rid)::text[] AS column_rids
+    array_agg(kc.column_rid ORDER BY kc."ordinality", kc.column_rid)::text[] AS column_rids
   FROM _ermrest.known_pseudo_key_columns($1) kc
   GROUP BY kc.key_rid
 ) kc ON (k."RID" = kc.key_rid)

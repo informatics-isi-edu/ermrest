@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2017 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ needed by other modules of the ermrest project.
 import web
 
 from .. import exception
-from ..util import table_exists, view_exists, column_exists, sql_literal, sql_identifier
+from ..util import table_exists, view_exists, column_exists, sql_literal, sql_identifier, OrderedFrozenSet
 from .misc import frozendict, annotatable_classes, hasacls_classes, hasdynacls_classes, AclBinding, current_model_snaptime
 from .schema import Model, Schema
 from .type import TypesEngine
@@ -149,7 +149,7 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
         except KeyError:
             return
 
-        pk_colset = frozenset(pk_cols)
+        pk_colset = OrderedFrozenSet(pk_cols)
 
         # each constraint implies a pkey but might be duplicate
         pk = pk_factory(pk_colset)

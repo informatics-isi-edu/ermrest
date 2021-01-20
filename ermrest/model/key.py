@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import web
 import json
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, constraint_exists
+from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet
 from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, make_id
 from .name import _keyref_join_str, _keyref_join_sql
 
@@ -91,12 +91,6 @@ SELECT _ermrest.model_version_bump();
                 return False
         return True
 
-    def _column_names(self):
-        """Canonicalized column names list."""
-        cnames = [ col.name for col in self.columns ]
-        cnames.sort()
-        return cnames
-        
     def update(self, conn, cur, keydoc, ermrest_config):
         """Idempotently update existing key state on part-by-part basis.
 
@@ -185,7 +179,7 @@ WHERE e."RID" = %(rid)s;
             if kcname not in table.columns:
                 raise exception.BadData('Key column %s not defined in table.' % kcname)
             keycolumns.append(table.columns[kcname])
-        keycolumns = frozenset(keycolumns)
+        keycolumns = OrderedFrozenSet(keycolumns)
 
         pk_namepair = pk_namepairs[0] if pk_namepairs else None
         
@@ -386,12 +380,6 @@ SELECT _ermrest.model_version_bump();
                 return False
         return True
 
-    def _column_names(self):
-        """Canonicalized column names list."""
-        cnames = [ col.name for col in self.columns ]
-        cnames.sort()
-        return cnames
-        
     def prejson(self):
         return {
             'RID': self.rid,
@@ -427,8 +415,8 @@ RETURNING "RID";
 })
         self.rid = cur.fetchone()[0]
         cur.execute("""
-INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
-SELECT %(rid)s, c.rid FROM unnest(%(col_rids)s) c(rid);
+INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid, ordinality)
+SELECT %(rid)s, c.rid, c.ord FROM unnest(%(col_rids)s) WITH ORDINALITY c(rid, ord);
 """ % {
     'rid': sql_literal(self.rid),
     'col_rids': 'ARRAY[%s]::text[]' % (','.join([ sql_literal(c.rid) for c in self.columns ])),
