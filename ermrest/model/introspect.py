@@ -220,7 +220,7 @@ SELECT _ermrest.model_version_bump();
             raise ValueError('Foreign key constraint %s has mismatched column list lengths.' % constraint_name)
 
         fk_colset = frozenset(fk_cols)
-        pk_colset = OrderedFrozenSet(pk_cols)
+        pk_colset = frozenset(pk_cols)
         fk_ref_map = frozendict({
             fk_col: pk_col
             for fk_col, pk_col in zip(fk_cols, pk_cols)

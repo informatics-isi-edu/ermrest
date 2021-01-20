@@ -647,16 +647,32 @@ SELECT _ermrest.model_version_bump();
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def _fk_pk_cols_ordered(self):
+        """Return fk_cols, pk_cols sorted by referenced key's stable column order"""
+        pk_cols = list(self.unique.columns)
+        pk_cols_ord = {
+            pk_cols[i]: i
+            for i in range(len(pk_cols))
+        }
+        fk_cols_ord = {
+            fkc: pk_cols_ord[pkc]
+            for fkc, pkc in self.reference_map.items()
+        }
+        fk_cols = [ p[0] for p in sorted(fk_cols_ord.items(), key=lambda p: p[1]) ]
+        pk_cols = [ self.reference_map[c] for c in fk_cols ]
+        return fk_cols, pk_cols
+
     def sql_def(self):
-        """Render SQL table constraint clause for DDL."""   
-        fk_cols = list(self.foreign_key.columns)
+        """Render SQL table constraint clause for DDL."""
+        # sort out column ordering to obey referenced key's stable column order
+        fk_cols, pk_cols = self._fk_pk_cols_ordered()
         return (
             '%s FOREIGN KEY (%s) REFERENCES %s.%s (%s) %s %s' % (
                 ('CONSTRAINT %s' % sql_identifier(self.constraint_name[1]) if self.constraint_name else ''),
-                ','.join([ sql_identifier(fk_cols[i].name) for i in range(0, len(fk_cols)) ]),
+                ','.join([ sql_identifier(c.name) for c in fk_cols ]),
                 sql_identifier(self.unique.table.schema.name),
                 sql_identifier(self.unique.table.name),
-                ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ]),
+                ','.join([ sql_identifier(c.name) for c in pk_cols ]),
                 'ON DELETE %s' % self.on_delete,
                 'ON UPDATE %s' % self.on_update,
             )
