@@ -518,10 +518,14 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     key_rid text NOT NULL REFERENCES _ermrest.known_keys("RID") ON DELETE CASCADE,
     column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     "ordinality" int4 NOT NULL,
+    UNIQUE(key_rid, "ordinality") DEFERRABLE,
     UNIQUE(key_rid, column_rid)
   );
 ELSIF (SELECT True FROM information_schema.columns WHERE table_schema = '_ermrest' AND table_name = 'known_key_columns' AND column_name = 'ordinality') IS NULL THEN
-  ALTER TABLE _ermrest.known_key_columns ADD COLUMN "ordinality" int4; -- this will be nullable/sparse for upgraded catalogs
+  -- new column will be initially nullable/sparse during upgrade
+  ALTER TABLE _ermrest.known_key_columns
+    ADD COLUMN "ordinality" int4,
+    ADD CONSTRAINT "known_key_columns_key_rid_ordinality_key" UNIQUE (key_rid, "ordinality") DEFERRABLE;
 END IF;
 
 IF COALESCE(
@@ -567,10 +571,14 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     key_rid text NOT NULL REFERENCES _ermrest.known_pseudo_keys("RID") ON DELETE CASCADE,
     column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     "ordinality" int4 NOT NULL,
+    UNIQUE(key_rid, "ordinality") DEFERRABLE,
     UNIQUE(key_rid, column_rid)
   );
 ELSIF (SELECT True FROM information_schema.columns WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_key_columns' AND column_name = 'ordinality') IS NULL THEN
-  ALTER TABLE _ermrest.known_pseudo_key_columns ADD COLUMN "ordinality" int4; -- this will be nullable/sparse for upgraded catalogs
+  -- new column will be initially nullable/sparse during upgrade
+  ALTER TABLE _ermrest.known_pseudo_key_columns
+    ADD COLUMN "ordinality" int4,
+    ADD CONSTRAINT "known_pseudo_key_columns_key_rid_ordinality_key" UNIQUE (key_rid, "ordinality") DEFERRABLE;
 END IF;
 
 IF COALESCE(
@@ -2140,6 +2148,41 @@ END IF;
 SET CONSTRAINTS ALL DEFERRED;
 PERFORM _ermrest.model_change_event();
 SET CONSTRAINTS ALL IMMEDIATE;
+
+-- handle incremental schema upgrade started above
+IF (SELECT NOT c.not_null
+    FROM _ermrest.known_schemas s
+    JOIN _ermrest.known_tables t ON (t.schema_rid = s."RID")
+    JOIN _ermrest.known_columns c ON (c.table_rid = t."RID")
+    WHERE s.schema_name = '_ermrest'
+      AND t.table_name = 'known_key_columns'
+      AND c.column_name = 'ordinality')
+THEN
+  SET CONSTRAINTS ALL DEFERRED;
+
+  -- known_key_columns.ordinality is already populated by earlier model sync above...
+
+  UPDATE _ermrest.known_pseudo_key_columns k
+  SET "ordinality" = s.ord
+  FROM (
+    SELECT
+      "RID",
+      row_number() OVER (PARTITION BY key_rid ORDER BY "RID") AS ord
+    FROM _ermrest.known_pseudo_key_columns
+  ) s
+  WHERE s."RID" = k."RID";
+  
+  ALTER TABLE _ermrest.known_key_columns ALTER COLUMN "ordinality" SET NOT NULL;
+  ALTER TABLE _ermrest.known_pseudo_key_columns ALTER COLUMN "ordinality" SET NOT NULL;
+
+  PERFORM _ermrest.model_change_event();
+  SET CONSTRAINTS ALL IMMEDIATE;
+
+  -- drop these so we can redefine w/ different output type
+  DROP FUNCTION IF EXISTS _ermrest.known_key_columns(timestamptz);
+  DROP FUNCTION IF EXISTS _ermrest.known_pseudo_key_columns(timestamptz);
+
+END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.create_historical_annotation_func(rname text, cname text) RETURNS void AS $def$
 BEGIN
