@@ -690,10 +690,14 @@ SELECT _ermrest.model_version_bump();
                 else:
                     n += 1
             self.constraint_name = (self.foreign_key.table.schema.name, name)
+        idx_name = '_'.join(self.constraint_name[1].split('_')[:-1]) + '_idx'
+        fk_cols, pk_cols = self._fk_pk_cols_ordered()
         self.foreign_key.table.alter_table(
             conn, cur,
             'ADD %s' % self.sql_def(),
             """
+CREATE INDEX IF NOT EXISTS %(idx_name)s ON %(schema_name)s.%(table_name)s (%(idx_cols)s);
+
 INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule)
 SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule
 FROM _ermrest.introspect_fkeys
@@ -713,6 +717,10 @@ RETURNING fkey_rid;
 """ % {
     'table_rid': sql_literal(self.foreign_key.table.rid),
     'constraint_name': sql_literal(self.constraint_name[1]),
+    'idx_name': sql_identifier(idx_name),
+    'schema_name': sql_identifier(self.foreign_key.table.schema.name),
+    'table_name': sql_identifier(self.foreign_key.table.name),
+    'idx_cols': ', '.join([ sql_identifier(c.name) for c in fk_cols ]),
 })
         self.rid = cur.fetchone()[0]
         self.set_comment(conn, cur, self.comment)
@@ -720,11 +728,13 @@ RETURNING fkey_rid;
     def delete(self, conn, cur):
         if self.constraint_name:
             fkr_schema, fkr_name = self.constraint_name
+            idx_name = '_'.join(fkr_name.split('_')[:-1]) + '_idx'
             self.foreign_key.table.alter_table(
                 conn, cur,
                 'DROP CONSTRAINT %s' % sql_identifier(fkr_name),
                 'DELETE FROM _ermrest.known_fkeys WHERE "RID" = %s;' % sql_literal(self.rid),
             )
+            cur.execute('DROP INDEX IF EXISTS %s.%s' % (sql_identifier(self.foreign_key.table.schema.name), sql_identifier(fkr_name)))
 
     def _from_column_names(self):
         """Canonicalized from-column names list."""
