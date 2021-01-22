@@ -26,7 +26,7 @@ import base64
 import collections
 from webauthn2.util import urlquote, negotiated_content_type
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 def urlunquote(url):
     text = urllib.parse.unquote_plus(url)
