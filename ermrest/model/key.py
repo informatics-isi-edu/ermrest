@@ -695,9 +695,7 @@ SELECT _ermrest.model_version_bump();
         self.foreign_key.table.alter_table(
             conn, cur,
             'ADD %s' % self.sql_def(),
-            """
-CREATE INDEX IF NOT EXISTS %(idx_name)s ON %(schema_name)s.%(table_name)s (%(idx_cols)s);
-
+            (('CREATE INDEX IF NOT EXISTS %(idx_name)s ON %(schema_name)s.%(table_name)s (%(idx_cols)s);' if len(fk_cols) > 1 else '') + """
 INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule)
 SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule
 FROM _ermrest.introspect_fkeys
@@ -714,7 +712,7 @@ WHERE fkey_rid = (
     AND constraint_name = %(constraint_name)s
 )
 RETURNING fkey_rid;
-""" % {
+""") % {
     'table_rid': sql_literal(self.foreign_key.table.rid),
     'constraint_name': sql_literal(self.constraint_name[1]),
     'idx_name': sql_identifier(idx_name),
