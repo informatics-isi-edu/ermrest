@@ -1131,6 +1131,12 @@ BEGIN
     RETURN;
   END IF;
 
+  -- also skip if history capture is disabled
+  IF history_capture != 'true'::jsonb
+  THEN
+    RETURN;
+  END IF;
+
   -- seal off open history tuples if we missed a delete or update
   EXECUTE
     'UPDATE _ermrest_history.' || quote_ident(htname) || ' h'
