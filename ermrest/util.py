@@ -136,6 +136,7 @@ def random_name(prefix=''):
 def service_features():
     return {
         "history_control": True,
+        "implicit_fkey_index": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):
