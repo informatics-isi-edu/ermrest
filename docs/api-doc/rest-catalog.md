@@ -37,6 +37,7 @@ if accessing older catalogs.
 
 Known feature flags at time of writing of this document:
 
+- `attributegroup_rights_summary`: Service supports the `trs(RID)` and `tcrs(RID)` projection functions to retrieve row-level access rights.
 - `history_control`: Service supports `tag:isrd.isi.edu:2020,history-capture` table annotation to disable history capture.
 
 Generally, absence of a feature flag means the service is running

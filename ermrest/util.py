@@ -134,5 +134,6 @@ def random_name(prefix=''):
 
 def service_features():
     return {
+        "attributegroup_rights_summary": True,
         "history_control": True,
     }
