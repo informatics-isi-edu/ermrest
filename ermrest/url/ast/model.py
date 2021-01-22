@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import web
 from ... import exception
 from ... import model
 from .api import Api
-from ...util import negotiated_content_type
+from ...util import negotiated_content_type, OrderedFrozenSet
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
     handler.emit_headers()
@@ -854,7 +854,7 @@ class Key (Api):
         
     def GET_body(self, conn, cur, conflict_model=False):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns.get_enumerable(c) for c in self.columns ])
+        cols = OrderedFrozenSet([ table.columns.get_enumerable(c) for c in self.columns ])
         if cols not in table.uniques:
             if conflict_model:
                 raise exception.ConflictModel(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))

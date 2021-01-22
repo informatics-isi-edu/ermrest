@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import psycopg2
 import csv
 import web
 
-from ..util import sql_identifier, sql_literal
+from ..util import sql_identifier, sql_literal, OrderedFrozenSet
 from .. import exception
 from .predicate import Value
 
@@ -155,7 +155,7 @@ def _default_link_cols(cols, left=True, reftable=None):
 
        Raises exception.ConflictModel if no default can be found.
     """
-    constraint_key = frozenset(cols)
+    constraint_key = OrderedFrozenSet(cols)
     table = cols[0].table # any column will do for this
 
     links = []

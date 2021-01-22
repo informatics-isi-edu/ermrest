@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import web
 import json
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, constraint_exists
+from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet
 from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, make_id
 from .name import _keyref_join_str, _keyref_join_sql
 
@@ -91,12 +91,6 @@ SELECT _ermrest.model_version_bump();
                 return False
         return True
 
-    def _column_names(self):
-        """Canonicalized column names list."""
-        cnames = [ col.name for col in self.columns ]
-        cnames.sort()
-        return cnames
-        
     def update(self, conn, cur, keydoc, ermrest_config):
         """Idempotently update existing key state on part-by-part basis.
 
@@ -185,7 +179,7 @@ WHERE e."RID" = %(rid)s;
             if kcname not in table.columns:
                 raise exception.BadData('Key column %s not defined in table.' % kcname)
             keycolumns.append(table.columns[kcname])
-        keycolumns = frozenset(keycolumns)
+        keycolumns = OrderedFrozenSet(keycolumns)
 
         pk_namepair = pk_namepairs[0] if pk_namepairs else None
         
@@ -234,8 +228,8 @@ SELECT oid, schema_rid, constraint_name, table_rid, "comment"
 FROM _ermrest.introspect_keys
 WHERE table_rid = %(t_rid)s AND constraint_name = %(c_name)s;
 
-INSERT INTO _ermrest.known_key_columns (key_rid, column_rid)
-SELECT key_rid, column_rid
+INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
+SELECT key_rid, column_rid, "ordinality"
 FROM _ermrest.introspect_key_columns
 WHERE key_rid = (
   SELECT "RID" 
@@ -386,12 +380,6 @@ SELECT _ermrest.model_version_bump();
                 return False
         return True
 
-    def _column_names(self):
-        """Canonicalized column names list."""
-        cnames = [ col.name for col in self.columns ]
-        cnames.sort()
-        return cnames
-        
     def prejson(self):
         return {
             'RID': self.rid,
@@ -427,8 +415,8 @@ RETURNING "RID";
 })
         self.rid = cur.fetchone()[0]
         cur.execute("""
-INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid)
-SELECT %(rid)s, c.rid FROM unnest(%(col_rids)s) c(rid);
+INSERT INTO _ermrest.known_pseudo_key_columns (key_rid, column_rid, ordinality)
+SELECT %(rid)s, c.rid, c.ord FROM unnest(%(col_rids)s) WITH ORDINALITY c(rid, ord);
 """ % {
     'rid': sql_literal(self.rid),
     'col_rids': 'ARRAY[%s]::text[]' % (','.join([ sql_literal(c.rid) for c in self.columns ])),
@@ -659,16 +647,32 @@ SELECT _ermrest.model_version_bump();
     def verbose(self):
         return json.dumps(self.prejson(), indent=2)
 
+    def _fk_pk_cols_ordered(self):
+        """Return fk_cols, pk_cols sorted by referenced key's stable column order"""
+        pk_cols = list(self.unique.columns)
+        pk_cols_ord = {
+            pk_cols[i]: i
+            for i in range(len(pk_cols))
+        }
+        fk_cols_ord = {
+            fkc: pk_cols_ord[pkc]
+            for fkc, pkc in self.reference_map.items()
+        }
+        fk_cols = [ p[0] for p in sorted(fk_cols_ord.items(), key=lambda p: p[1]) ]
+        pk_cols = [ self.reference_map[c] for c in fk_cols ]
+        return fk_cols, pk_cols
+
     def sql_def(self):
-        """Render SQL table constraint clause for DDL."""   
-        fk_cols = list(self.foreign_key.columns)
+        """Render SQL table constraint clause for DDL."""
+        # sort out column ordering to obey referenced key's stable column order
+        fk_cols, pk_cols = self._fk_pk_cols_ordered()
         return (
             '%s FOREIGN KEY (%s) REFERENCES %s.%s (%s) %s %s' % (
                 ('CONSTRAINT %s' % sql_identifier(self.constraint_name[1]) if self.constraint_name else ''),
-                ','.join([ sql_identifier(fk_cols[i].name) for i in range(0, len(fk_cols)) ]),
+                ','.join([ sql_identifier(c.name) for c in fk_cols ]),
                 sql_identifier(self.unique.table.schema.name),
                 sql_identifier(self.unique.table.name),
-                ','.join([ sql_identifier(self.reference_map[fk_cols[i]].name) for i in range(0, len(fk_cols)) ]),
+                ','.join([ sql_identifier(c.name) for c in pk_cols ]),
                 'ON DELETE %s' % self.on_delete,
                 'ON UPDATE %s' % self.on_update,
             )
@@ -686,10 +690,12 @@ SELECT _ermrest.model_version_bump();
                 else:
                     n += 1
             self.constraint_name = (self.foreign_key.table.schema.name, name)
+        idx_name = '_'.join(self.constraint_name[1].split('_')[:-1]) + '_idx'
+        fk_cols, pk_cols = self._fk_pk_cols_ordered()
         self.foreign_key.table.alter_table(
             conn, cur,
             'ADD %s' % self.sql_def(),
-            """
+            (('CREATE INDEX IF NOT EXISTS %(idx_name)s ON %(schema_name)s.%(table_name)s (%(idx_cols)s);' if len(fk_cols) > 1 else '') + """
 INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule)
 SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule
 FROM _ermrest.introspect_fkeys
@@ -706,9 +712,13 @@ WHERE fkey_rid = (
     AND constraint_name = %(constraint_name)s
 )
 RETURNING fkey_rid;
-""" % {
+""") % {
     'table_rid': sql_literal(self.foreign_key.table.rid),
     'constraint_name': sql_literal(self.constraint_name[1]),
+    'idx_name': sql_identifier(idx_name),
+    'schema_name': sql_identifier(self.foreign_key.table.schema.name),
+    'table_name': sql_identifier(self.foreign_key.table.name),
+    'idx_cols': ', '.join([ sql_identifier(c.name) for c in fk_cols ]),
 })
         self.rid = cur.fetchone()[0]
         self.set_comment(conn, cur, self.comment)
@@ -716,11 +726,13 @@ RETURNING fkey_rid;
     def delete(self, conn, cur):
         if self.constraint_name:
             fkr_schema, fkr_name = self.constraint_name
+            idx_name = '_'.join(fkr_name.split('_')[:-1]) + '_idx'
             self.foreign_key.table.alter_table(
                 conn, cur,
                 'DROP CONSTRAINT %s' % sql_identifier(fkr_name),
                 'DELETE FROM _ermrest.known_fkeys WHERE "RID" = %s;' % sql_literal(self.rid),
             )
+            cur.execute('DROP INDEX IF EXISTS %s.%s' % (sql_identifier(self.foreign_key.table.schema.name), sql_identifier(fkr_name)))
 
     def _from_column_names(self):
         """Canonicalized from-column names list."""
@@ -869,7 +881,7 @@ WHERE i.fk_table_rid = %(table_rid)s
             if len(columns) == 0:
                 raise exception.BadData('Foreign-key references require at least one column pair.')
 
-            colset = frozenset(columns)
+            colset = OrderedFrozenSet(columns)
 
             if table is None:
                 table = columns[0].table
