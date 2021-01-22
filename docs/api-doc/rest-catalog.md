@@ -39,6 +39,7 @@ Known feature flags at time of writing of this document:
 
 - `attributegroup_rights_summary`: Service supports the `trs(RID)` and `tcrs(RID)` projection functions to retrieve row-level access rights.
 - `history_control`: Service supports `tag:isrd.isi.edu:2020,history-capture` table annotation to disable history capture.
+- `implicit_fkey_index`: Service will produce indexes for compound foreign keys to allow index-based joins on these reference patterns.
 
 Generally, absence of a feature flag means the service is running
 older software which predates the release of the feature. A flag will
