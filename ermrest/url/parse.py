@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2019 University of Southern California
+# Copyright 2010-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -408,7 +408,8 @@ def p_attrlist1_grow(p):
 def p_attrcore(p):
     """attrcore : sname
                 | aggfunc
-                | binfunc"""
+                | binfunc
+                | rsfunc """
     p[0] = p[1]
 
 def p_aggfunc_name(p):
@@ -439,6 +440,14 @@ def p_attrcore_agg(p):
 def p_binfunc_3(p):
     """binfunc : BIN '(' sname ';' expr ';' expr ';' expr ')'"""
     p[0] = ast.Binning(p[3], nbins=p[5], minv=p[7], maxv=p[9])
+
+def p_rsfunc_1(p):
+    """rsfunc : TRS '(' sname ')' """
+    p[0] = ast.RightsSummary(p[3])
+
+def p_rsfunc_2(p):
+    """rsfunc : TCRS '(' sname ')' """
+    p[0] = ast.RightsSummary(p[3], True)
 
 def p_leafattritem(p):
     """leafattritem : attrcore"""
