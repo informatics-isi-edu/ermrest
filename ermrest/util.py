@@ -135,7 +135,8 @@ def random_name(prefix=''):
 
 def service_features():
     return {
-        "attributegroup_rights_summary": True,
+        "trs": True,
+        "tcrs": True,
         "history_control": True,
         "implicit_fkey_index": True,
     }

@@ -151,7 +151,7 @@ In order to discover dynamic, data-dependent access rights for specific records,
 
 These operators summarize the rights for the table instance containing the referenced RID column. The `trs` or _table rights summary_ operator yields a JSON formatted object with keys `update` and `delete` mapped to boolean values indicating whether that access is allowed on the record. The `tcrs` or _table and column rights summary_ operator includes the same content and extends it with a third `column_update` key mapped to a sub-object that is keyed by column names, each mapped to a boolean for whether update of that given column is allowed on the record.
 
-This feature is advertised as `"attributegroup_rights_summary": true` in the service features advertisement.
+These features are advertised as `"trs": true` and `"tcrs": true` in the service features advertisement.
 
 ## Data Paths
 

@@ -37,7 +37,8 @@ if accessing older catalogs.
 
 Known feature flags at time of writing of this document:
 
-- `attributegroup_rights_summary`: Service supports the `trs(RID)` and `tcrs(RID)` projection functions to retrieve row-level access rights.
+- `trs`: Service supports the `trs(RID)` projection functions to retrieve row-level access rights.
+- `tcrs`: Service supports the `tcrs(RID)` projection functions to retrieve row-level, per-column access rights.
 - `history_control`: Service supports `tag:isrd.isi.edu:2020,history-capture` table annotation to disable history capture.
 - `implicit_fkey_index`: Service will produce indexes for compound foreign keys to allow index-based joins on these reference patterns.
 
