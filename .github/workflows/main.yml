@@ -39,6 +39,8 @@ jobs:
           sudo pip3 install requests
           sudo pip3 install psycopg2-binary
           sudo pip3 install git+https://github.com/informatics-isi-edu/webpy.git
+          cd ~
+          pwd
       - name: Install webauthn
         run: |
           sudo useradd -m -r webauthn
