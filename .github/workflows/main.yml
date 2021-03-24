@@ -13,8 +13,8 @@ jobs:
   install-and-test:
     runs-on: ubuntu-20.04
     env:
-      TEST_COOKIES1: ~/cookies1
-      TEST_COOKIES2: ~/cookies2
+      TEST_COOKIES1: /home/runner/cookies1
+      TEST_COOKIES2: /home/runner/cookies2
       TEST_SSL_VERIFY: false
       HTTPD_ERROR_LOG: /var/log/apache2/error.log
       PYTHONWARNINGS: "ignore:Unverified HTTPS request"
@@ -39,8 +39,6 @@ jobs:
           sudo pip3 install requests
           sudo pip3 install psycopg2-binary
           sudo pip3 install git+https://github.com/informatics-isi-edu/webpy.git
-          cd ~
-          pwd
       - name: Install webauthn
         run: |
           sudo useradd -m -r webauthn
