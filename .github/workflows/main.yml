@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repository code
         uses: actions/checkout@v2
         with:
-          path: webauthn
+          path: ermrest
       - name: Setup the system
         run: |
           sudo apt-get -y install libcurl4-openssl-dev libjson-c-dev
@@ -54,12 +54,13 @@ jobs:
           sudo service apache2 restart
       - name: Install ERMrest
         run: |
+          cd ermrest
           sudo make install PLATFORM=ubuntu1604
           sudo make deploy PLATFORM=ubuntu1604
           sudo bash ./test/ubuntu-travis-setup.sh
           sudo service apache2 restart
       - name: Run test cases
-        id: webauthn-test
+        id: ermrest-test
         continue-on-error: true
         run: |
           cd ermrest
@@ -74,7 +75,7 @@ jobs:
           curl --fail -k -b ${TEST_COOKIES2} -c ${TEST_COOKIES2} -d username=test2 -d password=dummypassword https://${HOSTNAME}/authn/session
           python3 ./test/resttest
       - name: Check on test cases
-        if: always() && steps.webauthn-test.outcome != 'success'
+        if: always() && steps.ermrest-test.outcome != 'success'
         run: exit 1
       - name: Diagnosis after failure
         if: ${{ failure() }}
