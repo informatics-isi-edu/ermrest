@@ -1,0 +1,95 @@
+
+name: ERMrest tests
+
+on: 
+  push:
+    branches: 
+      - 'master'
+  pull_request:
+    branches:
+      - 'master'
+
+jobs:
+  install-and-test:
+    runs-on: ubuntu-20.04
+    env:
+      TEST_COOKIES1: ~/cookies1
+      TEST_COOKIES2: ~/cookies2
+      TEST_SSL_VERIFY: false
+      HTTPD_ERROR_LOG: /var/log/apache2/error.log
+      PYTHONWARNINGS: "ignore:Unverified HTTPS request"
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v2
+        with:
+          path: webauthn
+      - name: Setup the system
+        run: |
+          sudo mount -o remount,size=50% /var/ramfs
+          sudo apt-get -y install libcurl4-openssl-dev libjson-c-dev
+          sudo service postgresql stop || true
+          sudo service postgresql start 12
+          sudo apt-get install apache2 apache2-dev ssl-cert libapache2-mod-wsgi-py3
+          sudo ln -s /etc/apache2/conf-enabled /etc/apache2/conf.d
+          sudo -H -u postgres psql -c "SHOW ALL"
+          sudo a2enmod ssl
+          sudo a2ensite default-ssl
+          sudo groupadd -o -g $(id -g www-data) apache 
+          sudo apt-get install -y python3-setuptools python3-ply
+          sudo su -c 'echo /usr/lib/python3.8/site-packages > /usr/local/lib/python3.8/dist-packages/sys-site-packages.pth'
+          sudo pip3 install requests
+          sudo pip3 install psycopg2-binary
+          sudo pip3 install git+https://github.com/informatics-isi-edu/webpy.git
+      - name: Install webauthn
+        run: |
+          sudo useradd -m -r webauthn
+          sudo su -c '/usr/bin/python3 -c "import sys;import pprint;pprint.pprint(sys.path)"' - webauthn
+          git clone https://github.com/informatics-isi-edu/webauthn.git
+          cd webauthn
+          git checkout origin/master
+          sudo make testvars
+          sudo make install
+          sudo make deploy
+          sudo bash ./test/ubuntu-travis-setup.sh
+          sudo a2enmod webauthn
+          sudo service apache2 restart
+      - name: Install ERMrest
+        run: |
+          sudo make install PLATFORM=ubuntu1604
+          sudo make deploy PLATFORM=ubuntu1604
+          sudo bash ./test/ubuntu-travis-setup.sh
+          sudo service apache2 restart
+      - name: Run test cases
+        id: webauthn-test
+        continue-on-error: true
+        run: |
+          cd ermrest
+          sudo -H -u webauthn webauthn2-manage adduser test1
+          sudo -H -u webauthn webauthn2-manage passwd test1 dummypassword
+          sudo -H -u webauthn webauthn2-manage adduser test2
+          sudo -H -u webauthn webauthn2-manage passwd test2 dummypassword
+          sudo -H -u webauthn webauthn2-manage addattr admin
+          sudo -H -u webauthn webauthn2-manage assign test1 admin
+          sudo ./test/ermrest-registry-purge-tests.sh
+          curl --fail -k -b ${TEST_COOKIES1} -c ${TEST_COOKIES1} -d username=test1 -d password=dummypassword https://${HOSTNAME}/authn/session
+          curl --fail -k -b ${TEST_COOKIES2} -c ${TEST_COOKIES2} -d username=test2 -d password=dummypassword https://${HOSTNAME}/authn/session
+          python3 ./test/resttest
+      - name: Check on test cases
+        if: always() && steps.webauthn-test.outcome != 'success'
+        run: exit 1
+      - name: Diagnosis after failure
+        if: ${{ failure() }}
+        run: |
+          /usr/bin/python3 -c "import ermrest as m; print(m.__file__);"
+          sudo ls -lR /etc/apache2
+          sudo ls -lR /var/run/apache2
+          cat ${TEST_COOKIES1}
+          sudo cat /etc/apache2/conf.d/webauthn.conf
+          sudo cat /etc/apache2/conf.d/wsgi_webauthn2.conf
+          sudo cat /etc/apache2/conf.d/wsgi_ermrest.conf
+          sudo cat install-record.txt
+          sudo cat ${HTTPD_ERROR_LOG}
+          sudo -H -u postgres psql -c '\dn' _ermrest_catalog_5
+          sudo cat /etc/apache2/sites-available/000-default.conf
+          sudo cat /etc/apache2/sites-available/default-ssl.conf
+                    
