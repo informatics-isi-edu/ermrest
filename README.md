@@ -5,7 +5,7 @@
 
 ## Status
 
-[![Build Status](https://travis-ci.org/informatics-isi-edu/ermrest.svg?branch=master)](https://travis-ci.org/informatics-isi-edu/ermrest)
+[![Build Status](https://github.com/informatics-isi-edu/ermrest/actions/workflows/main.yml/badge.svg)](https://github.com/informatics-isi-edu/ermrest/actions/workflows/main.yml)
 
 ERMrest is research software, but its core features have proven stable enough to use in several production science projects.
 
