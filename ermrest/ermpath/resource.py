@@ -2205,7 +2205,14 @@ END
                             else:
                                 raise NotImplementedError('unexpected column update right %r in entity rights summary' % (right,))
                         col_rights = [ '%s, %s' % (sql_literal(c.name), right) for c, right in col_rights.items() ]
-                        rights['column_update'] = 'jsonb_build_object(%s)' % (','.join(col_rights))
+                        # bypass postgres limit for number of args to a func
+                        def chunked(l, chunksize=25):
+                            for offset in range(0, len(l), chunksize):
+                                yield l[offset:offset+chunksize]
+                        rights['column_update'] = ' || '.join([
+                            'jsonb_build_object(%s)' % (','.join(batch))
+                            for batch in chunked(col_rights)
+                        ])
                 select = 'jsonb_build_object(%s)' % (','.join([ '%s::text, %s' % (sql_literal(access), right) for access, right in rights.items() ]))
             elif hasattr(col, 'sql_name_with_talias'):
                 select = col.sql_name_with_talias(alias, output=True)
