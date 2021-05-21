@@ -266,19 +266,20 @@ class Catalog (object):
     
     def init_meta(self, conn, cur, owner=None):
         """Initializes the Catalog metadata.
-        
-           When 'owner' is None, it initializes the catalog permissions with 
-           the anonymous ('*') role, including the ownership.
         """
         cur.execute(pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'))
         cur.execute('SELECT _ermrest.model_change_event();')
         cur.execute('ANALYZE;')
 
-        if type(owner) is dict:
-            owner = owner['id']
-            
+        # we want an ACL
+        if owner is None:
+            owner = [ web.ctx.webauthn2_context.client_id ]
+        elif isinstance(owner, (str, dict)):
+            owner = [ owner ]
+
+        owner = [ (e['id'] if isinstance(e, dict) else e) for e in owner ]
+
         ## initial policy
         model = self.get_model(cur, self._config)
-        owner = owner if owner else '*'
-        model.acls['owner'] = [owner] # set so enforcement won't deny subsequent set_acl()
-        model.set_acl(cur, 'owner', [owner])
+        model.acls['owner'] = owner # set so enforcement won't deny subsequent set_acl()
+        model.set_acl(cur, 'owner', owner)

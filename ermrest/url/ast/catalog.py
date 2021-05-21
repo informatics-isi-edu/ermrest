@@ -91,19 +91,29 @@ class Catalogs (object):
         if not allowed:
             raise rest.Forbidden(uri)
 
+        # optional input
+        docstr = web.ctx.env['wsgi.input'].read().decode().strip()
+        if docstr:
+            try:
+                doc = json.loads(docstr)
+            except:
+                raise exception.rest.BadRequest('Could not deserialize JSON input.')
+        else:
+            doc = {}
+
         # create the catalog instance
-        catalog_id = web.ctx.ermrest_registry.claim_id()
+        catalog_id = web.ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=doc.get('owner'))
         catalog = web.ctx.ermrest_catalog_factory.create(catalog_id)
 
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)))
+            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=doc.get('owner'))))
         finally:
             pc.final()
 
         # register the catalog descriptor
-        entry = web.ctx.ermrest_registry.register(catalog.descriptor, catalog_id)
+        entry = web.ctx.ermrest_registry.register(catalog_id, descriptor=catalog.descriptor)
 
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type

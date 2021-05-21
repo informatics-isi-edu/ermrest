@@ -30,6 +30,7 @@ import json
 
 from .util import *
 from . import sanepg2
+from . import exception
 
 __all__ = ['get_registry']
 
@@ -167,53 +168,145 @@ WHERE id = '1';
 
         return self.pooled_perform(body)
 
-    def lookup(self, id=None):
-        """See Registry.lookup()"""
-        def body(conn, cur):
-            filter = " AND id = %s" % sql_literal(id) if id else ""
-
-            cur.execute("""
-SELECT id, descriptor
-FROM ermrest.simple_registry
-WHERE deleted_on IS NULL
-%(filter)s;
-"""         % dict(filter=filter))
-
-            # return results as a list of dictionaries
-            return [
-                dict(id=eid, descriptor=json.loads(descriptor))
-                for eid, descriptor in cur
-            ]
-
-        return self.pooled_perform(body)
-
-    def claim_id(self):
-        """Return a distinct catalog identifier."""
-        def body(conn, cur):
-            cur.execute("""
-SELECT nextval('simple_registry_id_seq');
-""")
-            return str(cur.fetchone()[0])
-
-        return self.pooled_perform(body, lambda x: x)
-
-    def register(self, descriptor, id):
-        """See Registry.register()"""
-        assert isinstance(descriptor, dict)
-
-        def body(conn, cur):
-            cur.execute("""
-INSERT INTO ermrest.simple_registry (id, descriptor)
-VALUES (%(id)s::bigint, %(descriptor)s)
-RETURNING id;
+    def _lookup(self, conn, cur, id=None, dangling=None):
+        cur.execute("""
+SELECT jsonb_build_object(
+  'id', l.id,
+  'id_owner', l.id_owner,
+  'descriptor', CASE WHEN l.alias_target IS NOT NULL THEN t.descriptor ELSE l.descriptor END,
+  'created_on', CASE WHEN l.alias_target IS NOT NULL THEN t.created_on ELSE l.created_on END,
+  'deleted_on', CASE WHEN l.alias_target IS NOT NULL THEN t.deleted_on ELSE l.deleted_on END,
+  'alias_target', l.alias_target,
+  'alias_created_on', CASE WHEN l.alias_target IS NOT NULL THEN l.created_on ELSE NULL END
+)
+FROM ermrest.simple_registry l
+LEFT OUTER JOIN ermrest.simple_registry t ON (l.alias_target = t.id)
+WHERE l.deleted_on IS NULL
+  AND (t.id IS NULL OR t.deleted_on IS NULL OR %(dangling)s::boolean)
+  AND (l.id = %(id)s::text OR %(id)s::text IS NULL)
 """ % {
     'id': sql_literal(id),
-    'descriptor': sql_literal(json.dumps(descriptor)),
+    'dangling': sql_literal(dangling),
+})
+        return [ row[0] for row in cur ]
+
+    def lookup(self, id=None, dangling=False):
+        """Return a list of registry entries.
+
+        :param id: Find entry with specific id (default None finds all entries)
+        :param dangling: List dangling alias entries (default False excludes dangling entries)
+
+        There are three forms of resulting entry dict:
+        1. Live catalogs have non-null values for keys {id, id_owner, descriptor, created_on}
+        2. Aliased live augment (1) with non-null values for {alias_target, alias_created_on}
+        3. Dangling aliases augment (2) with non-null values for {deleted_on}
+        """
+        def body(conn, cur):
+            return self._lookup(conn, cur, id, dangling)
+        return self.pooled_perform(body)
+
+    def claim_id(self, id=None, id_owner=None):
+        """Claim and return a distinct catalog identifier.
+
+        :param id: A specific id to claim or None (default) to use serial number.
+        :param id_owner: A custom ownership ACL to set on claim or None (default) to use web client id.
+        """
+        def body(conn, cur):
+            if id_owner is None:
+                owner = [ web.ctx.webauthn2_context.client_id ]
+            else:
+                owner = id_owner
+            if id is None:
+                cur.execute("""
+SELECT nextval('ermrest.simple_registry_id_seq');
+""")
+                claim_id = cur.fetchone()[0]
+            else:
+                claim_id = id
+
+            # idempotent claim pre-checks
+            rows = self._lookup(conn, cur, id=id, dangling=True)
+            if rows:
+                entry = rows[0]
+                old_id_owner = entry['id_owner'] if entry['id_owner'] else []
+                if set(old_id_owner).isdisjoint(set(web.ctx.webauthn2_context.attribute_ids)):
+                    raise exception.Forbidden('claim access on entry id=%s' % (id,))
+                if entry['alias_target'] is None and entry['descriptor'] is not None:
+                    raise exception.ConflictData('Cannot claim an existing catalog id=%s' % (id,))
+
+            # idempotent claim safe if past pre-checks
+            cur.execute("""
+INSERT INTO ermrest.simple_registry (id, id_owner)
+SELECT %(id)s, ARRAY[%(owner)s]
+ON CONFLICT (id) DO UPDATE SET id_owner = EXCLUDED.id_owner
+RETURNING id;
+""" % {
+    'id': sql_literal(claim_id),
+    'owner': ', '.join([ sql_literal(x) for x in owner if x != '*' ])
 })
             return cur.fetchone()[0]
 
-        def post_commit(id):
-            return dict(id=id, descriptor=descriptor)
+        return self.pooled_perform(body, lambda x: x)
+
+    def register(self, id, descriptor=None, alias_target=None):
+        """Register a catalog descriptor or alias target for an already claimed id.
+
+        :param id: The claimed id.
+        :param descriptor: The catalog storage descriptor to register.
+        :param alias_target: The id for the target catalog to register.
+
+        """
+        assert isinstance(descriptor, dict)
+
+        if descriptor is not None and alias_target is not None:
+            raise ValueError('cannot register descriptor and alias_target for same entry')
+
+        def body(conn, cur):
+            cur.execute("""
+SELECT 
+  COALESCE(id_owner, ARRAY[]::text[]),
+  descriptor,
+  alias_target,
+  deleted_on
+FROM ermrest.simple_registry
+WHERE id = %(id)s
+""" % {
+    'id': sql_literal(id),
+})
+            row = cur.fetchone()
+            if row is None:
+                raise exception.ConflictData('Cannot manage registration for unclaimed id=%r.' % (id,))
+
+            id_owner, old_descriptor, old_alias_target, deleted_on = row
+            if set(web.ctx.webauthn2_context.attribute_ids).isdisjoint(set(id_owner)):
+                raise exception.Forbidden('manage registration for id=%r' % (id,))
+
+            if deleted_on is not None:
+                raise exception.ConflictData('Cannot manage registration for deleted entry id=%r.' % (id,))
+
+            if descriptor is not None:
+                if old_descriptor is not None:
+                    raise exception.ConflictData('Catalog descriptor already set for entry id=%r.' % (id,))
+                if old_alias_target is not None:
+                    raise exception.ConflictData('Cannot set descriptor for alias entry id=%r.' % (id,))
+            else:
+                if old_descriptor is not None:
+                    raise exception.ConflictData('Cannot set alias_target for catalog entry id=%r.' % (id,))
+
+            cur.execute("""
+UPDATE ermrest.simple_registry v
+SET descriptor = %(descriptor)s,
+    alias_target = %(alias_target)s
+WHERE id = %(id)s;
+""" % {
+    'id': sql_literal(id),
+    'descriptor': sql_literal(json.dumps(descriptor)),
+    'alias_target': sql_literal(alias_target),
+})
+            return self._lookup(conn, cur, id)[0]
+
+        def post_commit(entry):
+            return entry
 
         return self.pooled_perform(body, post_commit)
 
