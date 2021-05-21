@@ -160,11 +160,12 @@ class Catalog (Api):
         entries = web.ctx.ermrest_registry.lookup(catalog_id)
         if not entries:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
+        entry = entries[0]
         self.manager = catalog.Catalog(
             web.ctx.ermrest_catalog_factory, 
-            entries[0]['descriptor'],
-            web.ctx.ermrest_config
-            )
+            reg_entry=entry,
+            config=web.ctx.ermrest_config,
+        )
         
         assert web.ctx.ermrest_catalog_pc is None
         web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
@@ -247,6 +248,8 @@ class Catalog (Api):
             # not ever be shared.
             resource = _model.prejson(brief=True, snaptime=self.catalog_snaptime)
             resource["id"] = self.catalog_id
+            if self.manager.alias_target is not None:
+                resource["alias_target"] = self.manager.alias_target
             response = json.dumps(resource) + '\n'
             if self.catalog_amendver:
                 self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )

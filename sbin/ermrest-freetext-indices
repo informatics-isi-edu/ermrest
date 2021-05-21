@@ -93,9 +93,9 @@ def main(argv):
     if not result:
         sys.stderr.write("Catalog '%d' not found in registry.\n" % catalog_id)
         return 3
-    catalog_descriptor = result[0]['descriptor']
+    entry = result[0]
 
-    catalog = ermrest.Catalog(ermrest.catalog_factory, catalog_descriptor)
+    catalog = ermrest.Catalog(ermrest.catalog_factory, reg_entry=entry)
     
     try:
         pc = ermrest.sanepg2.PooledConnection(catalog.dsn)
