@@ -182,6 +182,7 @@ SELECT jsonb_build_object(
 FROM ermrest.simple_registry l
 LEFT OUTER JOIN ermrest.simple_registry t ON (l.alias_target = t.id)
 WHERE l.deleted_on IS NULL
+  AND (l.descriptor IS NOT NULL OR t.descriptor IS NOT NULL OR %(dangling)s::boolean)
   AND (t.id IS NULL OR t.deleted_on IS NULL OR %(dangling)s::boolean)
   AND (l.id = %(id)s::text OR %(id)s::text IS NULL)
 """ % {
