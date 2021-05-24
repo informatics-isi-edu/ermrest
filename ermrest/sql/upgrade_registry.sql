@@ -28,7 +28,7 @@ IF (SELECT True
 
   -- perform catalog naming feature upgrade
   ALTER TABLE ermrest.simple_registry
-    ALTER COLUMN id SET TYPE text,
+    ALTER COLUMN id TYPE text,
     ADD COLUMN id_owner text[],
     ADD COLUMN alias_target text,
     ADD CONSTRAINT simple_registry_alias_target_fkey
@@ -38,4 +38,4 @@ IF (SELECT True
 END IF;
 
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
