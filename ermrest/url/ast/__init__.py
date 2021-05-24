@@ -28,7 +28,7 @@ once an appropriate database connection is available.
 
 import urllib
 
-from .catalog import Service, Catalogs, Catalog
+from .catalog import Service, Catalogs, Catalog, CatalogAliases, CatalogAlias
 from ...model.name import Name, NameList
 from . import history
 

@@ -194,6 +194,8 @@ def web_urls():
 
         # the catalog factory
         '/catalog/?', ast.Catalogs,
+        '/alias/?', ast.CatalogAliases,
+        '/alias/([^/]+)', ast.CatalogAlias,
 
         # core parser-based REST dispatcher
         '(?s).*', Dispatcher
