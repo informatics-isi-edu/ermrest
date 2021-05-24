@@ -139,6 +139,8 @@ def service_features():
         "tcrs": True,
         "history_control": True,
         "implicit_fkey_index": True,
+        "catalog_post_input": True,
+        "catalog_alias": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):
