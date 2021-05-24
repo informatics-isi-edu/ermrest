@@ -318,10 +318,25 @@ WHERE id = %(id)s;
         def body(conn, cur):
             """Returns True if row deleted, false if not"""
             cur.execute("""
-UPDATE ermrest.simple_registry
-SET deleted_on = current_timestamp
-WHERE deleted_on IS NULL AND id = %(id)s;
-"""          % dict(id=sql_literal(id)))
+WITH deleted_alias AS (
+  DELETE FROM ermrest.simple_registry
+  WHERE id = %(id)s
+    AND descriptor IS NULL
+    AND deleted_on IS NULL
+  RETURNING id
+), softdeleted_catalog AS (
+  UPDATE ermrest.simple_registry
+  SET deleted_on = current_timestamp
+  WHERE id = %(id)s
+    AND deleted_on IS NULL
+  RETURNING id
+)
+SELECT * FROM deleted_alias
+UNION
+SELECT * FROM softdeleted_catalog;
+""" % {
+    "id": sql_literal(id),
+})
             return cur.rowcount > 0
 
         def post_commit(deleted):
