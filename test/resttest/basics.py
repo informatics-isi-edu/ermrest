@@ -1,5 +1,8 @@
 
+import random
 import unittest
+import requests
+
 import common
 
 _S = 'basics'
@@ -191,6 +194,90 @@ class ServiceAdvertisement (common.ErmrestTest):
         ad = r.json()
         self.assertIn('version', ad)
         self.assertIn('features', ad)
+
+class CatalogNaming (common.ErmrestTest):
+    my_acl = [ common.primary_client_id, "extra junk" ]
+
+    def _check_repr(self, r, required={}):
+        if isinstance(r, requests.Response):
+            rep = r.json()
+        else:
+            rep = r
+        self.assertIsInstance(rep, dict)
+        for k, v in required.items():
+            self.assertIn(k, rep)
+            if isinstance(v, dict):
+                self._check_repr(rep[k], v)
+            else:
+                self.assertEqual(v, rep[k])
+        return rep
+
+    def test_catalog_post_input(self):
+        my_id = "my_catalog_%d" % random.randint(0,2**30)
+        my_url = '/ermrest/catalog/%s' % (common.urlquote(my_id),)
+        delete_id = {my_id}
+        try:
+            # claim ID as new catalog
+            doc1 = { "id": my_id, "owner": self.my_acl }
+            r = self.session.post('/ermrest/catalog', json=doc1)
+            # check post response
+            self.assertHttp(r, 201, 'application/json')
+            doc2 = self._check_repr(r, {
+                "id": my_id,
+            })
+            delete_id.add(doc2['id'])
+            # check catalog status representation
+            r = self.session.get(my_url)
+            self.assertHttp(r, 200, 'application/json')
+            self._check_repr(r, {
+                'id': my_id,
+                'acls': {"owner": self.my_acl},
+            })
+        finally:
+            for cid in delete_id:
+                self.assertHttp(self.session.delete('/ermrest/catalog/%s' % common.urlquote(cid)), (200, 204, 404))
+
+    def test_alias(self):
+        my_id = "my_alias_%d" % random.randint(0,2**30)
+        my_url = '/ermrest/alias/%s' % (common.urlquote(my_id),)
+        delete_id = {my_id}
+        try:
+            # claim ID as unbound alias
+            doc1 = { "id": my_id, "owner": self.my_acl }
+            r = self.session.post('/ermrest/alias', json=doc1)
+            # check post response
+            self.assertHttp(r, 201, 'application/json')
+            doc2 = self._check_repr(r, {
+                "id": my_id,
+            })
+            delete_id.add(doc2['id'])
+            # check alias status representation
+            r = self.session.get(my_url)
+            self.assertHttp(r, 200, 'application/json')
+            self._check_repr(r, {
+                "id": my_id,
+                "owner": self.my_acl,
+                "alias_target": None,
+            })
+            # check alias update
+            r = doc1.update({"alias_target": common.cid})
+            r = self.session.put(my_url, json=doc1)
+            self.assertHttp(r, 200, 'application/json')
+            self._check_repr(r, {
+                "id": my_id,
+                "owner": self.my_acl,
+                "alias_target": common.cid,
+            })
+            # check aliased catalog status representation
+            r = self.session.get('/ermrest/catalog/%s' % (common.urlquote(my_id),))
+            self.assertHttp(r, 200, 'application/json')
+            self._check_repr(r, {
+                "id": my_id,
+                "alias_target": common.cid,
+            })
+        finally:
+            for cid in delete_id:
+                self.assertHttp(self.session.delete('/ermrest/alias/%s' % common.urlquote(cid)), (200, 204, 404))
 
 class BasicKey (common.ErmrestTest):
     table = _T1
