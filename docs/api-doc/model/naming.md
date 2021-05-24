@@ -21,6 +21,25 @@ read-only retrieval of historical resource representations. Only the
 latest, *live* catalog represented by _cid_ without a _revision_
 supports mutation.
 
+## Catalog Aliases
+
+Through an optional alias-management interface, the administrator can bind (or re-bind) additional identifiers for a catalog:
+
+- _service_ `/alias/` _alias_
+
+where the components of this management path are:
+
+- _service_: the ERMrest service endpoint such as `https://www.example.com/ermrest`.
+- _alias_: the additional catalog identifier for one dataset such as `42` or `production`.
+
+The catalog alias has a representation which provides basic management state information about the binding of _alias_ to a storage catalog _cid_ and an alias ownership access control list.
+
+When an alias is bound to a live catalog, it also implicitly exists in the catalog resource space:
+
+- _service_ `/catalog/` _alias_ [ `@` _revision_ ]
+
+where it has a representation mostly based on the bound storage catalog. However, certain lifecycle states can result in _alias_ only existing in the `alias/` management space while not appearing in the `catalog/` access space, i.e. when the alias does not currently resolve to an accessible catalog.
+
 ## Generic Model Sub-Resources
 
 A number of different resource types in the model hierarchy all
