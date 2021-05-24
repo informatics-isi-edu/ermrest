@@ -225,7 +225,7 @@ SELECT nextval('ermrest.simple_registry_id_seq');
                 claim_id = id
 
             # idempotent claim pre-checks
-            rows = self._lookup(conn, cur, id=id, dangling=True)
+            rows = self._lookup(conn, cur, id=claim_id, dangling=True)
             if rows:
                 entry = rows[0]
                 old_id_owner = entry['id_owner'] if entry['id_owner'] else []
