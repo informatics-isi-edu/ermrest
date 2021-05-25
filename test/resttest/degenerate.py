@@ -11,6 +11,23 @@ from common import Int4, Int8, Text, Int4Array, TextArray, Timestamptz, \
     RID, RCT, RMT, RCB, RMB, RidKey, \
     ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
 
+class Disownership (common.ErmrestTest):
+    # should not be able to set owner acls to exclude ourselves
+
+    bad_acl = [ 'junk identity' ]
+
+    def _test_disown(self, url, method='post', json=None, status=(409, 403)):
+        if json is None:
+            json = self.bad_acl
+        r = getattr(self.session, method)(url, json=json)
+        self.assertHttp(r, status)
+    
+    def test_create_disowned_alias(self):
+        self._test_disown('/ermrest/alias', json={"owner": self.bad_acl})
+
+    def test_create_disowned_catalog(self):
+        self._test_disown('/ermrest/catalog', json={"owner": self.bad_acl})
+
 class LongIdentifiers (common.ErmrestTest):
     identifier = u'ǝɯɐuǝɯɐuǝɯǝɯɐuǝɯɐuǝɯɐuǝɯɐuǝɯɐuǝɯɐuɐu'
     utf8 = None

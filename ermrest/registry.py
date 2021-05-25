@@ -217,6 +217,10 @@ WHERE l.deleted_on IS NULL
                 owner = [ web.ctx.webauthn2_context.client_id ]
             else:
                 owner = id_owner
+
+            if set(owner).isdisjoint(set(web.ctx.webauthn2_context.attribute_ids)):
+                raise exception.ConflictData('Cannot set owner ACL to exclude self.')
+
             if id is None:
                 cur.execute("""
 SELECT nextval('ermrest.simple_registry_id_seq');
