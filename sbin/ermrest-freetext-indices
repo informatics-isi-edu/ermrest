@@ -91,9 +91,13 @@ def main(argv):
 
     result = ermrest.registry.lookup(catalog_id)
     if not result:
-        sys.stderr.write("Catalog '%d' not found in registry.\n" % catalog_id)
+        sys.stderr.write("Catalog '%s' not found in registry.\n" % catalog_id)
         return 3
     entry = result[0]
+    alias_target = entry.get('alias_target')
+    if alias_target is not None:
+        sys.stderr.write("Ignoring catalog '%s' which is an alias. HINT: index storage catalog '%s' instead." % (catalog_id, alias_target))
+        return 3
 
     catalog = ermrest.Catalog(ermrest.catalog_factory, reg_entry=entry)
     
