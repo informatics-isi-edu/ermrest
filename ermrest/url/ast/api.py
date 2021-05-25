@@ -200,6 +200,12 @@ class Api (ApiBase):
         )
         super(Api, self)._prepare()
 
+    def set_http_etag(self, version):
+        if self.catalog.manager.alias_target is not None:
+            return super(Api, self).set_http_etag('%s-%s' % (version, self.catalog.manager.alias_target))
+        else:
+            return super(Api, self).set_http_etag(version)
+
     def client_register_body(self, conn, cur):
         client = web.ctx.webauthn2_context.client
         if isinstance(client, dict):
