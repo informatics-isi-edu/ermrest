@@ -29,6 +29,7 @@ IF (SELECT True
   -- perform catalog naming feature upgrade
   ALTER TABLE ermrest.simple_registry
     ALTER COLUMN id TYPE text,
+    ALTER COLUMN descriptor TYPE jsonb USING (descriptor::jsonb),
     ADD COLUMN id_owner text[],
     ADD COLUMN alias_target text,
     ADD CONSTRAINT simple_registry_alias_target_fkey
