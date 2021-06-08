@@ -94,7 +94,12 @@ class Schemas (Api):
         return web.ctx.ermrest_catalog_model
         
     def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+        def _post_commit(handler, model):
+            doc = model.prejson()
+            if self.catalog.manager.alias_target is not None:
+                doc['alias_target'] = self.catalog.manager.alias_target
+            return _post_commit_json(handler, doc)
+        return _GET(self, self.GET_body, _post_commit)
 
     def POST_body(self, conn, cur, doc):
         """Create schemas and/or tables."""

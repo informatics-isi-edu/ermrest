@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2017 University of Southern California
+-- Copyright 2017, 2021 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -16,3 +16,27 @@
 --
 
 DROP INDEX IF EXISTS ermrest.simple_registry_id_deleted_on_idx;
+
+DO $$
+BEGIN
+
+IF (SELECT True
+    FROM information_schema.columns
+    WHERE table_schema = 'ermrest'
+      AND table_name = 'simple_registry'
+      AND column_name = 'alias_target') IS NULL THEN
+
+  -- perform catalog naming feature upgrade
+  ALTER TABLE ermrest.simple_registry
+    ALTER COLUMN id TYPE text,
+    ALTER COLUMN descriptor TYPE jsonb USING (descriptor::jsonb),
+    ADD COLUMN id_owner text[],
+    ADD COLUMN alias_target text,
+    ADD CONSTRAINT simple_registry_alias_target_fkey
+      FOREIGN KEY (alias_target) REFERENCES ermrest.simple_registry(id)
+      ON UPDATE CASCADE ON DELETE SET NULL;
+
+END IF;
+
+END;
+$$ LANGUAGE plpgsql;

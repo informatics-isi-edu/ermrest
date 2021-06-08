@@ -26,7 +26,7 @@ import base64
 import collections
 from webauthn2.util import urlquote, negotiated_content_type
 
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 def urlunquote(url):
     text = urllib.parse.unquote_plus(url)
@@ -139,6 +139,8 @@ def service_features():
         "tcrs": True,
         "history_control": True,
         "implicit_fkey_index": True,
+        "catalog_post_input": True,
+        "catalog_alias": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):

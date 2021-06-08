@@ -21,9 +21,11 @@
 import json
 import web
 import psycopg2.extensions
+import base64
+import hashlib
 
 from . import model, data, resolver
-from .api import Api, negotiated_content_type
+from .api import ApiBase, Api, negotiated_content_type
 from ... import exception, catalog, sanepg2
 from ...apicore import web_method
 from ...exception import *
@@ -91,19 +93,77 @@ class Catalogs (object):
         if not allowed:
             raise rest.Forbidden(uri)
 
+        # optional input
+        docstr = web.ctx.env['wsgi.input'].read().decode().strip()
+        if docstr:
+            try:
+                doc = json.loads(docstr)
+            except:
+                raise exception.rest.BadRequest('Could not deserialize JSON input.')
+        else:
+            doc = {}
+
         # create the catalog instance
-        catalog_id = web.ctx.ermrest_registry.claim_id()
+        catalog_id = web.ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=doc.get('owner'))
         catalog = web.ctx.ermrest_catalog_factory.create(catalog_id)
 
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, web.ctx.webauthn2_context.client)))
+            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=doc.get('owner'))))
         finally:
             pc.final()
 
         # register the catalog descriptor
-        entry = web.ctx.ermrest_registry.register(catalog.descriptor, catalog_id)
+        entry = web.ctx.ermrest_registry.register(catalog_id, descriptor=catalog.descriptor)
+
+        web.header('Content-Type', content_type)
+        web.ctx.ermrest_request_content_type = content_type
+
+        # set location header and status
+        location = '/ermrest/catalog/%s' % catalog_id
+        web.header('Location', location)
+        web.ctx.status = '201 Created'
+
+        if content_type == _text_plain:
+            return str(catalog_id)
+        else:
+            assert content_type == _application_json
+            return json.dumps(dict(id=catalog_id))
+
+class CatalogAliases (object):
+    """A multi-tenant catalog alias set."""
+
+    default_content_type = _application_json
+    supported_types = [default_content_type, _text_plain]
+
+    @web_method()
+    def POST(self, uri='catalog'):
+        """Perform HTTP POST of catalog aliases.
+        """
+        # content negotiation
+        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
+
+        # registry acl enforcement
+        allowed = web.ctx.ermrest_registry.can_create(web.ctx.webauthn2_context.attributes)
+        if not allowed:
+            raise rest.Forbidden(uri)
+
+        # optional input
+        docstr = web.ctx.env['wsgi.input'].read().decode().strip()
+        if docstr:
+            try:
+                doc = json.loads(docstr)
+            except:
+                raise exception.rest.BadRequest('Could not deserialize JSON input.')
+        else:
+            doc = {}
+
+        # create the alias entry
+        catalog_id = web.ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=doc.get('owner'))
+
+        # register the catalog descriptor
+        entry = web.ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
 
         web.header('Content-Type', content_type)
         web.ctx.ermrest_request_content_type = content_type
@@ -150,11 +210,12 @@ class Catalog (Api):
         entries = web.ctx.ermrest_registry.lookup(catalog_id)
         if not entries:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
+        entry = entries[0]
         self.manager = catalog.Catalog(
             web.ctx.ermrest_catalog_factory, 
-            entries[0]['descriptor'],
-            web.ctx.ermrest_config
-            )
+            reg_entry=entry,
+            config=web.ctx.ermrest_config,
+        )
         
         assert web.ctx.ermrest_catalog_pc is None
         web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
@@ -237,6 +298,8 @@ class Catalog (Api):
             # not ever be shared.
             resource = _model.prejson(brief=True, snaptime=self.catalog_snaptime)
             resource["id"] = self.catalog_id
+            if self.manager.alias_target is not None:
+                resource["alias_target"] = self.manager.alias_target
             response = json.dumps(resource) + '\n'
             if self.catalog_amendver:
                 self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )
@@ -302,6 +365,146 @@ class Catalog (Api):
             return ''
 
         return self.perform(body, post_commit)
+
+class CatalogAlias (ApiBase):
+
+    default_content_type = _application_json
+    supported_types = [default_content_type]
+
+    """A specific catalog by ID."""
+    def _prepare(self, catalog_id, missing_ok=False):
+        super(CatalogAlias, self)._prepare()
+
+        self.catalog_id = catalog_id
+        entries = web.ctx.ermrest_registry.lookup(catalog_id, dangling=True)
+        if not entries:
+            if missing_ok:
+                self.entry = None
+                self.set_http_etag('None')
+                return
+            raise exception.rest.NotFound('alias/%s' % (catalog_id,))
+        self.entry = entries[0]
+        if self.entry['descriptor'] is not None and self.entry['alias_target'] is None:
+            # regular catalog entry is not an alias
+            raise exception.rest.NotFound('alias/%s' % (catalog_id,))
+
+        # now enforce read permission
+        self.enforce_right('enumerate')
+        self.set_http_etag()
+
+    def set_http_etag(self, version=None):
+        if version is None:
+            normalized = [
+                self.entry['id'],
+                self.entry['id_owner'],
+                self.entry['alias_target'],
+            ]
+            version = base64.urlsafe_b64encode(hashlib.md5(json.dumps(normalized).encode('utf8')).digest()).decode()
+        super(CatalogAlias, self).set_http_etag(version)
+
+    @property
+    def id_owner(self):
+        if isinstance(self.entry['id_owner'], list):
+            return self.entry['id_owner']
+        else:
+            return []
+
+    def enforce_right(self, acl):
+        if set(self.id_owner).isdisjoint(web.ctx.webauthn2_context.attribute_ids):
+            raise exception.Forbidden('%s access to alias/%s' % (acl, self.catalog_id))
+
+    def final(self):
+        pass
+
+    def prejson(self):
+        return {
+            'id': self.entry['id'],
+            'owner': self.entry['id_owner'],
+            'alias_target': self.entry['alias_target'],
+        }
+
+    @web_method()
+    def GET(self, catalog_id):
+        """Perform HTTP retrieval of catalog alias registry entry
+        """
+        self._prepare(catalog_id)
+        # content negotiation
+        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
+        web.ctx.ermrest_request_content_type = content_type
+
+        resource = self.prejson()
+        response = json.dumps(resource) + '\n'
+        self.http_check_preconditions()
+        self.emit_headers()
+        web.header('Content-Type', content_type)
+        web.header('Content-Length', len(response))
+        return response
+
+    @web_method()
+    def PUT(self, catalog_id):
+        """Perform HTTP update/create of catalog alias registry entry
+        """
+        self._prepare(catalog_id, missing_ok=True)
+        self.http_check_preconditions()
+
+        # optional input
+        docstr = web.ctx.env['wsgi.input'].read().decode().strip()
+        if docstr:
+            try:
+                doc = json.loads(docstr)
+            except:
+                raise exception.rest.BadRequest('Could not deserialize JSON input.')
+        else:
+            doc = {}
+
+        if doc.get('id', catalog_id) != catalog_id:
+            raise exception.rest.BadRequest('Alias id=%s in body does not match id=%s in URL..' % (doc.get('id'), catalog_id))
+
+        if self.entry is None:
+            # check static permissions as in POST alias/
+            allowed = web.ctx.ermrest_registry.can_create(web.ctx.webauthn2_context.attributes)
+            if not allowed:
+                raise rest.Forbidden('alias/%s' % (catalog_id,))
+
+        # abuse idempotent claim to update and to check existing claim permissions
+        catalog_id = web.ctx.ermrest_registry.claim_id(id=catalog_id, id_owner=doc.get('owner'))
+
+        # update the alias config
+        entry = web.ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
+
+        content_type = _application_json
+        web.ctx.ermrest_request_content_type = content_type
+        response = json.dumps({
+            'id': entry['id'],
+            'owner': entry['id_owner'],
+            'alias_target': entry['alias_target'],
+        }) + '\n'
+
+        web.header('Content-Type', content_type)
+        web.header('Content-Length', len(response))
+
+        # set location header and status
+        if self.entry is None:
+            location = '/ermrest/alias/%s' % catalog_id
+            web.header('Location', location)
+            web.ctx.status = '201 Created'
+        else:
+            web.ctx.ermrest_request_content_type = None
+            web.ctx.status = '200 OK'
+
+        return response
+
+    @web_method()
+    def DELETE(self, catalog_id):
+        """Perform HTTP DELETE of catalog alias.
+        """
+        self._prepare(catalog_id)
+        self.http_check_preconditions()
+
+        self.enforce_right('owner')
+        web.ctx.ermrest_registry.unregister(self.catalog_id)
+        web.ctx.status = '204 No Content'
+        return ''
 
 class Meta (Api):
     """A metadata set of the catalog.

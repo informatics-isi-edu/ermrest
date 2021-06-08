@@ -31,6 +31,7 @@ The ERMrest web service model exposes resources to support management of dataset
 
 1. Service: the entire multi-tenant service end-point
 1. [Catalog](model/naming.md#catalog-names): a particular dataset (in one service)
+1. [Catalog Alias](model/naming.md#catalog-aliases): alias for a dataset
 1. [Schema or model resources](model/naming.md)
    1. [Schemata](model/naming.md#model-names): entire data model of a dataset (in one catalog)
    1. [Schema](model/naming.md#schema-names): a particular named subset of a dataset (in one catalog)
@@ -205,6 +206,10 @@ The ERMrest interface supports typical HTTP operations to manage these different
    1. [Catalog Creation](rest-catalog.md#catalog-creation)
    1. [Catalog Retrieval](rest-catalog.md#catalog-retrieval)
    1. [Catalog Deletion](rest-catalog.md#catalog-deletion)
+   1. [Catalog Alias Creation](rest-catalog.md#catalog-alias-creation)
+   1. [Catalog Alias Retrieval](rest-catalog.md#catalog-alias-retrieval)
+   1. [Catalog Alias Update](rest-catalog.md#catalog-alias-update)
+   1. [Catalog Alias Deletion](rest-catalog.md#catalog-alias-deletion)
 1. [Model-level operations](model/rest.md)
    1. [Schemata Retrieval](model/rest.md#schemata-retrieval)
    1. [Bulk Schemata and Table Creation](model/rest.md#bulk-schemata-and-table-creation)

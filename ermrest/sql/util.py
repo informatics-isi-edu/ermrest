@@ -1,6 +1,6 @@
 
 #
-# Copyright 2017 University of Southern California
+# Copyright 2017-2021 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,8 +28,12 @@ def for_each_catalog(thunk, id=None):
         raise NotImplementedError('ERMrest catalog registry not configured.')
 
     results = registry.lookup(id)
-    for result in results:
-        catalog = Catalog(catalog_factory, result['descriptor'])
+    for entry in results:
+        if entry.get('alias_target') is None:
+            # lookup can return the same descriptor more than once
+            # ignore aliased references
+            continue
+        catalog = Catalog(catalog_factory, reg_entry=entry)
         # a non-shared pool is just our same API w/o pooling...
         pc = sanepg2.PooledConnection(catalog.dsn, shared=False)
         next(pc.perform(lambda conn, cur: thunk(catalog, conn, cur), verbose=False))

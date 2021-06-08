@@ -118,7 +118,7 @@ class CatalogFactory (object):
             # create catalog
             descriptor = dict(self._template)
             descriptor[self._KEY_DBNAME] = dbname
-            return Catalog(self, descriptor)
+            return Catalog(self, reg_entry={"descriptor": descriptor})
 
         pc = sanepg2.PooledConnection(self._dsn)
         try:
@@ -180,7 +180,7 @@ class Catalog (object):
     MODEL_CACHE = dict()
     MODEL_CACHE_SIZE = 16
 
-    def __init__(self, factory, descriptor, config=None):
+    def __init__(self, factory, reg_entry, config=None):
         """Initializes the catalog.
            
            The 'factory' is the factory used to create this catalog.
@@ -196,9 +196,10 @@ class Catalog (object):
         """
         assert factory is not None
         assert descriptor is not None
-        self.descriptor = descriptor
-        self.dsn = self._serialize_descriptor(descriptor)
+        self.descriptor = reg_entry['descriptor']
+        self.dsn = self._serialize_descriptor(self.descriptor)
         self._factory = factory
+        self.alias_target = reg_entry.get('alias_target')
         self._config = config  # Not sure we need to tuck away the config
 
     def _serialize_descriptor(self, descriptor):
@@ -266,19 +267,20 @@ class Catalog (object):
     
     def init_meta(self, conn, cur, owner=None):
         """Initializes the Catalog metadata.
-        
-           When 'owner' is None, it initializes the catalog permissions with 
-           the anonymous ('*') role, including the ownership.
         """
         cur.execute(pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'))
         cur.execute('SELECT _ermrest.model_change_event();')
         cur.execute('ANALYZE;')
 
-        if type(owner) is dict:
-            owner = owner['id']
-            
+        # we want an ACL
+        if owner is None:
+            owner = [ web.ctx.webauthn2_context.client_id ]
+        elif isinstance(owner, (str, dict)):
+            owner = [ owner ]
+
+        owner = [ (e['id'] if isinstance(e, dict) else e) for e in owner ]
+
         ## initial policy
         model = self.get_model(cur, self._config)
-        owner = owner if owner else '*'
-        model.acls['owner'] = [owner] # set so enforcement won't deny subsequent set_acl()
-        model.set_acl(cur, 'owner', [owner])
+        model.acls['owner'] = owner # set so enforcement won't deny subsequent set_acl()
+        model.set_acl(cur, 'owner', owner)

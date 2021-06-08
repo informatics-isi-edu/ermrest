@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2021 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,120 @@ from ... import sanepg2
 from ...model import normalized_history_snaptime
 from ...util import sql_literal, negotiated_content_type
 
-class Api (object):
+class ApiBase (object):
+    def _prepare(self):
+        self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
+        self.http_etag = None
+
+    def set_http_etag(self, version):
+        """Set an ETag from version key.
+
+        """
+        etag = []
+
+        # TODO: compute source_checksum to help with cache invalidation
+        #etag.append( source_checksum )
+
+        if 'cookie' in self.http_vary:
+            client = web.ctx.webauthn2_context.client
+            if isinstance(client, dict):
+                client = client['id']
+            etag.append( '%s' % client )
+        else:
+            etag.append( '*' )
+
+        if 'accept' in self.http_vary:
+            etag.append( '%s' % web.ctx.env.get('HTTP_ACCEPT', '') )
+        else:
+            etag.append( '*' )
+
+        etag.append( '%s' % version )
+
+        self.http_etag = '"%s"' % ';'.join(etag).replace('"', '\\"')
+
+    def parse_client_etags(self, header):
+        """Parse header string for ETag-related preconditions.
+
+           Returns dict mapping ETag -> boolean indicating strong
+           (true) or weak (false).
+
+           The special key True means the '*' precondition was
+           encountered which matches any representation.
+
+        """
+        def etag_parse(s):
+            strong = True
+            if s[0:2] == 'W/':
+                strong = False
+                s = s[2:]
+            if s[-6:] == '-gzip"':
+                # remove stupid suffix added by mod_deflate
+                s = s[:-6] + '"'
+            return (s, strong)
+
+        s = header
+        etags = []
+        # pick off one ETag prefix at a time, consuming comma-separated list
+        while s:
+            s = s.strip()
+            # accept leading comma that isn't really valid by spec...
+            m = re.match('^,? *(?P<first>(W/)?"([^"]|\\\\")*")(?P<rest>.*)', s)
+            if m:
+                # found 'W/"tag"' or '"tag"'
+                g = m.groupdict()
+                etags.append(etag_parse(g['first']))
+                s = g['rest']
+                continue
+            m = re.match('^,? *[*](?P<rest>.*)', s)
+            if m:
+                # found '*'
+                # accept anywhere in list even though spec is more strict...
+                g = m.groupdict()
+                etags.append((True, True))
+                s = g['rest']
+                continue
+            s = None
+
+        return dict(etags)
+
+    def http_check_preconditions(self, method='GET', resource_exists=True):
+        failed = False
+
+        match_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_MATCH', ''))
+        if match_etags:
+            if resource_exists:
+                if self.http_etag and self.http_etag not in match_etags \
+                   and (True not in match_etags):
+                    failed = True
+            else:
+                failed = True
+
+        nomatch_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_NONE_MATCH', ''))
+        if nomatch_etags:
+            if resource_exists:
+                if self.http_etag and self.http_etag in nomatch_etags \
+                   or (True in nomatch_etags):
+                    failed = True
+
+        if failed:
+            headers = {
+                "ETag": self.http_etag,
+                "Vary": ", ".join(self.http_vary),
+            }
+            if method == 'GET':
+                raise rest.NotModified(headers=headers)
+            else:
+                raise rest.PreconditionFailed(headers=headers)
+
+    def emit_headers(self):
+        """Emit any automatic headers prior to body beginning."""
+        #TODO: evaluate whether this function is necessary
+        if self.http_vary:
+            web.header('Vary', ', '.join(self.http_vary))
+        if self.http_etag:
+            web.header('ETag', '%s' % self.http_etag)
+
+class Api (ApiBase):
 
     # caches keyed by (catalog descriptor, identifier URI/guid)
     CLIENT_CACHE = OrderedDict()
@@ -64,6 +177,7 @@ class Api (object):
         cache[key] = datetime.datetime.utcnow()
 
     def __init__(self, catalog):
+        super(Api, self).__init__()
         self.catalog = catalog
         self.queryopts = dict()
         self.sort = None
@@ -84,8 +198,13 @@ class Api (object):
             snapwhen=web.ctx.ermrest_history_snaptime,
             amendver=web.ctx.ermrest_history_amendver
         )
-        self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
-        self.http_etag = None
+        super(Api, self)._prepare()
+
+    def set_http_etag(self, version):
+        if self.catalog.manager.alias_target is not None:
+            return super(Api, self).set_http_etag('%s-%s' % (version, self.catalog.manager.alias_target))
+        else:
+            return super(Api, self).set_http_etag(version)
 
     def client_register_body(self, conn, cur):
         client = web.ctx.webauthn2_context.client
@@ -268,114 +387,6 @@ SET "Display_Name" = excluded."Display_Name";
             except:
                 return 100
     
-    def set_http_etag(self, version):
-        """Set an ETag from version key.
-
-        """
-        etag = []
-
-        # TODO: compute source_checksum to help with cache invalidation
-        #etag.append( source_checksum )
-
-        if 'cookie' in self.http_vary:
-            client = web.ctx.webauthn2_context.client
-            if isinstance(client, dict):
-                client = client['id']
-            etag.append( '%s' % client )
-        else:
-            etag.append( '*' )
-            
-        if 'accept' in self.http_vary:
-            etag.append( '%s' % web.ctx.env.get('HTTP_ACCEPT', '') )
-        else:
-            etag.append( '*' )
-
-        etag.append( '%s' % version )
-
-        self.http_etag = '"%s"' % ';'.join(etag).replace('"', '\\"')
-
-    def parse_client_etags(self, header):
-        """Parse header string for ETag-related preconditions.
-
-           Returns dict mapping ETag -> boolean indicating strong
-           (true) or weak (false).
-
-           The special key True means the '*' precondition was
-           encountered which matches any representation.
-
-        """
-        def etag_parse(s):
-            strong = True
-            if s[0:2] == 'W/':
-                strong = False
-                s = s[2:]
-            if s[-6:] == '-gzip"':
-                # remove stupid suffix added by mod_deflate
-                s = s[:-6] + '"'
-            return (s, strong)
-
-        s = header
-        etags = []
-        # pick off one ETag prefix at a time, consuming comma-separated list
-        while s:
-            s = s.strip()
-            # accept leading comma that isn't really valid by spec...
-            m = re.match('^,? *(?P<first>(W/)?"([^"]|\\\\")*")(?P<rest>.*)', s)
-            if m:
-                # found 'W/"tag"' or '"tag"'
-                g = m.groupdict()
-                etags.append(etag_parse(g['first']))
-                s = g['rest']
-                continue
-            m = re.match('^,? *[*](?P<rest>.*)', s)
-            if m:
-                # found '*'
-                # accept anywhere in list even though spec is more strict...
-                g = m.groupdict()
-                etags.append((True, True))
-                s = g['rest']
-                continue
-            s = None
-
-        return dict(etags)
-        
-    def http_check_preconditions(self, method='GET', resource_exists=True):
-        failed = False
-
-        match_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_MATCH', ''))
-        if match_etags:
-            if resource_exists:
-                if self.http_etag and self.http_etag not in match_etags \
-                   and (True not in match_etags):
-                    failed = True
-            else:
-                failed = True
-        
-        nomatch_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_NONE_MATCH', ''))
-        if nomatch_etags:
-            if resource_exists:
-                if self.http_etag and self.http_etag in nomatch_etags \
-                   or (True in nomatch_etags):
-                    failed = True
-
-        if failed:
-            headers={ 
-                "ETag": self.http_etag, 
-                "Vary": ", ".join(self.http_vary)
-            }
-            if method == 'GET':
-                raise rest.NotModified(headers=headers)
-            else:
-                raise rest.PreconditionFailed(headers=headers)
-
-    def emit_headers(self):
-        """Emit any automatic headers prior to body beginning."""
-        #TODO: evaluate whether this function is necessary
-        if self.http_vary:
-            web.header('Vary', ', '.join(self.http_vary))
-        if self.http_etag:
-            web.header('ETag', '%s' % self.http_etag)
-        
     def perform(self, body, finish):
         def wrapbody(conn, cur):
             try:
