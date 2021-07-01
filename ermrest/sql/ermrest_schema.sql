@@ -76,6 +76,15 @@ CREATE OR REPLACE FUNCTION _ermrest.astext(anynonarray) RETURNS text IMMUTABLE A
   SELECT $1::text;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.coalesce_func(anyelement, anyelement) RETURNS anyelement AS $$
+  SELECT CASE WHEN $1 IS NULL THEN $2 ELSE $1 END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE AGGREGATE coalesce_agg(anyelement) (
+  sfunc = _ermrest.coalesce_func,
+  stype = anyelement
+);
+
 CREATE OR REPLACE FUNCTION _ermrest.urlb32_encode(int8) RETURNS text IMMUTABLE AS $$
 DECLARE
   raw bit(65);

@@ -1519,7 +1519,7 @@ class AnyPath (object):
         """Process attribute lists for aggregation APIs.
         """
         aggregates = []
-        extras = []
+        extras = [] # deprecated
         output_type_overrides = {}
 
         for attribute, col, base in self.attributes:
@@ -1541,7 +1541,9 @@ class AnyPath (object):
             elif not allow_extra:
                 raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
             else:
-                extras.append(sql_attr)
+                # get example values via custom agg func
+                agg_sql = 'coalesce_agg(%s)' % (sql_attr,)
+                aggregates.append((agg_sql, sql_attr))
 
         return aggregates, extras, output_type_overrides
 
@@ -2411,7 +2413,7 @@ class AttributeGroupPath (AnyPath):
         
         groupkeys = []
         aggregates = []
-        extras = []
+        extras = [] # deprecated
 
         for key, col, base in self.groupkeys:
             if key.alias is not None:
@@ -2423,21 +2425,9 @@ class AttributeGroupPath (AnyPath):
         aggregates, extras, self.output_type_overrides = self._sql_get_agg_attributes()
 
         if extras:
-            # an impure aggregate query includes extras which must be reduced 
-            # by an arbitrary DISTINCT ON and joined to the core aggregate query
-            sql = """
-SELECT * FROM (
-SELECT
-  %(selects)s
-FROM (
-  SELECT %(groupaggs)s FROM ( %(asql)s ) s GROUP BY %(groupkeys)s
-) g
-JOIN ( 
-  SELECT DISTINCT ON ( %(groupkeys)s )
-    %(groupextras)s
-  FROM ( %(asql)s ) s
-) e ON ( %(joinons)s ) ) s
-"""
+            raise NotImplementedError('found unexpected extras in aggregation')
+            # an impure aggregate query finds exemplars via custom coalesce_agg() 
+            # which is folded into the core aggregate query, so extras should ALWAYS be empty now
         else:
             # a pure aggregate query has only group keys and aggregates
             sql = """
@@ -2447,15 +2437,8 @@ GROUP BY %(groupkeys)s
 """
         sql = sql % dict(
             asql=asql,
-            selects=', '.join(['g.%s' % k for k in groupkeys + [ a[1] for a in aggregates]]
-                              + [ 'e.%s' % e for e in extras ]),
             groupkeys=', '.join(groupkeys),
             groupaggs=', '.join(groupkeys + ["%s AS %s" % a for a in aggregates]),
-            groupextras=', '.join(groupkeys + extras),
-            joinons=' AND '.join([ 
-                    '(g.%s IS NOT DISTINCT FROM e.%s)' % (k, k)
-                    for k in groupkeys
-                    ])
             )
 
         if sort1 is not None:
