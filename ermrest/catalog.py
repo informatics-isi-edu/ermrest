@@ -195,7 +195,6 @@ class Catalog (object):
            open a connection until required.
         """
         assert factory is not None
-        assert descriptor is not None
         self.descriptor = reg_entry['descriptor']
         self.dsn = self._serialize_descriptor(self.descriptor)
         self._factory = factory

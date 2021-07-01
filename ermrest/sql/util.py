@@ -27,9 +27,9 @@ def for_each_catalog(thunk, id=None):
     if not registry:
         raise NotImplementedError('ERMrest catalog registry not configured.')
 
-    results = registry.lookup(id)
+    results = registry.lookup(id=id)
     for entry in results:
-        if entry.get('alias_target') is None:
+        if entry.get('alias_target') is not None:
             # lookup can return the same descriptor more than once
             # ignore aliased references
             continue
