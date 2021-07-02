@@ -882,7 +882,7 @@ RETURNING %(rcols)s""") % {
         )
     )
     results = list(make_row_thunk(None, cur, content_type)())
-    if table.columns['RID'] not in use_defaults:
+    if 'RID' in table.columns and table.columns['RID'] not in use_defaults:
         # try to avoid RID sequence conflicts when users insert values
         cur.execute("""
 SELECT
