@@ -127,15 +127,25 @@ SELECT _ermrest.model_version_bump();
 
     def want_index(self, index_type):
         """Return True if we prefer to have index, False if not."""
-        def get_prefs(subject):
-            preferences = subject.annotations.get(self.table.tag_indexing_preferences, {})
-            if not isinstance(preferences, dict):
-                web.debug('WARNING: ignoring invalid indexing preferences on %s' % subject)
-                return {}
+        def get_prefs(*subjects):
+            preferences = dict()
+            for subject in subjects:
+                subject_prefs = subject.annotations.get(self.table.tag_indexing_preferences, {})
+                if not isinstance(subject_prefs, dict):
+                    web.debug('WARNING: ignoring invalid indexing preferences on %s' % subject)
+                web.debug('Subject %s indexing preferences: %r' % (subject, subject_prefs))
+                preferences.update(subject_prefs)
             return preferences
 
-        preferences = get_prefs(self.table)
-        preferences.update(get_prefs(self))
+        preferences = get_prefs(self.table.schema, self.table, self)
+        web.debug('Column %s indexing preferences: %r' % (self, preferences))
+
+        # avoid redundant indexing for thing we force elsewhere
+        if index_type == 'btree':
+            if frozenset({self}) in self.table.uniques:
+                return False
+            if frozenset({self}) in self.table.fkeys:
+                return False
 
         # absent or null preference means use default which is currently True
         if preferences.get(index_type) is False:
@@ -151,7 +161,7 @@ SELECT _ermrest.model_version_bump();
            created index.
 
         """
-        if frozenset({self}) not in self.table.uniques and self.is_indexable() and self.want_index('btree'):
+        if self.is_indexable() and self.want_index('btree'):
             return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;

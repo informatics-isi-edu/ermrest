@@ -350,6 +350,11 @@ ORDER BY column_num;
                 # need to drain this generating function
                 pass
 
+        for fkeydoc in tabledoc.get('foreign_keys', []):
+            for fkr in table.add_fkeyref(conn, cur, fkeydoc):
+                # need to drain this generating function
+                pass
+
         for column in columns:
             try:
                 execute_if(column.btree_index_sql())
@@ -357,11 +362,6 @@ ORDER BY column_num;
             except Exception as e:
                 web.debug(table, column, e)
                 raise
-
-        for fkeydoc in tabledoc.get('foreign_keys', []):
-            for fkr in table.add_fkeyref(conn, cur, fkeydoc):
-                # need to drain this generating function
-                pass
 
         try:
             table.check_primary_keys(ermrest_config.get('require_primary_keys', True))
