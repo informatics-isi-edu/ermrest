@@ -133,12 +133,10 @@ SELECT _ermrest.model_version_bump();
                 subject_prefs = subject.annotations.get(self.table.tag_indexing_preferences, {})
                 if not isinstance(subject_prefs, dict):
                     web.debug('WARNING: ignoring invalid indexing preferences on %s' % subject)
-                web.debug('Subject %s indexing preferences: %r' % (subject, subject_prefs))
                 preferences.update(subject_prefs)
             return preferences
 
         preferences = get_prefs(self.table.schema, self.table, self)
-        web.debug('Column %s indexing preferences: %r' % (self, preferences))
 
         # avoid redundant indexing for thing we force elsewhere
         if index_type == 'btree':
