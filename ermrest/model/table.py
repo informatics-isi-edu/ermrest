@@ -36,6 +36,14 @@ from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_right
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
 
+def _execute_if(cur, sql):
+    if sql:
+        try:
+            cur.execute(sql)
+        except:
+            web.debug('Got error executing SQL: %s' % sql)
+            raise
+
 @annotatable
 @hasdynacls(
     { "owner", "update", "delete", "select" }
@@ -318,14 +326,6 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
         table.set_acls(cur, acls)
         table.set_dynacls(cur, dynacls)
 
-        def execute_if(sql):
-            if sql:
-                try:
-                    cur.execute(sql)
-                except:
-                    web.debug('Got error executing SQL: %s' % sql)
-                    raise
-
         cur.execute("""
 SELECT
   "RID",
@@ -357,8 +357,8 @@ ORDER BY column_num;
 
         for column in columns:
             try:
-                execute_if(column.btree_index_sql())
-                execute_if(column.pg_trgm_index_sql())
+                _execute_if(cur, column.btree_index_sql())
+                _execute_if(cur, column.pg_trgm_index_sql())
             except Exception as e:
                 web.debug(table, column, e)
                 raise
@@ -493,6 +493,13 @@ WHERE "RID" = %s;
             fkr.set_annotations(conn, cur, fkr.annotations)
             fkr.set_acls(cur, fkr.acls, anon_mutation_ok=True)
             fkr.set_dynacls(cur, fkr.dynacls)
+
+            fk_cols, pk_cols = fkr._fk_pk_cols_ordered()
+            try:
+                _execute_if(cur, fk_cols[0].btree_index_sql())
+            except Exception as e:
+                web.debug(self, fk_cols[0], e)
+                raise
 
             yield fkr
 

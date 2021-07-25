@@ -137,19 +137,28 @@ SELECT _ermrest.model_version_bump();
             return preferences
 
         preferences = get_prefs(self.table.schema, self.table, self)
+        want = preferences.get(index_type, True)
 
-        # avoid redundant indexing for thing we force elsewhere
-        if index_type == 'btree':
-            if frozenset({self}) in self.table.uniques:
-                return False
-            if frozenset({self}) in self.table.fkeys:
-                return False
-
-        # absent or null preference means use default which is currently True
-        if preferences.get(index_type) is False:
-            return False
-        else:
-            return True
+        if isinstance(want, list):
+            # always build custom index spec
+            return want
+        elif index_type == 'btree':
+            for unique in self.table.uniques.values():
+                if self not in unique.columns:
+                    continue
+                if next(iter(unique.columns)) is self:
+                    # can use UNIQUE btree(self, ...)
+                    return False
+            for colset, fk in self.table.fkeys.items():
+                if self not in colset:
+                    continue
+                for fkr in fk.references.values():
+                    fk_cols, pk_cols = fkr._fk_pk_cols_ordered()
+                    if fk_cols[0] is self:
+                        # as lead column for fkey, build fkey index
+                        return [ c.name for c in fk_cols ]
+        # default handling
+        return want
 
     def btree_index_sql(self):
         """Return SQL to construct a single-column btree index or None if not necessary.
@@ -159,17 +168,32 @@ SELECT _ermrest.model_version_bump();
            created index.
 
         """
-        if self.is_indexable() and self.want_index('btree'):
-            return """
-DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-CREATE INDEX %(index)s ON %(schema)s.%(table)s ( %(column)s ) ;
-""" % dict(schema=sql_identifier(self.table.schema.name),
-           table=sql_identifier(self.table.name),
-           column=sql_identifier(self.name),
-           index=sql_identifier(make_id(self.table.name, self.name, 'idx'))
-       )
-        else:
+        want = self.want_index('btree')
+
+        if not self.is_indexable():
             return None
+
+        if not want:
+            return None
+
+        cols = [ self ]
+        if isinstance(want, list):
+            try:
+                cols = [ self.table.columns[cname] for cname in want ]
+            except KeyError:
+                web.debug('WARNING: using default column index for %s due to invalid custom btree index spec %r' % (self, want))
+
+        return """
+DROP INDEX IF EXISTS %(schema)s.%(index)s ;
+DROP INDEX IF EXISTS %(schema)s.%(index2)s ;
+CREATE INDEX %(index2)s ON %(schema)s.%(table)s ( %(columns)s ) ;
+""" % {
+    "schema": sql_identifier(self.table.schema.name),
+    "table": sql_identifier(self.table.name),
+    "columns": ', '.join([ sql_identifier(c.name) for c in cols ]),
+    "index": sql_identifier(make_id(self.table.name, self.name, 'idx')),
+    "index2": sql_identifier(make_id(self.table.name, [ c.name for c in cols ], 'idx')),
+}
 
     def pg_trgm_index_sql(self):
         """Return SQL to construct single-column tri-gram index or None if not necessary.

@@ -696,7 +696,7 @@ SELECT _ermrest.model_version_bump();
             conn, cur,
             'ADD %s' % self.sql_def(),
             """
-CREATE INDEX IF NOT EXISTS %(idx_name)s ON %(schema_name)s.%(table_name)s (%(idx_cols)s);
+-- CREATE INDEX IF NOT EXISTS %(idx_name)s ON %(schema_name)s.%(table_name)s (%(idx_cols)s);
 INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule)
 SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule
 FROM _ermrest.introspect_fkeys
@@ -733,7 +733,6 @@ RETURNING fkey_rid;
                 'DROP CONSTRAINT %s' % sql_identifier(fkr_name),
                 'DELETE FROM _ermrest.known_fkeys WHERE "RID" = %s;' % sql_literal(self.rid),
             )
-            cur.execute('DROP INDEX IF EXISTS %s.%s' % (sql_identifier(self.foreign_key.table.schema.name), sql_identifier(fkr_name)))
 
     def _from_column_names(self):
         """Canonicalized from-column names list."""
