@@ -89,9 +89,9 @@ class Model (object):
         else:
             return '%s' % self.snaptime
 
-    def check_primary_keys(self, require):
+    def check_primary_keys(self, require, warn):
         for schema in self.schemas.values():
-            schema.check_primary_keys(require)
+            schema.check_primary_keys(require, warn)
 
     def lookup_table(self, tname):
         """Lookup an unqualified table name if and only if it is unambiguous across schemas."""
@@ -308,9 +308,9 @@ SELECT _ermrest.model_version_bump();
             doc['acls'] = self.acls
         return doc
 
-    def check_primary_keys(self, require):
+    def check_primary_keys(self, require, warn):
         for table in self.tables.values():
-            table.check_primary_keys(require)
+            table.check_primary_keys(require, warn)
 
     def delete_table(self, conn, cur, tname):
         """Drop a table from the schema."""

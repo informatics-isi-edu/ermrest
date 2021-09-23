@@ -143,15 +143,16 @@ class Table (object):
             if cname not in self.columns:
                 raise exception.ConflictModel('Table %s lacks required system column %s.' % (self, cname))
 
-    def check_primary_keys(self, require):
+    def check_primary_keys(self, require, warn):
         try:
             self.check_system_columns()
             if OrderedFrozenSet([self.columns['RID']]) not in self.uniques:
                 raise exception.ConflictModel('Column "%s"."RID" lacks uniqueness constraint.' % self.name)
         except exception.ConflictModel as te:
             if not require:
-                # convert error to warning in log
-                web.debug('WARNING: %s' % te)
+                if warn:
+                    # convert error to warning in log
+                    web.debug('WARNING: %s' % te)
             else:
                 raise te
 

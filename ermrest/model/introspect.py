@@ -348,7 +348,7 @@ SELECT _ermrest.model_version_bump();
     del model.schemas['pg_catalog']
 
     try:
-        model.check_primary_keys(web.ctx.ermrest_config.get('require_primary_keys', True))
+        model.check_primary_keys(web.ctx.ermrest_config.get('require_primary_keys', True), web.ctx.ermrest_config.get('warn_missing_system_columns', True))
     except exception.ConflictModel as te:
         raise exception.rest.RuntimeError(te)
 
