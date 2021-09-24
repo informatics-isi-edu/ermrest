@@ -365,7 +365,7 @@ ORDER BY column_num;
                 raise
 
         try:
-            table.check_primary_keys(ermrest_config.get('require_primary_keys', True))
+            table.check_primary_keys(ermrest_config.get('require_primary_keys', True), ermrest_config.get('warn_missing_system_columns', True))
         except exception.ConflictModel as te:
             # convert into BadData
             raise exception.BadData(te)
