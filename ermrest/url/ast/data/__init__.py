@@ -89,15 +89,6 @@ def _GET(handler, uri, dresource, vresource):
             handler.http_check_preconditions()
             dresource.add_sort(handler.sort)
             dresource.add_paging(handler.after, handler.before)
-            try:
-                # try to set a transaction-local statement timeout before this potentially long-running query
-                request_timeout_s = float(web.ctx.ermrest_config.get('request_timeout_s'))
-                elapsed = datetime.datetime.now(timezone.utc) - web.ctx.ermrest_start_time
-                timeout_ms = int(1000.0 * max((request_timeout_s - elapsed.total_seconds()), 0.001))
-                cur.execute("SELECT set_config('statement_timeout', %s, true);" % sql_literal(timeout_ms))
-            except Exception as e:
-                web.debug(e)
-                pass
             return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit)
         finally:
             try:
