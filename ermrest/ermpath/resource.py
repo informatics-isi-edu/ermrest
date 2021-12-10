@@ -47,7 +47,7 @@ class _NullEntityElem (object):
     def sql_wheres(self, prefix=''):
         return []
 
-def _set_statement_timeout():
+def _set_statement_timeout(cur):
     """Try to set a sensible timeout for the next statement we will execute."""
     try:
         request_timeout_s = float(web.ctx.ermrest_config.get('request_timeout_s', '55'))
@@ -229,7 +229,7 @@ def make_row_thunk(conn, cur, content_type, drop_tables=[], ):
                 yield row_to_dict(cur, row)
 
         for table in drop_tables:
-            _set_statement_timeout()
+            _set_statement_timeout(cur)
             cur.execute("DROP TABLE %s" % sql_identifier(table))
 
         #if conn is not None:
@@ -474,7 +474,7 @@ def _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_a
     )
     buf = input_data.read().decode('utf8')
     try:
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(u"""
 INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s
@@ -500,7 +500,7 @@ def _load_input_data_json_stream(cur, input_data, input_table, input_json_table,
     )
     try:
         cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(u"""
 INSERT INTO %(input_table)s (%(cols)s)
 SELECT %(cols)s
@@ -569,17 +569,17 @@ def _analyze_input_table(cur, input_table, mkcols, mkcol_aliases):
     }
     if len(mkcols) > 0:
         try:
-            _set_statement_timeout()
+            _set_statement_timeout(cur)
             cur.execute("CREATE UNIQUE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
         except psycopg2.IntegrityError as e:
             raise BadData(u'Multiple input rows share the same unique key information.')
 
-    _set_statement_timeout()
+    _set_statement_timeout(cur)
     cur.execute("ANALYZE %s;" % parts['input_table'])
 
     if len(mkcols) > 32:
         # index is truncated, so check for collisions via brute-force
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("""
 SELECT True AS is_duplicate
 FROM %(input_table)s
@@ -616,7 +616,7 @@ def _affected_fkrs(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkc
             # prune this unaffected column
             del col_fkrs[c]
             continue
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("SELECT True FROM %s WHERE %s IS NOT NULL LIMIT 1" % (sql_identifier(input_table), c.sql_name(alias)))
         row = cur.fetchone()
         if row and row[0]:
@@ -671,7 +671,7 @@ def _enforce_table_upsert_static(cur, table, input_table, mkcols, nmkcols, mkcol
         _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
 
     if nmkcols:
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("""
 SELECT %(icols)s
 FROM %(input_table)s i
@@ -713,7 +713,7 @@ def _tcols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
     )
 
 def _enforce_input_exists(cur, input_table, table, mkcols, mkcol_aliases):
-    _set_statement_timeout()
+    _set_statement_timeout(cur)
     cur.execute("""
 SELECT *
 FROM %(input_table)s i
@@ -746,7 +746,7 @@ def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkco
             )
             for fc, uc in fkr.reference_map_frozen
         ]
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(("""
 SELECT *
 FROM (
@@ -774,7 +774,7 @@ def _enforce_table_update_dynamic(cur, table, input_table, mkcols, nmkcols, mkco
     icols = _icols(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
 
     if table.has_right('update') is None:
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(("""
 SELECT i.*
 FROM %(table)s
@@ -797,7 +797,7 @@ LIMIT 1""") % {
             continue
         if not c.dynauthz_restricted('update'):
             continue
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(("""
 SELECT i.*
 FROM %(table)s
@@ -827,7 +827,7 @@ LIMIT 1""") % {
             )
             for fc, uc in fkr.reference_map_frozen
         ]
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(("""
 SELECT *
 FROM (
@@ -860,7 +860,7 @@ def _enforce_table_upsert_dynamic(cur, table, input_table, mkcols, nmkcols, mkco
         _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
 
 def _perform_table_update(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type):
-    _set_statement_timeout()
+    _set_statement_timeout(cur)
     cur.execute(
         preserialize("""
 UPDATE %(table)s t SET %(assigns)s FROM (
@@ -889,7 +889,7 @@ RETURNING %(tcols)s""" % {
     return list(make_row_thunk(None, cur, content_type)())
 
 def _perform_table_insert(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type, use_defaults, extra_return_cols, only_nonmatch=False):
-    _set_statement_timeout()
+    _set_statement_timeout(cur)
     cur.execute(
         preserialize(("""
 INSERT INTO %(table)s (%(cols)s)
@@ -915,7 +915,7 @@ RETURNING %(rcols)s""") % {
     results = list(make_row_thunk(None, cur, content_type)())
     if 'RID' in table.columns and table.columns['RID'] not in use_defaults:
         # try to avoid RID sequence conflicts when users insert values
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("""
 SELECT
   max(_ermrest.urlb32_decode("RID")),
@@ -927,7 +927,7 @@ FROM %(table)s
         )
         max_stored, next_issued = cur.fetchone()
         if max_stored > next_issued:
-            _set_statement_timeout()
+            _set_statement_timeout(cur)
             cur.execute("""
 SELECT setval('_ermrest.rid_seq', %(newval)s)
 """ % {
@@ -1194,7 +1194,7 @@ class EntityElem (object):
             )
 
             for table in drop_tables:
-                _set_statement_timeout()
+                _set_statement_timeout(cur)
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
 
         except psycopg2.IntegrityError as e:
@@ -1369,7 +1369,7 @@ class EntityElem (object):
             )
 
             for table in drop_tables:
-                _set_statement_timeout()
+                _set_statement_timeout(cur)
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
 
         except psycopg2.IntegrityError as e:
@@ -1489,7 +1489,7 @@ class EntityElem (object):
             )
 
             for table in drop_tables:
-                _set_statement_timeout()
+                _set_statement_timeout(cur)
                 cur.execute("DROP TABLE %s" % sql_identifier(table))
 
         except psycopg2.IntegrityError as e:
@@ -1650,7 +1650,7 @@ class AnyPath (object):
                 raise NotImplementedError('content_type %s' % content_type)
 
             #web.debug(sql)
-            _set_statement_timeout()
+            _set_statement_timeout(cur)
             cur.execute(sql)
             
             return make_row_thunk(None, cur, content_type)()
@@ -1916,7 +1916,7 @@ WHERE %(keymatches)s
 
         if table.has_right('delete') is None:
             # need to enforce dynamic ACLs
-            _set_statement_timeout()
+            _set_statement_timeout(cur)
             cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.sql_get(dynauthz=False, access_type='delete'))
             if cur.fetchone():
                 raise Forbidden(u'delete access on one or more matching rows in table %s' % table)
@@ -1937,19 +1937,19 @@ WHERE %(keymatches)s
         mkcols = list(mkcols)
 
         cur.execute("CREATE TEMPORARY TABLE %s AS %s;" % (victim_table, self.sql_get()))
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("CREATE INDEX ON %s (%s);" % (
             victim_table,
             ', '.join([ c.sql_name() for c in mkcols])
         ))
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("ANALYZE %s;" % victim_table)
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("SELECT count(*) AS count FROM %s;" % victim_table)
         cnt = cur.fetchone()[0]
         if cnt == 0:
             raise NotFound('entities matching request path')
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(
             "DELETE FROM %s AS t USING %s AS v WHERE %s;" % (
                 table.sql_name(),
@@ -1962,7 +1962,7 @@ WHERE %(keymatches)s
                 ])
             )
         )
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("DROP TABLE %s;" % victim_table)
 
     def upsert(self, conn, cur, input_data, in_content_type='text/csv', content_type='text/csv', output_file=None):
@@ -2360,7 +2360,7 @@ WHERE %(keymatches)s
         etable.enforce_right('update')
         if etable.has_right('update') is None:
             # need to enforce dynamic ACLs
-            _set_statement_timeout()
+            _set_statement_timeout(cur)
             cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(dynauthz=False, access_type='update'))
             if cur.fetchone():
                 raise Forbidden(u'update access on one or more matching rows in table %s' % etable)
@@ -2375,7 +2375,7 @@ WHERE %(keymatches)s
                 col.enforce_data_right('update')
                 if col.has_data_right('update') is None and col.dynauthz_restricted('update'):
                     # need to enforce dynamic ACLs
-                    _set_statement_timeout()
+                    _set_statement_timeout(cur)
                     cur.execute("SELECT True FROM (%s) s LIMIT 1" % self.epath.sql_get(access_type='update', dynauthz_testcol=col))
                     if cur.fetchone():
                         raise Forbidden(u'update access on column %s for one or more rows' % col)
@@ -2388,12 +2388,12 @@ WHERE %(keymatches)s
         
         dquery = self.sql_delete(nmkcols, equery)
 
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute("SELECT count(*) AS count FROM (%s) s" % equery)
         if cur.fetchone()[0] == 0:
             raise NotFound('entities matching request path')
         table = self.epath.current_entity_table()
-        _set_statement_timeout()
+        _set_statement_timeout(cur)
         cur.execute(dquery)
 
 class AttributeGroupPath (AnyPath):
