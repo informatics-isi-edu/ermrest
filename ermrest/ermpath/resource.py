@@ -1837,14 +1837,16 @@ class EntityPath (AnyPath):
         ]
 
         tables = [
-            elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix)
+            # use 'select' visibility for all but context table instance
+            elem.sql_table_elem(dynauthz=True if dynauthz is not None else None, access_type='select', prefix=prefix)
             for elem in self._path[0:context_pos]
         ] + [
             # dynauthz_testcol may be None or an actual column here...
             self._path[context_pos].sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix, dynauthz_testcol=dynauthz_testcol)
         ] + [
             # this is usually empty list but might not if a URL path ends with a context reset
-            elem.sql_table_elem(dynauthz=dynauthz, access_type=access_type, prefix=prefix)
+            # use 'select' visibility for all but context table instance
+            elem.sql_table_elem(dynauthz=True if dynauthz is not None else None, access_type='select', prefix=prefix)
             for elem in self._path[context_pos+1:]
         ]
 
