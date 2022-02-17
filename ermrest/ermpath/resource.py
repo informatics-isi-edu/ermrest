@@ -1631,6 +1631,7 @@ class AnyPath (object):
             else:
                 raise NotImplementedError('content_type %s with output_file.write()' % content_type)
 
+            _set_statement_timeout(cur)
             cur.copy_expert(sql, output_file)
 
             return output_file
