@@ -360,6 +360,7 @@ ORDER BY column_num;
             try:
                 _execute_if(cur, column.btree_index_sql())
                 _execute_if(cur, column.pg_trgm_index_sql())
+                _execute_if(cur, column.pg_gin_array_index_sql())
             except Exception as e:
                 web.debug(table, column, e)
                 raise
@@ -460,6 +461,13 @@ UPDATE %(sname)s.%(tname)s SET %(cname)s = %(default)s;
     "default": column.type.sql_literal(column.default_value),
 }
             )
+        try:
+            _execute_if(cur, column.btree_index_sql())
+            _execute_if(cur, column.pg_trgm_index_sql())
+            _execute_if(cur, column.pg_gin_array_index_sql())
+        except Exception as e:
+            web.debug(table, column, e)
+            raise
         return column
 
     def delete_column(self, conn, cur, cname):

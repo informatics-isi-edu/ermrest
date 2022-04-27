@@ -33,7 +33,7 @@ from . import sanepg2
 from .util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
 from .model.introspect import introspect
-from .model import current_model_snaptime, normalized_history_snaptime
+from .model import current_model_snaptime, normalized_history_snaptime, Table
 from . import sql
 
 __all__ = ['get_catalog_factory']
@@ -264,7 +264,7 @@ class Catalog (object):
                 continue
         raise RuntimeError(msg)
     
-    def init_meta(self, conn, cur, owner=None):
+    def init_meta(self, conn, cur, owner=None, annotations=None):
         """Initializes the Catalog metadata.
         """
         cur.execute(pkgutil.get_data(sql.__name__, 'ermrest_schema.sql'))
@@ -278,8 +278,18 @@ class Catalog (object):
             owner = [ owner ]
 
         owner = [ (e['id'] if isinstance(e, dict) else e) for e in owner ]
+        annotations_merged = {
+            Table.tag_indexing_preferences: {
+                'btree': True,
+                'trgm': True,
+                'gin_array': True,
+            },
+        }
+        if annotations:
+            annotations_merged.update(annotations)
 
         ## initial policy
         model = self.get_model(cur, self._config)
         model.acls['owner'] = owner # set so enforcement won't deny subsequent set_acl()
         model.set_acl(cur, 'owner', owner)
+        model.set_annotations(conn, cur, annotations_merged)

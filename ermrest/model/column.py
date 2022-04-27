@@ -122,10 +122,13 @@ SELECT _ermrest.model_version_bump();
         # we can force casting everythign to text for searching...
         return True
 
+    def is_array(self):
+        return self.type.is_array
+
     def is_indexable(self):
         return str(self.type) != 'json'
 
-    def want_index(self, index_type):
+    def want_index(self, index_type, default=True):
         """Return True if we prefer to have index, False if not."""
         def get_prefs(*subjects):
             preferences = dict()
@@ -136,8 +139,8 @@ SELECT _ermrest.model_version_bump();
                 preferences.update(subject_prefs)
             return preferences
 
-        preferences = get_prefs(self.table.schema, self.table, self)
-        want = preferences.get(index_type, True)
+        preferences = get_prefs(self.table.schema.model, self.table.schema, self.table, self)
+        want = preferences.get(index_type, default)
 
         if isinstance(want, list):
             # always build custom index spec
@@ -195,6 +198,28 @@ CREATE INDEX %(index2)s ON %(schema)s.%(table)s ( %(columns)s ) ;
     "index2": sql_identifier(make_id(self.table.name, [ c.name for c in cols ], 'idx')),
 }
 
+    def pg_gin_opclass_index_sql(self, opclass, val_template=None):
+        """Return SQL to construct GIN index w/ opclass or None if not necessary.
+
+        """
+        idx_val = self.sql_name()
+        if val_template:
+            idx_val = val_template % (idx_val,)
+
+        idx_name_part = {
+            'gin_trgm_ops': 'pgtrgm',
+            'array_ops': 'arr',
+        }.get(opclass, opclass)
+        return """
+DROP INDEX IF EXISTS %(schema)s.%(index)s ;
+CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s %(opclass)s ) ;
+""" % dict(schema=sql_identifier(self.table.schema.name),
+           table=sql_identifier(self.table.name),
+           index_val=idx_val,
+           index=sql_identifier(make_id(self.table.name, self.name, idx_name_part, 'idx')),
+           opclass=opclass,
+       )
+
     def pg_trgm_index_sql(self):
         """Return SQL to construct single-column tri-gram index or None if not necessary.
 
@@ -203,14 +228,16 @@ CREATE INDEX %(index2)s ON %(schema)s.%(table)s ( %(columns)s ) ;
 
         """
         if self.istext() and self.want_index('trgm'):
-            return """
-DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s gin_trgm_ops ) ;
-""" % dict(schema=sql_identifier(self.table.schema.name),
-           table=sql_identifier(self.table.name),
-           index_val=self.sql_name_astext_with_talias(None),
-           index=sql_identifier(make_id(self.table.name, self.name, 'pgtrgm', 'idx'))
-       )
+            return self.pg_gin_opclass_index_sql('gin_trgm_ops', '_ermrest.astext(%s)')
+        else:
+            return None
+
+    def pg_gin_array_index_sql(self):
+        """Return SQL to construct single-column GIN array index or None if not necessary.
+
+        """
+        if self.is_array() and self.want_index('gin_array', default=False):
+            return self.pg_gin_opclass_index_sql('array_ops')
         else:
             return None
 
