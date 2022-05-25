@@ -537,10 +537,6 @@ def p_expr_const(p):
     """expr : string """
     p[0] = predicate.Value(p[1])
 
-def p_expr_name(p):
-    """expr : name """
-    p[0] = p[1]
-
 def p_expr_empty(p):
     """expr : """
     p[0] = predicate.Value('')
