@@ -33,7 +33,6 @@ any request bearing escaped slashes meant to be user data.
 
 """
 
-
 import ply.lex
 import web
 
@@ -60,7 +59,9 @@ keywords = [
     'acl_binding',
     'after',
     'aggregate',
+    'all',
     'annotation',
+    'any',
     'array',
     'array_d',
     'attribute',
@@ -150,5 +151,4 @@ def t_error(t):
     raise LexicalError()
 
 def make_lexer():
-    return ply.lex.lex(debug=False, optimize=1, lextab=None)#'url_lextab')
-
+    return ply.lex.lex(debug=False, optimize=1, lextab='ermrest_url_lextab', outputdir='/tmp')
