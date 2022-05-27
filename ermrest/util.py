@@ -141,6 +141,13 @@ def service_features():
         "implicit_fkey_index": True,
         "catalog_post_input": True,
         "catalog_alias": True,
+        "indexing_preferences": {
+            "btree": True,
+            "btree_column_list": True,
+            "trgm": True,
+            "gin_array": True,
+        },
+        "quantified_value_lists": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):
