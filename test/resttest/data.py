@@ -1,4 +1,6 @@
 
+import sys
+import json
 import unittest
 import common
 import basics
@@ -34,9 +36,9 @@ class BasicKey (common.ErmrestTest):
     table = _T1
 
     _initial = [
-        {"id": 1, "name": "foo"},
-        {"id": 2, "name": "bar"},
-        {"id": 3, "name": "baz"},
+        {"id": 1, "name": "foo", "a_int4": [0, 1], "a_text": ["one", "foo", "BAR", "BAZ"]},
+        {"id": 2, "name": "bar", "a_int4": [0, 2], "a_text": ["two", "FOO", "bar", "BAZ"]},
+        {"id": 3, "name": "baz", "a_int4": [0, 3], "a_text": ["three", "FOO", "BAR", "baz"]},
         {"id": 4, "name": "unreferenced"},
     ]
 
@@ -82,6 +84,30 @@ class BasicKey (common.ErmrestTest):
     def test_data_6_badsyscol(self):
         self.assertHttp(self.session.post("entity/%s:%s?nondefaults=RMT" % (_S, self.table), json=[]), 403)
 
+    def test_data_7_quantlist_predicates(self):
+        def test_quant(filt, ids):
+            r = self.session.get("aggregate/%s:%s/%s/ids:=array_d(id)" % (_S, self.table, filt))
+            self.assertHttp(r, 200, 'application/json')
+            got = r.json()[0]["ids"]
+            if got is None:
+                got = set()
+            else:
+                got = set(got)
+            self.assertEqual(got, ids)
+
+        #r = self.session.get("entity/%s:%s" % (_S, self.table))
+        #sys.stderr.write(json.dumps(r.json(), indent=2))
+
+        test_quant("id=any(1,2,3,4)", {1,2,3,4})
+        test_quant("id=all(1,2,3,4)", set())
+        test_quant("a_int4=any(0,1)", {1,2,3})
+        test_quant("a_int4=all(0,1)", {1,})
+        test_quant("a_text=any(foo,bar)", {1,2})
+        test_quant("a_text=all(foo,bar)", set())
+        test_quant("name::regexp::any(oo,bar)", {1,2})
+        test_quant("a_text::ciregexp::any(foo,bar)", {1,2,3})
+        test_quant("*::ciregexp::any(foo,bar)", {1,2,3})
+
     def test_download(self):
         r = self.session.get('entity/%s:%s?download=%s' % (_S, self.table, self.table))
         self.assertHttp(r, 200)
@@ -95,15 +121,16 @@ class CompositeKey (BasicKey):
 
     _initial = [
         {"id": 1, "last_update": "2010-01-01", "name": "Foo", "site": 1},
-        {"id": 1, "last_update": "2010-01-02", "name": "Foo", "site": 2},
+        {"id": 1, "last_update": "2010-01-02", "name": "Foo", "site": 2, "a_int4": [0, 1], "a_text": ["one", "foo", "BAR", "BAZ"]},
         {"id": 2, "last_update": "2010-01-03", "name": "Foo", "site": 1},
-        {"id": 2, "last_update": "2010-01-04", "name": "Foo", "site": 2},
+        {"id": 2, "last_update": "2010-01-04", "name": "Foo", "site": 2, "a_int4": [0, 2], "a_text": ["two", "FOO", "bar", "BAZ"]},
     ]
 
     _upsert = [
         {"id": 1, "last_update": "2010-01-01", "name": "Foo1", "site": 1},
         {"id": 2, "last_update": "2010-01-04", "name": "Foo1", "site": 1},
-        {"id": 3, "site": 2},
+        {"id": 3, "site": 2, "a_int4": [0, 3], "a_text": ["three", "FOO", "BAR", "baz", "BAZ"]},
+        {"id": 4, "site": 2},
     ]
 
     _badnulls = [
