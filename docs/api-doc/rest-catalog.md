@@ -43,13 +43,26 @@ Known feature flags at time of writing of this document:
 - `implicit_fkey_index`: Service will produce indexes for compound foreign keys to allow index-based joins on these reference patterns.
 - `catalog_post_input`: The POST `/ermrest/catalog` method accepts JSON input to customize the catalog ID or initial owner ACL.
 - `catalog_alias`: The `/ermrest/alias` resource space and related catalog aliasing features are available.
+- `indexing_preferences`: Service supports `tag:isrd.isi.edu:2018,indexing-preferences` annotations to influence index construction during table or model provisioning requests.
+- `quantified_value_lists`: Service supports `all(...)` and `any(...)` URL syntax for lists of values as query predicate right-hand side values.
 
 Generally, absence of a feature flag means the service is running
 older software which predates the release of the feature. A flag will
 be present with boolean value `true` to advertise presence of a
 feature. Specific flags may be documented with other advertisement
-values in the future, i.e. to indicate runtime status of a feature
-which can be disabled selectively by the administrator.
+values.
+
+### Indexing Preferences Feature Flag
+
+The `indexing_preferences` feature is reported as an object rather
+than a simple boolean.  These individual boolean flags advertise which
+index configuration hints are supported when using the :
+
+- `btree`: Service interprets the indexing-preferences `btree` field holding a boolean flag to enable or disable built-in btree index construction where this is not required for service function. (A key constraint implies a type of btree index which cannot be disabled.)
+- `btree_column_list`: Service interprets the indexing-preferences `btree` field holding a list of strings as an ordered list of named columns to include in a custom btree index. When possible, this overrides a default built-in btree index which the service would otherwise build for the annotated column.
+- `trgm`: Service interpets the indexing-preferences `trgm` field holding a boolean flag to enable or disable built-in GIN tri-gram ops index construction for the annotated column, in support of the `::regexp::` and `::ciregexp::` predicates.
+- `gin_array`: Service interpets the indexing-preferences `gin_array` field holding a boolean flag to enable built-in GIN array ops index construction for the annotated column, in support of `=` (equality) query predicates using quantified value lists `any(...)` or `or(...)`.
+
 
 ## Catalog Creation
 

@@ -487,6 +487,62 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+## Column Indexing Preferences
+
+During column creation, whether as modification to an existing table or as part of new table creation, a special annotation `tag:isrd.isi.edu,2018:indexing-preferences` MAY be used to supply hints which override implicit service behavior for constructing column indexes in the underlying database.  *These hints are only effective if available during column creation; they have no effect if applied to a column after it already exists in the catalog.
+
+The indexing-preferences annotation can be applied at multiple levels of the catalog's model resource hierarchy, but only has an effect when interpreted with respect to a specific column. The purpose of annotations at other levels are to override default hints to apply in the absence of an indexing-preferences annotation on a specific column:
+
+1. Catalog-level annotation to set default hints for columns created in all tables in that catalog;
+2. Schema-level annotation to set default hints for columns created in tables in that schema;
+3. Table-level annotation to set default hints for columns created in that table;
+4. Column-level annotation to set hints for that column.
+
+Furthermore, the default hints are searched from most specific to least specific model level on a key-by-key basis. Thus, the effective hints for a given column can be a blend of hints supplied at various levels if those hints are sparsely populated rather than fully specifying every sub-field within the annotation.
+
+Example annotation payload to suppress _unnecessary_ btree indexes and GIN tri-gram indexes:
+
+    "annotations": {
+      "tag:isrd.isi.edu,2018:indexing-preferences": {
+        "btree": false,
+        "trgm": false
+      }
+    }
+
+This could be applied to minimize index maintenance and storage costs on a catalog where search is limited or insensitive to query performance. The service will still create indexes necessary for correct function, such as btree indexes used to enforce key uniqueness and foreign key referential integrity constraints.
+
+Example annotation payload to suppress _unnecessary_ btree indexes but enable built-in GIN tri-gram indexes which are used to accelerate regular-expression matching:
+
+    "annotations": {
+      "tag:isrd.isi.edu,2018:indexing-preferences": {
+        "btree": false,
+        "trgm": true
+      }
+    }
+
+Example annotation payload to enable a custom btree index and to disable the built-in GIN tri-gram index for a specific column:
+
+    "annotations": {
+      "tag:isrd.isi.edu,2018:indexing-preferences": {
+        "btree": [ "column1", "column2" ],
+        "trgm": false
+      }
+    }
+
+In practice, this would only be sensible as a column-level annotation on the column named `column1` where it is desired to accelerate search, sort, or joins not just by `column1` but by the ordered pair (`column1`, `column2`).
+
+Example annotation payload to suppress the btree index and enable GIN tri-gram and GIN array indexing for an array-typed column:
+
+    "annotations": {
+      "tag:isrd.isi.edu,2018:indexing-preferences": {
+        "btree": false,
+        "trgm": true,
+        "gin_array": true
+      }
+    }
+
+In practice, this would be sensible as a column-level annotation where you want to accelerate `=` equality filter predicates as well as `::regexp::`/`::ciregexp::` regular-expression predicates on a column storing arrays of values.
+
 ## Column Retrieval
 
 The GET operation is used to retrieve a document describing one column in the data model using

@@ -269,6 +269,7 @@ The [filter element](#path-filters) of data paths uses a general filter language
 
 The operator precedence is as follows:
 
+1. A predicate with a quantified value list as the right-hand side is a single expression with respect to these precedence rules.
 1. Parenthetic grouping overrides precedence, causing the expression inside the parenthetic group to be evaluated and its result used as the value of the parenthetic group.
 1. Negation has the highest precedence, negating the immediately following predicate or parenthetic group.
 1. Conjunction using the `&` operator has the next highest precedence, combining adjacent parenthetic groups, negated predicates, predicates, and conjunctions.
@@ -285,9 +286,10 @@ There is currently only one unary operator, `::null::`, which evaluates True if 
 
 ### Binary Filter Predicate
 
-A binary predicate as the form:
+A binary predicate has one of the two forms:
 
 - _column reference_ _operator_ _literal value_
+- _column reference_ _operator_ _quantified value list_
 
 | operator | meaning | notes |
 |----------|---------|-------|
@@ -299,6 +301,36 @@ A binary predicate as the form:
 | `::regexp::` | column matches regular expression value | also allowed on `*` free-text psuedo column |
 | `::ciregexp::` | column matches regular expression value case-insensitively | also allowed on `*` free-text psuedo column |
 | `::ts::` | column matches text-search query value | also allowed on `*` free-text psuedo column |
+
+### Literal Values
+
+A literal value is a single string fragment in the URL with URL-encoding to escape any characters (or UTF-8 octets) which are not basic non-reserved characters. The string is URL-decoded and then further deserialized as an appropriate primitive type depending on the column type:
+
+| column type | deserialization method | notes |
+|-------------|------------------------|-------|
+| boolean | string is decoded as boolean | e.g. `true`, `false` |
+| int2, int4, int8 | decimal string is decoded as a signed integer | |
+| serial4, serial8 | decimal string is decoded as a signed integer | |
+| float4, float8 | decimal string is decoded as a floating point number optionally with decimal exponent | e.g. `-1.2`, `1.2e-3` |
+| date | string is decoded as ISO date string YYYY-MM-DD | e.g. `2022-05-31` |
+| timestamptz | string is decoded as ISO timestamp YYYY-MM-DDTmm:hh:SS.SSS-HH | e.g. `2022-05-31T15:33:55.123-07` or `2022-05-31 15:33:55.123-07` with space instead of `T` separator |
+| text | UTF8 string is used verbatim as text value | |
+| json, jsonb | UTF8 string is deserialized by JSON rules | |
+| domain types | decoded according to underlying type of domain | |
+| array types | literals decoded as individual array elements | e.g. `int8[]` decodes literal as `int8` |
+
+#### Quantified Value Lists
+
+A quantified value list has the form:
+
+- _quantifier_ `(` _literal value_ `,` ... `)`
+
+In other words, they carry a comma-separated list of literal values wrapped in parentheses and preceded by a quantification keyword. The supported quantifiers are:
+
+- `any`: existential quantifier, i.e. "any value may satisfy the predicate test"
+- `all`: universal quantifier, i.e. "all values must satisfy the predicate test"
+
+These any/all value lists are effectively syntactic sugar for a longer compound predicate using disjunctive/conjunctive combining logic, respectively. In addition to allowing a more compact notation for comparing a column to many values, quantified lists may allow the service to choose better query plans in the presence of certain column types, indexes, and predicate operators.
 
 ### Negated Filter
 
