@@ -51,6 +51,36 @@ class Value (object):
     def validate_attribute_update(self):
         raise BadSyntax('Value %s is not supported in an attribute update path filter.' % self)
 
+class ValueList (list):
+    """Represent a list of Value instances in an ERMREST URL.
+
+    """
+
+    def validate(self, epath, etype, enforce_client=True):
+        pass
+
+    def is_null(self):
+        return False
+
+    def sql_literal(self, etype):
+        raise NotImplementedError('ValueList requires special handling for sql_literal!')
+
+    def sql_literals(self, etype):
+        for v in self:
+            yield v.sql_literal(etype)
+
+    def with_quantifier(self, q):
+        if q is None:
+            # throw a usage tip for now...  maybe revisit later for default behaviors?
+            raise BadSyntax('Value list requires quantifier prefix, e.g. all(1,2,3) or any(1,2,3)')
+
+        try:
+            q = {"all": "all", "any": "any"}[q.lower()]
+        except KeyError:
+            raise BadSyntax('Value list quantifier must be "all" or "any", not %r.' % (q,))
+        self._quantifier = q
+        return self
+
 class AclBasePredicate (object):
     def validate(self, epath, allow_star=False, enforce_client=True):
         pass
@@ -173,23 +203,37 @@ class BinaryPredicate (Predicate):
         if self.right_expr is None:
             raise TypeError('Operator %s requires right-hand value' % self.op)
 
-    def sql_where(self, epath, elem, prefix=''):
+    def sql_where(self, epath, elem, prefix='', right_expr=None):
+        if right_expr is None:
+            right_expr = self.right_expr
+
+        if isinstance(right_expr, ValueList):
+            combiner = {
+                'all': ' AND ',
+                'any': ' OR ',
+            }[right_expr._quantifier]
+
+            return combiner.join([
+                '(%s)' % (self.sql_where(epath, elem, prefix=prefix, right_expr=v),)
+                for v in right_expr
+            ])
+
         if self.left_col.type.is_array:
             return '(SELECT bool_or(v %s %s) FROM unnest(%st%d.%s) x (v))' % (
                 self.sqlop,
-                self.right_expr.sql_literal(self.left_col.type.base_type),
+                right_expr.sql_literal(self.left_col.type.base_type),
                 prefix,
                 self.left_elem.pos,
                 self.left_col.sql_name()
             )
-        else:
-            return '%st%d.%s %s %s' % (
-                prefix,
-                self.left_elem.pos,
-                self.left_col.sql_name(),
-                self.sqlop,
-                self.right_expr.sql_literal(self.left_col.type)
-            )
+
+        return '%st%d.%s %s %s' % (
+            prefix,
+            self.left_elem.pos,
+            self.left_col.sql_name(),
+            self.sqlop,
+            right_expr.sql_literal(self.left_col.type)
+        )
 
 def op(rest_syntax):
     def helper(original_class):
@@ -225,22 +269,39 @@ class BinaryTextPredicate (BinaryPredicate):
                 self._sql_left_type
             )
 
-    def _sql_right_value(self):
-        return self.right_expr.sql_literal(text_type)
+    def _sql_right_value(self, right_expr=None):
+        if right_expr is None:
+            right_expr = self.right_expr
+        return right_expr.sql_literal(text_type)
 
-    def sql_where(self, epath, elem, prefix=''):
-        def where_one(left):
-            return '(%s %s %s)' % (
-                left,
-                self.sqlop,
-                self._sql_right_value()
-            )
+    def sql_where(self, epath, elem, prefix='', right_expr=None, left=None):
+        if right_expr is None:
+            right_expr = self.right_expr
+
+        if left is None:
+            left = self._sql_left_value(prefix=prefix)
+
+        if isinstance(right_expr, ValueList):
+            combiner = {
+                'any': ' OR ',
+                'all': ' AND ',
+            }[right_expr._quantifier]
+            return '(%s)' % (combiner.join([
+                self.sql_where(epath, elem, prefix=prefix, right_expr=v, left=left)
+                for v in right_expr
+            ]))
+
+        if isinstance(left, set):
+            return '(%s)' % ' OR '.join([
+                self.sql_where(epath, elem, prefix=prefix, right_expr=right_expr, left=v)
+                for v in left
+            ])
             
-        left = self._sql_left_value(prefix=prefix)
-        if type(left) is set:
-            return '(%s)' % ' OR '.join(map(where_one, left))
-        else:
-            return where_one(left)
+        return '(%s %s %s)' % (
+            left,
+            self.sqlop,
+            self._sql_right_value(right_expr)
+        )
 
 _ops = dict()
 
@@ -265,27 +326,45 @@ class EqualPredicate (BinaryPredicate):
         icolname = self.right_expr.validate_attribute_update()
         return tcol, icolname
 
-    def sql_where(self, epath, elem, prefix=''):
+    def sql_where(self, epath, elem, prefix='', right_expr=None):
+        if right_expr is None:
+            right_expr = self.right_expr
+
         if self.left_col.type.is_array:
+            # use array operators which are supported by GIN array ops classes
+            if isinstance(right_expr, ValueList):
+                # array-array comparison
+                if right_expr._quantifier == 'any':
+                    op = '&&' # LHS overlaps RHS
+                else: # 'all'
+                    op = '@>' # LHS contains RHS
+                rhs = ','.join(right_expr.sql_literals(self.left_col.type.base_type))
+            else:
+                # array-scalar comparison
+                op = '@>' # LHS contains RHS
+                rhs = right_expr.sql_literal(self.left_col.type.base_type)
+
             # use array-contains operator which is supported by GIN array ops classes
-            return '%st%d.%s @> ARRAY[%s]::%s' % (
+            return '%st%d.%s %s ARRAY[%s]::%s' % (
                 prefix,
                 self.left_elem.pos,
                 self.left_col.sql_name(),
-                self.right_expr.sql_literal(self.left_col.type.base_type),
+                op,
+                rhs,
                 self.left_col.type.sql(basic_storage=True),
             )
-        elif self.left_col.name == 'RID':
+
+        if self.left_col.name == 'RID':
             # specialization of BinaryPredicate.sql_where() to try normalizing user-supplied RID for equality tests
             return """
 (%(left_rid)s = %(right_rid)s
    OR %(left_rid)s = _ermrest.urlb32_encode(_ermrest.urlb32_decode(%(right_rid)s, False)))
 """ % {
     'left_rid': '%st%d."RID"' % (prefix, self.left_elem.pos),
-    'right_rid': self.right_expr.sql_literal(self.left_col.type),
+    'right_rid': right_expr.sql_literal(self.left_col.type),
 }
-        else:
-            return BinaryPredicate.sql_where(self, epath, elem, prefix=prefix)
+
+        return BinaryPredicate.sql_where(self, epath, elem, prefix=prefix, right_expr=right_expr)
 
 @op('geq')
 class GreaterEqualPredicate (BinaryOrderedPredicate):
@@ -324,8 +403,10 @@ class TextsearchPredicate (BinaryTextPredicate):
         else:
             return wrap(left)
 
-    def _sql_right_value(self):
-        return 'to_tsquery(%s)' % BinaryTextPredicate._sql_right_value(self)
+    def _sql_right_value(self, right_expr=None):
+        if right_expr is None:
+            right_expr = self.right_expr
+        return 'to_tsquery(%s)' % BinaryTextPredicate._sql_right_value(self, right_value)
 
 def predicatecls(op):
     """Return predicate class corresponding to raw REST operator syntax string."""

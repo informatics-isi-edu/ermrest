@@ -15,7 +15,7 @@ _Tc2 = 'composite2'
 _Tr1 = 'column_removal_a'
 _Tr2 = 'column_removal_b'
 
-from common import Int8, Text, Timestamptz, \
+from common import Int8, Text, Timestamptz, TextArray, Int4Array, \
     RID, RCT, RMT, RCB, RMB, RidKey, \
     ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
 
@@ -37,6 +37,8 @@ def defs(S):
                             RID, RCT, RMT, RCB, RMB,
                             ColumnDoc('id', Int8, nullok=False),
                             ColumnDoc('name', Text),
+                            ColumnDoc('a_text', TextArray),
+                            ColumnDoc('a_int4', Int4Array),
                         ],
                         [ RidKey, KeyDoc(['id']) ]
                     ),
@@ -78,6 +80,8 @@ def defs(S):
                             ColumnDoc('last_update', Timestamptz),
                             ColumnDoc('name', Text),
                             ColumnDoc('site', Int8, nullok=False),
+                            ColumnDoc('a_text', TextArray),
+                            ColumnDoc('a_int4', Int4Array),
                         ],
                         [ RidKey, KeyDoc(['id', 'site']) ],
                     ),
@@ -363,7 +367,7 @@ class ForeignKey (common.ErmrestTest):
 
 class ForeignKeyComposite (ForeignKey):
     table = _Tc2
-        
+
 def add_url_parse_tests(klass):
     # generate tests for combinations of API, filter, projection
     filters = {
@@ -373,6 +377,22 @@ def add_url_parse_tests(klass):
         "empty": "/name=",
         "null": "/name::null::",
         "regexp": "/name::regexp::x.%2A",
+        "atext": "/a_text=foo",
+        "aint4": "/a_int4=4",
+        "intalleq": "/id=all(1,2,3)",
+        "intanyeq": "/id=any(1,2,3)",
+        "aintalleq": "/a_int4=all(1,2,3)",
+        "aintanyeq": "/a_int4=any(1,2,3)",
+        "textalleq": "/name=all(foo,bar)",
+        "textanyeq": "/name=all(foo,bar)",
+        "atextalleq": "/a_text=all(foo,bar)",
+        "atextanyeq": "/a_text=all(foo,bar)",
+        "textallre": "/name::regexp::all(foo,bar)",
+        "textanyre": "/name::regexp::all(foo,bar)",
+        "atextallre": "/a_text::regexp::all(foo,bar)",
+        "atextanyre": "/a_text::regexp::all(foo,bar)",
+        "starallre": "/*::regexp::all(foo,bar)",
+        "staranyre": "/*::regexp::all(foo,bar)",
     }
     apis = [ "entity", "attribute", "attributegroup", "aggregate" ]
     good_projections = {

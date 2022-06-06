@@ -103,14 +103,17 @@ class Catalogs (object):
         else:
             doc = {}
 
+        owner = doc.get('owner')
+        annotations = doc.get('annotations')
+
         # create the catalog instance
-        catalog_id = web.ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=doc.get('owner'))
+        catalog_id = web.ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=owner)
         catalog = web.ctx.ermrest_catalog_factory.create(catalog_id)
 
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=doc.get('owner'))))
+            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=owner, annotations=annotations)))
         finally:
             pc.final()
 

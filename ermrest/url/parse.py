@@ -496,7 +496,7 @@ def p_filter(p):
     p[0] = p[1]
 
 def p_predicate2(p):
-    """predicate : sname op expr """
+    """predicate : sname op expr2 """
     p[0] = predicate.predicatecls(p[2])(p[1], p[3])
 
 def p_predicate1(p):
@@ -533,18 +533,35 @@ def p_disjunction_grow(p):
     p[0] = p[1]
     p[0].append( p[3] )
 
+def p_expr2_multistring(p):
+    """expr2 : '(' multistring ')' """
+    p[0] = p[2].with_quantifier(None)
+
+def p_expr2_multistring_quantifier(p):
+    """expr2 : string '(' multistring ')' """
+    p[0] = p[3].with_quantifier(p[1])
+
+def p_expr2_const(p):
+    """expr2 : expr """
+    p[0] = p[1]
+
 def p_expr_const(p):
     """expr : string """
     p[0] = predicate.Value(p[1])
 
-def p_expr_name(p):
-    """expr : name """
-    p[0] = p[1]
-
 def p_expr_empty(p):
     """expr : """
     p[0] = predicate.Value('')
-    
+
+def p_multistring(p):
+    """multistring : string"""
+    p[0] = predicate.ValueList([ predicate.Value(p[1]) ])
+
+def p_multistring_grow(p):
+    """multistring : multistring ',' string"""
+    p[0] = p[1]
+    p[0].append( predicate.Value(p[3]) )
+
 def p_op(p):
     """op : '='"""
     p[0] = p[1]
@@ -848,8 +865,8 @@ def make_parser():
     # use this to shut it up: errorlog=yacc.NullLogger()
     # NullLogger attribute not supported by Python 2.4
     # return yacc.yacc(debug=False, errorlog=yacc.NullLogger())
-    return yacc.yacc(debug=False, optimize=1, tabmodule='url_parsetab', write_tables=0)
-    #return yacc.yacc(debug=True, write_tables=1)
+    return yacc.yacc(debug=False, optimize=1, tabmodule='ermrest_url_parsetab', write_tables=0, outputdir='/tmp')
+    #return yacc.yacc(debug=True, tabmodule='ermrest_url_parsetab', write_tables=0, outputdir='/tmp')
 
 def make_parse():
     lock = threading.Lock()
