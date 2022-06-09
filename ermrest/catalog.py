@@ -207,8 +207,12 @@ class Catalog (object):
            For postgres, currently the only supported form, the serialized 
            form follows the libpq format.
         """
+        def serialize_value(v):
+            # postgres connection string values need quoting in general case
+            return "'%s'" % (str(v).replace('\\', '\\\\').replace("'", "\\'"),)
+
         if 'type' not in descriptor or descriptor['type'] == self._POSTGRES_REGISTRY:
-            return " ".join([ "%s=%s" % (key, descriptor[key]) for key in descriptor if key != 'type' ])
+            return " ".join([ "%s=%s" % (key, serialize_value(descriptor[key])) for key in descriptor if key != 'type' ])
         else:
             raise KeyError("Catalog descriptor type not supported: %(type)s" % descriptor)
 
