@@ -148,6 +148,7 @@ def service_features():
             "gin_array": True,
         },
         "quantified_value_lists": True,
+        "quantified_rid_lists": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):

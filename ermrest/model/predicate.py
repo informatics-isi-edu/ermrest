@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2022 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -356,13 +356,22 @@ class EqualPredicate (BinaryPredicate):
 
         if self.left_col.name == 'RID':
             # specialization of BinaryPredicate.sql_where() to try normalizing user-supplied RID for equality tests
-            return """
+            def _rid_eq(right_expr):
+                return """
 (%(left_rid)s = %(right_rid)s
    OR %(left_rid)s = _ermrest.urlb32_encode(_ermrest.urlb32_decode(%(right_rid)s, False)))
 """ % {
     'left_rid': '%st%d."RID"' % (prefix, self.left_elem.pos),
     'right_rid': right_expr.sql_literal(self.left_col.type),
 }
+            if isinstance(right_expr, ValueList):
+                combiner = {
+                    'all': ' AND ',
+                    'any': ' OR ',
+                }[right_expr._quantifier]
+                return '(%s)' % combiner.join([ _rid_eq(v) for v in right_expr ])
+            else:
+                return _rid_eq(right_expr)
 
         return BinaryPredicate.sql_where(self, epath, elem, prefix=prefix, right_expr=right_expr)
 

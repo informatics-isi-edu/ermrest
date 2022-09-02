@@ -45,6 +45,7 @@ Known feature flags at time of writing of this document:
 - `catalog_alias`: The `/ermrest/alias` resource space and related catalog aliasing features are available.
 - `indexing_preferences`: Service supports `tag:isrd.isi.edu:2018,indexing-preferences` annotations to influence index construction during table or model provisioning requests.
 - `quantified_value_lists`: Service supports `all(...)` and `any(...)` URL syntax for lists of values as query predicate right-hand side values.
+- `quantified_rid_lists`: Service supports `RID=all(...)` and `RID=any(...)`, a bug-fix to the `quantified_value_lists` feature.
 
 Generally, absence of a feature flag means the service is running
 older software which predates the release of the feature. A flag will

@@ -379,6 +379,9 @@ def add_url_parse_tests(klass):
         "regexp": "/name::regexp::x.%2A",
         "atext": "/a_text=foo",
         "aint4": "/a_int4=4",
+        "rideq": "/RID=1",
+        "ridalleq": "/RID=all(1,2,3)",
+        "ridanyeq": "/RID=any(1,2,3)",
         "intalleq": "/id=all(1,2,3)",
         "intanyeq": "/id=any(1,2,3)",
         "aintalleq": "/a_int4=all(1,2,3)",
@@ -411,16 +414,20 @@ def add_url_parse_tests(klass):
     for api in apis:
         for fk in filters:
 
-            def goodproj(self):
-                url = '%s%s%s%s' % (api, self.base, filters[fk], good_projections[api])
-                self.assertHttp(self.session.get(url), self.base and 200 or 400)
+            def make_goodproj(api, fk):
+                def goodproj(self):
+                    url = '%s%s%s%s' % (api, self.base, filters[fk], good_projections[api])
+                    self.assertHttp(self.session.get(url), 200 if self.base else 400)
+                return goodproj
 
-            def badproj(self):
-                url = '%s%s%s%s' % (api, self.base, filters[fk], bad_projections[api])
-                self.assertHttp(self.session.get(url), 400)
+            def make_badproj(api, fk):
+                def badproj(self):
+                    url = '%s%s%s%s' % (api, self.base, filters[fk], bad_projections[api])
+                    self.assertHttp(self.session.get(url), 400)
+                return badproj
 
-            setattr(klass, 'test_%s_%s_proj' % (api, fk), goodproj)
-            setattr(klass, 'test_%s_%s_badproj' % (api, fk), badproj)
+            setattr(klass, 'test_%s_%s_proj' % (api, fk), make_goodproj(api, fk))
+            setattr(klass, 'test_%s_%s_badproj' % (api, fk), make_badproj(api, fk))
 
     return klass
 
