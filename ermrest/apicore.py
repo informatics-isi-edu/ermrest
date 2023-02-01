@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2012-2019 University of Southern California
+# Copyright 2012-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import traceback
 import psycopg2
 import webauthn2
 from webauthn2.util import context_from_environment
-from webauthn2.rest import get_log_parts, request_trace_json, request_final_json
+from webauthn2.rest import format_trace_json, format_final_json
 from collections import OrderedDict
 
 from .exception import *
@@ -159,16 +159,18 @@ except:
     )).encode('utf-8') )
     amqp_notifier = None
 
-def log_parts():
-    """Generate a dictionary of interpolation keys used by our logging template."""
-    return get_log_parts('ermrest_start_time', 'ermrest_request_guid', 'ermrest_request_content_range', 'ermrest_content_type')
-
 def request_trace(tracedata):
     """Log one tracedata event as part of a request's audit trail.
 
        tracedata: a string representation of trace event data
     """
-    logger.info( request_trace_json(tracedata, log_parts()) )
+    logger.info(format_trace_json(
+        tracedata,
+        start_time=web.ctx.ermrest_start_time,
+        req=web.ctx.ermrest_requiest_guid,
+        client=web.ctx.ip,
+        webauthn2_context=web.ctx.webauthn2_context,
+    ))
 
 def request_init():
     """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
@@ -190,27 +192,8 @@ def request_init():
     web.ctx.ermrest_change_notify = amqp_notifier.notify if amqp_notifier else lambda : None
     web.ctx.ermrest_model_rights_cache = dict()
 
-    try:
-        # get client authentication context
-        web.ctx.webauthn2_context = context_from_environment(fallback=False)
-        if web.ctx.webauthn2_context is None:
-            web.debug("falling back to webauthn2_manager.get_request_context() after failed context_from_environment(False)")
-            web.ctx.webauthn2_context = webauthn2_manager.get_request_context()
-    except (ValueError, IndexError):
-        content_type = negotiated_content_type(
-            ['text/html', '*'],
-            '*'
-            )
-        if content_type == 'text/html' and False:
-            # bounce browsers through a login form and back
-            refer = web.ctx.env['REQUEST_URI']
-            # leave off /ermrest/ prefix due to web.SeeOther behavior
-            raise web.SeeOther('/authn/session?referrer=%s' % urlquote(refer))
-        else:
-            raise rest.Unauthorized('service access')
-    except (webauthn2.exc.AuthnFailed):
-        raise rest.Forbidden('Authentication failed')
-
+    # get client authentication context
+    web.ctx.webauthn2_context = context_from_environment(web.ctx.env, fallback=True)
     web.ctx.ermrest_client_roles = set([
         r['id'] if type(r) is dict else r
         for r in web.ctx.webauthn2_context.attributes
@@ -231,7 +214,18 @@ def request_final():
     if web.ctx.ermrest_history_snaprange:
         extra['snaprange'] = [ str(ts) if ts else None for ts in web.ctx.ermrest_history_snaprange ]
 
-    logger.info( request_final_json(log_parts(), extra) )
+    logger.info(format_final_json(
+        environ=web.ctx.env,
+        webauthn2_context=web.ctx.webauthn2_context,
+        req=web.ctx.ermrest_request_guid,
+        start_time=web.ctx.ermrest_start_time,
+        client=web.ctx.ip,
+        status=web.ctx.status,
+        content_range=web.ctx.ermrest_request_content_range,
+        content_type=web.ctx.ermrest_content_type,
+        track=(web.ctx.webauthn2_context.tracking if web.ctx.webauthn2_context else None),
+        **extra,
+    ))
 
 def web_method():
     """Wrap ERMrest request handler methods with common logic.
