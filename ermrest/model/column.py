@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -135,7 +135,7 @@ SELECT _ermrest.model_version_bump();
             for subject in subjects:
                 subject_prefs = subject.annotations.get(self.table.tag_indexing_preferences, {})
                 if not isinstance(subject_prefs, dict):
-                    web.debug('WARNING: ignoring invalid indexing preferences on %s' % subject)
+                    deriva_debug('WARNING: ignoring invalid indexing preferences on %s' % subject)
                 preferences.update(subject_prefs)
             return preferences
 
@@ -184,7 +184,7 @@ SELECT _ermrest.model_version_bump();
             try:
                 cols = [ self.table.columns[cname] for cname in want ]
             except KeyError:
-                web.debug('WARNING: using default column index for %s due to invalid custom btree index spec %r' % (self, want))
+                deriva_debug('WARNING: using default column index for %s due to invalid custom btree index spec %r' % (self, want))
 
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;

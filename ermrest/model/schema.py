@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2020 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ class Model (object):
     def prejson(self, brief=False, snaptime=None):
         if snaptime is None:
             # this is model snaptime, but catalog reuses representation w/ catalog snaptime!
-            cur = web.ctx.ermrest_catalog_pc.cur
+            cur = deriva_ctx.ermrest_catalog_pc.cur
             cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(self.snaptime))
             snaptime = cur.fetchone()[0]
         doc = {
@@ -133,8 +133,8 @@ RETURNING "RID";
         newschema = Schema(self, sname, rid=srid)
         if not self.has_right('owner'):
             # client gets ownership by default
-            newschema.acls['owner'] = [web.ctx.webauthn2_context.get_client_id()]
-            newschema.set_acl(cur, 'owner', [web.ctx.webauthn2_context.get_client_id()])
+            newschema.acls['owner'] = [deriva_ctx.webauthn2_context.get_client_id()]
+            newschema.set_acl(cur, 'owner', [deriva_ctx.webauthn2_context.get_client_id()])
         return newschema
 
     def delete_schema(self, conn, cur, sname):

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2021 University of Southern California
+# Copyright 2010-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,9 +112,9 @@ def p_catalog(p):
 def p_catalog_when(p):
     """catalog : serviceslash CATALOG '/' string '@' string"""
     p[0] = ast.Catalog(p[4])
-    cur = web.ctx.ermrest_catalog_pc.cur
-    web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[6])
-    web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
+    cur = deriva_ctx.ermrest_catalog_pc.cur
+    deriva_ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[6])
+    deriva_ctx.ermrest_history_amendver = current_history_amendver(cur, deriva_ctx.ermrest_history_snaptime)
 
 def p_resolve_entity_rid(p):
     """resolve_entity_rid : catalogslash ENTITY_RID '/' string"""
@@ -762,7 +762,7 @@ def p_queryopts(p):
 
 def p_queryopts_empty(p):
     """queryopts_empty : """
-    p[0] = web.storage()
+    p[0] = web_storage()
 
 def queryopts_add(q, k, v=None):
     """Add value to queryopts by key, handling special cases.
@@ -799,7 +799,7 @@ def queryopts_add(q, k, v=None):
 
 def p_queryopts_nonempty(p):
     """queryopts_nonempty : '?' queryopts_elem"""
-    p[0] = web.storage()
+    p[0] = web_storage()
     k, v = p[2]
     queryopts_add(p[0], k, v)
 

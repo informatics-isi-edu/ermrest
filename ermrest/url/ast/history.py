@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2017-2019 University of Southern California
+# Copyright 2017-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,12 +31,13 @@ def _post_commit(handler, resource, content_type='text/plain', transform=lambda 
     handler.emit_headers()
     if resource is None and content_type == 'text/plain':
         return ''
-    if resource == '' and web.ctx.status == '200 OK':
-        web.ctx.status = '204 No Content'
+    if resource == '' and deriva_ctx.deriva_response.status_code == 200:
+        deriva_ctx.deriva_response.status_code = 204
         return ''
-    web.header('Content-Type', content_type)
+    deriva_ctx.deriva_response.headers['Content-Type'] = content_type
+    deriva_ctx.deriva_response.content_type = content_type
     response = transform(resource)
-    web.header('Content-Length', len(response))
+    deriva_ctx.deriva_response.content_length = len(response)
     return response
 
 def _post_commit_json(handler, py_pj_pair):
@@ -53,7 +54,7 @@ LIMIT 1
 """
 
 def _validate_history_snaprange(cur):
-    h_from, h_until = web.ctx.ermrest_history_snaprange
+    h_from, h_until = deriva_ctx.ermrest_history_snaprange
     if h_from is None:
         cur.execute("""
 SELECT LEAST(
@@ -104,7 +105,7 @@ SELECT GREATEST(
 
 def _etag(cur):
     """Get current history ETag during request processing."""
-    h_from, h_until = web.ctx.ermrest_history_snaprange
+    h_from, h_until = deriva_ctx.ermrest_history_snaprange
     cur.execute(("SELECT _ermrest.tstzencode( GREATEST( %(h_until)s::timestamptz, (" + _RANGE_AMENDVER_SQL + ")) );") % {
         'h_from': sql_literal(h_from),
         'h_until': sql_literal(h_until),
@@ -126,8 +127,8 @@ def _GET(handler, thunk, _post_commit):
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
         handler.enforce_right('owner')
-        h_from, h_until = web.ctx.ermrest_history_snaprange
-        amendver = web.ctx.ermrest_history_amendver
+        h_from, h_until = deriva_ctx.ermrest_history_snaprange
+        amendver = deriva_ctx.ermrest_history_amendver
         # this is the ETag at start of request processing
         handler.set_http_etag(_etag(cur))
         handler.http_check_preconditions(method='PUT')
@@ -140,7 +141,7 @@ def _MODIFY(handler, thunk, _post_commit):
 
 def _MODIFY_with_json_input(handler, thunk, _post_commit):
     try:
-        doc = json.loads(web.ctx.env['wsgi.input'].read().decode())
+        doc = json.loads(flask.request.stream.read().decode())
     except:
         raise exception.rest.BadRequest('Could not deserialize JSON input.')
     return _MODIFY(handler, lambda conn, cur: thunk(conn, cur, doc), _post_commit)
@@ -174,7 +175,7 @@ class CatalogHistory (Api):
         return _GET(self, self.GET_body, _post_commit_json)
         
     def DELETE_body(self, conn, cur):
-        h_from, h_until = web.ctx.ermrest_history_snaprange
+        h_from, h_until = deriva_ctx.ermrest_history_snaprange
         if h_from is not None:
             raise exception.BadData('History truncation requires an empty lower time bound.')
         if h_until is None:
@@ -432,7 +433,7 @@ class DataHistory (Api):
         return _GET(self, self.GET_body, _post_commit_json)
 
     def DELETE_body(self, conn, cur):
-        h_from, h_until = web.ctx.ermrest_history_snaprange
+        h_from, h_until = deriva_ctx.ermrest_history_snaprange
         if h_from is None:
             raise exception.BadData('Redaction requires a lower time bound.')
         if h_until is None:
@@ -545,7 +546,7 @@ SELECT jsonb_build_object(
     'contentcol': contentcol,
     'contentmap': sql_literal(json.dumps(contentmap)),
 })
-    #web.debug('_amend_config:', cur.fetchone()[0])
+    #deriva_debug('_amend_config:', cur.fetchone()[0])
 
 def _amend_acl(cur, h_from, h_until, restype, rid, contentmap):
     try:
@@ -653,7 +654,7 @@ class ConfigHistory (Api):
         return _GET(self, self.GET_body, _post_commit_json)
 
     def PUT_body(self, conn, cur, content):
-        h_from, h_until = web.ctx.ermrest_history_snaprange
+        h_from, h_until = deriva_ctx.ermrest_history_snaprange
         if h_from is None:
             raise exception.rest.BadRequest('Historical %s amendment requires a lower time bound.' % self.subresource_api)
         if h_until is None:

@@ -1,6 +1,6 @@
 
 #
-# Copyright 2012-2020 University of Southern California
+# Copyright 2012-2023 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -214,11 +214,11 @@ WHERE l.deleted_on IS NULL
         """
         def body(conn, cur):
             if id_owner is None:
-                owner = [ web.ctx.webauthn2_context.client_id ]
+                owner = [ deriva_ctx.webauthn2_context.client_id ]
             else:
                 owner = id_owner
 
-            if set(owner).isdisjoint(set(web.ctx.webauthn2_context.attribute_ids)):
+            if set(owner).isdisjoint(set(deriva_ctx.webauthn2_context.attribute_ids)):
                 raise exception.ConflictData('Cannot set owner ACL to exclude self.')
 
             if id is None:
@@ -234,7 +234,7 @@ SELECT nextval('ermrest.simple_registry_id_seq');
             if rows:
                 entry = rows[0]
                 old_id_owner = entry['id_owner'] if entry['id_owner'] else []
-                if set(old_id_owner).isdisjoint(set(web.ctx.webauthn2_context.attribute_ids)):
+                if set(old_id_owner).isdisjoint(set(deriva_ctx.webauthn2_context.attribute_ids)):
                     raise exception.Forbidden('claim access on entry id=%s' % (id,))
                 if entry['alias_target'] is None and entry['descriptor'] is not None:
                     raise exception.ConflictData('Cannot claim an existing catalog id=%s' % (id,))
@@ -283,7 +283,7 @@ WHERE id = %(id)s
                 raise exception.ConflictData('Cannot manage registration for unclaimed id=%r.' % (id,))
 
             id_owner, old_descriptor, old_alias_target, deleted_on = row
-            if set(web.ctx.webauthn2_context.attribute_ids).isdisjoint(set(id_owner)):
+            if set(deriva_ctx.webauthn2_context.attribute_ids).isdisjoint(set(id_owner)):
                 raise exception.Forbidden('manage registration for id=%r' % (id,))
 
             if deleted_on is not None:

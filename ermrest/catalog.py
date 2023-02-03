@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -218,7 +218,7 @@ class Catalog (object):
 
     def get_model(self, cur=None, config=None, private=False, snapwhen=None, amendver=None):
         if cur is None:
-            cur = web.ctx.ermrest_catalog_pc.cur
+            cur = deriva_ctx.ermrest_catalog_pc.cur
         if config is None:
             config = self._config
         if snapwhen is None:
@@ -277,7 +277,7 @@ class Catalog (object):
 
         # we want an ACL
         if owner is None:
-            owner = [ web.ctx.webauthn2_context.client_id ]
+            owner = [ deriva_ctx.webauthn2_context.client_id ]
         elif isinstance(owner, (str, dict)):
             owner = [ owner ]
 

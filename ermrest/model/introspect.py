@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2021 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -186,9 +186,9 @@ ORDER BY array_element_type_rid NULLS FIRST, domain_element_type_rid NULLS FIRST
                 te
             )
             try:
-                web.ctx.ermrest_request_trace(msg)
+                deriva_ctx.ermrest_request_trace(msg)
             except:
-                web.debug(msg)
+                deriva_debug(msg)
             cur.execute("""
 DELETE FROM _ermrest.known_pseudo_keys
 WHERE "RID" = %(rid)s;
@@ -270,9 +270,9 @@ SELECT _ermrest.model_version_bump();
                 te
             )
             try:
-                web.ctx.ermrest_request_trace(msg)
+                deriva_ctx.ermrest_request_trace(msg)
             except:
-                web.debug(msg)
+                deriva_debug(msg)
             cur.execute("""
 DELETE FROM _ermrest.known_pseudo_fkeys
 WHERE "RID" = %(rid)s;
@@ -315,9 +315,9 @@ GROUP BY a.%(grpcol)s ;
                         te
                     )
                     try:
-                        web.ctx.ermrest_request_trace(msg)
+                        deriva_ctx.ermrest_request_trace(msg)
                     except:
-                        web.debug(msg)
+                        deriva_debug(msg)
                     cur.execute("""
 DELETE FROM _ermrest.%(binding_table)s
 WHERE %(resource_col)s = %(resource_rid)s
@@ -333,7 +333,7 @@ SELECT _ermrest.model_version_bump();
                     pruned_any = True
                 except Exception as te:
                     # server is likely broken at this point! allow investigation, don't blindly prune on any unknown error...
-                    web.debug('BUG: Got other exception while introspecting ACL binding %s on %s: %s (%s)' % (binding_name, resource, te, type(te)))
+                    deriva_debug('BUG: Got other exception while introspecting ACL binding %s on %s: %s (%s)' % (binding_name, resource, te, type(te)))
                     raise
             resource.dynacls.update(new_dynacls)
 
@@ -348,7 +348,7 @@ SELECT _ermrest.model_version_bump();
     del model.schemas['pg_catalog']
 
     try:
-        model.check_primary_keys(web.ctx.ermrest_config.get('require_primary_keys', True), web.ctx.ermrest_config.get('warn_missing_system_columns', True))
+        model.check_primary_keys(deriva_ctx.ermrest_config.get('require_primary_keys', True), deriva_ctx.ermrest_config.get('warn_missing_system_columns', True))
     except exception.ConflictModel as te:
         raise exception.rest.RuntimeError(te)
 

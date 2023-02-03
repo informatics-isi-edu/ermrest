@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2021 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ from ...util import sql_literal, negotiated_content_type
 
 class ApiBase (object):
     def _prepare(self):
-        self.http_vary = web.ctx.webauthn2_manager.get_http_vary()
+        self.http_vary = deriva_ctx.webauthn2_manager.get_http_vary()
         self.http_etag = None
 
     def set_http_etag(self, version):
@@ -48,7 +48,7 @@ class ApiBase (object):
         #etag.append( source_checksum )
 
         if 'cookie' in self.http_vary:
-            client = web.ctx.webauthn2_context.client
+            client = deriva_ctx.webauthn2_context.client
             if isinstance(client, dict):
                 client = client['id']
             etag.append( '%s' % client )
@@ -56,7 +56,7 @@ class ApiBase (object):
             etag.append( '*' )
 
         if 'accept' in self.http_vary:
-            etag.append( '%s' % web.ctx.env.get('HTTP_ACCEPT', '') )
+            etag.append( '%s' % flask.request.environ.get('HTTP_ACCEPT', '') )
         else:
             etag.append( '*' )
 
@@ -112,7 +112,7 @@ class ApiBase (object):
     def http_check_preconditions(self, method='GET', resource_exists=True):
         failed = False
 
-        match_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_MATCH', ''))
+        match_etags = self.parse_client_etags(flask.request.environ.get('HTTP_IF_MATCH', ''))
         if match_etags:
             if resource_exists:
                 if self.http_etag and self.http_etag not in match_etags \
@@ -121,7 +121,7 @@ class ApiBase (object):
             else:
                 failed = True
 
-        nomatch_etags = self.parse_client_etags(web.ctx.env.get('HTTP_IF_NONE_MATCH', ''))
+        nomatch_etags = self.parse_client_etags(flask.request.environ.get('HTTP_IF_NONE_MATCH', ''))
         if nomatch_etags:
             if resource_exists:
                 if self.http_etag and self.http_etag in nomatch_etags \
@@ -142,9 +142,9 @@ class ApiBase (object):
         """Emit any automatic headers prior to body beginning."""
         #TODO: evaluate whether this function is necessary
         if self.http_vary:
-            web.header('Vary', ', '.join(self.http_vary))
+            deriva_ctx.deriva_response.headers['Vary'] = ', '.join(self.http_vary)
         if self.http_etag:
-            web.header('ETag', '%s' % self.http_etag)
+            deriva_ctx.deriva_response.headers['ETag'] = '%s' % self.http_etag
 
 class Api (ApiBase):
 
@@ -186,17 +186,17 @@ class Api (ApiBase):
 
         try:
             self.client_register_body(
-                web.ctx.ermrest_catalog_pc.conn,
-                web.ctx.ermrest_catalog_pc.cur,
+                deriva_ctx.ermrest_catalog_pc.conn,
+                deriva_ctx.ermrest_catalog_pc.cur,
             )
         except Exception as te:
             # allow service to function even if this mechanism is broken
-            web.debug('Got exception during ERMrest client registration: %s.' % te)
-            web.ctx.ermrest_catalog_pc.conn.rollback()
+            deriva_debug('Got exception during ERMrest client registration: %s.' % te)
+            deriva_ctx.ermrest_catalog_pc.conn.rollback()
 
-        web.ctx.ermrest_catalog_model = catalog.manager.get_model(
-            snapwhen=web.ctx.ermrest_history_snaptime,
-            amendver=web.ctx.ermrest_history_amendver
+        deriva_ctx.ermrest_catalog_model = catalog.manager.get_model(
+            snapwhen=deriva_ctx.ermrest_history_snaptime,
+            amendver=deriva_ctx.ermrest_history_amendver
         )
         super(Api, self)._prepare()
 
@@ -207,7 +207,7 @@ class Api (ApiBase):
             return super(Api, self).set_http_etag(version)
 
     def client_register_body(self, conn, cur):
-        client = web.ctx.webauthn2_context.client
+        client = deriva_ctx.webauthn2_context.client
         if isinstance(client, dict):
             client_obj = client
             client = client['id']
@@ -256,7 +256,7 @@ SET "Display_Name" = excluded."Display_Name",
 
             self._cache_insert(self.CLIENT_CACHE, cache_key)
 
-        attrs = web.ctx.webauthn2_context.attributes if web.ctx.webauthn2_context.attributes else []
+        attrs = deriva_ctx.webauthn2_context.attributes if deriva_ctx.webauthn2_context.attributes else []
         groups = []
         cache_keys = []
         
@@ -303,23 +303,23 @@ SET "Display_Name" = excluded."Display_Name";
                 self._cache_insert(self.GROUP_CACHE, cache_key)
 
     def history_range(self, h_from, h_until):
-        if web.ctx.ermrest_history_snaptime is not None:
+        if deriva_ctx.ermrest_history_snaptime is not None:
             # disable whole /history API if we have a versioned catalog snapshot
             raise NotFound()
         # model will be the current live catalog model since snaptime is None
-        cur = web.ctx.ermrest_catalog_pc.cur
+        cur = deriva_ctx.ermrest_catalog_pc.cur
         h_from = normalized_history_snaptime(cur, h_from) if h_from else None
         h_until = normalized_history_snaptime(cur, h_until) if h_until else None
-        web.ctx.ermrest_history_snaprange = (h_from, h_until)
+        deriva_ctx.ermrest_history_snaprange = (h_from, h_until)
         return self
 
     def enforce_right(self, aclname, uri=None):
         """Policy enforcement for named right."""
-        decision = web.ctx.ermrest_catalog_model.has_right(aclname)
+        decision = deriva_ctx.ermrest_catalog_model.has_right(aclname)
         if decision is False:
             # we can't stop now if decision is True or None...
             if uri is None:
-                uri = web.ctx.env['REQUEST_URI']
+                uri = flask.request.environ['REQUEST_URI']
             raise rest.Forbidden('%s access on %s' % (aclname, uri))
 
     def with_queryopts(self, qopt):
@@ -363,7 +363,7 @@ SET "Display_Name" = excluded."Display_Name";
         except KeyError:
             pass
 
-        return negotiated_content_type(supported_types=supported_types, default=default)
+        return negotiated_content_type(flask.request.environ, supported_types=supported_types, default=default)
 
     def negotiated_limit(self):
         """Determine query result size limit to use."""
@@ -379,7 +379,7 @@ SET "Display_Name" = excluded."Display_Name";
             return limit
         else:
             try:
-                limit = web.ctx.ermrest_config.get('default_limit', 100)
+                limit = deriva_ctx.ermrest_config.get('default_limit', 100)
                 if str(limit).lower() == 'none' or limit is None:
                     limit = None
                 else:
@@ -390,7 +390,7 @@ SET "Display_Name" = excluded."Display_Name";
     def perform(self, body, finish):
         def wrapbody(conn, cur):
             try:
-                client = web.ctx.webauthn2_context.client
+                client = deriva_ctx.webauthn2_context.client
                 if type(client) is dict:
                     client_obj = client
                     client = client['id']
@@ -399,7 +399,7 @@ SET "Display_Name" = excluded."Display_Name";
 
                 attributes = [
                     a['id'] if type(a) is dict else a
-                    for a in web.ctx.webauthn2_context.attributes
+                    for a in deriva_ctx.webauthn2_context.attributes
                 ]
                 
                 cur.execute("""
@@ -420,8 +420,8 @@ SELECT set_config('webauthn2.attributes_array', (ARRAY[%s]::text[])::text, false
                 return body(conn, cur)
             except psycopg2.InterfaceError as e:
                 raise rest.ServiceUnavailable("Please try again.")
-            
-        return web.ctx.ermrest_catalog_pc.perform(wrapbody, finish)
+
+        return deriva_ctx.ermrest_catalog_pc.perform(wrapbody, finish)
     
     def final(self):
         if self.catalog is not self:

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ def _GET(handler, uri, dresource, vresource):
         handler.emit_headers()
         if lines is None:
             return
-        web.header('Content-Type', content_type)
+        deriva_ctx.deriva_response.content_type = content_type
         if 'download' in handler.queryopts and handler.queryopts['download']:
             fname = handler.queryopts['download']
             fname += {
@@ -108,18 +108,16 @@ def _GET(handler, uri, dresource, vresource):
                 'application/x-json-stream': '.json',
                 'text/csv': '.csv'
             }.get(content_type, '.txt')
-            web.header(
-                'Content-Disposition',
+            deriva_ctx.deriva_response.headers['Content-Disposition'] = \
                 "attachment; filename*=UTF-8''%s" % urlquote(fname.encode('utf8'))
-            )
-        web.ctx.ermrest_content_type = content_type
+        deriva_ctx.ermrest_content_type = content_type
         
         if lines is results:
             # special case for CSV bouncing through temporary file
             results.seek(0, 2)
             pos = results.tell()
             results.seek(0, 0)
-            web.header('Content-Length', '%d' % pos)
+            deriva_ctx.deriva_response.content_length = pos
             
             bufsize = 1024 * 1024
             while True:
@@ -138,20 +136,20 @@ def _GET(handler, uri, dresource, vresource):
 def _PUT(handler, uri, put_thunk, vresource):
     """Perform HTTP PUT of generic data resources.
     """
-    if web.ctx.ermrest_history_snaptime is not None:
+    if deriva_ctx.ermrest_history_snaptime is not None:
         raise exception.Forbidden('modification to catalog at previous revision')
-    if web.ctx.ermrest_history_snaprange is not None:
+    if deriva_ctx.ermrest_history_snaprange is not None:
         # should not be possible bug check anyway...
         raise NotImplementedError('modification on %s with snaprange' % uri)
     try:
-        in_content_type = web.ctx.env['CONTENT_TYPE'].lower()
+        in_content_type = flask.request.environ['CONTENT_TYPE'].lower()
         in_content_type = in_content_type.split(";", 1)[0].strip()
     except:
         in_content_type = handler.default_content_type
 
     content_type = handler.negotiated_content_type(default=in_content_type)
 
-    input_data = io.BytesIO(web.ctx.env['wsgi.input'].read())
+    input_data = io.BytesIO(flask.request.stream.read())
 
     def body(conn, cur):
         input_data.seek(0) # rewinds buffer, in case of retry
@@ -170,8 +168,8 @@ def _PUT(handler, uri, put_thunk, vresource):
 
     def post_commit(lines):
         handler.emit_headers()
-        web.header('Content-Type', content_type)
-        web.ctx.ermrest_request_content_type = content_type
+        deriva_ctx.deriva_response.content_type = content_type
+        deriva_ctx.ermrest_request_content_type = content_type
         for line in lines:
             yield line
 
@@ -180,9 +178,9 @@ def _PUT(handler, uri, put_thunk, vresource):
 def _DELETE(handler, uri, resource, vresource):
     """Perform HTTP DELETE of generic data resources.
     """
-    if web.ctx.ermrest_history_snaptime is not None:
+    if deriva_ctx.ermrest_history_snaptime is not None:
         raise exception.Forbidden('modification to catalog at previous revision')
-    if web.ctx.ermrest_history_snaprange is not None:
+    if deriva_ctx.ermrest_history_snaprange is not None:
         # should not be possible bug check anyway...
         raise NotImplementedError('modification on %s with snaprange' % uri)
 
@@ -194,7 +192,7 @@ def _DELETE(handler, uri, resource, vresource):
 
     def post_commit(ignore):
         handler.emit_headers()
-        web.ctx.status = '204 No Content'
+        deriva_ctx.deriva_response.status_code = 204
         return ''
 
     return handler.perform(body, post_commit)
@@ -210,10 +208,10 @@ class TextFacet (Api):
     def __init__(self, catalog, pattern):
         Api.__init__(self, catalog)
         self.http_vary.add('accept')
-        cur = web.ctx.ermrest_catalog_pc.cur
+        cur = deriva_ctx.ermrest_catalog_pc.cur
         self.textfacet = ermpath.TextFacet(
             catalog,
-            web.ctx.ermrest_catalog_model,
+            deriva_ctx.ermrest_catalog_model,
             pattern
         )
 
@@ -229,12 +227,12 @@ class Entity (Api):
 
     def __init__(self, catalog, elem):
         Api.__init__(self, catalog)
-        cur = web.ctx.ermrest_catalog_pc.cur
-        self.epath = ermpath.EntityPath(web.ctx.ermrest_catalog_model)
+        cur = deriva_ctx.ermrest_catalog_pc.cur
+        self.epath = ermpath.EntityPath(deriva_ctx.ermrest_catalog_model)
         if len(elem.name.nameparts) == 2:
-            table = web.ctx.ermrest_catalog_model.schemas.get_enumerable(elem.name.nameparts[0]).tables.get_enumerable(elem.name.nameparts[1])
+            table = deriva_ctx.ermrest_catalog_model.schemas.get_enumerable(elem.name.nameparts[0]).tables.get_enumerable(elem.name.nameparts[1])
         elif len(elem.name.nameparts) == 1:
-            table = web.ctx.ermrest_catalog_model.lookup_table(elem.name.nameparts[0])
+            table = deriva_ctx.ermrest_catalog_model.lookup_table(elem.name.nameparts[0])
         else:
             raise exception.BadSyntax('Name %s is not a valid syntax for a table name.' % elem.name)
         self.epath.set_base_entity(table, elem.alias)
@@ -253,7 +251,7 @@ class Entity (Api):
                 
             self.epath.set_context(alias)
         else:
-            keyref, refop, lalias = elem.resolve_link(web.ctx.ermrest_catalog_model, self.epath)
+            keyref, refop, lalias = elem.resolve_link(deriva_ctx.ermrest_catalog_model, self.epath)
             outer_type = elem.outer_type if hasattr(elem, 'outer_type') else None
             self.epath.add_link(keyref, refop, elem.alias, lalias, outer_type=outer_type)
             

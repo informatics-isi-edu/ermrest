@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -174,7 +174,7 @@ class PooledConnection (object):
                 self.conn.rollback()
             if verbose:
                 et, ev, tb = sys.exc_info()
-                web.debug(u'got exception "%s" during sanepg2.PooledConnection.perform()' % ev,
+                deriva_debug(u'got exception "%s" during sanepg2.PooledConnection.perform()' % ev,
                           traceback.format_exception(et, ev, tb))
             raise
 

@@ -166,37 +166,40 @@ def request_trace(tracedata):
     """
     logger.info(format_trace_json(
         tracedata,
-        start_time=web.ctx.ermrest_start_time,
-        req=web.ctx.ermrest_requiest_guid,
-        client=web.ctx.ip,
-        webauthn2_context=web.ctx.webauthn2_context,
+        start_time=deriva_ctx.ermrest_start_time,
+        req=deriva_ctx.ermrest_request_guid,
+        client=flask.request.remote_addr,
+        webauthn2_context=deriva_ctx.webauthn2_context,
     ))
 
 def request_init():
-    """Initialize web.ctx with request-specific timers and state used by our REST API layer."""
-    web.ctx.ermrest_request_guid = random_name()
-    web.ctx.ermrest_start_time = datetime.datetime.now(timezone.utc)
-    web.ctx.ermrest_request_content_range = None
-    web.ctx.ermrest_content_type = None
-    web.ctx.webauthn2_manager = webauthn2_manager
-    web.ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
-    web.ctx.ermrest_history_snaptime = None # for coherent historical snapshot queries
-    web.ctx.ermrest_history_snaprange = None # for longitudinal history manipulation
-    web.ctx.ermrest_history_amendver = None # for ETag versioning of historical results
-    web.ctx.ermrest_request_trace = request_trace
-    web.ctx.ermrest_registry = registry
-    web.ctx.ermrest_catalog_factory = catalog_factory
-    web.ctx.ermrest_catalog_model = None
-    web.ctx.ermrest_config = global_env
-    web.ctx.ermrest_catalog_pc = None
-    web.ctx.ermrest_change_notify = amqp_notifier.notify if amqp_notifier else lambda : None
-    web.ctx.ermrest_model_rights_cache = dict()
+    """Initialize deriva_ctx with request-specific timers and state used by our REST API layer."""
+    deriva_ctx.deriva_response = flask.Response()
+    deriva_ctx.ermrest_dispatched_handler = None
+    deriva_ctx.ermrest_request_guid = random_name()
+    deriva_ctx.ermrest_start_time = datetime.datetime.now(timezone.utc)
+    deriva_ctx.ermrest_request_content_range = None
+    deriva_ctx.ermrest_content_type = None
+    deriva_ctx.ermrest_status = None
+    deriva_ctx.webauthn2_manager = webauthn2_manager
+    deriva_ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
+    deriva_ctx.ermrest_history_snaptime = None # for coherent historical snapshot queries
+    deriva_ctx.ermrest_history_snaprange = None # for longitudinal history manipulation
+    deriva_ctx.ermrest_history_amendver = None # for ETag versioning of historical results
+    deriva_ctx.ermrest_request_trace = request_trace
+    deriva_ctx.ermrest_registry = registry
+    deriva_ctx.ermrest_catalog_factory = catalog_factory
+    deriva_ctx.ermrest_catalog_model = None
+    deriva_ctx.ermrest_config = global_env
+    deriva_ctx.ermrest_catalog_pc = None
+    deriva_ctx.ermrest_change_notify = amqp_notifier.notify if amqp_notifier else lambda : None
+    deriva_ctx.ermrest_model_rights_cache = dict()
 
     # get client authentication context
-    web.ctx.webauthn2_context = context_from_environment(web.ctx.env, fallback=True)
-    web.ctx.ermrest_client_roles = set([
+    deriva_ctx.webauthn2_context = context_from_environment(flask.request.environ, fallback=True)
+    deriva_ctx.ermrest_client_roles = set([
         r['id'] if type(r) is dict else r
-        for r in web.ctx.webauthn2_context.attributes
+        for r in deriva_ctx.webauthn2_context.attributes
     ]).union({'*'})
 
 def request_final():
@@ -209,21 +212,37 @@ def request_final():
             web.ctx.ermrest_catalog_pc.final()
 
     extra = {}
-    if web.ctx.ermrest_history_snaptime:
-        extra['snaptime'] = str(web.ctx.ermrest_history_snaptime)
-    if web.ctx.ermrest_history_snaprange:
-        extra['snaprange'] = [ str(ts) if ts else None for ts in web.ctx.ermrest_history_snaprange ]
+    if deriva_ctx.ermrest_history_snaptime:
+        extra['snaptime'] = str(deriva_ctx.ermrest_history_snaptime)
+    if deriva_ctx.ermrest_history_snaprange:
+        extra['snaprange'] = [ str(ts) if ts else None for ts in deriva_ctx.ermrest_history_snaprange ]
+
+    if isinstance(response, flask.Response):
+        deriva_ctx.ermrest_status = response.status
+    elif isinstance(response, RestException):
+        deriva_ctx.ermrest_status = response.code
+
+    deriva_ctx.ermrest_content_type = response.headers.get('content-type', 'none')
+    if 'content-range' in response.headers:
+        content_range = response.headers['content-range']
+        if content_range.startswith('bytes '):
+            content_range = content_range[6:]
+        deriva_ctx.ermrest_request_content_range = content_range
+    elif 'content-length' in response.headers:
+        deriva_ctx.ermrest_request_content_range = '*/%s' % response.headers['content-length']
+    else:
+        deriva_ctx.ermrest_request_content_range = '*/0'
 
     logger.info(format_final_json(
-        environ=web.ctx.env,
-        webauthn2_context=web.ctx.webauthn2_context,
-        req=web.ctx.ermrest_request_guid,
-        start_time=web.ctx.ermrest_start_time,
-        client=web.ctx.ip,
-        status=web.ctx.status,
-        content_range=web.ctx.ermrest_request_content_range,
-        content_type=web.ctx.ermrest_content_type,
-        track=(web.ctx.webauthn2_context.tracking if web.ctx.webauthn2_context else None),
+        environ=flask.request.environ,
+        webauthn2_context=deriva_ctx.webauthn2_context,
+        req=deriva_ctx.ermrest_request_guid,
+        start_time=deriva_ctx.ermrest_start_time,
+        client=flask.request.remote_addr,
+        status=deriva_ctx.ermrest_status,
+        content_range=deriva_ctx.ermrest_request_content_range,
+        content_type=deriva_ctx.ermrest_content_type,
+        track=(deriva_ctx.webauthn2_context.tracking if deriva_ctx.webauthn2_context else None),
         **extra,
     ))
 
