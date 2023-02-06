@@ -111,25 +111,16 @@ def _GET(handler, uri, dresource, vresource):
             deriva_ctx.deriva_response.headers['Content-Disposition'] = \
                 "attachment; filename*=UTF-8''%s" % urlquote(fname.encode('utf8'))
         deriva_ctx.ermrest_content_type = content_type
-        
-        if lines is results:
-            # special case for CSV bouncing through temporary file
-            results.seek(0, 2)
-            pos = results.tell()
-            results.seek(0, 0)
+        if hasattr(lines, 'seek'):
+            lines.seek(0, 2)
+            pos = lines.tell()
+            lines.seek(0, 0)
             deriva_ctx.deriva_response.content_length = pos
-            
-            bufsize = 1024 * 1024
-            while True:
-                buf = results.read(bufsize)
-                if buf:
-                    yield buf
-                else:
-                    break
-            results.close()
+            deriva_ctx.deriva_response.response = lines
+            deriva_ctx.deriva_response.direct_passthrough = True
         else:
-            for line in lines:
-                yield line
+            deriva_ctx.deriva_response.response = lines
+        return deriva_ctx.deriva_response
 
     return handler.perform(body, post_commit)
 
@@ -170,8 +161,8 @@ def _PUT(handler, uri, put_thunk, vresource):
         handler.emit_headers()
         deriva_ctx.deriva_response.content_type = content_type
         deriva_ctx.ermrest_request_content_type = content_type
-        for line in lines:
-            yield line
+        deriva_ctx.deriva_response.response = lines
+        return deriva_ctx.deriva_response
 
     return handler.perform(body, post_commit)
 
@@ -193,7 +184,8 @@ def _DELETE(handler, uri, resource, vresource):
     def post_commit(ignore):
         handler.emit_headers()
         deriva_ctx.deriva_response.status_code = 204
-        return ''
+        deriva_ctx.deriva_response.response = []
+        return deriva_ctx.deriva_response
 
     return handler.perform(body, post_commit)
 

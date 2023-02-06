@@ -62,7 +62,8 @@ class Service (object):
         deriva_ctx.deriva_response.status_code = 200
 
         assert content_type == _application_json
-        return json.dumps(response) + '\n'
+        deriva_ctx.deriva_response.response = [ json.dumps(response) + '\n', ]
+        return deriva_ctx.deriva_response
 
     def with_queryopts(self, qopt):
         # stub to satisfy ermrest.url.ast.api.Api interface
@@ -110,7 +111,7 @@ class Catalogs (object):
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=owner, annotations=annotations)))
+            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=owner, annotations=annotations))
         finally:
             pc.final()
 
@@ -126,10 +127,12 @@ class Catalogs (object):
         deriva_ctx.deriva_response.status_code = 201
 
         if content_type == _text_plain:
-            return str(catalog_id)
+            deriva_ctx.deriva_response.response = [ str(catalog_id), ]
         else:
             assert content_type == _application_json
-            return json.dumps(dict(id=catalog_id))
+            deriva_ctx.deriva_response.response = [ json.dumps({"id": catalog_id}), ]
+
+        return deriva_ctx.deriva_response
 
 class CatalogAliases (object):
     """A multi-tenant catalog alias set."""
@@ -171,10 +174,12 @@ class CatalogAliases (object):
         deriva_ctx.deriva_response.status_code = 201
 
         if content_type == _text_plain:
-            return str(catalog_id)
+            deriva_ctx.deriva_response.response = [ str(catalog_id), ]
         else:
             assert content_type == _application_json
-            return json.dumps(dict(id=catalog_id))
+            deriva_ctx.deriva_response.response = [ json.dumps({"id": catalog_id}), ]
+
+        return deriva_ctx.deriva_response
 
 def _acls_to_meta(acls):
     meta_keys = {
@@ -297,7 +302,6 @@ class Catalog (Api):
             resource["id"] = self.catalog_id
             if self.manager.alias_target is not None:
                 resource["alias_target"] = self.manager.alias_target
-            response = json.dumps(resource) + '\n'
             if self.catalog_amendver:
                 self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )
             else:
@@ -305,8 +309,9 @@ class Catalog (Api):
             self.http_check_preconditions()
             self.emit_headers()
             deriva_ctx.deriva_response.content_type = content_type
-            return response
-        
+            deriva_ctx.deriva_response.response = [ json.dumps(resource) + '\n', ]
+            return deriva_ctx.deriva_response
+
         return self.perform(self.GET_body, post_commit)
     
     def DELETE(self, uri):
@@ -325,9 +330,10 @@ class Catalog (Api):
             return True
 
         def post_commit(destroy):
-            return ''
             deriva_ctx.ermrest_registry.unregister(self.catalog_id)
             deriva_ctx.deriva_response.status_code = 204
+            deriva_ctx.deriva_response.response = []
+            return deriva_ctx.deriva_response
 
         return self.perform(body, post_commit)
 
@@ -358,7 +364,8 @@ class Catalog (Api):
             else:
                 raise exception.BadData('Maintenance query parameters not recognized.')
             deriva_ctx.deriva_response.status_code = 204
-            return ''
+            deriva_ctx.deriva_response.response = []
+            return deriva_ctx.deriva_response
 
         return self.perform(body, post_commit)
 
@@ -429,11 +436,11 @@ class CatalogAlias (ApiBase):
         deriva_ctx.ermrest_request_content_type = content_type
 
         resource = self.prejson()
-        response = json.dumps(resource) + '\n'
         self.http_check_preconditions()
         self.emit_headers()
         deriva_ctx.deriva_response.content_type = content_type
-        return response
+        deriva_ctx.deriva_response.response = json.dumps(resource) + '\n'
+        return deriva_ctx.deriva_response
 
     @web_method()
     def PUT(self, catalog_id):
@@ -476,6 +483,7 @@ class CatalogAlias (ApiBase):
         }) + '\n'
 
         deriva_ctx.deriva_response.content_type = content_type
+        deriva_ctx.deriva_response.response = response
 
         # set location header and status
         if self.entry is None:
@@ -486,7 +494,7 @@ class CatalogAlias (ApiBase):
             deriva_ctx.ermrest_request_content_type = None
             deriva_ctx.deriva_response.status_code = 200
 
-        return response
+        return deriva_ctx.deriva_response
 
     @web_method()
     def DELETE(self, catalog_id):
@@ -498,7 +506,8 @@ class CatalogAlias (ApiBase):
         self.enforce_right('owner')
         deriva_ctx.ermrest_registry.unregister(self.catalog_id)
         deriva_ctx.deriva_response.status_code = 204
-        return ''
+        deriva_ctx.deriva_response.response = []
+        return deriva_ctx.deriva_response
 
 class Meta (Api):
     """A metadata set of the catalog.
@@ -540,8 +549,8 @@ class Meta (Api):
                 except KeyError:
                     raise exception.rest.NotFound(uri)
 
-            response = json.dumps(meta) + '\n'
-            return response
+            deriva_ctx.deriva_response.response = [ json.dumps(meta) + '\n', ]
+            return deriva_ctx.deriva_response
 
         return self.perform(body, post_commit)
 

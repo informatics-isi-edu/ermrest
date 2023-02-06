@@ -153,13 +153,7 @@ class PooledConnection (object):
         try:
             result = bodyfunc(self.conn, self.cur)
             self.conn.commit()
-            result = finalfunc(result)
-            if hasattr(result, '__next__'):
-                # need to defer cleanup to after result is drained
-                for d in result:
-                    yield d
-            else:
-                yield result
+            return finalfunc(result)
         except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
             # reset bad connection
             if self.used_pool:

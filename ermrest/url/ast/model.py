@@ -30,15 +30,13 @@ from ...util import OrderedFrozenSet
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
     handler.emit_headers()
-    if resource is None and content_type == 'text/plain':
-        return ''
-    if resource == '' and web.ctx.status == '200 OK':
-        deriva_ctx.deriva_response.status_code = 204
-        return ''
     response = transform(resource)
+    if (response is None or response == '') and deriva_ctx.deriva_response.status_code == 200:
+        deriva_ctx.deriva_response.status_code = 204
+        return deriva_ctx.deriva_response
     deriva_ctx.deriva_response.content_type = content_type
     deriva_ctx.deriva_response.response = [ response, ]
-    return response
+    return deriva_ctx.deriva_response
 
 def _post_commit_json(handler, resource):
     def prejson(v):

@@ -122,7 +122,7 @@ class CatalogFactory (object):
 
         pc = sanepg2.PooledConnection(self._dsn)
         try:
-            return next(pc.perform(body, post_commit))
+            return pc.perform(body, post_commit)
         finally:
             pc.final()
     

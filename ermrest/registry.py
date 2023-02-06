@@ -147,7 +147,7 @@ class SimpleRegistry(Registry):
     def pooled_perform(self, body, post_commit=lambda x: x):
         pc = sanepg2.PooledConnection(self.dsn)
         try:
-            return next(pc.perform(body, post_commit))
+            return pc.perform(body, post_commit)
         finally:
             if pc is not None:
                 pc.final()

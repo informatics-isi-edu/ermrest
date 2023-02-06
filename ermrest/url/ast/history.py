@@ -30,15 +30,17 @@ from .api import Api
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
     handler.emit_headers()
     if resource is None and content_type == 'text/plain':
-        return ''
+        deriva_ctx.deriva_response.response = []
+        return deriva_ctx.deriva_response
     if resource == '' and deriva_ctx.deriva_response.status_code == 200:
         deriva_ctx.deriva_response.status_code = 204
-        return ''
-    deriva_ctx.deriva_response.headers['Content-Type'] = content_type
+        deriva_ctx.deriva_response.response = []
+        return deriva_ctx.deriva_response
     deriva_ctx.deriva_response.content_type = content_type
     response = transform(resource)
     deriva_ctx.deriva_response.content_length = len(response)
-    return response
+    deriva_ctx.deriva_response.response = response
+    return deriva_ctx.deriva_response
 
 def _post_commit_json(handler, py_pj_pair):
     def to_json(py_pj_pair):
