@@ -48,7 +48,7 @@ Our companion client software for the ERMrest service includes:
 ERMrest is developed and tested primarily on the Fedora Linux distribution with Python 2.7. It has a conventional web service stack:
 - Apache HTTPD
 - mod_wsgi
-- web.py lightweight web framework
+- Python flask web framework
 - psycopg2 database driver
 - PostgreSQL
 - [webauthn](https://github.com/informatics-isi-edu/webauthn) security adaptation layer (another product of our group)

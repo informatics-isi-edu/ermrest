@@ -1,5 +1,5 @@
 #
-# Copyright 2012-2017 University of Southern California
+# Copyright 2012-2023 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,7 +47,8 @@ setup(
         'sbin/ermrest-freetext-indices',
         'sbin/ermrest-registry-purge',
     ],
-    #requires=['webauthn2', 'web.py', 'psycopg2'],
+    #requires=['webauthn2', 'flask', 'psycopg2'],
+    install_requires=['webauthn2', 'flask', 'psycopg2', 'pika'],
     maintainer_email='support@misd.isi.edu',
     license='Apache License, Version 2.0',
     classifiers=[

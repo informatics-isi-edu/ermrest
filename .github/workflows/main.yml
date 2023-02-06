@@ -38,14 +38,18 @@ jobs:
           sudo su -c 'echo /usr/lib/python3.8/site-packages > /usr/local/lib/python3.8/dist-packages/sys-site-packages.pth'
           sudo pip3 install requests
           sudo pip3 install psycopg2-binary
-          sudo pip3 install git+https://github.com/informatics-isi-edu/webpy.git
+	  sudo pip3 install flask
       - name: Install webauthn
         run: |
+          sudo pip3 install oauth2client
+          sudo pip3 install 'globus_sdk<3'
+          sudo pip3 install pyjwkest
+          sudo pip3 install pycryptodome
           sudo useradd -m -r webauthn
           sudo su -c '/usr/bin/python3 -c "import sys;import pprint;pprint.pprint(sys.path)"' - webauthn
           git clone https://github.com/informatics-isi-edu/webauthn.git
           cd webauthn
-          git checkout origin/master
+          git checkout origin/flask
           sudo make testvars
           sudo make install
           sudo make deploy
