@@ -16,7 +16,7 @@
 #
 
 import json
-import web
+from webauthn2.util import deriva_ctx
 
 from .api import Api
 from .model import _GET, _post_commit_json

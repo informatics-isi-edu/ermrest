@@ -24,7 +24,7 @@ import urllib
 import uuid
 import base64
 import collections
-from webauthn2.util import urlquote, negotiated_content_type
+from webauthn2.util import urlquote
 
 __version__ = '0.3.1'
 

@@ -25,24 +25,26 @@
 import threading
 import logging
 from logging.handlers import SysLogHandler
-import web
 import datetime
 from datetime import timezone
 import struct
 import json
 import sys
 import traceback
-import psycopg2
-import webauthn2
-from webauthn2.util import context_from_environment
-from webauthn2.rest import format_trace_json, format_final_json
 from collections import OrderedDict
+import psycopg2
+import urllib
+import werkzeug.exceptions
+import flask
+import webauthn2
+from webauthn2.util import context_from_environment, deriva_ctx, deriva_debug
+from webauthn2.rest import format_trace_json, format_final_json
 
 from .exception import *
 
 from .registry import get_registry
 from .catalog import get_catalog_factory
-from .util import negotiated_content_type, urlquote, random_name
+from .util import urlquote, random_name
 
 __all__ = [
     'web_urls',

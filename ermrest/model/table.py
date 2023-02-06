@@ -27,8 +27,8 @@ needed by other modules of the ermrest project.
 
 import urllib
 import json
-import web
 from functools import reduce
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, table_exists, OrderedFrozenSet

@@ -16,9 +16,9 @@
 #
 
 import json
-import web
 import hashlib
 import base64
+from webauthn2.util import deriva_ctx
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, table_exists

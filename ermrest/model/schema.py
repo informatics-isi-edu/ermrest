@@ -16,7 +16,7 @@
 #
 
 import json
-import web
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, view_exists, service_features

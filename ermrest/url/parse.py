@@ -25,8 +25,8 @@ abstract syntax tree (AST)
 
 import ply.yacc as yacc
 import threading
-import web
 import urllib
+from webauthn2.util import deriva_ctx, deriva_debug, web_storage
 
 from ..exception import *
 from ..model import predicate, normalized_history_snaptime, current_history_amendver

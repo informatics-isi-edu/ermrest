@@ -16,7 +16,8 @@
 #
 
 import json
-import web
+import flask
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from ...model import current_request_snaptime
 from ...model.schema import Model, Schema

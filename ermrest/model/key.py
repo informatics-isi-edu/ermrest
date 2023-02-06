@@ -15,8 +15,8 @@
 # limitations under the License.
 #
 
-import web
 import json
+from webauthn2.util import deriva_ctx
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet

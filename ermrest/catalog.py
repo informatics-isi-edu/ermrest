@@ -24,13 +24,14 @@ This module provides catalog management features including:
     - modify catalog metadata
 """
 
-import web
 import psycopg2
 import pkgutil
 import datetime
+from webauthn2.util import deriva_ctx
 
 from . import sanepg2
 from .util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
+from .exception import *
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
 from .model.introspect import introspect
 from .model import current_model_snaptime, normalized_history_snaptime, Table

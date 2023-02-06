@@ -27,6 +27,7 @@ that may be more sophisticated than the SimpleRegistry implementation.
 """
 
 import json
+from webauthn2.util import deriva_ctx
 
 from .util import *
 from . import sanepg2

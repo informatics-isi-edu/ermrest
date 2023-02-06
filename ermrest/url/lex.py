@@ -34,7 +34,7 @@ any request bearing escaped slashes meant to be user data.
 """
 
 import ply.lex
-import web
+from webauthn2.util import deriva_debug
 
 from ..exception import *
 from ..util import urlunquote

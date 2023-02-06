@@ -20,13 +20,13 @@
 """
 
 import io
-import web
 import tempfile
 import psycopg2
 import datetime
 from datetime import timezone
+import flask
 
-from webauthn2.util import urlquote
+from webauthn2.util import urlquote, deriva_ctx
 
 from ..api import Api
 from . import path

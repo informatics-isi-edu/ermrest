@@ -19,7 +19,7 @@
 
 """
 
-import web
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from ..util import sql_literal
 from ..exception import *

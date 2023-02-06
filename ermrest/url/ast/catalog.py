@@ -19,15 +19,15 @@
 """
 
 import json
-import web
 import psycopg2.extensions
 import base64
 import hashlib
+import flask
+from webauthn2.util import deriva_ctx, deriva_debug, negotiated_content_type
 
 from . import model, data, resolver
-from .api import ApiBase, Api, negotiated_content_type
+from .api import ApiBase, Api
 from ... import exception, catalog, sanepg2
-from ...apicore import web_method
 from ...exception import *
 from ...model import current_catalog_snaptime
 from ...util import sql_literal, service_features, __version__

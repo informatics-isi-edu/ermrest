@@ -25,7 +25,7 @@ information_schema of a relational database. It represents the model as
 needed by other modules of the ermrest project.
 """
 
-import web
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from .. import exception
 from ..util import table_exists, view_exists, column_exists, sql_literal, sql_identifier, OrderedFrozenSet

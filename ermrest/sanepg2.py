@@ -41,11 +41,11 @@ result before serialization commences.
 
 import psycopg2
 import psycopg2.pool
-import web
 import sys
 import traceback
 import datetime
 import math
+from webauthn2.util import deriva_debug
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.

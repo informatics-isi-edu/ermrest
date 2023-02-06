@@ -23,11 +23,11 @@ navigating, and manipulating data in an ERMREST catalog.
 """
 import psycopg2
 import csv
-import web
 import json
 import re
 import datetime
 from datetime import timezone
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from psycopg2._json import JSON_OID, JSONB_OID
 

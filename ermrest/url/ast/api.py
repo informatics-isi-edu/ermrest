@@ -19,7 +19,6 @@
 
 """
 import psycopg2
-import web
 import traceback
 import sys
 import re
@@ -27,11 +26,13 @@ import json
 import datetime
 import itertools
 from collections import OrderedDict
+import flask
+from webauthn2.util import deriva_ctx, deriva_debug, negotiated_content_type
 
 from ...exception import *
 from ... import sanepg2
 from ...model import normalized_history_snaptime
-from ...util import sql_literal, negotiated_content_type
+from ...util import sql_literal
 
 class ApiBase (object):
     def _prepare(self):
