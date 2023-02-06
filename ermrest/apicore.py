@@ -50,6 +50,28 @@ __all__ = [
     'global_env'
     ]
 
+## flask app we will configure for our service
+app = flask.Flask('ermrest')
+
+def raw_path_app(app_orig, raw_uri_env_key='REQUEST_URI'):
+    """Allow routes to distinguish raw reserved chars from escaped ones.
+    :param app_orig: The WSGI app to wrap with middleware.
+    :param raw_path_env_key: The key to lookup the raw request URI in the WSGI environment.
+    """
+    def app(environ, start_response):
+        parts = urllib.parse.urlparse(environ[raw_uri_env_key])
+        path_info = parts.path
+        script_name = environ['SCRIPT_NAME']
+        if path_info.startswith(script_name):
+            path_info = path_info[len(script_name):]
+        if parts.params:
+            path_info = '%s;%s' % (path_info, parts.params)
+        environ['PATH_INFO'] = path_info
+        return app_orig(environ, start_response)
+    return app
+
+app.wsgi_app = raw_path_app(app.wsgi_app)
+
 ## setup web service configuration data
 global_env = webauthn2.merge_config(
     jsonFileName='ermrest_config.json', 
@@ -172,6 +194,7 @@ def request_trace(tracedata):
         webauthn2_context=deriva_ctx.webauthn2_context,
     ))
 
+@app.before_request
 def request_init():
     """Initialize deriva_ctx with request-specific timers and state used by our REST API layer."""
     deriva_ctx.deriva_response = flask.Response()
@@ -202,14 +225,28 @@ def request_init():
         for r in deriva_ctx.webauthn2_context.attributes
     ]).union({'*'})
 
-def request_final():
+def _teardown():
+    if deriva_ctx.ermrest_dispatched_handler is not None:
+        if hasattr(deriva_ctx.ermrest_dispatched_handler, 'final'):
+            deriva_ctx.ermrest_dispatched_handler.final()
+    if deriva_ctx.ermrest_catalog_pc is not None:
+        if deriva_ctx.ermrest_catalog_pc.conn is not None:
+            deriva_ctx.ermrest_request_trace('ERMrest DB conn LEAK averted in request_final()!?')
+            deriva_ctx.ermrest_catalog_pc.final()
+
+@app.after_request
+def request_final(response):
     """Log final request handler state to finalize a request's audit trail."""
-    if web.ctx.ermrest_catalog_pc is not None:
-        if web.ctx.ermrest_catalog_pc.conn is not None:
-            web.ctx.ermrest_request_trace(
-                'ERMrest DB conn LEAK averted in request_final()!?'
-            )
-            web.ctx.ermrest_catalog_pc.final()
+
+    if not hasattr(response.response, 'seek'):
+        # force lingering response generator, unless it is a seekable file/buffer
+        response.make_sequence()
+
+    if flask.request.method in {'PUT', 'POST', 'DELETE'} \
+       and response.status_code in {200, 201, 204}:
+        deriva_ctx.ermrest_change_notify()
+
+    _teardown()
 
     extra = {}
     if deriva_ctx.ermrest_history_snaptime:
@@ -246,85 +283,69 @@ def request_final():
         **extra,
     ))
 
-def web_method():
-    """Wrap ERMrest request handler methods with common logic.
+    return response
 
-       This should be used to wrap any handler methods that get
-       dispatched directly via web.py.
-    
-       NOTE: Because we already wrap our generic METHOD handler in the
-       ermrest_apis.Dispatcher class, we should NOT explicitly wrap
-       handler methods in the various parser-drive handler
-       classes. Doing so would cause a double-wrapping.
+@app.errorhandler(Exception)
+def error_handler(ev):
+    _teardown()
+    if isinstance(ev, werkzeug.exceptions.HTTPException) \
+       and not isinstance(ev, rest.RestException):
+        deriva_debug(str(ev), flask.request.path, flask.request.environ['REQUEST_URI'])
 
-    """
-    def helper(original_method):
-        def wrapper(*args):
-            request_init()
-            try:
-                try:
-                    try:
-                        result = original_method(*args)
-                        if hasattr(result, '__next__'):
-                            # force any transaction deferred in iterator
-                            for res in result:
-                                yield res
-                        else:
-                            yield result
-                    except psycopg2.ProgrammingError as e:
-                        if e.pgcode == '42501':
-                            # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
-                            raise rest.Forbidden(e.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
-                        elif e.pgcode == '42601':
-                            # SQL syntax error means we have buggy code!
-                            web.debug(e.pgcode, e.pgerror)
-                            raise rest.RuntimeError('Query generation error, contact ERMrest administrator')
-                        else:
-                            # re-raise and let outer handlers below do something more generic
-                            raise
-                except (rest.WebException, web.HTTPError) as e:
-                    # exceptions signal normal REST response scenarios
-                    raise e
-                except (ConflictModel, ConflictData) as e:
-                    raise rest.Conflict(e.message)
-                except Forbidden as e:
-                    raise rest.Forbidden(e.message)
-                except NotFound as e:
-                    raise rest.NotFound(e.message)
-                except BadData as e:
-                    raise rest.BadRequest(e.message)
-                except UnsupportedMediaType as e:
-                    raise rest.UnsupportedMediaType(e.message)
-                except psycopg2.Error as e:
-                    request_trace(u"Postgres error: %s (%s)" % ((e.pgerror if e.pgerror is not None else 'None'), e.pgcode))
-                    if e.pgcode is not None:
-                        if e.pgcode[0:2] == '08':
-                            raise rest.ServiceUnavailable('Database connection error.')
-                        elif e.pgcode[0:2] == '53':
-                            raise rest.ServiceUnavailable('Resources unavailable.')
-                        elif e.pgcode[0:2] == '40':
-                            raise rest.ServiceUnavailable('Transaction aborted.')
-                        elif e.pgcode[0:2] == '54':
-                            raise rest.BadRequest(str(e))
-                        elif e.pgcode[0:2] == 'XX':
-                            raise rest.ServiceUnavailable('Internal error.')
-                        elif e.pgcode == '57014':
-                            raise rest.BadRequest('Query run time limit exceeded.')
-                        elif e.pgcode[0:2] == '23':
-                            raise rest.Conflict(str(e))
+    if isinstance(ev, psycopg2.Error):
+        request_trace(u"Postgres error: %s (%s)" % (ev.pgerror, ev.pgcode))
 
-                    # TODO: simplify postgres error text?
-                    web.debug(e, e.pgcode, e.pgerror)
-                    et, ev, tb = sys.exc_info()
-                    web.debug('got psycopg2 exception "%s"' % str(ev))
-                    raise rest.Conflict( str(e) )
-                except (psycopg2.pool.PoolError, psycopg2.OperationalError) as e:
-                    raise rest.ServiceUnavailable(e.message)
-                except Exception as e:
-                    et, ev, tb = sys.exc_info()
-                    web.debug('got unrecognized %s exception "%s"' % (type(ev), str(ev)), traceback.format_exception(et, ev, tb))
-                    raise
-            finally:
-                request_final()
-        return wrapper
-    return helper
+        if ev.pgcode is not None:
+            if ev.pgcode == '42501':
+                # insufficient_privilege ... HACK: add " and is" to combine into Forbidden() template
+                ev = rest.Forbidden(ev.pgerror.replace('ERROR:  ','').replace('\n','') + ' and is')
+            elif ev.pgcode == '42601':
+                # SQL syntax error means we have buggy code, so let it convert into 500 error!
+                pass
+            elif ev.pgcode == '57014':
+                ev = rest.BadRequest('Query run time limit exceeded.')
+            elif ev.pgcode[0:2] == '08':
+                ev = rest.ServiceUnavailable('Database connection error.')
+            elif ev.pgcode[0:2] == '23':
+                ev = rest.Conflict(str(ev))
+            elif ev.pgcode[0:2] == '40':
+                ev = rest.ServiceUnavailable('Transaction aborted.')
+            elif ev.pgcode[0:2] == '53':
+                ev = rest.ServiceUnavailable('Resources unavailable.')
+            elif ev.pgcode[0:2] == '54':
+                ev = rest.BadRequest(str(ev))
+            elif ev.pgcode[0:2] == 'XX':
+                ev = rest.ServiceUnavailable('Internal error.')
+            else:
+                deriva_debug('unrecognized psycopg2 exception', str(ev), ev.pgcode, ev.pgerror)
+                et, ev2, tb = sys.exc_info()
+                deriva_debug(traceback.format_exception(et, ev2, tb))
+                ev = rest.Conflict( str(ev) )
+
+        if isinstance(ev, psycopg2.OperationalError):
+            ev = rest.ServiceUnavailable(str(ev))
+
+    elif isinstance(ev, (LexicalError, ParseError)):
+        ev = rest.BadRequest(str(ev))
+    elif isinstance(ev, (ConflictModel, ConflictData)):
+        ev = rest.Conflict(ev.message)
+    elif isinstance(ev, Forbidden):
+        ev = rest.Forbidden(ev.message)
+    elif isinstance(ev, NotFound):
+        ev = rest.NotFound(ev.message)
+    elif isinstance(ev, BadData):
+        ev = rest.BadRequest(ev.message)
+    elif isinstance(ev, UnsupportedMediaType):
+        ev = rest.UnsupportedMediaType(ev.message)
+    elif isinstance(ev, werkzeug.exceptions.MethodNotAllowed):
+        ev = rest.NoMethod()
+
+    if not isinstance(ev, (rest.RestException, werkzeug.exceptions.HTTPException)):
+        request_trace('Unhandled exception: %s (%s)' % (type(ev), str(ev)))
+        et, ev2, tb = sys.exc_info()
+        deriva_debug('got unhandled exception', type(ev), str(ev))
+        deriva_debug(''.join(traceback.format_exception(et, ev2, tb)))
+        ev = rest.RuntimeError(str(ev))
+
+    return ev
+

@@ -15,9 +15,7 @@
 # limitations under the License.
 #
 
-import web
-from ermrest.ermrest_apis import web_urls
+from ermrest.ermrest_apis import app
 
-# this creates the WSGI app using the web_urls map and the web.py framework
-application = web.application(web_urls(), globals()).wsgifunc()
+application = app
 

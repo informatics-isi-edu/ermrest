@@ -41,7 +41,6 @@ class Service (object):
     default_content_type = _application_json
     supported_types = [default_content_type,]
 
-    @web_method()
     def GET(self, uri=''):
         """Perform HTTP GET of service advertisement
         """
@@ -79,7 +78,6 @@ class Catalogs (object):
     default_content_type = _application_json
     supported_types = [default_content_type, _text_plain]
 
-    @web_method()
     def POST(self, uri='catalog'):
         """Perform HTTP POST of catalogs.
         """
@@ -140,7 +138,6 @@ class CatalogAliases (object):
     default_content_type = _application_json
     supported_types = [default_content_type, _text_plain]
 
-    @web_method()
     def POST(self, uri='catalog'):
         """Perform HTTP POST of catalog aliases.
         """
@@ -426,7 +423,6 @@ class CatalogAlias (ApiBase):
             'alias_target': self.entry['alias_target'],
         }
 
-    @web_method()
     def GET(self, catalog_id):
         """Perform HTTP retrieval of catalog alias registry entry
         """
@@ -442,7 +438,6 @@ class CatalogAlias (ApiBase):
         deriva_ctx.deriva_response.response = json.dumps(resource) + '\n'
         return deriva_ctx.deriva_response
 
-    @web_method()
     def PUT(self, catalog_id):
         """Perform HTTP update/create of catalog alias registry entry
         """
@@ -496,7 +491,6 @@ class CatalogAlias (ApiBase):
 
         return deriva_ctx.deriva_response
 
-    @web_method()
     def DELETE(self, catalog_id):
         """Perform HTTP DELETE of catalog alias.
         """
