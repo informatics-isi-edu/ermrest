@@ -62,7 +62,7 @@ def add_comment_tests(klass):
 
         def make_test_delete(i):
             def test_delete(self):
-                self.assertHttp(self.session.delete('%s/comment' % resources[i]), 200)
+                self.assertHttp(self.session.delete('%s/comment' % resources[i]), 204)
                 self.assertHttp(self.session.get('%s/comment' % resources[i]), 404)
             return test_delete
         setattr(klass, 'test_%02d_4_delete' % i, make_test_delete(i))
