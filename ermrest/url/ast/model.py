@@ -375,17 +375,21 @@ class AclCommon (Api):
                         key_kind=self.key_kind
                     )
                 )
+            return self.GET_container(subject)
         else:
             if data is None:
                 self.DELETE_body(cur, subject, key)
             else:
                 self.PUT_body(cur, subject, key, self.validate_element(data))
+                return self.GET_container(subject).get(key)
 
     def PUT(self, uri):
-        return _MODIFY_with_json_input(self, self.SET_body, _post_commit)
+        return _MODIFY_with_json_input(self, self.SET_body, _post_commit_json)
 
     def DELETE(self, uri):
-        return _MODIFY(self, lambda conn, cur: self.SET_body(conn, cur, None), _post_commit)
+        def post_commit(self, ignore):
+            return _post_commit(self, '')
+        return _MODIFY(self, lambda conn, cur: self.SET_body(conn, cur, None), post_commit)
 
 class Acl (AclCommon):
     """A specific object's ACLs."""
@@ -911,7 +915,7 @@ class Foreignkeys (Api):
     def POST(self, uri):
         def post_commit(self, newrefs):
             deriva_ctx.deriva_response.status_code = 201
-            return json.dumps([ r.prejson() for r in newrefs ], indent=2) + '\n'
+            return _post_commit_json(self, newrefs)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
 class Foreignkey (Api):
