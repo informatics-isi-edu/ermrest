@@ -22,7 +22,7 @@ class CatalogBasic (common.ErmrestTest):
             self.assertHttp(r, 401)
 
     def test_invalid_apiname(self):
-        self.assertHttp(self.session.get('invalid_api'), 400)
+        self.assertHttp(self.session.get('invalid_api'), 404)
 
 class CatalogBasicOwner (CatalogBasic):
     def test_test1_schema(self):
