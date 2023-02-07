@@ -197,6 +197,8 @@ class Catalog (object):
         """
         assert factory is not None
         self.descriptor = reg_entry['descriptor']
+        if self.descriptor is None:
+            raise ConflictData('Alias %(id)r is currently not bound to a catalog.' % reg_entry)
         self.dsn = self._serialize_descriptor(self.descriptor)
         self._factory = factory
         self.alias_target = reg_entry.get('alias_target')
