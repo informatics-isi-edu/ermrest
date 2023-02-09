@@ -36,8 +36,9 @@ import psycopg2
 import urllib
 import werkzeug.exceptions
 import flask
-import webauthn2
-from webauthn2.util import context_from_environment, deriva_ctx, deriva_debug
+
+from webauthn2.util import context_from_environment, deriva_ctx, deriva_debug, merge_config, Context
+from webauthn2.manager import Manager
 from webauthn2.rest import format_trace_json, format_final_json
 
 from .exception import *
@@ -75,7 +76,7 @@ def raw_path_app(app_orig, raw_uri_env_key='REQUEST_URI'):
 app.wsgi_app = raw_path_app(app.wsgi_app)
 
 ## setup web service configuration data
-global_env = webauthn2.merge_config(
+global_env = merge_config(
     jsonFileName='ermrest_config.json', 
     built_ins={
         "request_timeout_s": 15.0,
@@ -88,7 +89,7 @@ global_env = webauthn2.merge_config(
     )
 
 # setup webauthn2 handler
-webauthn2_manager = webauthn2.Manager()
+webauthn2_manager = Manager()
 
 # setup registry
 registry_config = global_env.get('registry')
@@ -207,7 +208,7 @@ def request_init():
     deriva_ctx.ermrest_content_type = None
     deriva_ctx.ermrest_status = None
     deriva_ctx.webauthn2_manager = webauthn2_manager
-    deriva_ctx.webauthn2_context = webauthn2.Context() # set empty context for sanity
+    deriva_ctx.webauthn2_context = Context() # set empty context for sanity
     deriva_ctx.ermrest_history_snaptime = None # for coherent historical snapshot queries
     deriva_ctx.ermrest_history_snaprange = None # for longitudinal history manipulation
     deriva_ctx.ermrest_history_amendver = None # for ETag versioning of historical results
