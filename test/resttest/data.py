@@ -238,6 +238,29 @@ class ZTextFacet (common.ErmrestTest):
     def test_textfacet(self):
         for pattern in ['foo', 'bar', 'foo.*']:
             self.assertHttp(self.session.get('textfacet/%s' % urlquote(pattern)), 200)
-    
+
+class OnconflictSkip (common.ErmrestTest):
+    @classmethod
+    def setUpClass(cls):
+        common.primary_session.post(
+            'schema/public/table/ERMrest_Client/key',
+            json={"unique_columns": ["ID", "Full_Name", "Display_Name"]}
+        ).raise_for_status()
+
+    @classmethod
+    def tearDownClass(cls):
+        common.primary_session.delete(
+            'schema/public/table/ERMrest_Client/key/ID,Full_Name,Display_Name'
+        ).raise_for_status()
+
+    def test_onconflict_skip_basic(self):
+        existing = self.session.get('entity/public:ERMrest_Client').json()
+        self.assertHttp(self.session.post('entity/public:ERMrest_Client?onconflict=skip', json=existing), 200)
+
+    def test_onconflict_skip_multikey(self):
+        existing = self.session.get('entity/public:ERMrest_Client').json()
+        existing[0]["Full_Name"] = "Different Value"
+        self.assertHttp(self.session.post('entity/public:ERMrest_Client?onconflict=skip', json=existing), 200)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
