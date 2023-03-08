@@ -895,8 +895,7 @@ def _perform_table_insert(cur, table, input_table, mkcols, nmkcols, mkcol_aliase
 INSERT INTO %(table)s (%(cols)s)
 SELECT %(icols)s FROM %(input_table)s i
 """ + ("""
-LEFT OUTER JOIN %(table)s t ON (%(keymatches)s)
-WHERE COALESCE(NOT %(keymatches)s, True)
+ON CONFLICT DO NOTHING
 """ if only_nonmatch else "") + """
 RETURNING %(rcols)s""") % {
     'table': table.sql_name(),
@@ -907,7 +906,6 @@ RETURNING %(rcols)s""") % {
         c.sql_name()
         for c in (mkcols + nmkcols + extra_return_cols)
     ]),
-    'keymatches': _keymatches(mkcols, mkcol_aliases),
 },
                      content_type
         )
