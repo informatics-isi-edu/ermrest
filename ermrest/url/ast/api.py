@@ -24,6 +24,8 @@ import traceback
 import sys
 import re
 import json
+import hashlib
+import base64
 import datetime
 import itertools
 from collections import OrderedDict
@@ -47,13 +49,16 @@ class ApiBase (object):
         # TODO: compute source_checksum to help with cache invalidation
         #etag.append( source_checksum )
 
-        if 'cookie' in self.http_vary:
-            client = web.ctx.webauthn2_context.client
-            if isinstance(client, dict):
-                client = client['id']
-            etag.append( '%s' % client )
-        else:
-            etag.append( '*' )
+        etag.append(
+            # hash the full set of roles in case clients change groups
+            base64.urlsafe_b64encode(
+                hashlib.md5(
+                    json.dumps(
+                        sorted(web.ctx.ermrest_client_roles)
+                    ).encode('utf8')
+                ).digest()
+            ).decode()
+        )
 
         if 'accept' in self.http_vary:
             etag.append( '%s' % web.ctx.env.get('HTTP_ACCEPT', '') )
