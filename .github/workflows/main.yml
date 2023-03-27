@@ -25,6 +25,7 @@ jobs:
           path: ermrest
       - name: Setup the system
         run: |
+          sudo apt-get update
           sudo apt-get -y install libcurl4-openssl-dev libjson-c-dev
           sudo service postgresql stop || true
           sudo service postgresql start 12
