@@ -290,6 +290,9 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s %(opcla
         self.enforce_right('owner')
         # allow sparse update documents as a (not so restful) convenience
         newdoc = self.prejson()
+        # use existing Type rather than serializing and recreating
+        # as the existing type might be a "readonly" type
+        newdoc['type'] = self.type
         newdoc.update(columndoc)
         newcol = Column.fromjson_single(newdoc, self.position, ermrest_config)
         actions = []
