@@ -46,6 +46,7 @@ Known feature flags at time of writing of this document:
 - `indexing_preferences`: Service supports `tag:isrd.isi.edu:2018,indexing-preferences` annotations to influence index construction during table or model provisioning requests.
 - `quantified_value_lists`: Service supports `all(...)` and `any(...)` URL syntax for lists of values as query predicate right-hand side values.
 - `quantified_rid_lists`: Service supports `RID=all(...)` and `RID=any(...)`, a bug-fix to the `quantified_value_lists` feature.
+- `rid_lease`: Service supports `?nondefaults=RID` for POST operations on the `/entity/` API by clients who are not catalog owners. Such use is limited to the rules described for [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults).
 
 Generally, absence of a feature flag means the service is running
 older software which predates the release of the feature. A flag will

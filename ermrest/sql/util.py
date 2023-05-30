@@ -1,6 +1,6 @@
 
 #
-# Copyright 2017-2021 University of Southern California
+# Copyright 2017-2023 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ def for_each_catalog(thunk, id=None):
 
     results = registry.lookup(id=id)
     for entry in results:
-        if entry.get('alias_target') is not None:
+        if entry.get('alias_target') is not None or entry.get('descriptor') is None:
             # lookup can return the same descriptor more than once
             # ignore aliased references
             continue

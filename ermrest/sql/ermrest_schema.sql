@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2012-2021 University of Southern California
+-- Copyright 2012-2023 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -2501,6 +2501,31 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND
     (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'delete', ARRAY[]::text[]),
     (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'select', ARRAY[]::text[]),
     (_ermrest.find_table_rid('public', 'ERMrest_Group'), 'enumerate', ARRAY[]::text[]);
+END IF;
+
+IF (SELECT True FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ERMrest_RID_Lease') IS NULL THEN
+  CREATE TABLE public."ERMrest_RID_Lease" (
+    "RID" ermrest_rid PRIMARY KEY DEFAULT _ermrest.urlb32_encode(nextval('_ermrest.rid_seq')),
+    "RCT" ermrest_rct NOT NULL DEFAULT now(),
+    "RMT" ermrest_rmt NOT NULL DEFAULT now(),
+    "RCB" ermrest_rcb DEFAULT _ermrest.current_client(),
+    "RMB" ermrest_rmb DEFAULT _ermrest.current_client(),
+    "ID" text,
+    UNIQUE("RCB", "ID")
+  );
+  PERFORM _ermrest.record_new_table(_ermrest.find_schema_rid('public'), 'ERMrest_RID_Lease');
+  INSERT INTO _ermrest.known_table_acls (table_rid, acl, members)
+  VALUES
+    (_ermrest.find_table_rid('public', 'ERMrest_RID_Lease'), 'update', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_RID_Lease'), 'delete', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_RID_Lease'), 'select', ARRAY[]::text[]),
+    (_ermrest.find_table_rid('public', 'ERMrest_RID_Lease'), 'enumerate', ARRAY['*']::text[]);
+  INSERT INTO _ermrest.known_table_dynacls (table_rid, binding_name, binding)
+  VALUES
+    (_ermrest.find_table_rid('public', 'ERMrest_RID_Lease'),
+     'lessee_access',
+     '{"types": ["select", "update", "delete"], "projection": ["RCB"], "projection_type": "acl", "scope_acl": ["*"]}'::json
+    );
 END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_keys(ts timestamptz)

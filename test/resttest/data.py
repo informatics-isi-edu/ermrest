@@ -20,7 +20,9 @@ def setUpModule():
     r = common.primary_session.get('schema/%s' % _S)
     if r.status_code == 404:
         # idempotent because unittest can re-enter module several times...
+        common.primary_session.put('schema/public/table/ERMrest_RID_Lease/acl/insert', json=[common.secondary_client_id])
         common.primary_session.post('schema', json=_defs).raise_for_status()
+        common.primary_session.put('schema/%s/table/%s/acl/insert' % (_S, _T1), json=[common.secondary_client_id])
 
 class Minimal (common.ErmrestTest):
     table = _T0
@@ -81,7 +83,25 @@ class BasicKey (common.ErmrestTest):
         self.assertHttp(r, 200, 'application/json')
         self.assertEqual(r.json(), self._set_RID)
 
-    def test_data_6_badsyscol(self):
+    def test_data_5_set_RID_allocated(self):
+        r = common.secondary_session.post("entity/public:ERMrest_RID_Lease", json=[ {}, ])
+        self.assertHttp(r, (200, 201), 'application/json')
+        lease = r.json()[0]["RID"]
+        r = common.secondary_session.post(
+            "entity/%s:%s?nondefaults=RID" % (_S, self.table),
+            json=[ {"RID": lease, "id": 1162, "name": "allocated RID %s" % (lease,)} ]
+        )
+        self.assertHttp(r, (200, 201), 'application/json')
+        self.assertEqual(r.json()[0]["RID"], lease)
+
+    def test_data_5_set_RID_forbidden(self):
+        r = common.secondary_session.post(
+            "entity/%s:%s?nondefaults=RID" % (_S, self.table),
+            json=[ {"RID": 'AAAAZ4', "id": 1164, "name": "allocated RID AAAZ4"} ]
+        )
+        self.assertHttp(r, 403)
+
+    def test_data_6_set_RMT_forbidden(self):
         self.assertHttp(self.session.post("entity/%s:%s?nondefaults=RMT" % (_S, self.table), json=[]), 403)
 
     def test_data_7_quantlist_predicates(self):
@@ -140,7 +160,10 @@ class CompositeKey (BasicKey):
         [ {"last_update": "2010-01-01", "name": "FooN", "site": 1} ],
     ]
 
-    _set_RID = [] # this inherited test won't work with this table, so prune it
+    # these inherited test won't work with this table, so prune it
+    def test_data_5_set_RID(self): pass
+    def test_data_5_set_RID_allocated(self): pass
+    def test_data_5_set_RID_forbidden(self): pass
 
 class DataLoad (common.ErmrestTest):
     table = _T2b
