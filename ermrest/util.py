@@ -1,5 +1,5 @@
 # 
-# Copyright 2012-2021 University of Southern California
+# Copyright 2012-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -149,6 +149,7 @@ def service_features():
         },
         "quantified_value_lists": True,
         "quantified_rid_lists": True,
+        "rid_lease": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):

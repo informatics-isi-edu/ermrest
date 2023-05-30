@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2021 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -659,7 +659,7 @@ def _enforce_table_insert_static(cur, table, input_table, mkcols, nmkcols, mkcol
     _enforce_table_access_static(cur, 'insert', table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, require_tc=True, use_defaults=use_defaults)
     for c in mkcols:
         if c not in use_defaults:
-            c.enforce_data_right('insert', require_true=True)
+            c.enforce_data_right('insert', require_true=c.name != 'RID')
 
 def _enforce_table_upsert_static(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
     """Raise access error or return will_insert boolean determination from input_table."""
@@ -768,6 +768,47 @@ LIMIT 1""") % {
         if cur.rowcount > 0:
             raise Forbidden(u'insert access on foreign key reference %s' % fkr)
 
+    # early returns if dynamic RID lease checks can be skipped
+    if 'RID' not in table.columns:
+        return None
+    ridc = table.columns['RID']
+    if ridc in use_defaults:
+        return None
+
+    if ridc.has_data_right('insert'):
+        return None
+
+    if 'public' not in table.schema.model.schemas \
+       or 'ERMrest_RID_Lease' not in table.schema.model.schemas['public'].tables:
+        # fallback if lease table is not deployed
+        raise Forbidden('insert access on column "RID"')
+
+    if ridc.has_data_right('insert') is None:
+        # reject input RIDs not among user's leases
+        cur.execute("""
+SELECT *
+FROM (
+  SELECT %(rid_input)s FROM %(input_table)s i
+  EXCEPT
+  SELECT "RID" FROM public."ERMrest_RID_Lease" WHERE "RCB" = _ermrest.current_client()
+) s
+LIMIT 1""" % {
+    'rid_input': jsonfix1('i.%s' % ridc.sql_name(mkcol_aliases.get(ridc)), ridc),
+    'input_table': input_table_sql,
+})
+        for row in cur:
+            raise Forbidden('insert access on column "RID" with non-leased value %r' % (row[0],))
+
+    # HACK: claim/purge leases here for any ?nondefaults=RID scenario
+    # whether client passed the static or dynamic check above
+    cur.execute("""
+DELETE FROM public."ERMrest_RID_Lease" v
+USING %(input_table)s i
+WHERE v."RID" = %(rid_input)s AND v."RCB" = _ermrest.current_client()""" % {
+    'rid_input': jsonfix1('i.%s' % ridc.sql_name(mkcol_aliases.get(ridc)), ridc),
+    'input_table': input_table_sql,
+})
+
 def _enforce_table_update_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases):
     input_table_sql = sql_identifier(input_table)
     keymatches = _keymatches(mkcols, mkcol_aliases)
@@ -852,12 +893,12 @@ LIMIT 1""") % {
         if cur.rowcount > 0:
             raise Forbidden(u'update access on foreign key reference %s' % fkr)
 
-def _enforce_table_upsert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, will_insert):
+def _enforce_table_upsert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, will_insert, use_defaults):
     if nmkcols:
         _enforce_table_update_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
 
     if will_insert:
-        _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases)
+        _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
 
 def _perform_table_update(cur, table, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, content_type):
     _set_statement_timeout(cur)
@@ -1178,7 +1219,8 @@ class EntityElem (object):
             cur, self.table, input_table,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
-            will_insert
+            will_insert,
+            use_defaults
         )
 
         try:

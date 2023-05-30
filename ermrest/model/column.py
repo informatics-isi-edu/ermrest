@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ SELECT _ermrest.model_version_bump();
     def has_right(self, aclname, roles=None):
         if self.name in {'RMT', 'RMB'} and aclname in {'insert', 'update', 'write'}:
             return False
-        if self.name == 'RID' and aclname in {'update', 'write'}:
+        if self.name in {'RID', 'RCB'} and aclname in {'update', 'write'}:
             return False
         if self.table.has_right(aclname, roles) is False:
             return False
@@ -105,7 +105,7 @@ SELECT _ermrest.model_version_bump();
         return self.has_right(aclname, roles)
 
     def enforce_data_right(self, aclname, require_true=False):
-        decision = self.has_right(aclname)
+        decision = self.has_data_right(aclname)
         if decision is False or require_true and not decision:
             raise exception.Forbidden('%s access on %s' % (aclname, self))
 
@@ -520,10 +520,17 @@ class SystemColumn (Column):
         Column.__init__(self, name, position, type, default_value, nullok, comment, column_num, annotations, acls, dynacls, rid)
 
     def has_data_right(self, aclname, roles=None):
-        if aclname in {'owner', 'insert', 'update'}:
+        if self.name in {'RID', 'RCB', 'RCT'} and aclname == 'insert':
+            if self.table.schema.model.has_right('owner', roles):
+                return True # catalog owner can clone RID, RCT, RCB
+            elif self.name == 'RID':
+                return None # others may use ERMrest_RID_Lease
+            else:
+                return False
+        elif aclname in {'owner', 'insert', 'update'}:
             return False
         return self.has_right(aclname, roles)
-    
+
     def sql_def(self):
         """Render SQL column clause for managed table DDL."""
         return "%(cname)s %(ctype)s %(notnull)s DEFAULT %(default)s" % {
