@@ -988,10 +988,10 @@ class PseudoKeyReference (object):
         # Link into foreign key's key reference list, by table ref
         if unique.table not in foreign_key.table_references:
             foreign_key.table_references[unique.table] = set()
-        _guarded_add(foreign_key.table_references[unique.table], self)
+        _guarded_add(foreign_key.table_references[unique.table], self, reject_duplicates=reject_duplicates)
         if foreign_key.table not in unique.table_references:
             unique.table_references[foreign_key.table] = set()
-        _guarded_add(unique.table_references[foreign_key.table], self)
+        _guarded_add(unique.table_references[foreign_key.table], self, reject_duplicates=reject_duplicates)
         self.rid = rid
         self.annotations = AltDict(lambda k: exception.NotFound(u'annotation "%s" on foreign key %s' % (k, self.constraint_name)))
         self.annotations.update(annotations)
