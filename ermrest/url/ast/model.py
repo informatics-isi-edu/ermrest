@@ -1091,9 +1091,9 @@ class ForeignkeyReferences (Api):
         elif len(fkrs) > 1:
             raise NotImplementedError('PUT found more than one FKR for %s -> %s' % (self._from_key, self._to_key))
         else:
-            # handle creation of new key, same as POST /key/
-            keys = Keys(self.table)
-            return keys.POST_body(conn, cur, fkrdoc)
+            # handle creation of new fkey, same as POST /foreignkey/
+            fkeys = ForeignKeys(self.table)
+            return fkeys.POST_body(conn, cur, fkrdoc)
 
     def PUT(self, uri):
         if self._from_key and self._to_key:
