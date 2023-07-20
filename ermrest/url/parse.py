@@ -534,12 +534,8 @@ def p_disjunction_grow(p):
     p[0].append( p[3] )
 
 def p_expr2_multistring(p):
-    """expr2 : '(' multistring ')' """
-    p[0] = p[2].with_quantifier(None)
-
-def p_expr2_multistring_quantifier(p):
-    """expr2 : string '(' multistring ')' """
-    p[0] = p[3].with_quantifier(p[1])
+    """expr2 : multistring """
+    p[0] = p[1]
 
 def p_expr2_const(p):
     """expr2 : expr """
@@ -553,14 +549,33 @@ def p_expr_empty(p):
     """expr : """
     p[0] = predicate.Value('')
 
-def p_multistring(p):
-    """multistring : string"""
-    p[0] = predicate.ValueList([ predicate.Value(p[1]) ])
+def p_multistring_start_noquant(p):
+    """multistring : '(' """
+    p[0] = predicate.ValueList([]).with_quantifier(None)
 
-def p_multistring_grow(p):
-    """multistring : multistring ',' string"""
+def p_multistring_start(p):
+    """multistring : string '(' """
+    p[0] = predicate.ValueList([]).with_quantifier(p[1])
+
+def p_multistring_continue_empty(p):
+    """multistring : multistring ','"""
     p[0] = p[1]
-    p[0].append( predicate.Value(p[3]) )
+    p[0].append( predicate.Value('') )
+
+def p_multistring_continue(p):
+    """multistring : multistring string ','"""
+    p[0] = p[1]
+    p[0].append( predicate.Value(p[2]) )
+
+def p_multistring_final_empty(p):
+    """multistring : multistring ')'"""
+    p[0] = p[1]
+    p[0].append( predicate.Value('') )
+
+def p_multistring_final(p):
+    """multistring : multistring string ')'"""
+    p[0] = p[1]
+    p[0].append( predicate.Value(p[2]) )
 
 def p_op(p):
     """op : '='"""
