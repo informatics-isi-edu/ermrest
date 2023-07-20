@@ -5,6 +5,7 @@ import os
 import sys
 import platform
 import atexit
+import logging
 
 import requests
 from http import cookiejar
@@ -14,13 +15,14 @@ import csv
 import json
 import urllib
 
-#import logging
 #logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 #cookiejar.debug = True
 
 _scheme = os.getenv('TEST_SCHEME', 'https')
 _server = os.getenv('TEST_HOSTNAME', platform.uname()[1])
 _server_url = "%s://%s" % (_scheme, _server)
+
+logging.captureWarnings(True)
 
 if os.getenv('TEST_SSL_VERIFY', 'true').lower() == 'false':
     _verify = False
