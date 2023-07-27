@@ -23,7 +23,6 @@ navigating, and manipulating data in an ERMREST catalog.
 """
 import psycopg2
 import csv
-import web
 
 from ..util import sql_identifier, sql_literal, OrderedFrozenSet
 from .. import exception

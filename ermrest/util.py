@@ -19,7 +19,6 @@ General utilities for ERMREST.
 
 # Right now these are all DB related utilities. We should keep it that way.
 
-import web
 import urllib
 import uuid
 import base64
