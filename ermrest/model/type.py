@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -399,6 +399,9 @@ class AggFunc(object):
             ctype = 'jsonb'
         return ctype
 
+    def enforce_data_right(self, aclname, require_true=False):
+        self.col.enforce_data_right(aclname, require_true=require_true)
+
     def agg_element(self):
         return self.sql_attr
 
@@ -463,6 +466,12 @@ class AggCnt(AggFunc):
     aggfunc_sql = 'count'
     supports_star = True
     output_type = int8_type
+
+    def enforce_data_right(self, aclname, require_true=False):
+        if self.col.is_star_column():
+            pass
+        else:
+            self.col.enforce_data_right(aclname, require_true=require_true)
 
     def sql(self):
         if self.col.is_star_column():

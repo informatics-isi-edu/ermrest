@@ -557,9 +557,14 @@ class FreetextColumn (Column):
         Column.__init__(self, '*', None, tsvector_type, None)
 
         self.table = table
-        
-        self.srccols = [ c for c in table.columns.values() if c.istext() and c.has_right('enumerate') ]
-        self.srccols.sort(key=lambda c: c.position)
+
+        self.columns = [ c for c in table.columns.values() if c.has_right('enumerate') ]
+        self.columns.sort(key=lambda c: c.position)
+
+    def enforce_data_right(self, aclname, require_true=False):
+        for c in self.table.columns.values():
+            if c.has_right('enumerate'):
+                c.enforce_data_right('select')
 
     def sql_name_astext_with_talias(self, talias):
         return self.sql_name_with_talias(talias)
@@ -567,10 +572,18 @@ class FreetextColumn (Column):
     def sql_name_with_talias(self, talias, output=False):
         if output:
             # output column reference as whole-row nested record
-            return 'row_to_json(%s*)' % (talias + '.' if talias else '')
+            fields = []
+            for c in self.columns:
+                fields.append(sql_literal(c.name))
+                fields.append('%s.%s' % (talias, c.sql_name()))
+            return 'jsonb_build_object(%s)' % (','.join(fields),)
         else:
             # internal column reference for predicate evaluation
-            colnames = [ c.sql_name_astext_with_talias(talias) for c in self.srccols ]
+            colnames = [
+                c.sql_name_astext_with_talias(talias)
+                for c in self.columns
+                if c.istext()
+            ]
             if not colnames:
                 colnames = [ "NULL::text" ]
             return set(colnames)

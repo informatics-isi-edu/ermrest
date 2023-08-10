@@ -390,14 +390,26 @@ class Authz (common.ErmrestTest):
     get_data_T1_id_status = 200
     get_data_T1T3_id_status = 200
     get_data_T1_id_ctype = 'application/json'
-    def test_get_data_T1_id(self):
-        for url in [
-                'entity/%s:T1/id=1' % _S,
-                'attribute/%s:T1/id,name,value' % _S,
-                'attributegroup/%s:T1/id,name;value' % _S,
-                'aggregate/%s:T1/c:=cnt(id)' % _S,
-        ]:
-            self._json_check(self.session.get(url), self.get_data_T1_id_status)
+    def test_get_data_T1_id_filter(self):
+        self._json_check(self.session.get('entity/%s:T1/id=1' % _S), self.get_data_T1_id_status)
+
+    def test_get_data_T1_id_attr(self):
+        self._json_check(self.session.get('attribute/%s:T1/id,name,value' % _S), self.get_data_T1_id_status)
+
+    def test_get_data_T1_id_attrgrp(self):
+        self._json_check(self.session.get('attributegroup/%s:T1/id,name;value' % _S), self.get_data_T1_id_status)
+
+    def test_get_data_T1_id_attrgrp_cnt(self):
+        self._json_check(self.session.get('attributegroup/%s:T1/name;c:=cnt(id)' % _S), self.get_data_T1_id_status)
+
+    def test_get_data_T1_id_attrgrp_array(self):
+        self._json_check(self.session.get('attributegroup/%s:T1/name;c:=array(id)' % _S), self.get_data_T1_id_status)
+
+    def test_get_data_T1_id_agg_cnt(self):
+        self._json_check(self.session.get('aggregate/%s:T1/c:=cnt(id)' % _S), self.get_data_T1_id_status)
+
+    def test_get_data_T1_id_agg_array(self):
+        self._json_check(self.session.get('aggregate/%s:T1/c:=array(id)' % _S), self.get_data_T1_id_status)
 
     def test_wildcard_query(self):
         self.assertHttp(self.session.get('entity/%s:T1/*::regexp::foo' % _S), self.get_data_T1_status)
@@ -423,7 +435,6 @@ class Authz (common.ErmrestTest):
     def test_delete_data_T1_id(self):
         self._json_check(self.session.delete('entity/%s:T1/id=1' % _S), self.delete_data_T1_id_status)
         self._json_check(self.session.delete('attribute/%s:T1/id,name,value' % _S), self.delete_data_T1_id_status)
-        self._json_check(self.session.delete('attribute/A:=%s:T1/%s:T2/id,name' % (_S, _S)), self.delete_data_T1_id_status)
 
     get_data_T2_status = 200
     put_data_T2_status = 403
@@ -529,6 +540,28 @@ class AuthzHideT1id (Authz):
         self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables']['T2'].get('foreign_keys', []), 0)
         self._hidden_in_model(lambda schema: schema['schemas'][_S2]['tables']['T3'].get('foreign_keys', []), 0)
 
+    def test_hidden_in_entity_data(self):
+        r = self.session.get('entity/%s:T1' % _S)
+        self.assertHttp(r, self.get_data_T1_ent_status)
+        if r.status_code == 200:
+            for row in r.json():
+                self.assertNotIn('id', row)
+
+    def test_hidden_in_attributestar_data(self):
+        r = self.session.get('attribute/%s:T1/*' % _S)
+        self.assertHttp(r, self.get_data_T1_ent_status)
+        if r.status_code == 200:
+            for row in r.json():
+                self.assertNotIn('id', row)
+
+    def test_hidden_in_arraystar_data(self):
+        r = self.session.get('attributegroup/%s:T1/name;arr:=array(*)' % _S)
+        self.assertHttp(r, self.get_data_T1_ent_status)
+        if r.status_code == 200:
+            for row in r.json():
+                for rec in row['arr']:
+                    self.assertNotIn('id', rec)
+
     get_T1id_status = 404
     delete_T1id_status = 404
 
@@ -549,6 +582,42 @@ class AuthzHideT1id (Authz):
     put_data_T1_id_status = 409
     post_data_T1_default_id_status = 409
     delete_data_T1_id_status = 409
+
+@unittest.skipIf(common.secondary_session is None, "Authz test requires TEST_COOKIES2")
+class AuthzBlockT1id (AuthzHideT1id):
+    T1_id = {
+        'select': [],
+        'enumerate': ['*']
+    }
+
+    rights_T1_id = {
+        'select': False,
+        'enumerate': True,
+    }
+
+    def test_hidden_in_model(self):
+        r = self.session.get('schema')
+        self.assertHttp(r, 200, 'application/json')
+        # fkeys should be pruned if referencing non-selectable keys
+        self._hidden_in_model(lambda schema: schema['schemas'][_S]['tables']['T2'].get('foreign_keys', []), 0)
+        self._hidden_in_model(lambda schema: schema['schemas'][_S2]['tables']['T3'].get('foreign_keys', []), 0)
+
+    def test_hidden_in_entity_data(self):
+        r = self.session.get('entity/%s:T1' % _S)
+        self.assertHttp(r, 403)
+
+    def test_wildcard_query(self):
+        self.assertHttp(self.session.get('entity/%s:T1/*::regexp::foo' % _S), 403)
+
+    get_T1id_status = 200
+    delete_T1id_status = 403
+
+    get_data_T1_ent_status = 403
+
+    get_data_T1_id_status = 403
+    put_data_T1_id_status = 403
+    post_data_T1_default_id_status = 403
+    delete_data_T1_id_status = 403
 
 def _merge(d1, d2):
     d1 = dict(d1)

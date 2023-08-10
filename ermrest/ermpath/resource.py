@@ -1599,8 +1599,6 @@ class AnyPath (object):
         output_type_overrides = {}
 
         for attribute, col, base in self.attributes:
-            col.enforce_data_right('select')
-
             output_name = str(attribute.alias) if attribute.alias is not None else col.name
             sql_attr = sql_identifier(output_name)
 
@@ -1610,6 +1608,7 @@ class AnyPath (object):
                 except KeyError as ev:
                     raise BadSyntax('Unknown aggregate function %s.' % ev)
 
+                aggfunc.enforce_data_right('select')
                 agg_sql, agg_type = aggfunc.sql()
                 aggregates.append((agg_sql, sql_attr))
                 if agg_type is not None:
@@ -1617,6 +1616,7 @@ class AnyPath (object):
             elif not allow_extra:
                 raise BadSyntax('Attribute %s lacks an aggregate function.' % attribute)
             else:
+                col.enforce_data_right('select')
                 # get example values via custom agg func
                 agg_sql = 'coalesce_agg(%s)' % (sql_attr,)
                 aggregates.append((agg_sql, sql_attr))
@@ -2214,6 +2214,9 @@ class AttributePath (AnyPath):
                 raise ConflictModel('Invalid attribute name "%s".' % attribute)
 
             if hasattr(attribute, 'nbins'):
+                if enforce_client:
+                    col.enforce_data_right('select')
+
                 typname = col.type.sql(basic_storage=True)
 
                 if typname not in {'int2', 'int4', 'int8', 'float', 'float4', 'float8', 'numeric', 'timestamptz', 'timestamp', 'date'}:
@@ -2310,6 +2313,14 @@ END
                 select = "%s.%s" % (alias, col.sql_name())
 
             select = select
+
+            if enforce_client \
+               and col is not None \
+               and not hasattr(attribute, 'aggfunc'):
+                # AttributeGroupPath and AggregatePath proxy to this method
+                # so aggfuncs can actually appear even though they are not in real attribute paths
+                # but aggfunc ACL enforcement is handled in _sql_get_agg_attributes()
+                col.enforce_data_right('select')
 
             if attribute is True and col is None:
                 # short-circuit for dynacl decision output
