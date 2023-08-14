@@ -769,7 +769,8 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
   FROM pg_catalog.pg_type t
   JOIN _ermrest.known_schemas s ON (t.typnamespace = s.oid)
   JOIN pg_catalog.pg_type et ON (et.typarray = t.oid)
-  JOIN _ermrest.known_types ekt ON (et.oid = ekt.oid)
+  JOIN _ermrest.known_schemas s2 ON (et.typnamespace = s2.oid)
+  JOIN _ermrest.known_types ekt ON (s2."RID" = ekt.schema_rid AND pg_catalog.format_type(et.oid, NULL)::text = ekt.type_name)
   WHERE t.typtype != 'd'::char
     AND et.typelem = 0::oid
     AND et.typrelid = 0
@@ -789,7 +790,9 @@ CREATE OR REPLACE VIEW _ermrest.introspect_types AS
     d.description::text as "comment"
   FROM pg_catalog.pg_type t
   JOIN _ermrest.known_schemas s ON (t.typnamespace = s.oid)
-  JOIN _ermrest.known_types ekt ON (t.typbasetype = ekt.oid)
+  JOIN pg_catalog.pg_type et ON (t.typbasetype = et.oid)
+  JOIN _ermrest.known_schemas s2 ON (et.typnamespace = s2.oid)
+  JOIN _ermrest.known_types ekt ON (s2."RID" = ekt.schema_rid AND pg_catalog.format_type(et.oid, NULL)::text = ekt.type_name)
   LEFT JOIN pg_catalog.pg_description d ON (d.classoid = t.tableoid AND d.objoid = t.oid AND d.objsubid = 0)
   WHERE t.typtype = 'd'
     AND pg_catalog.pg_type_is_visible(t.oid)
