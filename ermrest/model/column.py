@@ -572,11 +572,14 @@ class FreetextColumn (Column):
     def sql_name_with_talias(self, talias, output=False):
         if output:
             # output column reference as whole-row nested record
-            fields = []
-            for c in self.columns:
-                fields.append(sql_literal(c.name))
-                fields.append('%s.%s' % (talias, c.sql_name()))
-            return 'jsonb_build_object(%s)' % (','.join(fields),)
+            all_cnames = { c.name for c in self.table.columns.values() }
+            use_cnames = { c.name for c in self.columns }
+            skip_cnames = all_cnames - use_cnames
+            # use row_to_json() to get nice casting behavior
+            return 'row_to_json(%(tstar)s)::jsonb - ARRAY[%(stripcols)s]::text[]' % {
+                'tstar': ('%s.*' % talias) if talias else '*',
+                'stripcols': ','.join([ sql_literal(cname) for cname in skip_cnames ]),
+            }
         else:
             # internal column reference for predicate evaluation
             colnames = [
