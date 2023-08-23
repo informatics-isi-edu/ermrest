@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2021 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 # limitations under the License.
 #
 
-import web
 import json
+from webauthn2.util import deriva_ctx
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet
@@ -253,7 +253,7 @@ RETURNING key_rid;
                 'DELETE FROM _ermrest.known_keys WHERE "RID" = %s;' % sql_literal(self.rid),
             )
         del self.table.uniques[self.columns]
-        if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
+        if deriva_ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
             raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
 
     def prejson(self):
@@ -432,7 +432,7 @@ SELECT _ermrest.model_version_bump();
     'rid': sql_literal(self.rid),
 })
         del self.table.uniques[self.columns]
-        if web.ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
+        if deriva_ctx.ermrest_config.get('require_primary_keys', True) and not self.table.has_primary_key():
             raise exception.ConflictModel('Cannot remove only remaining not-null key on table %s.' % self.table)
 
     @cache_rights
@@ -560,7 +560,7 @@ def _keyref_prejson(self):
 def _keyref_rights(self):
     rights = self._rights()
     for aclname in {'insert', 'update'}:
-        if rights[aclname] and web.ctx.ermrest_history_snaptime is None:
+        if rights[aclname] and deriva_ctx.ermrest_history_snaptime is None:
             rights[aclname] = self.foreign_key.columns_have_right(aclname)
     return rights
 

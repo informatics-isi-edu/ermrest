@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2021 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@ needed by other modules of the ermrest project.
 
 import urllib
 import json
-import web
 from functools import reduce
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from .. import exception, ermpath
 from ..util import sql_identifier, sql_literal, table_exists, OrderedFrozenSet
@@ -41,7 +41,7 @@ def _execute_if(cur, sql):
         try:
             cur.execute(sql)
         except:
-            web.debug('Got error executing SQL: %s' % sql)
+            deriva_debug('Got error executing SQL: %s' % sql)
             raise
 
 @annotatable
@@ -120,8 +120,8 @@ class Table (object):
         if not self.schema.has_right('enumerate', roles):
             return False
         # a table without history is not enumerable during historical access
-        if web.ctx.ermrest_history_snaptime is not None:
-            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
+        if deriva_ctx.ermrest_history_snaptime is not None:
+            if not table_exists(deriva_ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
                 return False
             if self.annotations.get(self.tag_history_capture, True) is False:
                 return False
@@ -152,7 +152,7 @@ class Table (object):
             if not require:
                 if warn:
                     # convert error to warning in log
-                    web.debug('WARNING: %s' % te)
+                    deriva_debug('WARNING: %s' % te)
             else:
                 raise te
 
@@ -318,7 +318,7 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
 
         if not table.has_right('owner'):
             # client gets ownership by default
-            table.acls['owner'] = [web.ctx.webauthn2_context.get_client_id()]
+            table.acls['owner'] = [deriva_ctx.webauthn2_context.get_client_id()]
             # merge client-specified ACLs on top
             table.acls.update(acls)
             acls = table.acls.copy()
@@ -362,7 +362,7 @@ ORDER BY column_num;
                 _execute_if(cur, column.pg_trgm_index_sql())
                 _execute_if(cur, column.pg_gin_array_index_sql())
             except Exception as e:
-                web.debug(table, column, e)
+                deriva_debug(table, column, e)
                 raise
 
         try:
@@ -466,7 +466,7 @@ UPDATE %(sname)s.%(tname)s SET %(cname)s = %(default)s;
             _execute_if(cur, column.pg_trgm_index_sql())
             _execute_if(cur, column.pg_gin_array_index_sql())
         except Exception as e:
-            web.debug(table, column, e)
+            deriva_debug(table, column, e)
             raise
         return column
 
@@ -507,7 +507,7 @@ WHERE "RID" = %s;
             try:
                 _execute_if(cur, fk_cols[0].btree_index_sql())
             except Exception as e:
-                web.debug(self, fk_cols[0], e)
+                deriva_debug(self, fk_cols[0], e)
                 raise
 
             yield fkr
@@ -568,8 +568,8 @@ WHERE "RID" = %s;
 
            The result is a schema-qualified table name for dynauthz=None, else a subquery.
         """
-        if web.ctx.ermrest_history_snaptime is not None:
-            if not table_exists(web.ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
+        if deriva_ctx.ermrest_history_snaptime is not None:
+            if not table_exists(deriva_ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
                 raise exception.ConflictModel(u'Historical data not available for table %s.' % self.name)
             tsql = """
 (SELECT %(projs)s
@@ -581,7 +581,7 @@ WHERE "RID" = %s;
         for c in self.columns_in_order(enforce_client=False)
     ]),
     'htable': "_ermrest_history.%s" % sql_identifier("t%s" % self.rid),
-    'when': sql_literal(web.ctx.ermrest_history_snaptime),
+    'when': sql_literal(deriva_ctx.ermrest_history_snaptime),
 }
         else:
             tsql = '%s.%s' % (sql_identifier(self.schema.name), sql_identifier(self.name))

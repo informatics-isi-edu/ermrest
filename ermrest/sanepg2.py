@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,11 +41,11 @@ result before serialization commences.
 
 import psycopg2
 import psycopg2.pool
-import web
 import sys
 import traceback
 import datetime
 import math
+from webauthn2.util import deriva_debug
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.
@@ -153,13 +153,7 @@ class PooledConnection (object):
         try:
             result = bodyfunc(self.conn, self.cur)
             self.conn.commit()
-            result = finalfunc(result)
-            if hasattr(result, '__next__'):
-                # need to defer cleanup to after result is drained
-                for d in result:
-                    yield d
-            else:
-                yield result
+            return finalfunc(result)
         except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
             # reset bad connection
             if self.used_pool:
@@ -174,7 +168,7 @@ class PooledConnection (object):
                 self.conn.rollback()
             if verbose:
                 et, ev, tb = sys.exc_info()
-                web.debug(u'got exception "%s" during sanepg2.PooledConnection.perform()' % ev,
+                deriva_debug(u'got exception "%s" during sanepg2.PooledConnection.perform()' % ev,
                           traceback.format_exception(et, ev, tb))
             raise
 

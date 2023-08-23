@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2022 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 """
 
-import web
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from ..util import sql_literal
 from ..exception import *
@@ -136,7 +136,7 @@ class AclPredicate (object):
     def sql_where(self, epath, elem, prefix=''):
         lname = '%st%d.%s' % (prefix, self.left_elem.pos, self.left_col.sql_name())
         if self.binding['projection_type'] == 'acl':
-            attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in web.ctx.webauthn2_context.attributes ] + [sql_literal('*')])
+            attrs = 'ARRAY[%s]::text[]' % ','.join([ sql_literal(a['id']) for a in deriva_ctx.webauthn2_context.attributes ] + [sql_literal('*')])
             if self.left_col.type.is_array:
                 return '%s && %s' % (lname, attrs)
             else:

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2021 University of Southern California
+# Copyright 2010-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ abstract syntax tree (AST)
 
 import ply.yacc as yacc
 import threading
-import web
 import urllib
+from webauthn2.util import deriva_ctx, deriva_debug, web_storage
 
 from ..exception import *
 from ..model import predicate, normalized_history_snaptime, current_history_amendver
@@ -112,9 +112,9 @@ def p_catalog(p):
 def p_catalog_when(p):
     """catalog : serviceslash CATALOG '/' string '@' string"""
     p[0] = ast.Catalog(p[4])
-    cur = web.ctx.ermrest_catalog_pc.cur
-    web.ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[6])
-    web.ctx.ermrest_history_amendver = current_history_amendver(cur, web.ctx.ermrest_history_snaptime)
+    cur = deriva_ctx.ermrest_catalog_pc.cur
+    deriva_ctx.ermrest_history_snaptime = normalized_history_snaptime(cur, p[6])
+    deriva_ctx.ermrest_history_amendver = current_history_amendver(cur, deriva_ctx.ermrest_history_snaptime)
 
 def p_resolve_entity_rid(p):
     """resolve_entity_rid : catalogslash ENTITY_RID '/' string"""
@@ -534,12 +534,8 @@ def p_disjunction_grow(p):
     p[0].append( p[3] )
 
 def p_expr2_multistring(p):
-    """expr2 : '(' multistring ')' """
-    p[0] = p[2].with_quantifier(None)
-
-def p_expr2_multistring_quantifier(p):
-    """expr2 : string '(' multistring ')' """
-    p[0] = p[3].with_quantifier(p[1])
+    """expr2 : multistring """
+    p[0] = p[1]
 
 def p_expr2_const(p):
     """expr2 : expr """
@@ -553,14 +549,33 @@ def p_expr_empty(p):
     """expr : """
     p[0] = predicate.Value('')
 
-def p_multistring(p):
-    """multistring : string"""
-    p[0] = predicate.ValueList([ predicate.Value(p[1]) ])
+def p_multistring_start_noquant(p):
+    """multistring : '(' """
+    p[0] = predicate.ValueList([]).with_quantifier(None)
 
-def p_multistring_grow(p):
-    """multistring : multistring ',' string"""
+def p_multistring_start(p):
+    """multistring : string '(' """
+    p[0] = predicate.ValueList([]).with_quantifier(p[1])
+
+def p_multistring_continue_empty(p):
+    """multistring : multistring ','"""
     p[0] = p[1]
-    p[0].append( predicate.Value(p[3]) )
+    p[0].append( predicate.Value('') )
+
+def p_multistring_continue(p):
+    """multistring : multistring string ','"""
+    p[0] = p[1]
+    p[0].append( predicate.Value(p[2]) )
+
+def p_multistring_final_empty(p):
+    """multistring : multistring ')'"""
+    p[0] = p[1]
+    p[0].append( predicate.Value('') )
+
+def p_multistring_final(p):
+    """multistring : multistring string ')'"""
+    p[0] = p[1]
+    p[0].append( predicate.Value(p[2]) )
 
 def p_op(p):
     """op : '='"""
@@ -762,7 +777,7 @@ def p_queryopts(p):
 
 def p_queryopts_empty(p):
     """queryopts_empty : """
-    p[0] = web.storage()
+    p[0] = web_storage()
 
 def queryopts_add(q, k, v=None):
     """Add value to queryopts by key, handling special cases.
@@ -799,7 +814,7 @@ def queryopts_add(q, k, v=None):
 
 def p_queryopts_nonempty(p):
     """queryopts_nonempty : '?' queryopts_elem"""
-    p[0] = web.storage()
+    p[0] = web_storage()
     k, v = p[2]
     queryopts_add(p[0], k, v)
 

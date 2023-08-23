@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-import web
-
 import sys
 
 from ermrest.url import url_parse_func

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2020 University of Southern California
+# Copyright 2010-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,15 +19,15 @@
 """
 
 import json
-import web
 import psycopg2.extensions
 import base64
 import hashlib
+import flask
+from webauthn2.util import deriva_ctx, deriva_debug, negotiated_content_type
 
 from . import model, data, resolver
-from .api import ApiBase, Api, negotiated_content_type
+from .api import ApiBase, Api
 from ... import exception, catalog, sanepg2
-from ...apicore import web_method
 from ...exception import *
 from ...model import current_catalog_snaptime
 from ...util import sql_literal, service_features, __version__
@@ -41,31 +41,28 @@ class Service (object):
     default_content_type = _application_json
     supported_types = [default_content_type,]
 
-    @web_method()
     def GET(self, uri=''):
         """Perform HTTP GET of service advertisement
         """
         # content negotiation
-        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
+        content_type = negotiated_content_type(flask.request.environ, self.supported_types, self.default_content_type)
 
         try:
-            status = web.ctx.ermrest_registry.healthcheck()
+            status = deriva_ctx.ermrest_registry.healthcheck()
             response = {
                 "version": __version__,
                 "features": service_features(),
             }
         except Exception as e:
-            web.debug(e)
+            deriva_debug(e)
             raise rest.ServiceUnavailable('Registry health-check failed.')
 
-        web.header('Content-Type', content_type)
-        web.ctx.ermrest_request_content_type = content_type
-
-        # set location header and status
-        web.ctx.status = '200 OK'
+        deriva_ctx.deriva_response.content_type = content_type
+        deriva_ctx.deriva_response.status_code = 200
 
         assert content_type == _application_json
-        return json.dumps(response) + '\n'
+        deriva_ctx.deriva_response.response = [ json.dumps(response) + '\n', ]
+        return deriva_ctx.deriva_response
 
     def with_queryopts(self, qopt):
         # stub to satisfy ermrest.url.ast.api.Api interface
@@ -81,20 +78,19 @@ class Catalogs (object):
     default_content_type = _application_json
     supported_types = [default_content_type, _text_plain]
 
-    @web_method()
     def POST(self, uri='catalog'):
         """Perform HTTP POST of catalogs.
         """
         # content negotiation
-        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
+        content_type = negotiated_content_type(flask.request.environ, self.supported_types, self.default_content_type)
 
         # registry acl enforcement
-        allowed = web.ctx.ermrest_registry.can_create(web.ctx.webauthn2_context.attributes)
+        allowed = deriva_ctx.ermrest_registry.can_create(deriva_ctx.webauthn2_context.attributes)
         if not allowed:
             raise rest.Forbidden(uri)
 
         # optional input
-        docstr = web.ctx.env['wsgi.input'].read().decode().strip()
+        docstr = flask.request.stream.read().decode().strip()
         if docstr:
             try:
                 doc = json.loads(docstr)
@@ -107,32 +103,34 @@ class Catalogs (object):
         annotations = doc.get('annotations')
 
         # create the catalog instance
-        catalog_id = web.ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=owner)
-        catalog = web.ctx.ermrest_catalog_factory.create(catalog_id)
+        catalog_id = deriva_ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=owner)
+        catalog = deriva_ctx.ermrest_catalog_factory.create(catalog_id)
 
         # initialize the catalog instance
         pc = sanepg2.PooledConnection(catalog.dsn)
         try:
-            next(pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=owner, annotations=annotations)))
+            pc.perform(lambda conn, cur: catalog.init_meta(conn, cur, owner=owner, annotations=annotations))
         finally:
             pc.final()
 
         # register the catalog descriptor
-        entry = web.ctx.ermrest_registry.register(catalog_id, descriptor=catalog.descriptor)
+        entry = deriva_ctx.ermrest_registry.register(catalog_id, descriptor=catalog.descriptor)
 
-        web.header('Content-Type', content_type)
-        web.ctx.ermrest_request_content_type = content_type
+        deriva_ctx.deriva_response.content_type = content_type
+        deriva_ctx.ermrest_request_content_type = content_type
 
         # set location header and status
         location = '/ermrest/catalog/%s' % catalog_id
-        web.header('Location', location)
-        web.ctx.status = '201 Created'
+        deriva_ctx.deriva_response.location = location
+        deriva_ctx.deriva_response.status_code = 201
 
         if content_type == _text_plain:
-            return str(catalog_id)
+            deriva_ctx.deriva_response.response = [ str(catalog_id), ]
         else:
             assert content_type == _application_json
-            return json.dumps(dict(id=catalog_id))
+            deriva_ctx.deriva_response.response = [ json.dumps({"id": catalog_id}), ]
+
+        return deriva_ctx.deriva_response
 
 class CatalogAliases (object):
     """A multi-tenant catalog alias set."""
@@ -140,20 +138,19 @@ class CatalogAliases (object):
     default_content_type = _application_json
     supported_types = [default_content_type, _text_plain]
 
-    @web_method()
     def POST(self, uri='catalog'):
         """Perform HTTP POST of catalog aliases.
         """
         # content negotiation
-        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
+        content_type = negotiated_content_type(flask.request.environ, self.supported_types, self.default_content_type)
 
         # registry acl enforcement
-        allowed = web.ctx.ermrest_registry.can_create(web.ctx.webauthn2_context.attributes)
+        allowed = deriva_ctx.ermrest_registry.can_create(deriva_ctx.webauthn2_context.attributes)
         if not allowed:
             raise rest.Forbidden(uri)
 
         # optional input
-        docstr = web.ctx.env['wsgi.input'].read().decode().strip()
+        docstr = flask.request.stream.read().decode().strip()
         if docstr:
             try:
                 doc = json.loads(docstr)
@@ -163,24 +160,23 @@ class CatalogAliases (object):
             doc = {}
 
         # create the alias entry
-        catalog_id = web.ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=doc.get('owner'))
+        catalog_id = deriva_ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=doc.get('owner'))
 
         # register the catalog descriptor
-        entry = web.ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
+        entry = deriva_ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
 
-        web.header('Content-Type', content_type)
-        web.ctx.ermrest_request_content_type = content_type
-
-        # set location header and status
         location = '/ermrest/catalog/%s' % catalog_id
-        web.header('Location', location)
-        web.ctx.status = '201 Created'
+        deriva_ctx.deriva_response.content_type = content_type
+        deriva_ctx.deriva_response.location = location
+        deriva_ctx.deriva_response.status_code = 201
 
         if content_type == _text_plain:
-            return str(catalog_id)
+            deriva_ctx.deriva_response.response = [ str(catalog_id), ]
         else:
             assert content_type == _application_json
-            return json.dumps(dict(id=catalog_id))
+            deriva_ctx.deriva_response.response = [ json.dumps({"id": catalog_id}), ]
+
+        return deriva_ctx.deriva_response
 
 def _acls_to_meta(acls):
     meta_keys = {
@@ -210,25 +206,25 @@ class Catalog (Api):
     def __init__(self, catalog_id):
         self.catalog_id = catalog_id
         self.manager = None
-        entries = web.ctx.ermrest_registry.lookup(catalog_id)
+        entries = deriva_ctx.ermrest_registry.lookup(catalog_id)
         if not entries:
             raise exception.rest.NotFound('catalog ' + str(catalog_id))
         entry = entries[0]
         self.manager = catalog.Catalog(
-            web.ctx.ermrest_catalog_factory, 
+            deriva_ctx.ermrest_catalog_factory,
             reg_entry=entry,
-            config=web.ctx.ermrest_config,
+            config=deriva_ctx.ermrest_config,
         )
         
-        assert web.ctx.ermrest_catalog_pc is None
-        web.ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
+        assert deriva_ctx.ermrest_catalog_pc is None
+        deriva_ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
 
         Api.__init__(self, self)
         # now enforce read permission
         self.enforce_right('enumerate', 'catalog/' + str(self.catalog_id))
 
     def final(self):
-        web.ctx.ermrest_catalog_pc.final()
+        deriva_ctx.ermrest_catalog_pc.final()
 
     def acls(self):
         return model.CatalogAcl(self)
@@ -277,11 +273,11 @@ class Catalog (Api):
         return resolver.EntityRidResolver(self, rid)
 
     def GET_body(self, conn, cur):
-        _model = web.ctx.ermrest_catalog_model
-        if web.ctx.ermrest_history_snaptime is not None:
-            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_snaptime))
+        _model = deriva_ctx.ermrest_catalog_model
+        if deriva_ctx.ermrest_history_snaptime is not None:
+            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(deriva_ctx.ermrest_history_snaptime))
             self.catalog_snaptime = cur.fetchone()[0]
-            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(web.ctx.ermrest_history_amendver))
+            cur.execute("SELECT _ermrest.tstzencode(%s::timestamptz);" % sql_literal(deriva_ctx.ermrest_history_amendver))
             self.catalog_amendver = cur.fetchone()[0]
         else:
             self.catalog_snaptime = current_catalog_snaptime(cur, encode=True)
@@ -292,8 +288,8 @@ class Catalog (Api):
         """Perform HTTP GET of catalog.
         """
         # content negotiation
-        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
-        web.ctx.ermrest_request_content_type = content_type
+        content_type = negotiated_content_type(flask.request.environ, self.supported_types, self.default_content_type)
+        deriva_ctx.ermrest_request_content_type = content_type
         
         def post_commit(_model):
             # note that the 'descriptor' includes private system information such 
@@ -303,17 +299,16 @@ class Catalog (Api):
             resource["id"] = self.catalog_id
             if self.manager.alias_target is not None:
                 resource["alias_target"] = self.manager.alias_target
-            response = json.dumps(resource) + '\n'
             if self.catalog_amendver:
                 self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )
             else:
                 self.set_http_etag( self.catalog_snaptime )
             self.http_check_preconditions()
             self.emit_headers()
-            web.header('Content-Type', content_type)
-            web.header('Content-Length', len(response))
-            return response
-        
+            deriva_ctx.deriva_response.content_type = content_type
+            deriva_ctx.deriva_response.response = [ json.dumps(resource) + '\n', ]
+            return deriva_ctx.deriva_response
+
         return self.perform(self.GET_body, post_commit)
     
     def DELETE(self, uri):
@@ -321,20 +316,21 @@ class Catalog (Api):
         """
         def body(conn, cur):
             self.enforce_right('owner', uri)
-            if web.ctx.ermrest_history_snaptime is not None:
+            if deriva_ctx.ermrest_history_snaptime is not None:
                 raise exception.Forbidden('deletion of catalog at previous revision')
-            if web.ctx.ermrest_history_snaprange is not None:
+            if deriva_ctx.ermrest_history_snaprange is not None:
                 # should not be possible bug check anyway...
                 raise NotImplementedError('deletion of catalog with snapshot range')
-            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            self.set_http_etag( deriva_ctx.ermrest_catalog_model.etag() )
             self.http_check_preconditions(method='DELETE')
             self.emit_headers()
             return True
 
         def post_commit(destroy):
-            web.ctx.ermrest_registry.unregister(self.catalog_id)
-            web.ctx.status = '204 No Content'
-            return ''
+            deriva_ctx.ermrest_registry.unregister(self.catalog_id)
+            deriva_ctx.deriva_response.status_code = 204
+            deriva_ctx.deriva_response.response = []
+            return deriva_ctx.deriva_response
 
         return self.perform(body, post_commit)
 
@@ -343,29 +339,30 @@ class Catalog (Api):
         """
         def body(conn, cur):
             self.enforce_right('owner', uri)
-            if web.ctx.ermrest_history_snaptime is not None:
+            if deriva_ctx.ermrest_history_snaptime is not None:
                 raise exception.Forbidden('maintenance of catalog at previous revision')
-            if web.ctx.ermrest_history_snaprange is not None:
+            if deriva_ctx.ermrest_history_snaprange is not None:
                 # should not be possible bug check anyway...
                 raise NotImplementedError('maintenance of catalog with snapshot range')
-            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            self.set_http_etag( deriva_ctx.ermrest_catalog_model.etag() )
             self.http_check_preconditions(method='GET')
             self.emit_headers()
             return True
 
         def post_commit(ignore):
             if 'vacuum' in self.queryopts:
-                web.ctx.ermrest_catalog_pc.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-                web.ctx.ermrest_catalog_pc.cur.execute('VACUUM ANALYZE;')
-                web.ctx.ermrest_catalog_pc.conn.commit()
-                web.ctx.ermrest_catalog_pc.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
+                deriva_ctx.ermrest_catalog_pc.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+                deriva_ctx.ermrest_catalog_pc.cur.execute('VACUUM ANALYZE;')
+                deriva_ctx.ermrest_catalog_pc.conn.commit()
+                deriva_ctx.ermrest_catalog_pc.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
             elif 'analyze' in self.queryopts:
-                web.ctx.ermrest_catalog_pc.cur.execute('ANALYZE;')
-                web.ctx.ermrest_catalog_pc.conn.commit()
+                deriva_ctx.ermrest_catalog_pc.cur.execute('ANALYZE;')
+                deriva_ctx.ermrest_catalog_pc.conn.commit()
             else:
                 raise exception.BadData('Maintenance query parameters not recognized.')
-            web.ctx.status = '204 No Content'
-            return ''
+            deriva_ctx.deriva_response.status_code = 204
+            deriva_ctx.deriva_response.response = []
+            return deriva_ctx.deriva_response
 
         return self.perform(body, post_commit)
 
@@ -379,7 +376,7 @@ class CatalogAlias (ApiBase):
         super(CatalogAlias, self)._prepare()
 
         self.catalog_id = catalog_id
-        entries = web.ctx.ermrest_registry.lookup(catalog_id, dangling=True)
+        entries = deriva_ctx.ermrest_registry.lookup(catalog_id, dangling=True)
         if not entries:
             if missing_ok:
                 self.entry = None
@@ -413,7 +410,7 @@ class CatalogAlias (ApiBase):
             return []
 
     def enforce_right(self, acl):
-        if set(self.id_owner).isdisjoint(web.ctx.webauthn2_context.attribute_ids):
+        if set(self.id_owner).isdisjoint(deriva_ctx.webauthn2_context.attribute_ids):
             raise exception.Forbidden('%s access to alias/%s' % (acl, self.catalog_id))
 
     def final(self):
@@ -426,24 +423,21 @@ class CatalogAlias (ApiBase):
             'alias_target': self.entry['alias_target'],
         }
 
-    @web_method()
     def GET(self, catalog_id):
         """Perform HTTP retrieval of catalog alias registry entry
         """
         self._prepare(catalog_id)
         # content negotiation
-        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
-        web.ctx.ermrest_request_content_type = content_type
+        content_type = negotiated_content_type(flask.request.environ, self.supported_types, self.default_content_type)
+        deriva_ctx.ermrest_request_content_type = content_type
 
         resource = self.prejson()
-        response = json.dumps(resource) + '\n'
         self.http_check_preconditions()
         self.emit_headers()
-        web.header('Content-Type', content_type)
-        web.header('Content-Length', len(response))
-        return response
+        deriva_ctx.deriva_response.content_type = content_type
+        deriva_ctx.deriva_response.response = json.dumps(resource) + '\n'
+        return deriva_ctx.deriva_response
 
-    @web_method()
     def PUT(self, catalog_id):
         """Perform HTTP update/create of catalog alias registry entry
         """
@@ -451,7 +445,7 @@ class CatalogAlias (ApiBase):
         self.http_check_preconditions()
 
         # optional input
-        docstr = web.ctx.env['wsgi.input'].read().decode().strip()
+        docstr = flask.request.stream.read().decode().strip()
         if docstr:
             try:
                 doc = json.loads(docstr)
@@ -465,39 +459,38 @@ class CatalogAlias (ApiBase):
 
         if self.entry is None:
             # check static permissions as in POST alias/
-            allowed = web.ctx.ermrest_registry.can_create(web.ctx.webauthn2_context.attributes)
+            allowed = deriva_ctx.ermrest_registry.can_create(deriva_ctx.webauthn2_context.attributes)
             if not allowed:
                 raise rest.Forbidden('alias/%s' % (catalog_id,))
 
         # abuse idempotent claim to update and to check existing claim permissions
-        catalog_id = web.ctx.ermrest_registry.claim_id(id=catalog_id, id_owner=doc.get('owner'))
+        catalog_id = deriva_ctx.ermrest_registry.claim_id(id=catalog_id, id_owner=doc.get('owner'))
 
         # update the alias config
-        entry = web.ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
+        entry = deriva_ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
 
         content_type = _application_json
-        web.ctx.ermrest_request_content_type = content_type
+        deriva_ctx.ermrest_request_content_type = content_type
         response = json.dumps({
             'id': entry['id'],
             'owner': entry['id_owner'],
             'alias_target': entry['alias_target'],
         }) + '\n'
 
-        web.header('Content-Type', content_type)
-        web.header('Content-Length', len(response))
+        deriva_ctx.deriva_response.content_type = content_type
+        deriva_ctx.deriva_response.response = response
 
         # set location header and status
         if self.entry is None:
             location = '/ermrest/alias/%s' % catalog_id
-            web.header('Location', location)
-            web.ctx.status = '201 Created'
+            deriva_ctx.deriva_response.location = location
+            deriva_ctx.deriva_response.status_code = 201
         else:
-            web.ctx.ermrest_request_content_type = None
-            web.ctx.status = '200 OK'
+            deriva_ctx.ermrest_request_content_type = None
+            deriva_ctx.deriva_response.status_code = 200
 
-        return response
+        return deriva_ctx.deriva_response
 
-    @web_method()
     def DELETE(self, catalog_id):
         """Perform HTTP DELETE of catalog alias.
         """
@@ -505,9 +498,10 @@ class CatalogAlias (ApiBase):
         self.http_check_preconditions()
 
         self.enforce_right('owner')
-        web.ctx.ermrest_registry.unregister(self.catalog_id)
-        web.ctx.status = '204 No Content'
-        return ''
+        deriva_ctx.ermrest_registry.unregister(self.catalog_id)
+        deriva_ctx.deriva_response.status_code = 204
+        deriva_ctx.deriva_response.response = []
+        return deriva_ctx.deriva_response
 
 class Meta (Api):
     """A metadata set of the catalog.
@@ -528,17 +522,17 @@ class Meta (Api):
     def GET(self, uri):
         """Perform HTTP GET of catalog metadata.
         """
-        content_type = negotiated_content_type(self.supported_types, self.default_content_type)
+        content_type = negotiated_content_type(flask.request.environ, self.supported_types, self.default_content_type)
         def body(conn, cur):
             self.enforce_right('enumerate', uri)
-            return web.ctx.ermrest_catalog_model.acls
+            return deriva_ctx.ermrest_catalog_model.acls
 
         def post_commit(acls):
-            self.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+            self.set_http_etag( deriva_ctx.ermrest_catalog_model.etag() )
             self.http_check_preconditions()
             self.emit_headers()
-            web.header('Content-Type', content_type)
-            web.ctx.ermrest_request_content_type = content_type
+            deriva_ctx.deriva_response.content_type = content_type
+            deriva_ctx.ermrest_request_content_type = content_type
 
             meta = _acls_to_meta(acls)
 
@@ -549,9 +543,8 @@ class Meta (Api):
                 except KeyError:
                     raise exception.rest.NotFound(uri)
 
-            response = json.dumps(meta) + '\n'
-            web.header('Content-Length', len(response))
-            return response
+            deriva_ctx.deriva_response.response = [ json.dumps(meta) + '\n', ]
+            return deriva_ctx.deriva_response
 
         return self.perform(body, post_commit)
 

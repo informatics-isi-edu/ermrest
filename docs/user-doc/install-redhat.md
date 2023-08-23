@@ -112,10 +112,10 @@ system_u:system_r:unconfined_service_t:s0 22195 ? 00:00:00 postmaster
 # dnf install httpd mod_{ssl,wsgi} python3{,-psycopg2,-setuptools,-ply}
 ```
 
-Install a recent web.py development version from GitHub for Python 3 support, e.g.:
+Install the web framework
 
 ```
-# pip3 install git+https://github.com/webpy/webpy.git
+# pip3 install flask
 ```
 
 ### WebAuthn
@@ -323,4 +323,3 @@ accomplishing this.
 
 [SE-Linux]: http://wiki.centos.org/HowTos/SELinux (Security-Enhanced Linux)
 [WebAuthn]: https://github.com/informatics-isi-edu/webauthn (WebAuthn)
-[web.py]:   http://webpy.org (web.py)

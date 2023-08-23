@@ -19,14 +19,13 @@ General utilities for ERMREST.
 
 # Right now these are all DB related utilities. We should keep it that way.
 
-import web
 import urllib
 import uuid
 import base64
 import collections
-from webauthn2.util import urlquote, negotiated_content_type
+from webauthn2.util import urlquote
 
-__version__ = '0.3.1'
+__version__ = '0.4.0'
 
 def urlunquote(url):
     text = urllib.parse.unquote_plus(url)

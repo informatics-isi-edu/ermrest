@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 #
 
 import json
-import web
 import hashlib
 import base64
+from webauthn2.util import deriva_ctx
 
 from .. import exception
 from ..util import sql_identifier, sql_literal, table_exists
@@ -37,10 +37,10 @@ def frozendict (d):
 
 def _get_ermrest_config():
     """Helper method to return the ERMrest config.
-    """ 
-    if web.ctx and 'ermrest_config' in web.ctx:
-        return web.ctx['ermrest_config']
-    else:
+    """
+    try:
+        return deriva_ctx.ermrest_config
+    except:
         return _default_config
 
 def enforce_63byte_id(s, prefix="Identifier"):
@@ -178,7 +178,7 @@ class AclDict (dict):
         self.clear()
 
     def _digest(self):
-        web.ctx.ermrest_model_rights_cache.clear()
+        deriva_ctx.ermrest_model_rights_cache.clear()
         self._acls = dict()
         for aclname, members in self.items():
             if members is None:
@@ -246,7 +246,7 @@ class DynaclDict (dict):
         self._digest()
 
     def _digest(self):
-        web.ctx.ermrest_model_rights_cache.clear()
+        deriva_ctx.ermrest_model_rights_cache.clear()
         self._binding_types = set()
         for binding in self.values():
             if binding:
@@ -339,7 +339,7 @@ class AclBinding (AltDict):
     def inscope(self, access_type, roles=None):
         """Return True if this ACL binding applies to this access type for this client, False otherwise."""
         if roles is None:
-            roles = web.ctx.ermrest_client_roles
+            roles = deriva_ctx.ermrest_client_roles
         if set(self['scope_acl']).isdisjoint(roles):
             return False
         if set(self['types']).isdisjoint(sufficient_rights[access_type].union({access_type})):
@@ -488,11 +488,11 @@ def keying(restype, keying):
 def cache_rights(orig_method):
     def helper(self, aclname, roles=None, anon_mutation_ok=False):
         key = (self, orig_method, aclname, frozenset(roles) if roles is not None else None, anon_mutation_ok)
-        if key in web.ctx.ermrest_model_rights_cache:
-            result = web.ctx.ermrest_model_rights_cache[key]
+        if key in deriva_ctx.ermrest_model_rights_cache:
+            result = deriva_ctx.ermrest_model_rights_cache[key]
         else:
             result = orig_method(self, aclname, roles)
-            web.ctx.ermrest_model_rights_cache[key] = result
+            deriva_ctx.ermrest_model_rights_cache[key] = result
         return result
     return helper
 
@@ -714,7 +714,7 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
 
         """
         if roles is None:
-            roles = web.ctx.ermrest_client_roles
+            roles = deriva_ctx.ermrest_client_roles
 
         if roles == {'*'} and aclname not in {'enumerate', 'select'} and not anon_mutation_ok:
             # anonymous clients cannot have mutation permissions
@@ -764,7 +764,7 @@ DELETE FROM _ermrest.known_%(restype)s_acls WHERE %(where)s;
 
     def rights(self):
         return {
-            aclname: self.has_right(aclname) if aclname == 'select' or web.ctx.ermrest_history_snaptime is None else False
+            aclname: self.has_right(aclname) if aclname == 'select' or deriva_ctx.ermrest_history_snaptime is None else False
             for aclname in self._acls_rights
         }
 
@@ -851,7 +851,7 @@ INSERT INTO _ermrest.known_%(restype)s_dynacls (%(cols)s binding_name, binding) 
         if binding is False:
             self.dynacls[name] = False
         else:
-            self.dynacls[name] = AclBinding(web.ctx.ermrest_catalog_model, self, name, binding)
+            self.dynacls[name] = AclBinding(deriva_ctx.ermrest_catalog_model, self, name, binding)
 
         interp = self._interp_dynacl(name, binding)
         cur.execute("""

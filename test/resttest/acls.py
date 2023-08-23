@@ -136,7 +136,7 @@ class Acls (common.ErmrestTest):
         self._checkval(acl, value if value is not None or self.can_remove else [])
 
     def _delete(self, acl):
-        self.assertHttp(self.session.delete(self._url(acl)), 200)
+        self.assertHttp(self.session.delete(self._url(acl)), 204)
         self._checkval(acl, None if self.can_remove else [])
 
     def _unsupported(self, acl):

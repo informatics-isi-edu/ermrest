@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2021 University of Southern California
+# Copyright 2010-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ any request bearing escaped slashes meant to be user data.
 """
 
 import ply.lex
-import web
+from webauthn2.util import deriva_debug
 
 from ..exception import *
 from ..util import urlunquote
@@ -147,7 +147,7 @@ def t_STRING(t):
     return t
 
 def t_error(t):
-    web.debug(t)
+    deriva_debug(t)
     raise LexicalError()
 
 def make_lexer():

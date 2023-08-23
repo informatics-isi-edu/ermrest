@@ -23,11 +23,11 @@ navigating, and manipulating data in an ERMREST catalog.
 """
 import psycopg2
 import csv
-import web
 import json
 import re
 import datetime
 from datetime import timezone
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from psycopg2._json import JSON_OID, JSONB_OID
 
@@ -50,15 +50,15 @@ class _NullEntityElem (object):
 def _set_statement_timeout(cur):
     """Try to set a sensible timeout for the next statement we will execute."""
     try:
-        request_timeout_s = float(web.ctx.ermrest_config.get('request_timeout_s', '55'))
-        elapsed = datetime.datetime.now(timezone.utc) - web.ctx.ermrest_start_time
+        request_timeout_s = float(deriva_ctx.ermrest_config.get('request_timeout_s', '55'))
+        elapsed = datetime.datetime.now(timezone.utc) - deriva_ctx.ermrest_start_time
         remaining_time_s = request_timeout_s - elapsed.total_seconds()
         if remaining_time_s < 0:
             raise rest.BadRequest('Query run time limit exceeded.')
         timeout_ms = int(1000.0 * max(remaining_time_s, 0.001))
         cur.execute("SELECT set_config('statement_timeout', %s, true);" % sql_literal(timeout_ms))
     except Exception as e:
-        web.debug(e)
+        deriva_debug(e)
         pass
 
 def get_dynacl_clauses(src, access_type, prefix, dynacls=None):
@@ -1658,7 +1658,7 @@ class AnyPath (object):
 
         sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True)
 
-        #web.debug(sql)
+        #deriva_debug(sql)
 
         if output_file:
             # efficiently send results to file
@@ -1690,7 +1690,7 @@ class AnyPath (object):
             else:
                 raise NotImplementedError('content_type %s' % content_type)
 
-            #web.debug(sql)
+            #deriva_debug(sql)
             _set_statement_timeout(cur)
             cur.execute(sql)
             
@@ -2723,7 +2723,7 @@ def row_to_csv(row, desc=None):
     try:
         return ','.join([ val_to_csv(row[i], desc[i] if desc is not None else None) for i in range(len(row)) ])
     except Exception as e:
-        web.debug('row_to_csv', row, e)
+        deriva_debug('row_to_csv', row, e)
         raise
        
 class TextFacet (AnyPath):
@@ -2752,7 +2752,7 @@ class TextFacet (AnyPath):
             else:
                 return {}
 
-        policy = web.ctx.ermrest_config.get('textfacet_policy', False)
+        policy = deriva_ctx.ermrest_config.get('textfacet_policy', False)
             
         for sname, schema in self._model.schemas.items():
             if not schema.has_right('enumerate'):

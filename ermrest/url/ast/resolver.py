@@ -1,6 +1,6 @@
 
 #
-# Copyright 2018-2019 University of Southern California
+# Copyright 2018-2023 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #
 
 import json
-import web
+from webauthn2.util import deriva_ctx
 
 from .api import Api
 from .model import _GET, _post_commit_json
@@ -120,7 +120,7 @@ WHERE t."RID" = %(table_rid)s
     def GET_body(self, conn, cur):
         """Resolve RID"""
         # TODO: add rights check here if we decide not to leave this public
-        row = self._table_found_or_gone(cur, self._resolve_rid, web.ctx.ermrest_history_snaptime)
+        row = self._table_found_or_gone(cur, self._resolve_rid, deriva_ctx.ermrest_history_snaptime)
         if row is None:
             raise exception.rest.NotFound('entity with RID=%s' % self._resolve_rid)
 
@@ -130,11 +130,11 @@ WHERE t."RID" = %(table_rid)s
             last_visible = self._last_visible_snaptime(cur, table_rid, entity_rid, gone_when)
             sname, tname = self._table_info(cur, table_rid, last_visible)
         else:
-            sname, tname = self._table_info(cur, table_rid, web.ctx.ermrest_history_snaptime)
+            sname, tname = self._table_info(cur, table_rid, deriva_ctx.ermrest_history_snaptime)
 
         if sname == '_ermrest':
             # for now, we act like model element RIDs are non-resolvable
-            web.ctx.ermrest_request_trace(
+            deriva_ctx.ermrest_request_trace(
                 'Refusing resolution of model entity %s:%s/RID=%s' % (sname, tname, self._resolve_rid)
             )
             raise exception.rest.NotFound('entity with RID=%s' % self._resolve_rid)

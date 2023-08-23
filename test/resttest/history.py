@@ -79,17 +79,23 @@ class CatalogWhen (common.ErmrestTest):
         r.raise_for_status()
         cls.latest = r.json()['snaptime']
 
-    def test_at_latest(self):
+    def _test_at_latest(self):
         r = self.session.get((self.latest, self.container_resource))
         self.assertHttp(r, 200, 'application/json')
         self.assertEqual(self.latest, r.json()['snaptime'])
         return r
 
-    def test_at_earliest(self):
+    def test_at_latest(self):
+        self._test_at_latest()
+
+    def _test_at_earliest(self):
         r = self.session.get((catalog_initial_version, self.container_resource))
         self.assertHttp(r, 200, 'application/json')
         self.assertEqual(catalog_initial_version, r.json()['snaptime'])
         return r
+
+    def test_at_earliest(self):
+        self._test_at_earliest()
 
     def test_no_put_annotation(self):
         self.assertHttp(self.session.put((catalog_initial_version, '%s/HISTORY' % self.annotation_resource), json=[]), 403)
@@ -101,11 +107,11 @@ class ModelWhen (CatalogWhen):
     container_resource = 'schema'
     
     def test_annotation_at_latest(self):
-        r = self.test_at_latest()
+        r = self._test_at_latest()
         self.assertIn('HISTORY', r.json()['annotations'])
 
     def test_annotation_at_earliest(self):
-        r = self.test_at_earliest()
+        r = self._test_at_earliest()
         self.assertNotIn('HISTORY', r.json()['annotations'])
 
     def test_no_post_schema(self):

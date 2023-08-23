@@ -110,7 +110,7 @@ class AclBindingT1 (common.ErmrestTest):
         expected = self.initial_dynacls.copy()
         expected.update(self.additional_dynacls)
         for binding_name, binding in self.additional_dynacls.items():
-            self.assertHttp(self.session.delete(self._url(binding_name)), 200)
+            self.assertHttp(self.session.delete(self._url(binding_name)), 204)
             del expected[binding_name]
             self._check(expected)
 
@@ -121,7 +121,7 @@ class AclBindingT1 (common.ErmrestTest):
         self._check(self.replacement_dynacls)
 
     def test_5_deletion(self):
-        self.assertHttp(self.session.delete(self._url()), 200)
+        self.assertHttp(self.session.delete(self._url()), 204)
         self._check({})
 
     def test_6_conflicts(self):

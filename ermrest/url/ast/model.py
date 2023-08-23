@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2021 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,24 +20,23 @@
 """
 
 import json
-import web
+import flask
+from webauthn2.util import deriva_ctx, deriva_debug
 
 from ... import exception
 from ... import model
 from .api import Api
-from ...util import negotiated_content_type, OrderedFrozenSet
+from ...util import OrderedFrozenSet
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
     handler.emit_headers()
-    if resource is None and content_type == 'text/plain':
-        return ''
-    if resource == '' and web.ctx.status == '200 OK':
-        web.ctx.status = '204 No Content'
-        return ''
-    web.header('Content-Type', content_type)
     response = transform(resource)
-    web.header('Content-Length', len(response))
-    return response
+    if (response is None or response == '') and deriva_ctx.deriva_response.status_code == 200:
+        deriva_ctx.deriva_response.status_code = 204
+        return deriva_ctx.deriva_response
+    deriva_ctx.deriva_response.content_type = content_type
+    deriva_ctx.deriva_response.response = [ response, ]
+    return deriva_ctx.deriva_response
 
 def _post_commit_json(handler, resource):
     def prejson(v):
@@ -56,31 +55,31 @@ def _post_commit_json(handler, resource):
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
         handler.enforce_right('enumerate')
-        handler.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+        handler.set_http_etag( deriva_ctx.ermrest_catalog_model.etag() )
         handler.http_check_preconditions()
         return thunk(conn, cur)
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
 
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
-        if web.ctx.ermrest_history_snaptime is not None:
+        if deriva_ctx.ermrest_history_snaptime is not None:
             raise exception.Forbidden('modification to catalog at previous revision')
-        if web.ctx.ermrest_history_snaprange is not None:
+        if deriva_ctx.ermrest_history_snaprange is not None:
             # should not be possible bug check anyway...
             raise NotImplementedError('modification on %s with snaprange' % handler)
         # we need a private (uncached) copy of model because we mutate it optimistically
         # and this could corrupt a cached copy
-        web.ctx.ermrest_catalog_model = handler.catalog.manager.get_model(cur, private=True)
-        handler.set_http_etag( web.ctx.ermrest_catalog_model.etag() )
+        deriva_ctx.ermrest_catalog_model = handler.catalog.manager.get_model(cur, private=True)
+        handler.set_http_etag( deriva_ctx.ermrest_catalog_model.etag() )
         handler.http_check_preconditions(method='PUT')
         result = thunk(conn, cur)
-        handler.set_http_etag( web.ctx.ermrest_catalog_model.etag(cur) )
+        handler.set_http_etag( deriva_ctx.ermrest_catalog_model.etag(cur) )
         return result
     return handler.perform(body, lambda resource: _post_commit(handler, resource))
 
 def _MODIFY_with_json_input(handler, thunk, _post_commit):
     try:
-        doc = json.loads(web.ctx.env['wsgi.input'].read().decode())
+        doc = json.loads(flask.request.stream.read().decode())
     except:
         raise exception.rest.BadRequest('Could not deserialize JSON input.')
     return _MODIFY(handler, lambda conn, cur: thunk(conn, cur, doc), _post_commit)
@@ -91,7 +90,7 @@ class Schemas (Api):
         Api.__init__(self, catalog)
 
     def GET_body(self, conn, cur):
-        return web.ctx.ermrest_catalog_model
+        return deriva_ctx.ermrest_catalog_model
         
     def GET(self, uri):
         def _post_commit(handler, model):
@@ -104,7 +103,7 @@ class Schemas (Api):
     def POST_body(self, conn, cur, doc):
         """Create schemas and/or tables."""
         # don't collide with model module...
-        modelobj = web.ctx.ermrest_catalog_model
+        modelobj = deriva_ctx.ermrest_catalog_model
 
         deferred_fkeys = []
         
@@ -129,7 +128,7 @@ class Schemas (Api):
                 
             for tname, tdoc in sdoc.get('tables', {}).items():
                 extract_fkeys(sname, tname, tdoc)
-            return model.Schema.create_fromjson(conn, cur, modelobj, sdoc, web.ctx.ermrest_config)
+            return model.Schema.create_fromjson(conn, cur, modelobj, sdoc, deriva_ctx.ermrest_config)
 
         def run_table_pass1(tdoc):
             """Create one table while deferring fkeys."""
@@ -140,7 +139,7 @@ class Schemas (Api):
                 raise exception.BadData('Each table document must have a %s field.' % e)
             extract_fkeys(sname, tname, tdoc)
             schema = modelobj.schemas[sname]
-            return model.Table.create_fromjson(conn, cur, schema, tdoc, web.ctx.ermrest_config)
+            return model.Table.create_fromjson(conn, cur, schema, tdoc, deriva_ctx.ermrest_config)
 
         def run_key(kdoc):
             """Create one key."""
@@ -217,7 +216,7 @@ class Schemas (Api):
            The schemadoc inputs can have nested tabledocs which are also created.
         """
         def post_commit(self, resource):
-            web.ctx.status = '201 Created'
+            deriva_ctx.deriva_response.status_code = 201
             return _post_commit_json(self, resource)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
     
@@ -249,7 +248,7 @@ class Schema (Api):
 
     def GET_body(self, conn, cur, final=False):
         try:
-            return web.ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
+            return deriva_ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
         except exception.ConflictModel as e:
             if final:
                 raise exception.NotFound(u'schema %s' % self.name)
@@ -259,17 +258,17 @@ class Schema (Api):
         return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
 
     def POST_body(self, conn, cur):
-        return web.ctx.ermrest_catalog_model.create_schema(conn, cur, self.name.one_str())
+        return deriva_ctx.ermrest_catalog_model.create_schema(conn, cur, self.name.one_str())
 
     def POST(self, uri):
         def post_commit(self, ignored):
-            web.ctx.status = '201 Created'
+            deriva_ctx.deriva_response.status_code = 201
             return _post_commit(self, '')
         return _MODIFY(self, self.POST_body, post_commit)
 
     def DELETE_body(self, conn, cur):
         schema = self.GET_body(conn, cur, True)
-        web.ctx.ermrest_catalog_model.delete_schema(conn, cur, schema.name)
+        deriva_ctx.ermrest_catalog_model.delete_schema(conn, cur, schema.name)
         return ''
             
     def DELETE(self, uri):
@@ -279,8 +278,8 @@ class Schema (Api):
         schemadoc['schema_name'] = schemadoc.get('schema_name', self.name.one_str())
         try:
             # handle alteration of existing schema
-            schema = web.ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
-            return schema.update(conn, cur, schemadoc, web.ctx.ermrest_config)
+            schema = deriva_ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
+            return schema.update(conn, cur, schemadoc, deriva_ctx.ermrest_config)
         except exception.ConflictModel as e:
             # handle creation of new schema, same as POST /schema/
             schemas = Schemas(self.catalog)
@@ -309,11 +308,11 @@ class Tables (Api):
 
     def POST_body(self, conn, cur, tabledoc):
         schema = self.schema.GET_body(conn, cur)
-        return model.Table.create_fromjson(conn, cur, schema, tabledoc, web.ctx.ermrest_config)
+        return model.Table.create_fromjson(conn, cur, schema, tabledoc, deriva_ctx.ermrest_config)
 
     def POST(self, uri):
         def post_commit(self, table):
-            web.ctx.status = '201 Created'
+            deriva_ctx.deriva_response.status_code = 201
             return _post_commit_json(self, table)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
@@ -376,17 +375,21 @@ class AclCommon (Api):
                         key_kind=self.key_kind
                     )
                 )
+            return self.GET_container(subject)
         else:
             if data is None:
                 self.DELETE_body(cur, subject, key)
             else:
                 self.PUT_body(cur, subject, key, self.validate_element(data))
+                return self.GET_container(subject).get(key)
 
     def PUT(self, uri):
-        return _MODIFY_with_json_input(self, self.SET_body, _post_commit)
+        return _MODIFY_with_json_input(self, self.SET_body, _post_commit_json)
 
     def DELETE(self, uri):
-        return _MODIFY(self, lambda conn, cur: self.SET_body(conn, cur, None), _post_commit)
+        def post_commit(self, ignore):
+            return _post_commit(self, '')
+        return _MODIFY(self, lambda conn, cur: self.SET_body(conn, cur, None), post_commit)
 
 class Acl (AclCommon):
     """A specific object's ACLs."""
@@ -526,7 +529,7 @@ class Comment (Api):
 
     def PUT(self, uri):
         def body(conn, cur):
-            self.SET_body(conn, cur, self.GET_subject(conn, cur), web.ctx.env['wsgi.input'].read().decode())
+            self.SET_body(conn, cur, self.GET_subject(conn, cur), flask.request.stream.read().decode())
             return ''
         return _MODIFY(self, body, _post_commit)
     
@@ -602,7 +605,7 @@ class Annotations (Api):
     def PUT(self, uri):
         def post_commit(self, created):
             if created:
-                web.ctx.status = '201 Created'
+                deriva_ctx.deriva_response.status_code = 201
             return _post_commit(self, '')
         return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
     
@@ -703,7 +706,7 @@ class Table (Api):
             if self.schema is not None:
                 return schema.tables.get_enumerable(self.name)
             else:
-                return web.ctx.ermrest_catalog_model.lookup_table(self.name)
+                return deriva_ctx.ermrest_catalog_model.lookup_table(self.name)
         except exception.ConflictModel as e:
             if final:
                 raise exception.NotFound(u"table %s in schema %s" % (self.name, schema.name))
@@ -727,7 +730,7 @@ class Table (Api):
         try:
             # handle alteration of existing table
             table = schema.tables.get_enumerable(self.name.one_str())
-            return table.update(conn, cur, tabledoc, web.ctx.ermrest_config)
+            return table.update(conn, cur, tabledoc, deriva_ctx.ermrest_config)
         except exception.ConflictModel as e:
             # handle creation of new table, same as POST /table/
             tables = Tables(self.schema)
@@ -756,11 +759,11 @@ class Columns (Api):
     
     def POST_body(self, conn, cur, columndoc):
         table = self.table.GET_body(conn, cur)
-        return table.add_column(conn, cur, columndoc, web.ctx.ermrest_config)
+        return table.add_column(conn, cur, columndoc, deriva_ctx.ermrest_config)
 
     def POST(self, uri):
         def post_commit(self, column):
-            web.ctx.status = '201 Created'
+            deriva_ctx.deriva_response.status_code = 201
             return _post_commit_json(self, column)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
@@ -809,7 +812,7 @@ class Column (Api):
         try:
             # handle alteration of existing column
             column = table.columns.get_enumerable(self.name.one_str())
-            return column.update(conn, cur, columndoc, web.ctx.ermrest_config)
+            return column.update(conn, cur, columndoc, deriva_ctx.ermrest_config)
         except exception.ConflictModel as e:
             # handle creation of new column, same as POST /column/
             columns = Columns(self.table)
@@ -840,7 +843,7 @@ class Keys (Api):
 
     def POST(self, uri):
         def post_commit(self, newkeys):
-            web.ctx.status = '201 Created'
+            deriva_ctx.deriva_response.status_code = 201
             return _post_commit_json(self, newkeys)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
@@ -882,7 +885,7 @@ class Key (Api):
         try:
             # handle alteration of existing constraint
             key = self.GET_body(conn, cur, conflict_model=True)
-            return key.update(conn, cur, keydoc, web.ctx.ermrest_config)
+            return key.update(conn, cur, keydoc, deriva_ctx.ermrest_config)
         except exception.ConflictModel as e:
             # handle creation of new key, same as POST /key/
             keys = Keys(self.table)
@@ -904,15 +907,15 @@ class Foreignkeys (Api):
         
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
-        
+
     def POST_body(self, conn, cur, keydoc):
         table = self.table.GET_body(conn, cur)
         return list(table.add_fkeyref(conn, cur, keydoc))
 
     def POST(self, uri):
         def post_commit(self, newrefs):
-            web.ctx.status = '201 Created'
-            return json.dumps([ r.prejson() for r in newrefs ], indent=2) + '\n'
+            deriva_ctx.deriva_response.status_code = 201
+            return _post_commit_json(self, newrefs)
         return _MODIFY_with_json_input(self, self.POST_body, post_commit)
 
 class Foreignkey (Api):
@@ -1084,7 +1087,7 @@ class ForeignkeyReferences (Api):
         if len(fkrs) == 1:
             # handle alteration of existing constraint
             fkr = fkrs[0]
-            return fkr.update(conn, cur, fkrdoc, web.ctx.ermrest_config)
+            return fkr.update(conn, cur, fkrdoc, deriva_ctx.ermrest_config)
         elif len(fkrs) > 1:
             raise NotImplementedError('PUT found more than one FKR for %s -> %s' % (self._from_key, self._to_key))
         else:

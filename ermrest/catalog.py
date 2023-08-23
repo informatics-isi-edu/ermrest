@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2019 University of Southern California
+# Copyright 2013-2023 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,13 +24,14 @@ This module provides catalog management features including:
     - modify catalog metadata
 """
 
-import web
 import psycopg2
 import pkgutil
 import datetime
+from webauthn2.util import deriva_ctx
 
 from . import sanepg2
 from .util import sql_identifier, sql_literal, schema_exists, table_exists, random_name
+from .exception import *
 from .model.misc import annotatable_classes, hasacls_classes, hasdynacls_classes
 from .model.introspect import introspect
 from .model import current_model_snaptime, normalized_history_snaptime, Table
@@ -122,7 +123,7 @@ class CatalogFactory (object):
 
         pc = sanepg2.PooledConnection(self._dsn)
         try:
-            return next(pc.perform(body, post_commit))
+            return pc.perform(body, post_commit)
         finally:
             pc.final()
     
@@ -196,6 +197,8 @@ class Catalog (object):
         """
         assert factory is not None
         self.descriptor = reg_entry['descriptor']
+        if self.descriptor is None:
+            raise ConflictData('Alias %(id)r is currently not bound to a catalog.' % reg_entry)
         self.dsn = self._serialize_descriptor(self.descriptor)
         self._factory = factory
         self.alias_target = reg_entry.get('alias_target')
@@ -218,7 +221,7 @@ class Catalog (object):
 
     def get_model(self, cur=None, config=None, private=False, snapwhen=None, amendver=None):
         if cur is None:
-            cur = web.ctx.ermrest_catalog_pc.cur
+            cur = deriva_ctx.ermrest_catalog_pc.cur
         if config is None:
             config = self._config
         if snapwhen is None:
@@ -277,7 +280,7 @@ class Catalog (object):
 
         # we want an ACL
         if owner is None:
-            owner = [ web.ctx.webauthn2_context.client_id ]
+            owner = [ deriva_ctx.webauthn2_context.client_id ]
         elif isinstance(owner, (str, dict)):
             owner = [ owner ]
 
