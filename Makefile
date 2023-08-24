@@ -14,7 +14,7 @@ include config/make-vars-$(PLATFORM)
 
 # make this the default target
 install:
-	pip3 install --no-deps --upgrade .
+	pip3 install --upgrade .
 
 # get platform-specific rules (e.g. actual predeploy recipe)
 include config/make-rules-$(PLATFORM)
