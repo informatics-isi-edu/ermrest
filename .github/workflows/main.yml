@@ -51,7 +51,7 @@ jobs:
           sudo su -c '/usr/bin/python3 -c "import sys;import pprint;pprint.pprint(sys.path)"' - webauthn
           git clone https://github.com/informatics-isi-edu/webauthn.git
           cd webauthn
-          git checkout origin/flask
+          git checkout origin/master
           sudo make testvars
           sudo make install
           sudo make deploy
