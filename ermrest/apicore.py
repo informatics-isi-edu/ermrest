@@ -37,7 +37,7 @@ import urllib
 import werkzeug.exceptions
 import flask
 
-from webauthn2.util import context_from_environment, deriva_ctx, deriva_debug, merge_config, Context
+from webauthn2.util import deriva_ctx, deriva_debug, merge_config, Context, ClientSessionCachedProxy
 from webauthn2.manager import Manager
 from webauthn2.rest import format_trace_json, format_final_json
 
@@ -197,6 +197,8 @@ def request_trace(tracedata):
         webauthn2_context=deriva_ctx.webauthn2_context,
     ))
 
+_client_session_proxy = ClientSessionCachedProxy(global_env.get('webauthn_proxy_config'))
+
 @app.before_request
 def request_init():
     """Initialize deriva_ctx with request-specific timers and state used by our REST API layer."""
@@ -222,7 +224,7 @@ def request_init():
     deriva_ctx.ermrest_model_rights_cache = dict()
 
     # get client authentication context
-    deriva_ctx.webauthn2_context = context_from_environment(flask.request.environ, fallback=True)
+    deriva_ctx.webauthn2_context = _client_session_proxy.get_context(flask.request.environ, flask.request.cookies, fallback=True)
     deriva_ctx.ermrest_client_roles = set([
         r['id'] if type(r) is dict else r
         for r in deriva_ctx.webauthn2_context.attributes

@@ -47,8 +47,10 @@ WSGIPassAuthorization On
 WSGISocketPrefix /var/run/httpd/wsgi
 
 <Location "/ermrest" >
-   AuthType webauthn
-   Require webauthn-optional
+   AuthType none
+   Require all granted
+   #AuthType webauthn
+   #Require webauthn-optional
    WSGIProcessGroup ermrest
 
    # site can disable redundant service logging by adding env=!dontlog to their CustomLog or similar directives
