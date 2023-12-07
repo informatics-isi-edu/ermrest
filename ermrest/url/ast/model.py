@@ -49,7 +49,7 @@ def _post_commit_json(handler, resource):
             resource = [ prejson(v) for v in resource ]
         else:
             resource = prejson(resource)
-        return json.dumps(resource, indent=2) + '\n'
+        return json.dumps(resource, indent=None, separators=(',', ':')) + '\n'
     return _post_commit(handler, resource, 'application/json', to_json)
 
 def _GET(handler, thunk, _post_commit):
