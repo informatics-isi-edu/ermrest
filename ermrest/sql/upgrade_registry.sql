@@ -28,17 +28,15 @@ IF (SELECT True
 
   PERFORM setval('ermrest.registry_id_seq', nextval('ermrest.simple_registry_id_seq'));
 
-  INSERT INTO ermrest.registry ("RCT", "RMT", "RCB", "RMB", id, is_catalog, deleted_on, owner, descriptor, alias_target)
+  INSERT INTO ermrest.registry ("RCT", "RMT", id, is_catalog, deleted_on, owner, descriptor, alias_target)
   SELECT
     COALESCE(created_on, now()),
     now(),
-    id_owner[1],
-    id_owner[1],
     id,
-    descriptor IS NOT NULL,
+    descriptor IS NOT NULL AND descriptor != 'null'::jsonb,
     deleted_on,
     id_owner,
-    descriptor,
+    CASE WHEN descriptor = 'null'::jsonb THEN NULL::jsonb ELSE descriptor END,
     alias_target
   FROM ermrest.simple_registry
   ;
