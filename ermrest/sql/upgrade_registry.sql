@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2017, 2021 University of Southern California
+-- Copyright 2017-2024 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -15,5 +15,39 @@
 -- limitations under the License.
 --
 
-DROP INDEX IF EXISTS ermrest.simple_registry_id_deleted_on_idx;
+DO $registry_upgrade$
+<< registry_upgrade >>
+BEGIN
+
+IF (SELECT True
+    FROM information_schema.tables
+    WHERE table_schema = 'ermrest'
+      AND table_name = 'simple_registry') THEN
+
+  -- port legacy content from simple_registry -> registry
+
+  PERFORM setval('ermrest.registry_id_seq', nextval('ermrest.simple_registry_id_seq'));
+
+  INSERT INTO ermrest.registry ("RCT", "RMT", "RCB", "RMB", id, is_catalog, deleted_on, owner, descriptor, alias_target)
+  SELECT
+    COALESCE(created_on, now()),
+    now(),
+    id_owner[1],
+    id_owner[1],
+    id,
+    descriptor IS NOT NULL,
+    deleted_on,
+    id_owner,
+    descriptor,
+    alias_target
+  FROM ermrest.simple_registry
+  ;
+
+  DROP TABLE ermrest.simple_registry;
+  DROP SEQUENCE ermrest.simple_registry_id_seq;
+
+END IF;
+
+END registry_upgrade
+$registry_upgrade$ LANGUAGE plpgsql;
 

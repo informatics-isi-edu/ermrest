@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2010-2023 University of Southern California
+# Copyright 2010-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,7 +114,10 @@ class Catalogs (object):
             pc.final()
 
         # register the catalog descriptor
-        entry = deriva_ctx.ermrest_registry.register(catalog_id, descriptor=catalog.descriptor)
+        entry = deriva_ctx.ermrest_registry.register(
+            catalog_id, is_catalog=True, descriptor=catalog.descriptor,
+            name=doc.get('name'), description=doc.get('description'),
+        )
 
         deriva_ctx.deriva_response.content_type = content_type
         deriva_ctx.ermrest_request_content_type = content_type
@@ -163,7 +166,10 @@ class CatalogAliases (object):
         catalog_id = deriva_ctx.ermrest_registry.claim_id(id=doc.get('id'), id_owner=doc.get('owner'))
 
         # register the catalog descriptor
-        entry = deriva_ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
+        entry = deriva_ctx.ermrest_registry.register(
+            catalog_id, is_catalog=False, alias_target=doc.get('alias_target'),
+            name=doc.get('name'), description=doc.get('description'),
+        )
 
         location = '/ermrest/catalog/%s' % catalog_id
         deriva_ctx.deriva_response.content_type = content_type
@@ -396,7 +402,7 @@ class CatalogAlias (ApiBase):
         if version is None:
             normalized = [
                 self.entry['id'],
-                self.entry['id_owner'],
+                self.entry['owner'],
                 self.entry['alias_target'],
             ]
             version = base64.urlsafe_b64encode(hashlib.md5(json.dumps(normalized).encode('utf8')).digest()).decode()
@@ -404,8 +410,8 @@ class CatalogAlias (ApiBase):
 
     @property
     def id_owner(self):
-        if isinstance(self.entry['id_owner'], list):
-            return self.entry['id_owner']
+        if isinstance(self.entry['owner'], list):
+            return self.entry['owner']
         else:
             return []
 
@@ -419,7 +425,7 @@ class CatalogAlias (ApiBase):
     def prejson(self):
         return {
             'id': self.entry['id'],
-            'owner': self.entry['id_owner'],
+            'owner': self.entry['owner'],
             'alias_target': self.entry['alias_target'],
         }
 
@@ -467,13 +473,13 @@ class CatalogAlias (ApiBase):
         catalog_id = deriva_ctx.ermrest_registry.claim_id(id=catalog_id, id_owner=doc.get('owner'))
 
         # update the alias config
-        entry = deriva_ctx.ermrest_registry.register(catalog_id, alias_target=doc.get('alias_target'))
+        entry = deriva_ctx.ermrest_registry.register(catalog_id, is_catalog=False, alias_target=doc.get('alias_target'))
 
         content_type = _application_json
         deriva_ctx.ermrest_request_content_type = content_type
         response = json.dumps({
             'id': entry['id'],
-            'owner': entry['id_owner'],
+            'owner': entry['owner'],
             'alias_target': entry['alias_target'],
         }) + '\n'
 
