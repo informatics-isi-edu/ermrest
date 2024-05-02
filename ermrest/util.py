@@ -149,6 +149,7 @@ def service_features():
         "quantified_value_lists": True,
         "quantified_rid_lists": True,
         "rid_lease": True,
+        "registry_catalog": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):
