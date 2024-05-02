@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,6 +97,14 @@ SELECT _ermrest.model_version_bump();
             return False
         if self.name in {'RID', 'RCB'} and aclname in {'update', 'write'}:
             return False
+        if self.table.name == 'registry' and self.table.schema.name == 'ermrest':
+            if self.name == 'descriptor':
+                return False
+            if self.name in {
+                    'id', 'is_catalog', 'deleted_on',
+                    'owner', 'alias_target',
+            } and aclname in {'insert', 'update', 'write'}:
+                return False
         if self.table.has_right(aclname, roles) is False:
             return False
         return self._has_right(aclname, roles)

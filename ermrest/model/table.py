@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -119,6 +119,10 @@ class Table (object):
         # we need parent enumeration too
         if not self.schema.has_right('enumerate', roles):
             return False
+        # registry lifecycle changes should be via /catalog/ and /alias/ APIs
+        if aclname in {'insert', 'delete'}:
+            if self.name == 'registry' and self.schema.name == 'ermrest':
+                return False
         # a table without history is not enumerable during historical access
         if deriva_ctx.ermrest_history_snaptime is not None:
             if not table_exists(deriva_ctx.ermrest_catalog_pc.cur, '_ermrest_history', 't%s' % self.rid):
@@ -473,6 +477,15 @@ UPDATE %(sname)s.%(tname)s SET %(cname)s = %(default)s;
     def delete_column(self, conn, cur, cname):
         """Delete column from table."""
         self.enforce_right('owner')
+        # suppress deletion of registry table built-in columns
+        if self.name == 'registry' and self.schema.name == 'ermrest':
+            if cname in {
+                    'RID', 'RCT', 'RMT', 'RCB', 'RMB',
+                    'id', 'is_catalog', 'deleted_on',
+                    'owner', 'descriptor', 'alias_target',
+                    'clone_source', 'name', 'description',
+            }:
+                raise exception.Forbidden('owner access on built-in column')
         column = self.columns[cname]
         self.alter_table(
             conn, cur,
