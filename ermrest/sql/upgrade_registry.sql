@@ -42,7 +42,7 @@ IF (SELECT True
   ;
 
   DROP TABLE ermrest.simple_registry;
-  DROP SEQUENCE ermrest.simple_registry_id_seq;
+  DROP SEQUENCE IF EXISTS ermrest.simple_registry_id_seq;
 
 END IF;
 
