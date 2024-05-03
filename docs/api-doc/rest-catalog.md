@@ -47,6 +47,7 @@ Known feature flags at time of writing of this document:
 - `quantified_value_lists`: Service supports `all(...)` and `any(...)` URL syntax for lists of values as query predicate right-hand side values.
 - `quantified_rid_lists`: Service supports `RID=all(...)` and `RID=any(...)`, a bug-fix to the `quantified_value_lists` feature.
 - `rid_lease`: Service supports `?nondefaults=RID` for POST operations on the `/entity/` API by clients who are not catalog owners. Such use is limited to the rules described for [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults).
+- `registry_catalog`: Service supports special catalog `0` to introspect the registry, and also supports additional metadata parameters when creating catalogs and creating or updating aliases.
 
 Generally, absence of a feature flag means the service is running
 older software which predates the release of the feature. A flag will
@@ -81,13 +82,23 @@ This method supports an optional JSON input document:
 
     {
       "id": desired catalog id,
-      "owner": administrative ACL
+      "owner": administrative ACL,
+      "name": string,
+      "description": string,
+      "is_persistent": boolean,
+      "clone_source": string
     }
 
 These fields are optional and, if present, override the default behavior obtained in a POST without input:
 
 - `"id"`: The desired _cid_ to bind (default is a service-generated serial number)
 - `"owner"`: Initial owner-level access control list for the new catalog (default is the requesting client's identity)
+- `"name"`: A short, human-readable name or title string for the catalog (default is untitled)
+- `"description"`: A markdown-formatted, human-readable description for the catalog (default is empty)
+- `"is_persistent"`: A boolean. When false, a deployment MAY perform auto-expiry. Supplying a value may be forbidden by policy. (Default is deployment-specific.)
+- `"clone_source"`: An existing catalog ID in the same catalog, to document provenance for clones (catalogs initialized with copied content). Default is empty.
+
+The `name`, `description`, `is_persistent`, and `clone_source` parameters are an extension understood when the service feature-advertisement includes `"registry_catalog": true`. The resulting metadata will then be visible in the corresponding entry in the registy.
 
 On success, this request yields the new catalog identifier, e.g. `42` in this example:
 
@@ -194,6 +205,9 @@ This method supports an optional JSON input document:
       "id": desired alias id,
       "owner": administrative access control list,
       "alias_target": existing storage catalog id
+      "name": string,
+      "description": string,
+      "is_persistent": boolean,
     }
 
 These fields are optional and, if present, override the default behavior obtained in a POST without input:
@@ -201,6 +215,11 @@ These fields are optional and, if present, override the default behavior obtaine
 - `"id"`: The desired _alias_ to bind (default is a service-generated serial number)
 - `"owner"`: Initial access control list for the alias (default is the requesting client's identity)
 - `"alias_target"`: Storage catalog to bind with the new alias (default unbound)
+- `"name"`: A short, human-readable name or title string for the catalog (default is untitled)
+- `"description"`: A markdown-formatted, human-readable description for the catalog (default is empty)
+- `"is_persistent"`: A boolean. When false, a deployment MAY perform auto-expiry. Supplying a value may be forbidden by policy. (Default is deployment-specific.)
+
+The `name`, `description`, and `is_persistent` parameters are an extension understood when the service feature-advertisement includes `"registry_catalog": true`. The resulting metadata will then be visible in the corresponding entry in the registy.
 
 An unbound alias can reserve the alias for future use by clients permitted by the adminstrative access control list.
 

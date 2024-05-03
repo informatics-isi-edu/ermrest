@@ -51,6 +51,12 @@ def get_registry(config):
         acls=config.get("acls")
         )
 
+class NoChange (object):
+    """Sentinel value for detecting default keyword args distinct from None value."""
+    pass
+
+# sentinel singletone
+_nochange = NoChange()
 
 class Registry(object):
     """A registry of ERMREST catalogs.
@@ -138,6 +144,7 @@ class SimpleRegistry(Registry):
        transaction since requests are usually independent and simple
        lookup is the hot path.
     """
+    nochange = _nochange
 
     def __init__(self, dsn, acls):
         """Initialized the SimpleRegistry.
@@ -309,15 +316,17 @@ RETURNING id;
 
         return self.pooled_perform(body, lambda x: x)
 
-    def register(self, id, descriptor=None, alias_target=None, name=None, description=None, is_catalog=None):
+    def register(self, id, descriptor=None, alias_target=_nochange, name=_nochange, description=_nochange, is_catalog=None, clone_source=_nochange, is_persistent=_nochange):
         """Register a catalog descriptor or alias target for an already claimed id.
 
         :param id: The claimed id.
         :param descriptor: The catalog storage descriptor to register.
-        :param alias_target: The id for the target catalog to register.
-        :param name: The name text for the registry entry.
-        :param description: The description text (markdown) for the registry entry.
+        :param alias_target: The id for the target catalog to register (default: leave unchanged).
+        :param name: The name text for the registry entry (default: leave unchanged).
+        :param description: The description text (markdown) for the registry entry (default: leave unchanged).
         :param is_catalog: True for catalog, false for alias or unbound ID (default: infer)
+        :param clone_source: The id for a clone source catalog to register (default: leave unchanged)
+        :param is_persistent: True for persistent entries, false for auto-expiring ones (default: leave unchanged)
 
         """
         assert descriptor is None or isinstance(descriptor, dict)
@@ -325,22 +334,83 @@ RETURNING id;
         if is_catalog is None:
             is_catalog = descriptor is not None
 
+        if is_persistent is not _nochange:
+            if not isinstance(is_persistent, bool):
+                raise ValueError('if supplied, is_persistent must be true or false')
+
+        if clone_source is not _nochange and clone_source is not None and not isinstance(clone_source, str):
+            raise ValueError('if supplied, clone_source must be a string or null')
+
         if is_catalog:
             if descriptor is None:
                 raise ValueError('descriptor required when is_catalog=true')
-            if alias_target is not None:
+            if alias_target is not _nochange:
                 raise ValueError('alias_target not allowed when is_catalog=true')
         else:
             if descriptor is not None:
-                raise ValueError('descriptor not allowed when is_catalog=true')
+                raise ValueError('descriptor not allowed when is_catalog=false')
+            if clone_source is not _nochange:
+                raise ValueError('clone_source not appropriate when is_catalog=false')
 
         def body(conn, cur):
+            if is_persistent is not _nochange:
+                # need to emulate is_persistent.enforce_right('update')
+                # but we don't have an active catalog/model context here
+                cur.execute("""
+SELECT
+  (SELECT jsonb_object_agg(acl, members)
+   FROM _ermrest.known_catalog_acls) AS catalog_acls,
+  (SELECT jsonb_object_agg(a.acl, a.members)
+   FROM _ermrest.known_schemas s
+   JOIN _ermrest.known_schema_acls a ON (s."RID" = a.schema_rid)
+   WHERE s.schema_name = 'ermrest') AS schema_acls,
+  (SELECT jsonb_object_agg(a.acl, a.members)
+   FROM _ermrest.known_schemas s
+   JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
+   JOIN _ermrest.known_table_acls a ON (t."RID" = a.table_rid)
+   WHERE s.schema_name = 'ermrest'
+     AND t.table_name = 'registry') AS table_acls,
+  (SELECT jsonb_object_agg(a.acl, a.members)
+   FROM _ermrest.known_schemas s
+   JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
+   JOIN _ermrest.known_columns c ON (t."RID" = c.table_rid)
+   JOIN _ermrest.known_column_acls a ON (c."RID" = a.column_rid)
+   WHERE s.schema_name = 'ermrest'
+     AND t.table_name = 'registry'
+     AND c.column_name = 'is_persistent') AS column_acls;
+""")
+                row = cur.fetchone()
+                catalog_acls, schema_acls, table_acls, column_acls = row
+                effective_put_acl = set()
+
+                # owner acls accumulate
+                for aclset in [ column_acls, table_acls, schema_acls, catalog_acls ]:
+                    if isinstance(aclset, dict):
+                        acl = aclset.get('owner')
+                        if isinstance(acl, list):
+                            effective_put_acl.update(acl)
+
+                # update acls mask inherited versions
+                for aclset in [ column_acls, table_acls, schema_acls, catalog_acls ]:
+                    if isinstance(aclset, dict):
+                        acl = aclset.get('update')
+                        if isinstance(acl, list):
+                            effective_put_acl.update(acl)
+                            break
+
+                if effective_put_acl.isdisjoint(set(deriva_ctx.webauthn2_context.attribute_ids)):
+                    raise exception.Forbidden('supplying value for "is_persistent"')
+
             cur.execute("""
 SELECT
   COALESCE(owner, ARRAY[]::text[]),
   is_catalog,
+  is_persistent,
   descriptor,
   alias_target,
+  clone_source,
+  name,
+  description,
   deleted_on
 FROM ermrest.registry
 WHERE id = %(id)s
@@ -351,7 +421,8 @@ WHERE id = %(id)s
             if row is None:
                 raise exception.ConflictData('Cannot manage registration for unclaimed id=%r.' % (id,))
 
-            id_owner, old_is_catalog, old_descriptor, old_alias_target, deleted_on = row
+            id_owner, old_is_catalog, old_is_persistent, old_descriptor, \
+                old_alias_target, old_clone_source, old_name, old_description, deleted_on = row
 
             if set(deriva_ctx.webauthn2_context.attribute_ids).isdisjoint(set(id_owner)):
                 raise exception.Forbidden('manage registration for id=%r' % (id,))
@@ -363,17 +434,21 @@ WHERE id = %(id)s
             if old_is_catalog:
                 if descriptor is not None:
                     raise exception.ConflictData('Cannot set descriptor on existing catalog id=%r.' % (id,))
-                if alias_target is not None:
+                if alias_target is not _nochange:
                     raise exception.ConflictData('Cannot set alias_target on existing catalog id=%r.' % (id,))
                 cur.execute("""
 UPDATE ermrest.registry v
 SET "name" = %(name)s,
-    description = %(description)s
+    description = %(description)s,
+    is_persistent = %(is_persistent)s,
+    clone_source = %(clone_source)s
 WHERE id = %(id)s;
 """ % {
     'id': sql_literal(id),
-    'name': sql_literal(name),
-    'description': sql_literal(description),
+    'name': sql_literal(name if name is not _nochange else old_name),
+    'description': sql_literal(description if description is not _nochange else old_description),
+    'is_persistent': sql_literal(is_persistent if is_persistent is not _nochange else old_is_persistent),
+    'clone_source': sql_literal(clone_source if clone_source is not _nochange else old_clone_source),
 })
             else:
                 # earlier checks validated is_catalog/descriptor/alias_target args
@@ -383,15 +458,19 @@ SET is_catalog = %(is_catalog)s,
     descriptor = %(descriptor)s,
     alias_target = %(alias_target)s,
     "name" = %(name)s,
-    description = %(description)s
+    description = %(description)s,
+    is_persistent = %(is_persistent)s,
+    clone_source = %(clone_source)s
 WHERE id = %(id)s;
 """ % {
     'id': sql_literal(id),
     'is_catalog': sql_literal(is_catalog),
     'descriptor': sql_literal(json.dumps(descriptor)),
-    'alias_target': sql_literal(alias_target),
-    'name': sql_literal(name),
-    'description': sql_literal(description),
+    'alias_target': sql_literal(alias_target if alias_target is not _nochange else old_alias_target),
+    'name': sql_literal(name if name is not _nochange else old_name),
+    'description': sql_literal(description if description is not _nochange else old_description),
+    'is_persistent': sql_literal(is_persistent if is_persistent is not _nochange else old_is_persistent),
+    'clone_source': sql_literal(clone_source if clone_source is not _nochange else old_clone_source),
 })
             return self._lookup(conn, cur, id)[0]
 

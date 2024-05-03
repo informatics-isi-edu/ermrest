@@ -116,7 +116,10 @@ class Catalogs (object):
         # register the catalog descriptor
         entry = deriva_ctx.ermrest_registry.register(
             catalog_id, is_catalog=True, descriptor=catalog.descriptor,
-            name=doc.get('name'), description=doc.get('description'),
+            name=doc.get('name', deriva_ctx.ermrest_registry.nochange),
+            description=doc.get('description', deriva_ctx.ermrest_registry.nochange),
+            is_persistent=doc.get('is_persistent', deriva_ctx.ermrest_registry.nochange),
+            clone_source=doc.get('clone_source', deriva_ctx.ermrest_registry.nochange),
         )
 
         deriva_ctx.deriva_response.content_type = content_type
@@ -167,8 +170,11 @@ class CatalogAliases (object):
 
         # register the catalog descriptor
         entry = deriva_ctx.ermrest_registry.register(
-            catalog_id, is_catalog=False, alias_target=doc.get('alias_target'),
-            name=doc.get('name'), description=doc.get('description'),
+            catalog_id, is_catalog=False,
+            alias_target=doc.get('alias_target', deriva_ctx.ermrest_registry.nochange),
+            name=doc.get('name'),
+            description=doc.get('description'),
+            is_persistent=doc.get('is_persistent', deriva_ctx.ermrest_registry.nochange),
         )
 
         location = '/ermrest/catalog/%s' % catalog_id
