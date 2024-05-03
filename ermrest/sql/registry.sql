@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS ermrest.registry (
   "RMB" ermrest_rmb DEFAULT (_ermrest.current_client()),
   id text PRIMARY KEY DEFAULT (nextval('ermrest.registry_id_seq')::text),
   is_catalog boolean NOT NULL DEFAULT True,
+  is_persistent boolean NOT NULL DEFAULT True,
   deleted_on timestamp with time zone DEFAULT NULL,
   owner text[],
   descriptor jsonb,
@@ -54,9 +55,27 @@ CREATE TABLE IF NOT EXISTS ermrest.registry (
     ON UPDATE CASCADE ON DELETE NO ACTION
 );
 
+-- to help with dev servers running earlier draft of code
+ALTER TABLE ermrest.registry
+  ADD COLUMN IF NOT EXISTS is_persistent boolean NOT NULL DEFAULT True;
+
+CREATE INDEX IF NOT EXISTS registry_deleted_on_idx    ON ermrest.registry (deleted_on);
+CREATE INDEX IF NOT EXISTS registry_id_notdeleted_idx ON ermrest.registry (id) WHERE deleted_on IS NULL;
+CREATE INDEX IF NOT EXISTS registry_id_target_notdeleted_idx ON ermrest.registry (id, alias_target) WHERE deleted_on IS NULL;
+
+COMMENT ON COLUMN "ermrest"."registry"."id" IS 'Catalog identifier or alias used in URLs';
+COMMENT ON COLUMN "ermrest"."registry"."name" IS 'Short, human-readable label for entry';
+COMMENT ON COLUMN "ermrest"."registry"."description" IS 'Human-readable description of entry';
+COMMENT ON COLUMN "ermrest"."registry"."is_catalog" IS 'True for catalog entries with backing database storage';
+COMMENT ON COLUMN "ermrest"."registry"."is_persistent" IS 'False for catalog entries which should auto-expire';
+COMMENT ON COLUMN "ermrest"."registry"."alias_target" IS 'Catalog to which this alias entry is bound';
+COMMENT ON COLUMN "ermrest"."registry"."clone_source" IS 'Catalog from which content was copied';
+COMMENT ON COLUMN "ermrest"."registry"."deleted_on" IS 'Catalog soft-deletion timestamp';
+COMMENT ON COLUMN "ermrest"."registry"."owner" IS 'Owner ACL for catalog management APIs';
+
 -- ADD SELF-REFERENCE
-INSERT INTO ermrest.registry ("RCT", "RMT", id, is_catalog, owner, descriptor, "name", description) VALUES
-  (now(), now(), '0', True, ARRAY[]::text[], '{"dbname":"ermrest"}', 'ERMrest Registry', 'Tracking database for all dynamically provisioned ERMrest catalogs.')
+INSERT INTO ermrest.registry ("RCT", "RMT", id, is_catalog, is_persistent, owner, descriptor, "name", description) VALUES
+  (now(), now(), '0', True, True, ARRAY[]::text[], '{"dbname":"ermrest"}', 'ERMrest Registry', 'Tracking database for all dynamically provisioned ERMrest catalogs.')
   ON CONFLICT DO NOTHING;
 
 -- SET DEFAULT POLICY
@@ -93,7 +112,7 @@ INSERT INTO _ermrest.known_column_dynacls (column_rid, binding_name, binding)
   SELECT "RID", 'update_by_owner', 'false'::jsonb
   FROM _ermrest.known_columns
   WHERE table_rid = _ermrest.find_table_rid('ermrest', 'registry')
-    AND column_name NOT IN ('name', 'description', 'clone_source')
+    AND column_name NOT IN ('name', 'description', 'clone_source', 'is_persistent')
   ON CONFLICT DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS registry_deleted_on_idx    ON ermrest.registry (deleted_on);
