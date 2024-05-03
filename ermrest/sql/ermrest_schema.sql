@@ -724,6 +724,18 @@ CREATE OR REPLACE FUNCTION _ermrest.find_column_rid(sname text, tname text, cnam
   WHERE s.schema_name = $1 AND t.table_name = $2 AND c.column_name = $3;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.find_key_rid(sname text, constraintname text) RETURNS text AS $$
+  SELECT k."RID" FROM _ermrest.known_keys k
+  WHERE schema_rid = _ermrest.find_schema_rid($1)
+    AND constraint_name = $2;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_fkey_rid(sname text, constraintname text) RETURNS text AS $$
+  SELECT fk."RID" FROM _ermrest.known_fkeys fk
+  WHERE schema_rid = _ermrest.find_schema_rid($1)
+    AND constraint_name = $2;
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS
   SELECT
     nc.oid,
