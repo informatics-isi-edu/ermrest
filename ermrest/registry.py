@@ -187,8 +187,10 @@ SELECT jsonb_build_object(
   'deleted_on', CASE WHEN l.alias_target IS NOT NULL THEN t.deleted_on ELSE l.deleted_on END,
   'alias_target', l.alias_target,
   'alias_created_on', CASE WHEN l.alias_target IS NOT NULL THEN l."RCT" ELSE NULL END,
-  'name', CASE WHEN l.alias_target IS NOT NULL THEN t.name ELSE l.name END,
-  'description', CASE WHEN l.alias_target IS NOT NULL THEN t.description ELSE l.description END
+  'name', COALESCE(l.name, t.name),
+  'description', COALESCE(l.description, t.description),
+  'clone_source', l.clone_source,
+  'is_persistent', l.is_persistent
 )
 FROM ermrest.registry l
 LEFT OUTER JOIN ermrest.registry t ON (l.alias_target = t.id)

@@ -311,6 +311,14 @@ class Catalog (Api):
             resource["id"] = self.catalog_id
             if self.manager.alias_target is not None:
                 resource["alias_target"] = self.manager.alias_target
+            if self.manager.name is not None:
+                resource["name"] = self.manager.name
+            if self.manager.description is not None:
+                resource["description"] = self.manager.description
+            if self.manager.is_persistent is not None:
+                resource["is_persistent"] = self.manager.is_persistent
+            if self.manager.clone_source is not None:
+                resource["clone_source"] = self.manager.clone_source
             if self.catalog_amendver:
                 self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )
             else:
