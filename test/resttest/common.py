@@ -295,7 +295,7 @@ try:
         json={
             "name": "resttest main %s" % (run_ts,),
             "description": "Main test catalog created by a run of the ERMrest rest test suite started at %s" % (run_ts,),
-            "is_persistent": False,
+            #"is_persistent": False,
             "clone_source": None,
         }
     )
