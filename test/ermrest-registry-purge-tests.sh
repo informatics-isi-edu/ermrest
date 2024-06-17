@@ -91,7 +91,7 @@ EOF
 
 # Output the count of catalogs in registry
 function count_catalogs {
-    su -c "psql -A -t -q -c \"select count(*) from ermrest.registry\" ${MASTERDB}" - "${DAEMONUSER}"
+    su -c "psql -A -t -q -c \"select count(*) from ermrest.registry where id!='0'\" ${MASTERDB}" - "${DAEMONUSER}"
 }
 
 # Setup a few catalogs (with dbs) for different conditions
