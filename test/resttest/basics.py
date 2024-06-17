@@ -227,7 +227,7 @@ class CatalogNaming (common.ErmrestTest):
                 "owner": self.my_acl,
                 "name": "resttest test_catalog_post_input %s" % (common.run_ts,),
                 "description": "Secondary test catalog created by a run of the ERMrest rest test suite executed at %s, from the `resttest.basics.CatalogNaming.test_catalog_post_input` test method." % (common.run_ts,),
-                "is_persistent": False,
+                #"is_persistent": False,
                 "clone_source": None,
             }
             r = self.session.post('/ermrest/catalog', json=doc1)
@@ -259,7 +259,7 @@ class CatalogNaming (common.ErmrestTest):
                 "owner": self.my_acl,
                 "name": "resttest test_alias %s" % (common.run_ts,),
                 "description": "Secondary test catalog created by a run of the ERMrest rest test suite executed at %s, from the `resttest.basics.CatalogNaming.test_alias` test method." % (common.run_ts,),
-                "is_persistent": False,
+                #"is_persistent": False,
                 "clone_source": None,
             }
             r = self.session.post('/ermrest/alias', json=doc1)
