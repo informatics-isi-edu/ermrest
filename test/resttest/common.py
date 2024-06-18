@@ -6,6 +6,7 @@ import sys
 import platform
 import atexit
 import logging
+import datetime
 
 import requests
 from http import cookiejar
@@ -32,6 +33,7 @@ else:
 # this will be the dynamically generated catalog ID and corresponding path
 cid = None
 cpath = None
+run_ts = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat('T', 'seconds')
 
 def dump_cookies(cookies, preamble):
     sys.stderr.write(preamble)
@@ -288,7 +290,15 @@ catalog_acls = {
     
 sys.stderr.write('Creating test catalog... ')
 try:
-    _r = primary_session.post('/ermrest/catalog')
+    _r = primary_session.post(
+        '/ermrest/catalog',
+        json={
+            "name": "resttest main %s" % (run_ts,),
+            "description": "Main test catalog created by a run of the ERMrest rest test suite started at %s" % (run_ts,),
+            #"is_persistent": False,
+            "clone_source": None,
+        }
+    )
     _r.raise_for_status()
     cid = _r.json()['id']
     cpath = "/ermrest/catalog/%s" % cid

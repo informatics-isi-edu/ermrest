@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -727,7 +727,10 @@ RETURNING fkey_rid;
     def delete(self, conn, cur):
         if self.constraint_name:
             fkr_schema, fkr_name = self.constraint_name
-            idx_name = '_'.join(fkr_name.split('_')[:-1]) + '_idx'
+            # suppress deletion of registry table built-in fkeys
+            if fkr_schema == 'ermrest':
+                if fkr_name in {'registry_alias_target_fkey', 'registry_clone_source_fkey'}:
+                    raise exception.Forbidden('owner access on built-in foreign key')
             self.foreign_key.table.alter_table(
                 conn, cur,
                 'DROP CONSTRAINT %s' % sql_identifier(fkr_name),

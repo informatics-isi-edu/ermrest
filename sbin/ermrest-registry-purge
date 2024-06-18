@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 
-# Copyright 2012-2015 University of Southern California
+# Copyright 2012-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -92,11 +92,11 @@ if [ -n "${ALL}" -a -n "${INTERVAL}" ]; then
 fi
 
 # Generate query statement
-QUERY="SELECT id, descriptor::json->'dbname' FROM ermrest.simple_registry"
+QUERY="SELECT id, descriptor::json->'dbname' FROM ermrest.registry WHERE id != '0'"
 if [ -n "${INTERVAL}" ]; then
-    QUERY="${QUERY} WHERE deleted_on < (CURRENT_TIMESTAMP - interval '${INTERVAL}')"
+    QUERY="${QUERY} AND deleted_on < (CURRENT_TIMESTAMP - interval '${INTERVAL}')"
 elif [ -z "${ALL}" ]; then
-    QUERY="${QUERY} WHERE deleted_on IS NOT NULL"
+    QUERY="${QUERY} AND deleted_on IS NOT NULL"
 fi
 
 # For all selected catalogs, attempt to dropdb and delete from registry
@@ -155,7 +155,7 @@ EOF
     fi
 
     # delete registry entry of catalog
-    psql -q -c "DELETE FROM ermrest.simple_registry WHERE id = '${id}'" ${ERMREST}
+    psql -q -c "DELETE FROM ermrest.registry WHERE id = '${id}'" ${ERMREST}
     if [ $? -ne 0 ]; then
         log " DELETE FAILED\n"
         continue

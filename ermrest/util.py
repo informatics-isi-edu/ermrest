@@ -1,5 +1,5 @@
 # 
-# Copyright 2012-2023 University of Southern California
+# Copyright 2012-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import base64
 import collections
 from webauthn2.util import urlquote
 
-__version__ = '0.4.1'
+__version__ = '0.5.0'
 
 def urlunquote(url):
     text = urllib.parse.unquote_plus(url)
@@ -149,6 +149,7 @@ def service_features():
         "quantified_value_lists": True,
         "quantified_rid_lists": True,
         "rid_lease": True,
+        "registry_catalog": True,
     }
 
 class OrderedFrozenSet (collections.abc.Set):

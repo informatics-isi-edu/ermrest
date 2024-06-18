@@ -1,6 +1,6 @@
 
 #
-# Copyright 2017-2023 University of Southern California
+# Copyright 2017-2024 University of Southern California
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,13 +98,20 @@ def print_redeploy_registry_sql():
 \\connect ermrest
 BEGIN;
 ALTER DATABASE ermrest OWNER TO ermrest;
+%(ermrest_sql)s
+SELECT _ermrest.model_change_event();
 %(registry_sql)s
-%(upgrade_sql)s
 %(change_owners_sql)s
+COMMIT;
+-- commit here in case a DB admin needs to intervene in a failed upgrade
+BEGIN;
+%(upgrade_sql)s
+SELECT _ermrest.model_change_event();
 COMMIT;
 ANALYZE;
 """ % {
     "template1_extupgrade": extupgrade_sql('template1'),
+    "ermrest_sql": pkgutil.get_data(sql.__name__, 'ermrest_schema.sql').decode(),
     "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql').decode(),
     "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_registry.sql').decode(),
     "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql').decode(),
@@ -125,6 +132,7 @@ ALTER DATABASE %(dbname)s OWNER TO ermrest;
 %(ermrest_sql)s
 SELECT _ermrest.model_change_event();
 %(upgrade_sql)s
+SELECT _ermrest.model_change_event();
 %(change_owners_sql)s
 COMMIT;
 ANALYZE;

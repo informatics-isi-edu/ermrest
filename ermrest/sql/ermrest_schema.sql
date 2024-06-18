@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2012-2023 University of Southern California
+-- Copyright 2012-2024 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -722,6 +722,18 @@ CREATE OR REPLACE FUNCTION _ermrest.find_column_rid(sname text, tname text, cnam
   JOIN _ermrest.known_tables t ON (s."RID" = t.schema_rid)
   JOIN _ermrest.known_columns c ON (t."RID" = c.table_rid)
   WHERE s.schema_name = $1 AND t.table_name = $2 AND c.column_name = $3;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_key_rid(sname text, constraintname text) RETURNS text AS $$
+  SELECT k."RID" FROM _ermrest.known_keys k
+  WHERE schema_rid = _ermrest.find_schema_rid($1)
+    AND constraint_name = $2;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.find_fkey_rid(sname text, constraintname text) RETURNS text AS $$
+  SELECT fk."RID" FROM _ermrest.known_fkeys fk
+  WHERE schema_rid = _ermrest.find_schema_rid($1)
+    AND constraint_name = $2;
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE VIEW _ermrest.introspect_schemas AS

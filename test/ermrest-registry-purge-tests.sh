@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 
-# Copyright 2012-2017 University of Southern California
+# Copyright 2012-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ function verbose {
     fi
 }
 
-# Add a catalog entry to the simple_registry
+# Add a catalog entry to the registry
 #   dbn: name of the database
 #   when: postgres timestamptz of deleted_on (default = NULL)
 function register_catalog {
@@ -84,14 +84,14 @@ function register_catalog {
     local when=$2
     verbose "Registering catalog for ${dbn} with deleted_on = ${when}"
     su -c "psql -q \"${MASTERDB}\"" - "${DAEMONUSER}" >>${LOG} 2>&1 <<EOF
-INSERT INTO ermrest.simple_registry ("descriptor", "deleted_on")
+INSERT INTO ermrest.registry ("descriptor", "deleted_on")
 VALUES ('{ "dbname": "${dbn}" }', ${when});
 EOF
 }
 
 # Output the count of catalogs in registry
 function count_catalogs {
-    su -c "psql -A -t -q -c \"select count(*) from ermrest.simple_registry\" ${MASTERDB}" - "${DAEMONUSER}"
+    su -c "psql -A -t -q -c \"select count(*) from ermrest.registry where id!='0'\" ${MASTERDB}" - "${DAEMONUSER}"
 }
 
 # Setup a few catalogs (with dbs) for different conditions
@@ -136,8 +136,8 @@ function teardown {
         su -c "dropdb --if-exists \"${dbn}\"" - "${DAEMONUSER}" >>${LOG} 2>&1
     done
     # delete all registry entries
-    verbose "Deleting all entries from simple_registry table"
-    su -c "psql -A -t -q -c \"delete from ermrest.simple_registry\" \"${MASTERDB}\"" - "${DAEMONUSER}" >>${LOG} 2>&1
+    verbose "Deleting all entries from registry table"
+    su -c "psql -A -t -q -c \"delete from ermrest.registry where id != '0' \" \"${MASTERDB}\"" - "${DAEMONUSER}" >>${LOG} 2>&1
     # cleanup archive directory
     rm -rf "${archive_dir}" >>${LOG} 2>&1
 }

@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2024 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -202,6 +202,10 @@ class Catalog (object):
         self.dsn = self._serialize_descriptor(self.descriptor)
         self._factory = factory
         self.alias_target = reg_entry.get('alias_target')
+        self.name = reg_entry.get('name')
+        self.description = reg_entry.get('description')
+        self.is_persistent = reg_entry.get('is_persistent')
+        self.clone_source = reg_entry.get('clone_source')
         self._config = config  # Not sure we need to tuck away the config
 
     def _serialize_descriptor(self, descriptor):
