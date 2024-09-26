@@ -21,7 +21,7 @@ import base64
 from webauthn2.util import deriva_ctx
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, table_exists
+from ..util import sql_identifier, sql_literal, table_exists, constraint_exists
 from .. import ermpath
 from .type import _default_config
 from .name import Name
@@ -61,7 +61,7 @@ def make_id(*components):
     # accept lists at top-level for convenience (compound keys, etc.)
     expanded = []
     for e in components:
-        if isinstance(e, list):
+        if isinstance(e, (list, tuple)):
             expanded.extend(e)
         else:
             expanded.append(e)
@@ -118,6 +118,30 @@ def make_id(*components):
 
     # last-ditch (e.g. multibyte unicode suffix worst case)
     return truncate(naive_result, 55) + naive_hash
+
+def make_constraint_name(cur, *parts, probefunc=constraint_exists):
+    """Build an identifier that won't collide with any existing constraint names
+
+    :param cur: Cursor to database to probe for name collisions
+    :param parts: Ordered list of strings or lists of strings to join with '_' to form name
+    :param probefunc: Function to probe the database cursor for an existing name
+
+    The final element parts[-1] must be of type str.
+    
+    The probefunc signature is probefunc(cursor, namestr) -> bool.
+    """
+    n = None
+    while True:
+        suffix = parts[-1]
+        if not isinstance(suffix, str):
+            raise NotImplementedError('make_constraint_name expects string suffix as final argument')
+        name = make_id(*parts[:-1], ('%s%d' % (suffix, n) if n else suffix))
+        if not probefunc(cur, name):
+            return name
+        if n is None:
+            n = 1
+        else:
+            n += 1
 
 sufficient_rights = {
     "owner": set(),
