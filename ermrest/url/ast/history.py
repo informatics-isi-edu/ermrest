@@ -164,7 +164,7 @@ class CatalogHistory (Api):
              python_status: ( (h_from, h_until), amendver )
              prejson_status: { "snaprange": [ h_from_epoch, h_until_epoch ], "amendver": amendver_epoch }
         """
-        self.enforce_right('owner')
+        self.enforce_right('enumerate')
         h_from, h_until, amendver = _validate_history_snaprange(cur)
         return (
             ( (h_from, h_until), amendver ),

@@ -245,7 +245,7 @@ def _add_history_probes(klass):
         setattr(klass, 'test_phase%d_redactconflict_t%s' % (phase, cridkey), _test)
 
     # phase 0: good probes
-    _add_good_probe(0, None, 'catalog', http_codes=[200, 403, 401])
+    _add_good_probe(0, None, 'catalog', http_codes=[200, 200, 200])
 
     for ridkey in ['catalog', 'schema', 'table', 'ridcol', 'namecol', 'key', 'fkey']:
         _add_good_probe(0, 'annotation', ridkey)
