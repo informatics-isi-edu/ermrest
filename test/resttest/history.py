@@ -210,9 +210,9 @@ def _add_history_probes(klass):
         'fkey': lambda m: m['schemas'][_S]['tables'][_T2b]['foreign_keys'][0]['RID'],
     }
 
-    def _add_good_probe(phase, api, ridkey):
+    def _add_good_probe(phase, api, ridkey, http_codes=[200, 403, 401]):
         def _test(self):
-            self._probe_test(api, ridfuncs[ridkey](_model))
+            self._probe_test(api, ridfuncs[ridkey](_model), http_codes=http_codes)
         setattr(klass, 'test_phase%d_probe_%s_%s' % (phase, ridkey, api or 'history'), _test)
 
     def _add_good_amendment(phase, api, ridkey, amendment):
@@ -245,7 +245,7 @@ def _add_history_probes(klass):
         setattr(klass, 'test_phase%d_redactconflict_t%s' % (phase, cridkey), _test)
 
     # phase 0: good probes
-    _add_good_probe(0, None, 'catalog')
+    _add_good_probe(0, None, 'catalog', http_codes=[200, 403, 401])
 
     for ridkey in ['catalog', 'schema', 'table', 'ridcol', 'namecol', 'key', 'fkey']:
         _add_good_probe(0, 'annotation', ridkey)
@@ -308,8 +308,9 @@ class ZHistory (common.ErmrestTest):
                 url += '/%s' % rid
         return url + suffix
 
-    def _probe_test(self, api, rid):
-        self.assertHttp(common.secondary_session.get(self.url(api, rid, None, None)), 403)
+    def _probe_test(self, api, rid, http_codes=[200, 403, 401]):
+        self.assertHttp(common.secondary_session.get(self.url(api, rid, None, None)), http_codes[1])
+        self.assertHttp(common.anonymous_session.get(self.url(api, rid, None, None)), http_codes[2])
         r = self.session.get(self.url(api, rid, None, None))
         self.assertHttp(r, 200, 'application/json')
         h = r.json()

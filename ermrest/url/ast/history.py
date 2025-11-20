@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2017-2023 University of Southern California
+# Copyright 2017-2025 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -121,7 +121,6 @@ def _encode_ts(cur, ts):
 
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
-        handler.enforce_right('owner')
         handler.set_http_etag(_etag(cur))
         handler.http_check_preconditions()
         return thunk(conn, cur)
@@ -165,6 +164,7 @@ class CatalogHistory (Api):
              python_status: ( (h_from, h_until), amendver )
              prejson_status: { "snaprange": [ h_from_epoch, h_until_epoch ], "amendver": amendver_epoch }
         """
+        self.enforce_right('owner')
         h_from, h_until, amendver = _validate_history_snaprange(cur)
         return (
             ( (h_from, h_until), amendver ),
