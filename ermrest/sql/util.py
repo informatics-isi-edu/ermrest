@@ -17,7 +17,8 @@
 
 import sys
 import pkgutil
-from ..util import sql_identifier
+import json
+from ..util import sql_identifier, sql_literal
 from .. import sanepg2, sql
 from ..catalog import Catalog
 from ..apicore import catalog_factory, registry
@@ -92,6 +93,13 @@ def print_redeploy_registry_sql():
 
        This SQL should be run via 'psql' as postgres or another DB superuser.
     """
+    # as it appears in the companion registry.sql
+    hardcoded_dsn = """'{"dbname":"ermrest"}'"""
+    # as we will use to connect back to the registry
+    configured_dsn = dict(catalog_factory._template)
+    configured_dsn.update({"dbname":"ermrest"})
+    configured_dsn = sql_literal(json.dumps(configured_dsn))
+
     sys.stdout.write("""
 \\connect template1
 %(template1_extupgrade)s
@@ -112,7 +120,7 @@ ANALYZE;
 """ % {
     "template1_extupgrade": extupgrade_sql('template1'),
     "ermrest_sql": pkgutil.get_data(sql.__name__, 'ermrest_schema.sql').decode(),
-    "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql').decode(),
+    "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql').decode().replace(hardcoded_dsn, configured_dsn),
     "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_registry.sql').decode(),
     "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql').decode(),
 })
