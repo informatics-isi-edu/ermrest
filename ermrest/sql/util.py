@@ -92,6 +92,9 @@ def print_redeploy_registry_sql():
 
        This SQL should be run via 'psql' as postgres or another DB superuser.
     """
+    hardcoded_dsn = '{"dbname":"ermrest"}'
+    configured_dsn = registry.dsn if registry is not None else hardcoded_dsn
+
     sys.stdout.write("""
 \\connect template1
 %(template1_extupgrade)s
@@ -112,7 +115,7 @@ ANALYZE;
 """ % {
     "template1_extupgrade": extupgrade_sql('template1'),
     "ermrest_sql": pkgutil.get_data(sql.__name__, 'ermrest_schema.sql').decode(),
-    "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql').decode(),
+    "registry_sql": pkgutil.get_data(sql.__name__, 'registry.sql').decode().replace(hardcoded_dsn, configured_dsn),
     "upgrade_sql": pkgutil.get_data(sql.__name__, 'upgrade_registry.sql').decode(),
     "change_owners_sql": pkgutil.get_data(sql.__name__, 'change_owner.sql').decode(),
 })
