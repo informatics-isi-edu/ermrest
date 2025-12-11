@@ -17,7 +17,7 @@
 
 import sys
 import pkgutil
-from ..util import sql_identifier
+from ..util import sql_identifier, sql_literal
 from .. import sanepg2, sql
 from ..catalog import Catalog
 from ..apicore import catalog_factory, registry
@@ -92,8 +92,10 @@ def print_redeploy_registry_sql():
 
        This SQL should be run via 'psql' as postgres or another DB superuser.
     """
-    hardcoded_dsn = '{"dbname":"ermrest"}'
-    configured_dsn = registry.dsn if registry is not None else hardcoded_dsn
+    # as it appears in the companion registry.sql
+    hardcoded_dsn = """'{"dbname":"ermrest"}'"""
+    # properly SQL quoted from the configured registry
+    configured_dsn = sql_literal(registry.dsn) if registry is not None else hardcoded_dsn
 
     sys.stdout.write("""
 \\connect template1
