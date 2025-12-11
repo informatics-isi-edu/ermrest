@@ -17,6 +17,7 @@
 
 import sys
 import pkgutil
+import json
 from ..util import sql_identifier, sql_literal
 from .. import sanepg2, sql
 from ..catalog import Catalog
@@ -94,8 +95,9 @@ def print_redeploy_registry_sql():
     """
     # as it appears in the companion registry.sql
     hardcoded_dsn = """'{"dbname":"ermrest"}'"""
-    # properly SQL quoted from the configured registry
-    configured_dsn = sql_literal(registry.dsn) if registry is not None else hardcoded_dsn
+    # as we will use to connect back to the registry
+    configured_dsn = dict(**catalog_factory._template, **{"dbname":"ermrest"})
+    configured_dsn = sql_literal(json.dumps(configured_dsn))
 
     sys.stdout.write("""
 \\connect template1
