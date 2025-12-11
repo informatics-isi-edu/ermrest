@@ -96,7 +96,8 @@ def print_redeploy_registry_sql():
     # as it appears in the companion registry.sql
     hardcoded_dsn = """'{"dbname":"ermrest"}'"""
     # as we will use to connect back to the registry
-    configured_dsn = dict(**catalog_factory._template, **{"dbname":"ermrest"})
+    configured_dsn = dict(catalog_factory._template)
+    configured_dsn.update({"dbname":"ermrest"})
     configured_dsn = sql_literal(json.dumps(configured_dsn))
 
     sys.stdout.write("""
