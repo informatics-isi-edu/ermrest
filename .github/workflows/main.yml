@@ -11,7 +11,7 @@ on:
 
 jobs:
   install-and-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     env:
       TEST_COOKIES1: /home/runner/cookies1
       TEST_COOKIES2: /home/runner/cookies2
@@ -20,38 +20,35 @@ jobs:
       PYTHONWARNINGS: "ignore:Unverified HTTPS request"
     steps:
       - name: Checkout repository code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         with:
           path: ermrest
       - name: Setup the system
         run: |
           sudo apt-get update
-          sudo apt-get -y install libcurl4-openssl-dev libjson-c-dev
+          sudo apt-get install -y --no-install-recommends $APT_PACKAGES
           sudo service postgresql stop || true
-          sudo service postgresql start 12
-          sudo apt-get install apache2 apache2-dev ssl-cert libapache2-mod-wsgi-py3
+          sudo service postgresql start
           sudo ln -s /etc/apache2/conf-enabled /etc/apache2/conf.d
-          sudo -H -u postgres psql -c "SHOW ALL"
           sudo a2enmod ssl
           sudo a2ensite default-ssl
           sudo groupadd -o -g $(id -g www-data) apache
-          sudo apt-get install -y python3-setuptools python3-ply
-          sudo su -c 'echo /usr/lib/python3.8/site-packages > /usr/local/lib/python3.8/dist-packages/sys-site-packages.pth'
-          sudo pip3 install requests
-          sudo pip3 install psycopg2-binary
-          sudo pip3 install flask
+          echo "python3 version:"
+          sudo python3 --version
+          echo "pip3 version:"
+          sudo pip3 --version
+        env:
+          APT_PACKAGES: >
+            libcurl4-openssl-dev libjson-c-dev
+            python3-psycopg2 python3-pip python3-setuptools python3-ply
+            apache2 apache2-dev ssl-cert libapache2-mod-wsgi-py3 ca-certificates
+            python3-cryptography python3-openssl python3-oauth2client
+            python3-flask python3-requests
       - name: Install webauthn
         run: |
-          sudo pip3 install -U pyopenssl cryptography
-          sudo pip3 install pycryptodome
-          sudo pip3 install oauth2client
-          sudo pip3 install 'globus_sdk<3'
-          sudo pip3 install pyjwkest
-          sudo useradd -m -r webauthn
-          sudo su -c '/usr/bin/python3 -c "import sys;import pprint;pprint.pprint(sys.path)"' - webauthn
           git clone https://github.com/informatics-isi-edu/webauthn.git
           cd webauthn
-          git checkout origin/master
+          sudo useradd -m -r webauthn
           sudo make testvars
           sudo make install
           sudo make deploy
@@ -98,3 +95,7 @@ jobs:
           sudo -H -u postgres psql -c '\dn' _ermrest_catalog_5
           sudo cat /etc/apache2/sites-available/000-default.conf
           sudo cat /etc/apache2/sites-available/default-ssl.conf
+          echo "apache error log:"
+          sudo cat /var/log/apache2/error.log
+          echo "apache access log:"
+          sudo cat /var/log/apache2/access.log
