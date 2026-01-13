@@ -45,7 +45,7 @@ import sys
 import traceback
 import datetime
 import math
-from webauthn2.util import deriva_debug
+from webauthn2.util import deriva_debug, deriva_ctx
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.
@@ -54,6 +54,22 @@ class connection (psycopg2.extensions.connection):
     def __init__(self, dsn):
         psycopg2.extensions.connection.__init__(self, dsn)
         self._curnumber  = 1
+        cur = self.cursor()
+        cur.execute("""
+CREATE TEMPORARY TABLE IF NOT EXISTS ermrest_audit_log (
+    id serial PRIMARY KEY,
+    ts timestamptz NOT NULL,
+    table_rid text NOT NULL,
+    schema_name text NOT NULL,
+    table_name text NOT NULL,
+    op text NOT NULL,
+    row_rid text NOT NULL,
+    detail jsonb
+)
+ON COMMIT DELETE ROWS;
+""")
+        self.commit()
+        del cur
 
     def execute(self, stmt, vars=None):
         """Name and create a server-side cursor with withhold=True and run statement in it.
@@ -152,6 +168,16 @@ class PooledConnection (object):
         assert self.conn is not None
         try:
             result = bodyfunc(self.conn, self.cur)
+            cur = self.conn.cursor()
+            cur.execute("SELECT * FROM ermrest_audit_log")
+            for ser, ts, trid, sname, tname, op, row_rid, detail in cur:
+                deriva_ctx.ermrest_request_trace({
+                    "audit_op": op,
+                    "catalog": deriva_ctx.ermrest_catalog_id,
+                    "table": [trid, sname, tname],
+                    "detail": detail,
+                })
+            del cur
             self.conn.commit()
             return finalfunc(result)
         except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:

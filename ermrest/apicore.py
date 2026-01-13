@@ -220,6 +220,7 @@ def request_init():
     deriva_ctx.ermrest_catalog_model = None
     deriva_ctx.ermrest_config = global_env
     deriva_ctx.ermrest_catalog_pc = None
+    deriva_ctx.ermrest_catalog_id = None
     deriva_ctx.ermrest_change_notify = amqp_notifier.notify if amqp_notifier else lambda : None
     deriva_ctx.ermrest_model_rights_cache = dict()
 

@@ -643,3 +643,58 @@ WHERE "RID" = %s;
     def freetext_column(self):
         return FreetextColumn(self)
 
+    @classmethod
+    def _create_audit_triggers_sql(cls, trid, sname, tname):
+        template = """
+CREATE OR REPLACE TRIGGER ermrest_audit_insert
+  AFTER INSERT ON %(sname_ident)s.%(tname_ident)s
+  REFERENCING NEW TABLE AS ermrest_audit_newtuples
+  FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_audit(%(trid_literal)s);
+
+CREATE OR REPLACE TRIGGER ermrest_audit_update
+  AFTER UPDATE ON %(sname_ident)s.%(tname_ident)s
+  REFERENCING OLD TABLE AS ermrest_audit_oldtuples NEW TABLE AS ermrest_audit_newtuples
+  FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_audit(%(trid_literal)s);
+
+CREATE OR REPLACE TRIGGER ermrest_audit_delete
+  AFTER DELETE ON %(sname_ident)s.%(tname_ident)s
+  REFERENCING OLD TABLE AS ermrest_audit_oldtuples
+  FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_audit(%(trid_literal)s);
+"""
+        return template % {
+            "trid_literal": sql_literal(trid),
+            "sname_ident": sql_identifier(sname),
+            "tname_ident": sql_identifier(tname),
+        }
+
+    def enable_audit_triggers_sql(self) -> str:
+        """Return idempotent table auditing trigger definitions as SQL string."""
+        if not self.rid:
+            raise ValueError('Cannot use table auditing on table %r.%r which lacks a table RID' % (
+                table.schema.name,
+                table.name,
+            ))
+
+        if 'RID' not in self.columns:
+            raise ValueError('Cannot use table auditing on table %r.%r which lacks a RID column' % (
+                table.schema.name,
+                table.name,
+            ))
+
+        return self._create_audit_triggers_sql(self.rid, self.schema.name, self.name)
+
+    @classmethod
+    def _drop_audit_triggers_sql(cls, sname, tname):
+        template = """
+DROP TRIGGER IF EXISTS ermrest_audit_insert ON %(sname_ident)s.%(tname_ident)s;
+DROP TRIGGER IF EXISTS ermrest_audit_update ON %(sname_ident)s.%(tname_ident)s;
+DROP TRIGGER IF EXISTS ermrest_audit_delete ON %(sname_ident)s.%(tname_ident)s;
+"""
+        return template % {
+            "sname_ident": sql_identifier(sname),
+            "tname_ident": sql_identifier(tname),
+        }
+
+    def disable_audit_triggers_sql(self) -> str:
+        """Return idempotent table auditing trigger deletions as SQL string."""
+        return self._drop_audit_triggers_sql(self.schema.name, self.name)

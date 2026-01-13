@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2012-2024 University of Southern California
+-- Copyright 2012-2026 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -316,6 +316,86 @@ BEGIN
     IF oldj ? 'RMT' THEN NEW."RMT" := now(); END IF;
   END IF;
   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- use as an AFTER trigger
+CREATE OR REPLACE FUNCTION _ermrest.table_audit() RETURNS TRIGGER AS $$
+DECLARE
+  trid text;
+  sname text;
+  tname text;
+BEGIN
+
+  trid := TG_ARGV[0];
+
+  CREATE TEMPORARY TABLE IF NOT EXISTS ermrest_audit_log (
+    id serial PRIMARY KEY,
+    ts timestamptz NOT NULL,
+    table_rid text NOT NULL,
+    schema_name text NOT NULL,
+    table_name text NOT NULL,
+    op text NOT NULL,
+    row_rid text NOT NULL,
+    detail jsonb
+  ) ON COMMIT DELETE ROWS;
+
+  SELECT s.schema_name, t.table_name
+  INTO sname, tname
+  FROM _ermrest.known_tables t
+  JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+  WHERE t."RID" = trid;
+
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO ermrest_audit_log (ts, table_rid, schema_name, table_name, op, row_rid, detail)
+    SELECT
+      now(),
+      trid,
+      sname,
+      tname,
+      'insert',
+      n."RID",
+      (SELECT
+         jsonb_object_agg(nj.k, nj.v)
+       FROM jsonb_each(to_jsonb(n)) nj (k, v)
+      )
+    FROM ermrest_audit_newtuples n;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    INSERT INTO ermrest_audit_log (ts, table_rid, schema_name, table_name, op, row_rid, detail)
+    SELECT
+      now(),
+      trid,
+      sname,
+      tname,
+      'modify',
+      n."RID",
+      (SELECT
+         jsonb_object_agg(nj.k, nj.v)
+       FROM jsonb_each(to_jsonb(n)) nj (k, v)
+      )
+    FROM ermrest_audit_newtuples n;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO ermrest_audit_log (ts, table_rid, schema_name, table_name, op, row_rid, detail)
+    SELECT
+      now(),
+      trid,
+      sname,
+      tname,
+      'delete',
+      o."RID",
+      (SELECT
+         jsonb_object_agg(oj.k, oj.v)
+       FROM jsonb_each(to_jsonb(o)) oj (k, v)
+      )
+    FROM ermrest_audit_oldtuples o;
+  END IF;
+
+  RETURN NULL;
+
 END;
 $$ LANGUAGE plpgsql;
 

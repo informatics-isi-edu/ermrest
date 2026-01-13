@@ -230,6 +230,7 @@ class Catalog (Api):
         
         assert deriva_ctx.ermrest_catalog_pc is None
         deriva_ctx.ermrest_catalog_pc = sanepg2.PooledConnection(self.manager.dsn)
+        deriva_ctx.ermrest_catalog_id = catalog_id
 
         Api.__init__(self, self)
         # now enforce read permission
