@@ -301,30 +301,27 @@ class Catalog (object):
 
         model = self.get_model(cur, self._config)
 
-        ## enable model and ACL auditing
-        for tname in [
-                "known_schemas",
-                "known_tables",
-                "known_columns",
-                "known_keys",
-                "known_fkeys",
-                "known_pseudo_fkeys",
-                #
-                "known_catalog_acls",
-                "known_table_acls",
-                "known_column_acls",
-                "known_fkey_acls",
-                "known_pseudo_fkey_acls",
-                #
-                "known_table_dynacls",
-                "known_column_dynacls",
-                "known_fkey_dynacls",
-                "known_pseudo_fkey_dynacls",
-        ]:
-            table = model.ermrest_schema.tables[tname]
-            cur.execute(table.enable_audit_triggers_sql())
-
         ## initial policy
         model.acls['owner'] = owner # set so enforcement won't deny subsequent set_acl()
         model.set_acl(cur, 'owner', owner)
         model.set_annotations(conn, cur, annotations_merged)
+
+        ## enable model/config auditing
+        #  but simplify annotation logging to only log keys and not (possibly large) values
+        model.ermrest_schema.set_annotations(
+            conn, cur,
+            {
+                "tag:isrd.isi.edu,2026:auditing-configuration": {
+                    "log_row_writes": True,
+                    "insert_hide_columns": ["RMT", "annotation_value"],
+                    "update_hide_columns": ["RMT", "annotation_value"],
+                    "delete_hide_columns": ["annotation_value"],
+                }
+            }
+        )
+
+        for table in model.ermrest_schema.tables.values():
+            # only enable audit triggers for the reified catalog model
+            # (not other special metadata tables)
+            if table.name.startswith('known_'):
+                cur.execute(table.enable_audit_triggers_sql())

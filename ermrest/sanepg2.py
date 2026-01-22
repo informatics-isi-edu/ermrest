@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -60,10 +60,7 @@ CREATE TEMPORARY TABLE IF NOT EXISTS ermrest_audit_log (
     id serial PRIMARY KEY,
     ts timestamptz NOT NULL,
     table_rid text NOT NULL,
-    schema_name text NOT NULL,
-    table_name text NOT NULL,
     op text NOT NULL,
-    row_rid text NOT NULL,
     detail jsonb
 )
 ON COMMIT DELETE ROWS;
@@ -169,9 +166,22 @@ class PooledConnection (object):
         try:
             result = bodyfunc(self.conn, self.cur)
             cur = self.conn.cursor()
-            cur.execute("SELECT * FROM ermrest_audit_log")
-            for ser, ts, trid, sname, tname, op, row_rid, detail in cur:
+            cur.execute("""
+SELECT
+  l.id,
+  l.ts::text,
+  l.table_rid,
+  s.schema_name,
+  t.table_name,
+  l.op,
+  l.detail
+FROM ermrest_audit_log l
+JOIN _ermrest.known_tables t ON (l.table_rid = t."RID")
+JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+""")
+            for ser, ts, trid, sname, tname, op, detail in cur:
                 deriva_ctx.ermrest_request_trace({
+                    "audit_ts": ts,
                     "audit_op": op,
                     "catalog": deriva_ctx.ermrest_catalog_id,
                     "table": [trid, sname, tname],

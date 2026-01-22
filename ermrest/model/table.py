@@ -320,6 +320,8 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
         )
         table.rid = cur.fetchone()[0]
 
+        cur.execute(table.enable_audit_triggers_sql())
+
         if not table.has_right('owner'):
             # client gets ownership by default
             table.acls['owner'] = [deriva_ctx.webauthn2_context.get_client_id()]
@@ -671,12 +673,6 @@ CREATE OR REPLACE TRIGGER ermrest_audit_delete
         """Return idempotent table auditing trigger definitions as SQL string."""
         if not self.rid:
             raise ValueError('Cannot use table auditing on table %r.%r which lacks a table RID' % (
-                table.schema.name,
-                table.name,
-            ))
-
-        if 'RID' not in self.columns:
-            raise ValueError('Cannot use table auditing on table %r.%r which lacks a RID column' % (
                 table.schema.name,
                 table.name,
             ))
