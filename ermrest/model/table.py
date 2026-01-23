@@ -67,6 +67,7 @@ class Table (object):
     """
     tag_indexing_preferences = 'tag:isrd.isi.edu,2018:indexing-preferences'
     tag_history_capture = 'tag:isrd.isi.edu,2020:history-capture'
+    tag_auditing_configuration = 'tag:isrd.isi.edu,2026:auditing-configuration'
     
     def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None):
         self.schema = schema
@@ -320,8 +321,6 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
         )
         table.rid = cur.fetchone()[0]
 
-        cur.execute(table.enable_audit_triggers_sql())
-
         if not table.has_right('owner'):
             # client gets ownership by default
             table.acls['owner'] = [deriva_ctx.webauthn2_context.get_client_id()]
@@ -332,6 +331,8 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
         table.set_annotations(conn, cur, annotations)
         table.set_acls(cur, acls)
         table.set_dynacls(cur, dynacls)
+
+        cur.execute(table.manage_audit_triggers_sql())
 
         cur.execute("""
 SELECT
@@ -694,3 +695,14 @@ DROP TRIGGER IF EXISTS ermrest_audit_delete ON %(sname_ident)s.%(tname_ident)s;
     def disable_audit_triggers_sql(self) -> str:
         """Return idempotent table auditing trigger deletions as SQL string."""
         return self._drop_audit_triggers_sql(self.schema.name, self.name)
+
+    def manage_audit_triggers_sql(self) -> str:
+        """Return idempotent table auditing trigger manipulation as SQL string."""
+        cfg = {}
+        cfg.update(self.schema.model.annotations.get(self.tag_auditing_configuration, {}))
+        cfg.update(self.schema.annotations.get(self.tag_auditing_configuration, {}))
+        cfg.update(self.annotations.get(self.tag_auditing_configuration, {}))
+        if cfg.get('log_row_writes', True):
+            return self.enable_audit_triggers_sql()
+        else:
+            return self.disable_audit_triggers_sql()

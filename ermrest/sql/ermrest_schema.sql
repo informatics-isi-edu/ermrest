@@ -332,7 +332,7 @@ BEGIN
   trid := TG_ARGV[0];
 
   SELECT
-    '{"log_row_writes": true, "insert_hide_columns": ["RMT"], "update_hide_columns": ["RMT"]}'::jsonb || COALESCE(
+    '{"insert_hide_columns": ["RMT"], "update_hide_columns": ["RMT"]}'::jsonb || COALESCE(
       (SELECT annotation_value
        FROM _ermrest.known_catalog_annotations
        WHERE annotation_uri = 'tag:isrd.isi.edu,2026:auditing-configuration'),

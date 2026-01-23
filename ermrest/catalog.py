@@ -274,7 +274,7 @@ class Catalog (object):
                 msg = str(ev)
                 continue
         raise RuntimeError(msg)
-    
+
     def init_meta(self, conn, cur, owner=None, annotations=None):
         """Initializes the Catalog metadata.
         """
@@ -311,8 +311,7 @@ class Catalog (object):
         model.ermrest_schema.set_annotations(
             conn, cur,
             {
-                "tag:isrd.isi.edu,2026:auditing-configuration": {
-                    "log_row_writes": True,
+                Table.tag_auditing_configuration: {
                     "insert_hide_columns": ["RMT", "annotation_value"],
                     "update_hide_columns": ["RMT", "annotation_value"],
                     "delete_hide_columns": ["annotation_value"],
@@ -324,4 +323,4 @@ class Catalog (object):
             # only enable audit triggers for the reified catalog model
             # (not other special metadata tables)
             if table.name.startswith('known_'):
-                cur.execute(table.enable_audit_triggers_sql())
+                cur.execute(table.manage_audit_triggers_sql())
