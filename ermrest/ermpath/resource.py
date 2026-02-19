@@ -338,13 +338,20 @@ def sort_components(sortvec, is_before):
 system_colnames = {'RID','RCT','RMT','RCB','RMB'}
 
 def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, drop_tables=None, use_defaults=None):
+    """Return dict of variable set of temporary table names
+
+    {"data": ..., "csv": ..., "json": ...,}
+    """
     if use_defaults is None:
         use_defaults = set()
-    input_table = random_name("input_data_")
-    input_json_table = None
+
+    tnames = {
+        "data": random_name("input_data_"),
+    }
+
     cur.execute(
         "CREATE TEMPORARY TABLE %s (%s)" % (
-            sql_identifier(input_table),
+            sql_identifier(tnames["data"]),
             ','.join(
                 [
                     c.input_ddl(mkcol_aliases.get(c), c not in use_defaults)
@@ -356,14 +363,39 @@ def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliase
             )
         )
     )
-    if drop_tables is not None:
-        drop_tables.append(input_table)
+
+    if in_content_type in [ 'text/csv' ]:
+        def input_ddl(c, aliases, enforce_notnull):
+            # we will load CSV array cols as text and decode later...
+            cname = aliases.get(c, c.name)
+            ctype = 'text' if c.type.is_array else c.type.sql(basic_storage=True)
+            notnull = "NOT NULL" if c.nullok is False and enforce_notnull else ""
+            return "%s %s %s" % (sql_identifier(cname), ctype, notnull)
+
+        tnames["csv"] = random_name("input_csv_")
+        cur.execute(
+            "CREATE TEMPORARY TABLE %s (%s)" % (
+                sql_identifier(tnames["csv"]),
+                ','.join(
+                    [
+                        input_ddl(c, mkcol_aliases, c not in use_defaults)
+                        for c in mkcols
+                    ] + [
+                        input_ddl(c, nmkcol_aliases, c not in use_defaults)
+                        for c in nmkcols
+                    ]
+                )
+            )
+        )
+
     if in_content_type in [ 'application/x-json-stream' ]:
-        input_json_table = random_name("input_json_")
-        cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(input_json_table))
-        if drop_tables is not None:
-            drop_tables.append(input_json_table)
-    return input_table, input_json_table
+        tnames["json"] = random_name("input_json_")
+        cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(tnames["json"]))
+
+    if drop_tables is not None:
+        drop_tables.extend(tnames.values())
+
+    return tnames
 
 def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     """Build up intermediate SQL representations of each JSON record as field lists."""
@@ -417,22 +449,25 @@ def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_
     # split back into json_cols, json_projection lists
     return zip(*parts)
 
-def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+def _load_input_data_csv(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     if use_defaults is None:
         use_defaults = set()
 
     hdr = next(csv.reader([ input_data.readline().decode() ]))
 
-    inputcol_names = set(
-        [ mkcol_aliases.get(c, c.name) for c in mkcols ]
-        + [ nmkcol_aliases.get(c, c.name) for c in nmkcols ]
-    )
-    csvcol_names = set()
+    inputcol_names = {
+        mkcol_aliases.get(c, c.name): c
+        for c in mkcols
+    }
+    inputcol_names |= {
+        nmkcol_aliases.get(c, c.name): c
+        for c in nmkcols
+    }
+    csvcol_names = {}
     csvcol_names_ordered = []
     for cn in hdr:
         try:
-            inputcol_names.remove(cn)
-            csvcol_names.add(cn)
+            csvcol_names[cn] = inputcol_names.pop(cn)
             csvcol_names_ordered.append(cn)
         except KeyError:
             if cn in csvcol_names:
@@ -440,7 +475,7 @@ def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_al
             else:
                 raise ConflictModel('CSV column %s not recognized.' % cn)
 
-    inputcol_names = set(inputcol_names).difference(set([ c.name for c in use_defaults ]))
+    inputcol_names = set(inputcol_names.keys()).difference(set([ c.name for c in use_defaults ]))
     if inputcol_names:
         raise BadData('Missing expected CSV column%s: %s.' % (
             ('' if len(inputcol_names) == 0 else 's'),
@@ -448,6 +483,7 @@ def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_al
         ))
 
     try:
+        # store input CSV, keeping array cols as text
         cur.copy_expert(u"""
 COPY %(input_table)s (%(cols)s)
 FROM STDIN WITH (
@@ -456,15 +492,58 @@ FROM STDIN WITH (
     DELIMITER ',',
     QUOTE '"'
 )""" % {
-    'input_table': sql_identifier(input_table),
+    'input_table': sql_identifier(input_tnames["csv"]),
     'cols': ','.join([ sql_identifier(cn) for cn in csvcol_names_ordered ])
 },
             input_data
         )
+
+        # transfer to real input table, rewriting array cols
+        def col_select(cn):
+            c = csvcol_names[cn]
+            if not c.type.is_array:
+                return sql_identifier(cn)
+            elif c.type.name in {'json[]','jsonb[]'}:
+                return ("""CASE
+WHEN %(cn)s IS NULL THEN NULL::%(ctype)s
+WHEN SUBSTRING(%(cn)s FROM 1 FOR 1) = '{' THEN %(cn)s::%(ctype)s
+ELSE (
+  SELECT array_agg(v)::%(ctype)s
+  FROM json_array_elements(%(cn)s::json) j(v)
+)
+END
+""" % {
+    "cn": sql_identifier(cn),
+    "ctype": c.type.sql(basic_storage=True),
+})
+            else:
+                return ("""CASE
+WHEN %(cn)s IS NULL THEN NULL::%(ctype)s
+WHEN SUBSTRING(%(cn)s FROM 1 FOR 1) = '{' THEN %(cn)s::%(ctype)s
+ELSE (
+  SELECT array_agg(v)::%(ctype)s
+  FROM json_array_elements_text(%(cn)s::json) j(v)
+)
+END
+""" % {
+    "cn": sql_identifier(cn),
+    "ctype": c.type.sql(basic_storage=True),
+})
+
+        cur.execute(u"""
+INSERT INTO %(input_table)s (%(targets)s)
+SELECT %(selects)s FROM %(input_csv_table)s
+""" % {
+    "input_table": sql_identifier(input_tnames["data"]),
+    "input_csv_table": sql_identifier(input_tnames["csv"]),
+    "targets": ",".join([ sql_identifier(cn) for cn in csvcol_names_ordered ]),
+    "selects": ",".join([ col_select(cn) for cn in csvcol_names_ordered ]),
+})
     except psycopg2.DataError as e:
         raise BadData(u'Bad CSV input. ' + e.pgerror)
 
-def _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+
+def _load_input_data_json(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     if use_defaults is None:
         use_defaults = set()
 
@@ -484,7 +563,7 @@ FROM (
     AS rs ( j )
 ) s
 """ % {
-    'input_table': sql_identifier(input_table),
+    'input_table': sql_identifier(input_tnames["data"]),
     'cols': u','.join(json_cols),
     'input': text_type.sql_literal(buf),
     'json_projection': ','.join(json_projection)
@@ -493,13 +572,13 @@ FROM (
     except psycopg2.DataError as e:
         raise BadData('Bad JSON array input. ' + e.pgerror)
 
-def _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+def _load_input_data_json_stream(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     json_cols, json_projection = _build_json_projections(
         mkcols, nmkcols,
         mkcol_aliases, nmkcol_aliases
     )
     try:
-        cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
+        cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_tnames["json"]), input_data )
         _set_statement_timeout(cur)
         cur.execute(u"""
 INSERT INTO %(input_table)s (%(cols)s)
@@ -509,8 +588,8 @@ FROM (
   FROM %(input_json)s i
 ) s
 """ % {
-    'input_table': sql_identifier(input_table),
-    'input_json': sql_identifier(input_json_table),
+    'input_table': sql_identifier(input_tnames["data"]),
+    'input_json': sql_identifier(input_tnames["json"]),
     'cols': ','.join(json_cols),
     'json_projection': ','.join(json_projection),
 }
@@ -518,13 +597,13 @@ FROM (
     except psycopg2.DataError as e:
         raise BadData('Bad JSON stream input. ' + e.pgerror)
 
-def _load_input_data(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, use_defaults=None):
+def _load_input_data(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, use_defaults=None):
     if in_content_type == 'text/csv':
-        _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
+        _load_input_data_csv(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     elif in_content_type == 'application/json':
-        _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
+        _load_input_data_json(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     elif in_content_type == 'application/x-json-stream':
-        _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
+        _load_input_data_json_stream(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     else:
         raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
@@ -1187,7 +1266,7 @@ class EntityElem (object):
             if cname in self.table.columns
         ])
 
-        input_table, input_json_table = _create_temp_input_tables(
+        input_tnames = _create_temp_input_tables(
             cur,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
@@ -1197,16 +1276,16 @@ class EntityElem (object):
         )
 
         _load_input_data(
-            cur, input_data, input_table, input_json_table,
+            cur, input_data, input_tnames,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             in_content_type
         )
 
-        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+        _analyze_input_table(cur, input_tnames["data"], mkcols, mkcol_aliases)
 
         will_insert = _enforce_table_upsert_static(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases
         )
@@ -1216,7 +1295,7 @@ class EntityElem (object):
                 raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
 
         _enforce_table_upsert_dynamic(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             will_insert,
@@ -1225,7 +1304,7 @@ class EntityElem (object):
 
         try:
             results1, results2 = _perform_table_upsert(
-                cur, self.table, input_table,
+                cur, self.table, input_tnames["data"],
                 mkcols, nmkcols,
                 mkcol_aliases, nmkcol_aliases,
                 content_type,
@@ -1364,7 +1443,7 @@ class EntityElem (object):
         if not set(mkcols).union(set(nmkcols)).difference(use_defaults):
             raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
 
-        input_table, input_json_table = _create_temp_input_tables(
+        input_tnames = _create_temp_input_tables(
             cur,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
@@ -1374,24 +1453,24 @@ class EntityElem (object):
         )
 
         _load_input_data(
-            cur, input_data, input_table, input_json_table,
+            cur, input_data, input_tnames,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             in_content_type,
             use_defaults
         )
 
-        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+        _analyze_input_table(cur, input_tnames["data"], mkcols, mkcol_aliases)
 
         _enforce_table_insert_static(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             use_defaults
         )
 
         _enforce_table_insert_dynamic(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             use_defaults
@@ -1399,7 +1478,7 @@ class EntityElem (object):
 
         try:
             results = _perform_table_insert(
-                cur, self.table, input_table,
+                cur, self.table, input_tnames["data"],
                 mkcols, nmkcols,
                 mkcol_aliases, nmkcol_aliases,
                 content_type,
@@ -1486,7 +1565,7 @@ class EntityElem (object):
         mkcols, nmkcols = attr_update
         mkcol_aliases, nmkcol_aliases = attr_aliases if attr_aliases is not None else (dict(), dict())
 
-        input_table, input_json_table = _create_temp_input_tables(
+        input_tnames = _create_temp_input_tables(
             cur,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
@@ -1495,34 +1574,34 @@ class EntityElem (object):
         )
 
         _load_input_data(
-            cur, input_data, input_table, input_json_table,
+            cur, input_data, input_tnames,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             in_content_type
         )
 
-        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+        _analyze_input_table(cur, input_tnames["data"], mkcols, mkcol_aliases)
 
         _enforce_table_update_static(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases
         )
 
-        _enforce_input_exists(cur, input_table, self.table, mkcols, mkcol_aliases)
+        _enforce_input_exists(cur, input_tnames["data"], self.table, mkcols, mkcol_aliases)
 
         # NOTE: we already prefetch the whole result so might as well build incrementally...
         results = []
 
         _enforce_table_update_dynamic(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases
         )
 
         try:
             results = _perform_table_update(
-                cur, self.table, input_table,
+                cur, self.table, input_tnames["data"],
                 mkcols, nmkcols,
                 mkcol_aliases, nmkcol_aliases,
                 content_type
