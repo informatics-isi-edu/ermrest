@@ -79,9 +79,11 @@ def _GET(handler, uri, dresource, vresource):
 
     if content_type == 'text/csv':
         results = tempfile.TemporaryFile()
+        arrays_to_json = handler.queryopts.get('arrays') == 'json'
     else:
         results = None
-        
+        arrays_to_json = False
+
     def body(conn, cur):
         try:
             conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ)
@@ -89,7 +91,7 @@ def _GET(handler, uri, dresource, vresource):
             handler.http_check_preconditions()
             dresource.add_sort(handler.sort)
             dresource.add_paging(handler.after, handler.before)
-            return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit)
+            return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit, arrays_to_json=arrays_to_json)
         finally:
             try:
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)

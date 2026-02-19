@@ -33,7 +33,7 @@ from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
-from ..model.type import text_type, aggfuncs
+from ..model.type import text_type, json_type, aggfuncs
 from ..model import predicate
 
 class _FakeEntityElem (object):
@@ -1620,7 +1620,7 @@ class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
 
     """
-    def sql_get(self, row_content_type='application/json', limit=None, prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this path.
 
            The query will be of the form:
@@ -1702,7 +1702,7 @@ class AnyPath (object):
 
         return aggregates, extras, output_type_overrides
 
-    def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None):
+    def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None, arrays_to_json=False):
         """Fetch resources.
 
            conn: sanepg2 database connection to catalog
@@ -1735,7 +1735,7 @@ class AnyPath (object):
         elif hasattr(self, 'epath'):
             self.epath._path[0].table.enforce_right('select')
 
-        sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True)
+        sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True, arrays_to_json=arrays_to_json)
 
         #deriva_debug(sql)
 
@@ -1754,7 +1754,6 @@ class AnyPath (object):
             cur.copy_expert(sql, output_file)
 
             return output_file
-
         else:
             # generate rows to caller
             if content_type == 'text/csv':
@@ -1772,7 +1771,6 @@ class AnyPath (object):
             #deriva_debug(sql)
             _set_statement_timeout(cur)
             cur.execute(sql)
-            
             return make_row_thunk(None, cur, content_type)()
 
 class EntityPath (AnyPath):
@@ -1903,7 +1901,7 @@ class EntityPath (AnyPath):
         # select access was already enforced for enumerable output columns
         return (key.keyname, key.descending, column.type)
 
-    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, dynauthz_testcol=None):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, dynauthz_testcol=None, arrays_to_json=False):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1927,10 +1925,15 @@ class EntityPath (AnyPath):
             if enforce_client:
                 for col in context_table.columns_in_order(enforce_client=enforce_client):
                     col.enforce_data_right('select')
-            selects = ", ".join([
-                "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
-                for col in context_table.columns_in_order()
-            ])
+
+            selects = []
+            for col in context_table.columns_in_order():
+                sql = "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
+                if arrays_to_json and col.type.is_array:
+                    sql = 'array_to_json(%s) as %s' % (sql, sql_identifier(col.name))
+                selects.append(sql)
+
+            selects = ','.join(selects)
 
         if dynauthz_testcol is not None:
             assert context_table.columns[dynauthz_testcol.name] == dynauthz_testcol
@@ -2260,7 +2263,7 @@ class AttributePath (AnyPath):
             raise BadData('Sort key "%s" not among output columns.' % key.keyname)
         return (key.keyname, key.descending, self.output_types[key.keyname])
 
-    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -2391,8 +2394,6 @@ END
             else:
                 select = "%s.%s" % (alias, col.sql_name())
 
-            select = select
-
             if enforce_client \
                and col is not None \
                and not hasattr(attribute, 'aggfunc'):
@@ -2408,14 +2409,22 @@ END
                 if str(attribute.alias) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
                 outputs.add(str(attribute.alias))
-                output_types[str(attribute.alias)] = col.type
-                selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
+                if arrays_to_json:
+                    output_types[str(attribute.alias)] = json_type
+                    selects.append('array_to_json(%s) AS %s' % (select, sql_identifier(attribute.alias)))
+                else:
+                    output_types[str(attribute.alias)] = col.type
+                    selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
             else:
                 if col.name in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % col.name)
                 outputs.add(col.name)
-                output_types[col.name] = col.type
-                selects.append('%s AS %s' % (select, col.sql_name()))
+                if arrays_to_json and col.type.is_array:
+                    output_types[col.name] = json_type
+                    selects.append('array_to_json(%s) AS %s' % (select, col.sql_name()))
+                else:
+                    output_types[col.name] = col.type
+                    selects.append('%s AS %s' % (select, col.sql_name()))
 
         # HACK: _get_sortvec() calls _get_sort_element() which looks at self.outputs and self.output_types
         self.outputs = outputs
@@ -2431,9 +2440,9 @@ END
 
         if split_sort:
             # let the caller compose the query and the sort clauses
-            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client), page, sort1, limit, sort2)
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client, arrays_to_json=arrays_to_json), page, sort1, limit, sort2)
         else:
-            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
+            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client, arrays_to_json=arrays_to_json)
                 
             if sort1 is not None:
                 sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
@@ -2567,7 +2576,7 @@ class AttributeGroupPath (AnyPath):
             raise BadData('Sort key "%s" not among output columns.' % key.keyname)
         return (key.keyname, key.descending, otype)
 
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -2590,7 +2599,7 @@ class AttributeGroupPath (AnyPath):
         self.apath = apath
         apath.add_sort(self.sort)
         apath.add_paging(self.after, self.before)
-        
+
         groupkeys = []
         aggregates = []
         extras = [] # deprecated
@@ -2604,12 +2613,33 @@ class AttributeGroupPath (AnyPath):
         asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
         aggregates, extras, self.output_type_overrides = self._sql_get_agg_attributes()
 
+        # HACK: allow lookup below by quoted aggregate identifier...
+        attr_type_overrides = {
+            sql_identifier(n): t
+            for n, t in self.output_type_overrides.items()
+        }
+
         if extras:
             raise NotImplementedError('found unexpected extras in aggregation')
             # an impure aggregate query finds exemplars via custom coalesce_agg() 
             # which is folded into the core aggregate query, so extras should ALWAYS be empty now
         else:
-            # a pure aggregate query has only group keys and aggregates
+            # a pure aggregate query has only group keys and aggregates as projection
+            groupaggs = []
+
+            for key, col, base in self.groupkeys:
+                gk = sql_identifier(str(key.alias)) if key.alias is not None else sql_identifier(col.name)
+                if arrays_to_json and col.type.is_array:
+                    gk = 'array_to_json(%s) AS %s' % (gk, gk)
+                groupaggs.append(gk)
+
+            for sql, attr in aggregates:
+                if arrays_to_json and attr_type_overrides.get(attr, text_type).is_array:
+                    ga = 'array_to_json(%s) AS %s' % (sql, attr)
+                else:
+                    ga = '%s AS %s' % (sql, attr)
+                groupaggs.append(ga)
+
             sql = """
 SELECT %(groupaggs)s
 FROM ( %(asql)s ) s
@@ -2618,7 +2648,7 @@ GROUP BY %(groupkeys)s
         sql = sql % dict(
             asql=asql,
             groupkeys=', '.join(groupkeys),
-            groupaggs=', '.join(groupkeys + ["%s AS %s" % a for a in aggregates]),
+            groupaggs=', '.join(groupaggs),
             )
 
         if sort1 is not None:
@@ -2743,7 +2773,7 @@ class AggregatePath (AnyPath):
         # to honour generic API.  actually gated on self.add_sort() above so no need to test again
         pass
         
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this apath.
 
         """
@@ -2751,14 +2781,28 @@ class AggregatePath (AnyPath):
         aggregates, extras, output_type_overrides = self._sql_get_agg_attributes(allow_extra=False)
         asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
 
+        # HACK: allow lookup below by quoted aggregate identifier
+        attr_type_overrides = {
+            sql_identifier(n): t
+            for n, t in output_type_overrides.items()
+        }
+
         # a pure aggregate query has aggregates
+        aggs = []
+        for sql, attr in aggregates:
+            if arrays_to_json and attr_type_overrides.get(attr, text_type).is_array:
+                agg = 'array_to_json(%s) AS %s' % (sql, attr)
+            else:
+                agg = '%s AS %s' % (sql, attr)
+            aggs.append(agg)
+
         sql = """
 SELECT %(aggs)s
 FROM ( %(asql)s ) s
 """
         return sql % dict(
             asql=asql,
-            aggs=', '.join([ '%s AS %s' % (a[0], a[1]) for a in aggregates]),
+            aggs=', '.join(aggs),
             )
 
 class QueryPath (object):
@@ -2850,7 +2894,7 @@ class TextFacet (AnyPath):
                             if c_policy:
                                 yield (sname, tname, column)
 
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True, arrays_to_json=False):
         queries = [
             # column ~* pattern is ciregexp...
             """(SELECT %(stext)s::text AS "schema", %(ttext)s::text AS "table", %(ctext)s::text AS "column" FROM %(sid)s.%(tid)s WHERE _ermrest.astext(%(cid)s) ~* %(pattern)s LIMIT 1)""" % dict(

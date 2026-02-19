@@ -128,14 +128,33 @@ class BasicKey (common.ErmrestTest):
         test_quant("a_text::ciregexp::any(foo,bar)", {1,2,3})
         test_quant("*::ciregexp::any(foo,bar)", {1,2,3})
 
-    def test_download(self):
+    def test_qp_download(self):
         r = self.session.get('entity/%s:%s?download=%s' % (_S, self.table, self.table))
         self.assertHttp(r, 200)
         self.assertRegex(
             r.headers.get('content-disposition'),
             "attachment; filename[*]=UTF-8''%s.*" % self.table
         )
-        
+
+    def test_qp_array_to_json(self):
+        for url in [
+                # these check for raw projection of array column values
+                'entity/%s:%s' % (_S, self.table),
+                'attribute/%s:%s/a_int4' % (_S, self.table),
+                'attributegroup/%s:%s/a_int4' % (_S, self.table),
+                # min()/max() pass through source values rather than building JSON
+                'aggregate/%s:%s/x:=max(a_int4)' % (_S, self.table),
+        ]:
+            # first check backwards compat postgresql arrays are produced
+            r = self.session.get(url, headers={"accept": "text/csv"})
+            self.assertHttp(r, 200)
+            self.assertRegex(r.text, '"{0,3}"')
+
+            # then check optional JSON arrays are produced
+            r = self.session.get('%s?arrays=json' % url, headers={"accept": "text/csv"})
+            self.assertHttp(r, 200)
+            self.assertRegex(r.text, '"\\[0,3\\]"')
+
 class CompositeKey (BasicKey):
     table = _Tc1
 
