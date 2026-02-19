@@ -411,17 +411,22 @@ def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_
             # extract field as JSON and transform to array
             # since PostgreSQL json_to_recordset fails for native array extraction...
             # if ELSE clause hits a non-array, we'll have a 400 Bad Request error as before
+            if c.type.base_type.sql(basic_storage=True) in {'json','jsonb'}:
+                json_expand = 'json_array_elements'
+            else:
+                json_expand = 'json_array_elements_text'
             json_proj = """
 (CASE
  WHEN json_typeof(j->%(field)s) = 'null'
    THEN NULL::%(type)s[]
  ELSE
-   COALESCE((SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->%(field)s) s (x)), ARRAY[]::%(type)s[])
+   COALESCE((SELECT array_agg(x::%(type)s) FROM %(json_expand)s(j->%(field)s) s (x)), ARRAY[]::%(type)s[])
  END) AS %(alias)s
 """ % {
     'type': c.type.base_type.sql(basic_storage=True),
     'field': sql_literal(col_name),
     'alias': c.sql_name(col_name),
+    'json_expand': json_expand,
 }
         elif sql_type in ['json', 'jsonb']:
             json_proj = "(j->%s)::%s AS %s" % (
@@ -639,6 +644,18 @@ def preserialize(sql, content_type):
     else:
         raise NotImplementedError('content_type %s' % content_type)
     return sql
+
+def serialize(cur, sql, content_type, output_file):
+    if content_type == 'text/csv':
+        sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
+    elif content_type == 'application/json':
+        # need to avoid JSON pretty-printing that would put newlines which then get escaped by COPY
+        sql = "COPY (WITH q as (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q.*)), false)::text, '[]') FROM q) TO STDOUT" % sql
+    elif content_type == 'application/x-json-stream':
+        sql = "COPY (WITH q as (%s) SELECT row_to_json(q.*)::text FROM q) TO STDOUT" % sql
+    else:
+        raise NotImplementedError('serialized content_type %s with output_file.write()' % content_type)
+    cur.copy_expert(sql, output_file)
 
 def _analyze_input_table(cur, input_table, mkcols, mkcol_aliases):
     """Index and analyze input_table ensuring mkcols uniqueness."""
@@ -1741,33 +1758,12 @@ class AnyPath (object):
 
         if output_file:
             # efficiently send results to file
-            if content_type == 'text/csv':
-                sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
-            elif content_type == 'application/json':
-                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q.*)), True)::text FROM (%s) q) TO STDOUT" % sql
-            elif content_type == 'application/x-json-stream':
-                sql = "COPY (SELECT row_to_json(q.*)::text FROM (%s) q) TO STDOUT" % sql
-            else:
-                raise NotImplementedError('content_type %s with output_file.write()' % content_type)
-
             _set_statement_timeout(cur)
-            cur.copy_expert(sql, output_file)
-
+            serialize(cur, sql, content_type, output_file)
             return output_file
         else:
             # generate rows to caller
-            if content_type == 'text/csv':
-                # TODO implement and use row_to_csv() stored procedure?
-                pass
-            elif content_type == 'application/json':
-                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q.*)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
-            elif content_type == 'application/x-json-stream':
-                sql = "SELECT row_to_json(q.*)::text FROM (%s) q" % sql
-            elif content_type in [ dict, tuple ]:
-                pass
-            else:
-                raise NotImplementedError('content_type %s' % content_type)
-
+            sql = preserialize(sql, content_type)
             #deriva_debug(sql)
             _set_statement_timeout(cur)
             cur.execute(sql)
