@@ -153,7 +153,7 @@ class PooledConnection (object):
             self.conn = self.used_pool.getconn()
         else:
             self.used_pool = None
-            self.conn = psycopg2.extensions.connection(dsn)
+            self.conn = connection(dsn)
         self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
         self.cur = self.conn.cursor()
 
