@@ -195,6 +195,7 @@ The [data resources](data/naming.md) make use of a model-driven language for den
 1. [Nondefaults Query Parameter](data/naming.md#nondefaults-query-parameter)
 1. [Onconflict Query Parameter](data/naming.md#onconflict-query-parameter)
 1. [Limit Query Parameter](data/naming.md#limit-query-parameter)
+1. [Arrays Query Parameter](data/naming.md#arrays-query-parameter)
 
 The sort, paging, and limit syntax together can support [paged data access](data/naming.md#data-paging).
 
@@ -382,10 +383,12 @@ scalar types except the regular-expression matches which only apply to
 ##### Arrays of Scalars
 
 ERMrest supports columns storing arrays of the preceding scalar
-types. These arrays are encoded differently depending on the MIME type:
+types. In requests and responses, these arrays are encoded differently
+depending on the MIME type:
 
 - As native JSON array content in JSON input/output formats, e.g. `{"array_column_name": ["value1", "value2"], "scalar_column_name": "value3"}`
-- As PostgreSQL-formatted arrays in CSV input/output formats, e.g. `"{value1,value2,value3}",value3`
+- As PostgreSQL-formatted arrays in CSV input/output formats, e.g. `"{value1,value2}",value3`.
+- Optionally, JSON array content is also supported in CSV input/output formats, but then must obey CSV quoting and escaping rules. The example row  `"[""value1"",""value2""]",value3` contains two columns, with the first bearing the JSON value `["value1","value2"]`.
 
 The [binary filter predicate](data/naming.md#binary-filter-predicate)
 language of ERMrest URIs compare each scalar element in a stored array
@@ -396,6 +399,18 @@ considered to match if *any* contained array element individually
 matches using the scalar comparison.
 
 A column storing an array of scalars MAY be used as a unique key or foreign key, subject to PostgreSQL native interpretation of array equality. However, it is RECOMMENDED that data modelers consider normalizing their schema to avoid such constructs.
+
+##### Computed JSON Columns
+
+A number of ERMrest special output forms produce composite values
+which are effectively computed `jsonb` columns:
+
+- `array` and `array_d` aggregates are JSON arrays
+- `bin` binning results are JSON arrays
+- `trs` and `tcrs` rights-summaries are JSON objects
+
+Unlike stored array columns, these output values are computed _after_
+filtering and are never involved in filter predicates.
 
 ##### Experimental Types
 
@@ -409,7 +424,7 @@ for other reasons:
 - `numeric`: Arbitrary-precision decimal numerical data.
 - `time` and `timetz`: Time values lacking date information.
 - `timestamp`: Timestamps lacking timezone information.
-- `json`: JSON text strings.
+- `json`: JSON text strings. We recommend the `jsonb` type instead.
 - various `text` and `character` types with length constraints: No
   length constraints or padding are considered or enforced by ERMrest
   and for the most part these map to variable-length `text` storage
@@ -426,6 +441,14 @@ as described in [RFC 4180](https://tools.ietf.org/html/rfc4180). If
 deviation between the RFC and ERMrest are found, please report them as
 a bug in the ERMrest issue tracker.
 
+Note, ERMrest deviates from RFC 4180 and accepts a Unix-style
+_linefeed_ character as record terminator as well as the two-byte
+sequence _carriage return_ + _linefeed_. This usage should be
+consistent through an entire CSV input, not mixed on a per record
+basis. ERMrest may also produce CSV with Unix-style record terminators,
+depending on the configuration and behavior of the PostgreSQL server
+being used for the ERMrest deployment.
+
 Refer to the RFC for full CSV format details, but here are a few
 points worth noting:
 
@@ -441,10 +464,15 @@ points worth noting:
 
 ##### NULL values
 
-As a further note, ERMrest interprets quoted and unquoted empty fields distinctly:
+As a further note, ERMrest interprets quoted and unquoted empty fields
+distinctly:
 
 - `...,,...`: NULL value
 - `...,"",...`: empty string
+
+However, these two scenarios will be conflated by typical CSV decoders
+which interpret both as the empty string and have no concept of NULL
+values.
 
 ##### Example CSV Content
 

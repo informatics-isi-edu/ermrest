@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -373,6 +373,7 @@ text_type = mock_type({'typename': 'text', 'length': -1}, readonly=True)
 tsvector_type = mock_type({'typename': 'tsvector', 'length': -1}, readonly=True)
 int8_type = mock_type({'typename': 'int8', 'length': -1}, readonly=True)
 float8_type = mock_type({'typename': 'float8', 'length': -1}, readonly=True)
+json_type = mock_type({'typename': 'json', 'length': -1}, readonly=True)
 jsonb_type = mock_type({'typename': 'jsonb', 'length': -1}, readonly=True)
 
 class AggFunc(object):
@@ -433,6 +434,7 @@ class AggMin(AggFunc):
         }:
             raise exception.ConflictModel('Aggregate function "%s" not allowed on column %s with type %s.' % (self.aggfunc, col.name, col.type.name))
         AggFunc.__init__(self, attribute, col, sql_attr)
+        self.output_type = col.type
 
 class AggMax(AggMin):
     aggfunc = 'max'

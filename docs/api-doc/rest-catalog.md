@@ -48,6 +48,7 @@ Known feature flags at time of writing of this document:
 - `quantified_rid_lists`: Service supports `RID=all(...)` and `RID=any(...)`, a bug-fix to the `quantified_value_lists` feature.
 - `rid_lease`: Service supports `?nondefaults=RID` for POST operations on the `/entity/` API by clients who are not catalog owners. Such use is limited to the rules described for [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults).
 - `registry_catalog`: Service supports special catalog `0` to introspect the registry, and also supports additional metadata parameters when creating catalogs and creating or updating aliases.
+- `csv_array_json`: Service recognizes JSON or PostgreSQL syntax for array typed columns in `text/csv` tabular input, and supports JSON syntax for array retrieval in `text/csv` tabular output when the `arrays=json` query parameter is added to the URL.
 
 Generally, absence of a feature flag means the service is running
 older software which predates the release of the feature. A flag will

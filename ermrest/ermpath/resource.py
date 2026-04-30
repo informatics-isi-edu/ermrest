@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ from psycopg2._json import JSON_OID, JSONB_OID
 
 from ..exception import *
 from ..util import sql_identifier, sql_literal, random_name
-from ..model.type import text_type, aggfuncs
+from ..model.type import text_type, json_type, aggfuncs
 from ..model import predicate
 
 class _FakeEntityElem (object):
@@ -338,13 +338,20 @@ def sort_components(sortvec, is_before):
 system_colnames = {'RID','RCT','RMT','RCB','RMB'}
 
 def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, drop_tables=None, use_defaults=None):
+    """Return dict of variable set of temporary table names
+
+    {"data": ..., "csv": ..., "json": ...,}
+    """
     if use_defaults is None:
         use_defaults = set()
-    input_table = random_name("input_data_")
-    input_json_table = None
+
+    tnames = {
+        "data": random_name("input_data_"),
+    }
+
     cur.execute(
         "CREATE TEMPORARY TABLE %s (%s)" % (
-            sql_identifier(input_table),
+            sql_identifier(tnames["data"]),
             ','.join(
                 [
                     c.input_ddl(mkcol_aliases.get(c), c not in use_defaults)
@@ -356,14 +363,39 @@ def _create_temp_input_tables(cur, mkcols, nmkcols, mkcol_aliases, nmkcol_aliase
             )
         )
     )
-    if drop_tables is not None:
-        drop_tables.append(input_table)
+
+    if in_content_type in [ 'text/csv' ]:
+        def input_ddl(c, aliases, enforce_notnull):
+            # we will load CSV array cols as text and decode later...
+            cname = aliases.get(c, c.name)
+            ctype = 'text' if c.type.is_array else c.type.sql(basic_storage=True)
+            notnull = "NOT NULL" if c.nullok is False and enforce_notnull else ""
+            return "%s %s %s" % (sql_identifier(cname), ctype, notnull)
+
+        tnames["csv"] = random_name("input_csv_")
+        cur.execute(
+            "CREATE TEMPORARY TABLE %s (%s)" % (
+                sql_identifier(tnames["csv"]),
+                ','.join(
+                    [
+                        input_ddl(c, mkcol_aliases, c not in use_defaults)
+                        for c in mkcols
+                    ] + [
+                        input_ddl(c, nmkcol_aliases, c not in use_defaults)
+                        for c in nmkcols
+                    ]
+                )
+            )
+        )
+
     if in_content_type in [ 'application/x-json-stream' ]:
-        input_json_table = random_name("input_json_")
-        cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(input_json_table))
-        if drop_tables is not None:
-            drop_tables.append(input_json_table)
-    return input_table, input_json_table
+        tnames["json"] = random_name("input_json_")
+        cur.execute( "CREATE TEMPORARY TABLE %s (j json)" % sql_identifier(tnames["json"]))
+
+    if drop_tables is not None:
+        drop_tables.extend(tnames.values())
+
+    return tnames
 
 def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     """Build up intermediate SQL representations of each JSON record as field lists."""
@@ -379,17 +411,22 @@ def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_
             # extract field as JSON and transform to array
             # since PostgreSQL json_to_recordset fails for native array extraction...
             # if ELSE clause hits a non-array, we'll have a 400 Bad Request error as before
+            if c.type.base_type.sql(basic_storage=True) in {'json','jsonb'}:
+                json_expand = 'json_array_elements'
+            else:
+                json_expand = 'json_array_elements_text'
             json_proj = """
 (CASE
  WHEN json_typeof(j->%(field)s) = 'null'
    THEN NULL::%(type)s[]
  ELSE
-   COALESCE((SELECT array_agg(x::%(type)s) FROM json_array_elements_text(j->%(field)s) s (x)), ARRAY[]::%(type)s[])
+   COALESCE((SELECT array_agg(x::%(type)s) FROM %(json_expand)s(j->%(field)s) s (x)), ARRAY[]::%(type)s[])
  END) AS %(alias)s
 """ % {
     'type': c.type.base_type.sql(basic_storage=True),
     'field': sql_literal(col_name),
     'alias': c.sql_name(col_name),
+    'json_expand': json_expand,
 }
         elif sql_type in ['json', 'jsonb']:
             json_proj = "(j->%s)::%s AS %s" % (
@@ -417,22 +454,25 @@ def _build_json_projections(mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_
     # split back into json_cols, json_projection lists
     return zip(*parts)
 
-def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+def _load_input_data_csv(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     if use_defaults is None:
         use_defaults = set()
 
     hdr = next(csv.reader([ input_data.readline().decode() ]))
 
-    inputcol_names = set(
-        [ mkcol_aliases.get(c, c.name) for c in mkcols ]
-        + [ nmkcol_aliases.get(c, c.name) for c in nmkcols ]
-    )
-    csvcol_names = set()
+    inputcol_names = {
+        mkcol_aliases.get(c, c.name): c
+        for c in mkcols
+    }
+    inputcol_names |= {
+        nmkcol_aliases.get(c, c.name): c
+        for c in nmkcols
+    }
+    csvcol_names = {}
     csvcol_names_ordered = []
     for cn in hdr:
         try:
-            inputcol_names.remove(cn)
-            csvcol_names.add(cn)
+            csvcol_names[cn] = inputcol_names.pop(cn)
             csvcol_names_ordered.append(cn)
         except KeyError:
             if cn in csvcol_names:
@@ -440,7 +480,7 @@ def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_al
             else:
                 raise ConflictModel('CSV column %s not recognized.' % cn)
 
-    inputcol_names = set(inputcol_names).difference(set([ c.name for c in use_defaults ]))
+    inputcol_names = set(inputcol_names.keys()).difference(set([ c.name for c in use_defaults ]))
     if inputcol_names:
         raise BadData('Missing expected CSV column%s: %s.' % (
             ('' if len(inputcol_names) == 0 else 's'),
@@ -448,6 +488,7 @@ def _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_al
         ))
 
     try:
+        # store input CSV, keeping array cols as text
         cur.copy_expert(u"""
 COPY %(input_table)s (%(cols)s)
 FROM STDIN WITH (
@@ -456,15 +497,58 @@ FROM STDIN WITH (
     DELIMITER ',',
     QUOTE '"'
 )""" % {
-    'input_table': sql_identifier(input_table),
+    'input_table': sql_identifier(input_tnames["csv"]),
     'cols': ','.join([ sql_identifier(cn) for cn in csvcol_names_ordered ])
 },
             input_data
         )
+
+        # transfer to real input table, rewriting array cols
+        def col_select(cn):
+            c = csvcol_names[cn]
+            if not c.type.is_array:
+                return sql_identifier(cn)
+            elif c.type.name in {'json[]','jsonb[]'}:
+                return ("""CASE
+WHEN %(cn)s IS NULL THEN NULL::%(ctype)s
+WHEN SUBSTRING(%(cn)s FROM 1 FOR 1) = '{' THEN %(cn)s::%(ctype)s
+ELSE (
+  SELECT array_agg(v)::%(ctype)s
+  FROM json_array_elements(%(cn)s::json) j(v)
+)
+END
+""" % {
+    "cn": sql_identifier(cn),
+    "ctype": c.type.sql(basic_storage=True),
+})
+            else:
+                return ("""CASE
+WHEN %(cn)s IS NULL THEN NULL::%(ctype)s
+WHEN SUBSTRING(%(cn)s FROM 1 FOR 1) = '{' THEN %(cn)s::%(ctype)s
+ELSE (
+  SELECT array_agg(v)::%(ctype)s
+  FROM json_array_elements_text(%(cn)s::json) j(v)
+)
+END
+""" % {
+    "cn": sql_identifier(cn),
+    "ctype": c.type.sql(basic_storage=True),
+})
+
+        cur.execute(u"""
+INSERT INTO %(input_table)s (%(targets)s)
+SELECT %(selects)s FROM %(input_csv_table)s
+""" % {
+    "input_table": sql_identifier(input_tnames["data"]),
+    "input_csv_table": sql_identifier(input_tnames["csv"]),
+    "targets": ",".join([ sql_identifier(cn) for cn in csvcol_names_ordered ]),
+    "selects": ",".join([ col_select(cn) for cn in csvcol_names_ordered ]),
+})
     except psycopg2.DataError as e:
         raise BadData(u'Bad CSV input. ' + e.pgerror)
 
-def _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+
+def _load_input_data_json(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     if use_defaults is None:
         use_defaults = set()
 
@@ -484,7 +568,7 @@ FROM (
     AS rs ( j )
 ) s
 """ % {
-    'input_table': sql_identifier(input_table),
+    'input_table': sql_identifier(input_tnames["data"]),
     'cols': u','.join(json_cols),
     'input': text_type.sql_literal(buf),
     'json_projection': ','.join(json_projection)
@@ -493,13 +577,13 @@ FROM (
     except psycopg2.DataError as e:
         raise BadData('Bad JSON array input. ' + e.pgerror)
 
-def _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
+def _load_input_data_json_stream(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults=None):
     json_cols, json_projection = _build_json_projections(
         mkcols, nmkcols,
         mkcol_aliases, nmkcol_aliases
     )
     try:
-        cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_json_table), input_data )
+        cur.copy_expert( "COPY %s (j) FROM STDIN" % sql_identifier(input_tnames["json"]), input_data )
         _set_statement_timeout(cur)
         cur.execute(u"""
 INSERT INTO %(input_table)s (%(cols)s)
@@ -509,8 +593,8 @@ FROM (
   FROM %(input_json)s i
 ) s
 """ % {
-    'input_table': sql_identifier(input_table),
-    'input_json': sql_identifier(input_json_table),
+    'input_table': sql_identifier(input_tnames["data"]),
+    'input_json': sql_identifier(input_tnames["json"]),
     'cols': ','.join(json_cols),
     'json_projection': ','.join(json_projection),
 }
@@ -518,13 +602,13 @@ FROM (
     except psycopg2.DataError as e:
         raise BadData('Bad JSON stream input. ' + e.pgerror)
 
-def _load_input_data(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, use_defaults=None):
+def _load_input_data(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, in_content_type, use_defaults=None):
     if in_content_type == 'text/csv':
-        _load_input_data_csv(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
+        _load_input_data_csv(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     elif in_content_type == 'application/json':
-        _load_input_data_json(cur, input_data, input_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
+        _load_input_data_json(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     elif in_content_type == 'application/x-json-stream':
-        _load_input_data_json_stream(cur, input_data, input_table, input_json_table, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
+        _load_input_data_json_stream(cur, input_data, input_tnames, mkcols, nmkcols, mkcol_aliases, nmkcol_aliases, use_defaults)
     else:
         raise UnsupportedMediaType('%s input not supported' % in_content_type)
 
@@ -560,6 +644,18 @@ def preserialize(sql, content_type):
     else:
         raise NotImplementedError('content_type %s' % content_type)
     return sql
+
+def serialize(cur, sql, content_type, output_file):
+    if content_type == 'text/csv':
+        sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
+    elif content_type == 'application/json':
+        # need to avoid JSON pretty-printing that would put newlines which then get escaped by COPY
+        sql = "COPY (WITH q as (%s) SELECT COALESCE(array_to_json(array_agg(row_to_json(q.*)), false)::text, '[]') FROM q) TO STDOUT" % sql
+    elif content_type == 'application/x-json-stream':
+        sql = "COPY (WITH q as (%s) SELECT row_to_json(q.*)::text FROM q) TO STDOUT" % sql
+    else:
+        raise NotImplementedError('serialized content_type %s with output_file.write()' % content_type)
+    cur.copy_expert(sql, output_file)
 
 def _analyze_input_table(cur, input_table, mkcols, mkcol_aliases):
     """Index and analyze input_table ensuring mkcols uniqueness."""
@@ -1187,7 +1283,7 @@ class EntityElem (object):
             if cname in self.table.columns
         ])
 
-        input_table, input_json_table = _create_temp_input_tables(
+        input_tnames = _create_temp_input_tables(
             cur,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
@@ -1197,16 +1293,16 @@ class EntityElem (object):
         )
 
         _load_input_data(
-            cur, input_data, input_table, input_json_table,
+            cur, input_data, input_tnames,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             in_content_type
         )
 
-        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+        _analyze_input_table(cur, input_tnames["data"], mkcols, mkcol_aliases)
 
         will_insert = _enforce_table_upsert_static(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases
         )
@@ -1216,7 +1312,7 @@ class EntityElem (object):
                 raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
 
         _enforce_table_upsert_dynamic(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             will_insert,
@@ -1225,7 +1321,7 @@ class EntityElem (object):
 
         try:
             results1, results2 = _perform_table_upsert(
-                cur, self.table, input_table,
+                cur, self.table, input_tnames["data"],
                 mkcols, nmkcols,
                 mkcol_aliases, nmkcol_aliases,
                 content_type,
@@ -1364,7 +1460,7 @@ class EntityElem (object):
         if not set(mkcols).union(set(nmkcols)).difference(use_defaults):
             raise ConflictModel('Entity insertion requires at least one non-defaulting column.')
 
-        input_table, input_json_table = _create_temp_input_tables(
+        input_tnames = _create_temp_input_tables(
             cur,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
@@ -1374,24 +1470,24 @@ class EntityElem (object):
         )
 
         _load_input_data(
-            cur, input_data, input_table, input_json_table,
+            cur, input_data, input_tnames,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             in_content_type,
             use_defaults
         )
 
-        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+        _analyze_input_table(cur, input_tnames["data"], mkcols, mkcol_aliases)
 
         _enforce_table_insert_static(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             use_defaults
         )
 
         _enforce_table_insert_dynamic(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             use_defaults
@@ -1399,7 +1495,7 @@ class EntityElem (object):
 
         try:
             results = _perform_table_insert(
-                cur, self.table, input_table,
+                cur, self.table, input_tnames["data"],
                 mkcols, nmkcols,
                 mkcol_aliases, nmkcol_aliases,
                 content_type,
@@ -1486,7 +1582,7 @@ class EntityElem (object):
         mkcols, nmkcols = attr_update
         mkcol_aliases, nmkcol_aliases = attr_aliases if attr_aliases is not None else (dict(), dict())
 
-        input_table, input_json_table = _create_temp_input_tables(
+        input_tnames = _create_temp_input_tables(
             cur,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
@@ -1495,34 +1591,34 @@ class EntityElem (object):
         )
 
         _load_input_data(
-            cur, input_data, input_table, input_json_table,
+            cur, input_data, input_tnames,
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases,
             in_content_type
         )
 
-        _analyze_input_table(cur, input_table, mkcols, mkcol_aliases)
+        _analyze_input_table(cur, input_tnames["data"], mkcols, mkcol_aliases)
 
         _enforce_table_update_static(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases
         )
 
-        _enforce_input_exists(cur, input_table, self.table, mkcols, mkcol_aliases)
+        _enforce_input_exists(cur, input_tnames["data"], self.table, mkcols, mkcol_aliases)
 
         # NOTE: we already prefetch the whole result so might as well build incrementally...
         results = []
 
         _enforce_table_update_dynamic(
-            cur, self.table, input_table,
+            cur, self.table, input_tnames["data"],
             mkcols, nmkcols,
             mkcol_aliases, nmkcol_aliases
         )
 
         try:
             results = _perform_table_update(
-                cur, self.table, input_table,
+                cur, self.table, input_tnames["data"],
                 mkcols, nmkcols,
                 mkcol_aliases, nmkcol_aliases,
                 content_type
@@ -1541,7 +1637,7 @@ class AnyPath (object):
     """Hierarchical ERM access to resources, a generic parent-class for concrete resources.
 
     """
-    def sql_get(self, row_content_type='application/json', limit=None, prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this path.
 
            The query will be of the form:
@@ -1623,7 +1719,7 @@ class AnyPath (object):
 
         return aggregates, extras, output_type_overrides
 
-    def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None):
+    def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None, arrays_to_json=False):
         """Fetch resources.
 
            conn: sanepg2 database connection to catalog
@@ -1656,44 +1752,21 @@ class AnyPath (object):
         elif hasattr(self, 'epath'):
             self.epath._path[0].table.enforce_right('select')
 
-        sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True)
+        sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True, arrays_to_json=arrays_to_json)
 
         #deriva_debug(sql)
 
         if output_file:
             # efficiently send results to file
-            if content_type == 'text/csv':
-                sql = "COPY (%s) TO STDOUT CSV DELIMITER ',' HEADER" % sql
-            elif content_type == 'application/json':
-                sql = "COPY (SELECT array_to_json(array_agg(row_to_json(q.*)), True)::text FROM (%s) q) TO STDOUT" % sql
-            elif content_type == 'application/x-json-stream':
-                sql = "COPY (SELECT row_to_json(q.*)::text FROM (%s) q) TO STDOUT" % sql
-            else:
-                raise NotImplementedError('content_type %s with output_file.write()' % content_type)
-
             _set_statement_timeout(cur)
-            cur.copy_expert(sql, output_file)
-
+            serialize(cur, sql, content_type, output_file)
             return output_file
-
         else:
             # generate rows to caller
-            if content_type == 'text/csv':
-                # TODO implement and use row_to_csv() stored procedure?
-                pass
-            elif content_type == 'application/json':
-                sql = "SELECT array_to_json(COALESCE(array_agg(row_to_json(q.*)), ARRAY[]::json[]), True)::text FROM (%s) q" % sql
-            elif content_type == 'application/x-json-stream':
-                sql = "SELECT row_to_json(q.*)::text FROM (%s) q" % sql
-            elif content_type in [ dict, tuple ]:
-                pass
-            else:
-                raise NotImplementedError('content_type %s' % content_type)
-
+            sql = preserialize(sql, content_type)
             #deriva_debug(sql)
             _set_statement_timeout(cur)
             cur.execute(sql)
-            
             return make_row_thunk(None, cur, content_type)()
 
 class EntityPath (AnyPath):
@@ -1824,7 +1897,7 @@ class EntityPath (AnyPath):
         # select access was already enforced for enumerable output columns
         return (key.keyname, key.descending, column.type)
 
-    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, dynauthz_testcol=None):
+    def sql_get(self, selects=None, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, dynauthz_testcol=None, arrays_to_json=False):
         """Generate SQL query to get the entities described by this epath.
 
            The query will be of the form:
@@ -1848,10 +1921,15 @@ class EntityPath (AnyPath):
             if enforce_client:
                 for col in context_table.columns_in_order(enforce_client=enforce_client):
                     col.enforce_data_right('select')
-            selects = ", ".join([
-                "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
-                for col in context_table.columns_in_order()
-            ])
+
+            selects = []
+            for col in context_table.columns_in_order():
+                sql = "%st%d.%s" % (prefix, context_pos, sql_identifier(col.name))
+                if arrays_to_json and col.type.is_array:
+                    sql = 'array_to_json(%s) as %s' % (sql, sql_identifier(col.name))
+                selects.append(sql)
+
+            selects = ','.join(selects)
 
         if dynauthz_testcol is not None:
             assert context_table.columns[dynauthz_testcol.name] == dynauthz_testcol
@@ -2181,7 +2259,7 @@ class AttributePath (AnyPath):
             raise BadData('Sort key "%s" not among output columns.' % key.keyname)
         return (key.keyname, key.descending, self.output_types[key.keyname])
 
-    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
+    def sql_get(self, split_sort=False, distinct_on=True, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -2312,8 +2390,6 @@ END
             else:
                 select = "%s.%s" % (alias, col.sql_name())
 
-            select = select
-
             if enforce_client \
                and col is not None \
                and not hasattr(attribute, 'aggfunc'):
@@ -2329,14 +2405,22 @@ END
                 if str(attribute.alias) in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % attribute.alias)
                 outputs.add(str(attribute.alias))
-                output_types[str(attribute.alias)] = col.type
-                selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
+                if arrays_to_json:
+                    output_types[str(attribute.alias)] = json_type
+                    selects.append('array_to_json(%s) AS %s' % (select, sql_identifier(attribute.alias)))
+                else:
+                    output_types[str(attribute.alias)] = col.type
+                    selects.append('%s AS %s' % (select, sql_identifier(attribute.alias)))
             else:
                 if col.name in outputs:
                     raise BadSyntax('Output column name "%s" appears more than once.' % col.name)
                 outputs.add(col.name)
-                output_types[col.name] = col.type
-                selects.append('%s AS %s' % (select, col.sql_name()))
+                if arrays_to_json and col.type.is_array:
+                    output_types[col.name] = json_type
+                    selects.append('array_to_json(%s) AS %s' % (select, col.sql_name()))
+                else:
+                    output_types[col.name] = col.type
+                    selects.append('%s AS %s' % (select, col.sql_name()))
 
         # HACK: _get_sortvec() calls _get_sort_element() which looks at self.outputs and self.output_types
         self.outputs = outputs
@@ -2352,9 +2436,9 @@ END
 
         if split_sort:
             # let the caller compose the query and the sort clauses
-            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client), page, sort1, limit, sort2)
+            return (self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client, arrays_to_json=arrays_to_json), page, sort1, limit, sort2)
         else:
-            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
+            sql = self.epath.sql_get(selects=selects, distinct_on=distinct_on, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client, arrays_to_json=arrays_to_json)
                 
             if sort1 is not None:
                 sql = "SELECT * FROM (%s) s %s ORDER BY %s %s" % (sql, page, sort1, limit)
@@ -2488,7 +2572,7 @@ class AttributeGroupPath (AnyPath):
             raise BadData('Sort key "%s" not among output columns.' % key.keyname)
         return (key.keyname, key.descending, otype)
 
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, access_type='select', prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this apath.
 
            The query will be of the form:
@@ -2511,7 +2595,7 @@ class AttributeGroupPath (AnyPath):
         self.apath = apath
         apath.add_sort(self.sort)
         apath.add_paging(self.after, self.before)
-        
+
         groupkeys = []
         aggregates = []
         extras = [] # deprecated
@@ -2525,12 +2609,33 @@ class AttributeGroupPath (AnyPath):
         asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, limit=limit, dynauthz=dynauthz, access_type=access_type, prefix=prefix, enforce_client=enforce_client)
         aggregates, extras, self.output_type_overrides = self._sql_get_agg_attributes()
 
+        # HACK: allow lookup below by quoted aggregate identifier...
+        attr_type_overrides = {
+            sql_identifier(n): t
+            for n, t in self.output_type_overrides.items()
+        }
+
         if extras:
             raise NotImplementedError('found unexpected extras in aggregation')
             # an impure aggregate query finds exemplars via custom coalesce_agg() 
             # which is folded into the core aggregate query, so extras should ALWAYS be empty now
         else:
-            # a pure aggregate query has only group keys and aggregates
+            # a pure aggregate query has only group keys and aggregates as projection
+            groupaggs = []
+
+            for key, col, base in self.groupkeys:
+                gk = sql_identifier(str(key.alias)) if key.alias is not None else sql_identifier(col.name)
+                if arrays_to_json and col.type.is_array:
+                    gk = 'array_to_json(%s) AS %s' % (gk, gk)
+                groupaggs.append(gk)
+
+            for sql, attr in aggregates:
+                if arrays_to_json and attr_type_overrides.get(attr, text_type).is_array:
+                    ga = 'array_to_json(%s) AS %s' % (sql, attr)
+                else:
+                    ga = '%s AS %s' % (sql, attr)
+                groupaggs.append(ga)
+
             sql = """
 SELECT %(groupaggs)s
 FROM ( %(asql)s ) s
@@ -2539,7 +2644,7 @@ GROUP BY %(groupkeys)s
         sql = sql % dict(
             asql=asql,
             groupkeys=', '.join(groupkeys),
-            groupaggs=', '.join(groupkeys + ["%s AS %s" % a for a in aggregates]),
+            groupaggs=', '.join(groupaggs),
             )
 
         if sort1 is not None:
@@ -2664,7 +2769,7 @@ class AggregatePath (AnyPath):
         # to honour generic API.  actually gated on self.add_sort() above so no need to test again
         pass
         
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True, arrays_to_json=False):
         """Generate SQL query to get the resources described by this apath.
 
         """
@@ -2672,14 +2777,28 @@ class AggregatePath (AnyPath):
         aggregates, extras, output_type_overrides = self._sql_get_agg_attributes(allow_extra=False)
         asql, page, sort1, limit, sort2 = apath.sql_get(split_sort=True, distinct_on=False, dynauthz=dynauthz, prefix=prefix, enforce_client=enforce_client)
 
+        # HACK: allow lookup below by quoted aggregate identifier
+        attr_type_overrides = {
+            sql_identifier(n): t
+            for n, t in output_type_overrides.items()
+        }
+
         # a pure aggregate query has aggregates
+        aggs = []
+        for sql, attr in aggregates:
+            if arrays_to_json and attr_type_overrides.get(attr, text_type).is_array:
+                agg = 'array_to_json(%s) AS %s' % (sql, attr)
+            else:
+                agg = '%s AS %s' % (sql, attr)
+            aggs.append(agg)
+
         sql = """
 SELECT %(aggs)s
 FROM ( %(asql)s ) s
 """
         return sql % dict(
             asql=asql,
-            aggs=', '.join([ '%s AS %s' % (a[0], a[1]) for a in aggregates]),
+            aggs=', '.join(aggs),
             )
 
 class QueryPath (object):
@@ -2771,7 +2890,7 @@ class TextFacet (AnyPath):
                             if c_policy:
                                 yield (sname, tname, column)
 
-    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True):
+    def sql_get(self, row_content_type='application/json', limit=None, dynauthz=None, prefix='', enforce_client=True, arrays_to_json=False):
         queries = [
             # column ~* pattern is ciregexp...
             """(SELECT %(stext)s::text AS "schema", %(ttext)s::text AS "table", %(ctext)s::text AS "column" FROM %(sid)s.%(tid)s WHERE _ermrest.astext(%(cid)s) ~* %(pattern)s LIMIT 1)""" % dict(
