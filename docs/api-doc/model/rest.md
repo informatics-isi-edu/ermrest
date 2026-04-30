@@ -390,6 +390,101 @@ Typical error response codes include:
 - 403 Forbidden
 - 401 Unauthorized
 
+
+## Table Auditing Configuration
+
+During table creation or alteration, a special annotation `tag:isrd.isi.edu,2026:auditing-configuration` MAY be used to enable optional logging.
+
+The auditing-configuration annotation can be applied at multiple levels of the catalog's model resource hierarchy, but only has an effect when interpreted with respect to a specific table. The purpose of specifying the annotations at other levels are to set common defaults across a whole catalog or schema.
+
+1. Catalog-level annotation to set default for all tables in the catalog;
+2. Schema-level annotation to set default hints for all tables in that schema;
+3. Table-level annotation to configure auditing for that table.
+
+The annotation value can be a document with several fields:
+
+    "annotations": {
+      "tag:isrd.isi.edu,2026:auditing-configuration": {
+        "log_row_writes": true,
+        "insert_show_columns": [column_name, ...],
+        "insert_hide_columns": [column_name, ...],
+        ...
+      }
+    }
+
+When determining the configuration for a given table, the annotations from the model hierarchy are merged on a per-field basis. A given field configuration will be taken from the most specific model level where it is present, i.e. table-level settings are most specific and catalog-level settings are least specific.
+
+The set of supported fields is as follows:
+
+- `log_row_writes`: When `true`, row-level details are logged for write operations.
+- `insert_show_columns`: A list of columns to include in row-level logging of insert operations.
+- `insert_hide_columns`: A list of columns to exclude in row-level logging of insert operations.
+- `update_show_columns`: A list of columns to include in row-level logging of update operations.
+- `update_hide_columns`: A list of columns to exclude in row-level logging of update operations.
+- `delete_show_columns`: A list of columns to include in row-level logging of delete operations.
+- `delete_hide_columns`: A list of columns to exclude in row-level logging of delete operations.
+
+Each list of columns MUST be a list of (string) column names or the value `null` to disable that specific control feature.
+
+### Table Write Logging
+
+When `log_row_writes` is `true`, the service produces additional log messages for each row changed by data insert, update, or delete operations. Because the service API supports bulk operations, a single web request may produce many row-level messages.
+
+The annotation can customize which column values from each row are included in the logged details. Starting with all columns of the table as candidates:
+
+- A candidate is eliminated when a "show" list is configured and the candidate is not named in the explicit list. An absent or `null` "show" list does not eliminate any candidates.
+- A candidate is eliminated when a "hide" list is configured and the candidate is named in the explicit list. An absent or `null` "hide" list does not eliminate any candidates.
+
+A candidate must survive both rounds of elimination to be included in the logged details.
+
+WARNING: the default behavior (described next) will expose catalog data content in the log stream. In a deployment where some tables store sensitive data that should not appear in logs, the operator SHOULD customize the audit configuration to limit which values are logged. There are several potential idioms:
+
+1. Use of the "hide" column lists can suppress specific columns known to be sensitive, while passing other columns through in logs.
+2. Use of the "show" column lists can pass specific columns to the log, while suppressing all other columns. An extreme case may to only show `RID` so that you know which rows were changed and nothing else.
+3. Row-level auditing can be disabled for specific tables.
+
+However, another operating regime may be to keep all data changes in the logs and instead move to protect the log stream where it is captured and archived. This provides the most robust audit trail if there may be a need to investigate the detailed changes made to sensitive content.
+
+
+### Default Table Audit Configuration
+
+The service uses a default configuration, which is conceptually less specific than any catalog-level annotation:
+
+    "annotations": {
+      "tag:isrd.isi.edu,2026:auditing-configuration": {
+        "log_row_writes": true,
+        "insert_hide_columns": ["RMT"],
+        "update_hide_columns": ["RMT"],
+      }
+    }
+
+In other words, the auditing feature is enabled by default for all API-managed schemas. The `RMT` column is suppressed from the message details for insert and update operations, where this value is redundant with the event timestamp encoded in the enclosing row-level audit message. A deployment may set these fields back to `null` in a catalog-level annotation if they would prefer not to hide `RMT` in these scenarios.
+
+A simple idiom to turn off row-level change auditing would be to place a catalog-level annotation:
+
+    "annotations": {
+      "tag:isrd.isi.edu,2026:auditing-configuration": {
+        "log_row_writes": false
+      }
+    }
+
+which overrides the boolean to make the service only emit request-level log messages as it did in prior versions of the software.
+
+### Operational Considerations
+
+The extended audit logging is implemented by means of "trigger" functions in the database. This function is only provisioned or deprovisioned on a table during a limited set of service API operations:
+
+- During individual table _creation_ via `POST` requests to `/catalog/` _cid_ `/schema/` _schema name_ `/table/`
+- During bulk table _creation_ via `POST` requests to `/catalog/` _cid_ `/schema/`
+- During individual table _alteration_ via `PUT` requests to `/catalog/` _cid_ `/schema/` _schema name_ `/table/` _table name_
+
+During these service operations, the trigger is provisioned when `log_row_writes` is `true` and deprovisioned when it is `false`.
+
+During row data writes while the trigger function is provisioned, row-level log events are produced. The function itself consults the annotation state to customize its content.
+
+NOTE: the `log_row_writes` boolean at catalog or schema level influences the default behavior of subsequent table creation in that catalog or schema, respectively. However, changes to this annotation have no effect on the trigger provisioning status of existing tables until they undergo an explit table _alteration_ request.
+
+
 ## Table Deletion
 
 The DELETE method is used to delete a table and all its content:
