@@ -274,7 +274,7 @@ class Catalog (object):
                 msg = str(ev)
                 continue
         raise RuntimeError(msg)
-    
+
     def init_meta(self, conn, cur, owner=None, annotations=None):
         """Initializes the Catalog metadata.
         """
@@ -299,8 +299,28 @@ class Catalog (object):
         if annotations:
             annotations_merged.update(annotations)
 
-        ## initial policy
         model = self.get_model(cur, self._config)
+
+        ## initial policy
         model.acls['owner'] = owner # set so enforcement won't deny subsequent set_acl()
         model.set_acl(cur, 'owner', owner)
         model.set_annotations(conn, cur, annotations_merged)
+
+        ## enable model/config auditing
+        #  but simplify annotation logging to only log keys and not (possibly large) values
+        model.ermrest_schema.set_annotations(
+            conn, cur,
+            {
+                Table.tag_auditing_configuration: {
+                    "insert_hide_columns": ["RMT", "annotation_value"],
+                    "update_hide_columns": ["RMT", "annotation_value"],
+                    "delete_hide_columns": ["annotation_value"],
+                }
+            }
+        )
+
+        for table in model.ermrest_schema.tables.values():
+            # only enable audit triggers for the reified catalog model
+            # (not other special metadata tables)
+            if table.name.startswith('known_'):
+                cur.execute(table.manage_audit_triggers_sql())

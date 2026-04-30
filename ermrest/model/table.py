@@ -67,6 +67,7 @@ class Table (object):
     """
     tag_indexing_preferences = 'tag:isrd.isi.edu,2018:indexing-preferences'
     tag_history_capture = 'tag:isrd.isi.edu,2020:history-capture'
+    tag_auditing_configuration = 'tag:isrd.isi.edu,2026:auditing-configuration'
     
     def __init__(self, schema, name, columns, kind, comment=None, annotations={}, acls={}, dynacls={}, rid=None):
         self.schema = schema
@@ -330,6 +331,8 @@ SELECT _ermrest.record_new_table(%(schema_rid)s, %(tnamestr)s);
         table.set_annotations(conn, cur, annotations)
         table.set_acls(cur, acls)
         table.set_dynacls(cur, dynacls)
+
+        cur.execute(table.manage_audit_triggers_sql())
 
         cur.execute("""
 SELECT
@@ -643,3 +646,63 @@ WHERE "RID" = %s;
     def freetext_column(self):
         return FreetextColumn(self)
 
+    @classmethod
+    def _create_audit_triggers_sql(cls, trid, sname, tname):
+        template = """
+CREATE OR REPLACE TRIGGER ermrest_audit_insert
+  AFTER INSERT ON %(sname_ident)s.%(tname_ident)s
+  REFERENCING NEW TABLE AS ermrest_audit_newtuples
+  FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_audit(%(trid_literal)s);
+
+CREATE OR REPLACE TRIGGER ermrest_audit_update
+  AFTER UPDATE ON %(sname_ident)s.%(tname_ident)s
+  REFERENCING OLD TABLE AS ermrest_audit_oldtuples NEW TABLE AS ermrest_audit_newtuples
+  FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_audit(%(trid_literal)s);
+
+CREATE OR REPLACE TRIGGER ermrest_audit_delete
+  AFTER DELETE ON %(sname_ident)s.%(tname_ident)s
+  REFERENCING OLD TABLE AS ermrest_audit_oldtuples
+  FOR EACH STATEMENT EXECUTE PROCEDURE _ermrest.table_audit(%(trid_literal)s);
+"""
+        return template % {
+            "trid_literal": sql_literal(trid),
+            "sname_ident": sql_identifier(sname),
+            "tname_ident": sql_identifier(tname),
+        }
+
+    def enable_audit_triggers_sql(self) -> str:
+        """Return idempotent table auditing trigger definitions as SQL string."""
+        if not self.rid:
+            raise ValueError('Cannot use table auditing on table %r.%r which lacks a table RID' % (
+                table.schema.name,
+                table.name,
+            ))
+
+        return self._create_audit_triggers_sql(self.rid, self.schema.name, self.name)
+
+    @classmethod
+    def _drop_audit_triggers_sql(cls, sname, tname):
+        template = """
+DROP TRIGGER IF EXISTS ermrest_audit_insert ON %(sname_ident)s.%(tname_ident)s;
+DROP TRIGGER IF EXISTS ermrest_audit_update ON %(sname_ident)s.%(tname_ident)s;
+DROP TRIGGER IF EXISTS ermrest_audit_delete ON %(sname_ident)s.%(tname_ident)s;
+"""
+        return template % {
+            "sname_ident": sql_identifier(sname),
+            "tname_ident": sql_identifier(tname),
+        }
+
+    def disable_audit_triggers_sql(self) -> str:
+        """Return idempotent table auditing trigger deletions as SQL string."""
+        return self._drop_audit_triggers_sql(self.schema.name, self.name)
+
+    def manage_audit_triggers_sql(self) -> str:
+        """Return idempotent table auditing trigger manipulation as SQL string."""
+        cfg = {}
+        cfg.update(self.schema.model.annotations.get(self.tag_auditing_configuration, {}))
+        cfg.update(self.schema.annotations.get(self.tag_auditing_configuration, {}))
+        cfg.update(self.annotations.get(self.tag_auditing_configuration, {}))
+        if cfg.get('log_row_writes', True):
+            return self.enable_audit_triggers_sql()
+        else:
+            return self.disable_audit_triggers_sql()

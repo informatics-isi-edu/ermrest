@@ -279,7 +279,10 @@ class Schema (Api):
         try:
             # handle alteration of existing schema
             schema = deriva_ctx.ermrest_catalog_model.schemas.get_enumerable(self.name)
-            return schema.update(conn, cur, schemadoc, deriva_ctx.ermrest_config)
+            res = schema.update(conn, cur, schemadoc, deriva_ctx.ermrest_config)
+            for table in schema.tables.values():
+                cur.execute(table.manage_audit_triggers_sql())
+            return res
         except exception.ConflictModel as e:
             # handle creation of new schema, same as POST /schema/
             schemas = Schemas(self.catalog)
@@ -593,13 +596,18 @@ class Annotations (Api):
     def GET(self, uri):
         return _GET(self, self.GET_body, _post_commit_json)
 
+    def _after_modify_body(self, conn, cur):
+        pass
+
     def PUT_body(self, conn, cur, value):
         subject = self.GET_subject(conn, cur)
         if self.key is None:
             subject.set_annotations(conn, cur, value)
+            self._after_modify_body(conn, cur)
             return False
         else:
             oldval = subject.set_annotation(conn, cur, self.key, value)
+            self._after_modify_body(conn, cur)
             return oldval is None
 
     def PUT(self, uri):
@@ -616,6 +624,7 @@ class Annotations (Api):
         if self.key not in subject.annotations:
             raise exception.rest.NotFound('annotation "%s" on "%s"' % (self.key, subject))
         subject.delete_annotation(conn, cur, self.key)
+        self._after_modify_body(conn, cur)
         return ''
 
     def DELETE(self, uri):
@@ -625,13 +634,31 @@ class CatalogAnnotations(Annotations):
     def __init__(self, catalog):
         Annotations.__init__(self, catalog, catalog)
 
+    def _after_modify_body(self, conn, cur):
+        catalog = self.GET_subject(conn, cur)
+        for schema in catalog.schemas.values():
+            for table in schema.tables.values():
+                cur.execute(table.manage_audit_triggers_sql())
+        for table in catalog.ermrest_schema.tables.values():
+            if table.name.startswith('known_'):
+                cur.execute(table.manage_audit_triggers_sql())
+
 class TableAnnotations (Annotations):
     def __init__(self, table):
         Annotations.__init__(self, table.schema.catalog, table)
 
+    def _after_modify_body(self, conn, cur):
+        table = self.GET_subject(conn, cur)
+        cur.execute(table.manage_audit_triggers_sql())
+
 class SchemaAnnotations (Annotations):
     def __init__(self, schema):
         Annotations.__init__(self, schema.catalog, schema)
+
+    def _after_modify_body(self, conn, cur):
+        schema = self.GET_subject(conn, cur)
+        for table in schema.tables.values():
+            cur.execute(table.manage_audit_triggers_sql())
 
 class ColumnAnnotations (Annotations):
     def __init__(self, column):
@@ -730,7 +757,9 @@ class Table (Api):
         try:
             # handle alteration of existing table
             table = schema.tables.get_enumerable(self.name.one_str())
-            return table.update(conn, cur, tabledoc, deriva_ctx.ermrest_config)
+            res = table.update(conn, cur, tabledoc, deriva_ctx.ermrest_config)
+            cur.execute(table.manage_audit_triggers_sql())
+            return res
         except exception.ConflictModel as e:
             # handle creation of new table, same as POST /table/
             tables = Tables(self.schema)

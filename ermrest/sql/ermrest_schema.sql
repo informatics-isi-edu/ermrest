@@ -1,6 +1,6 @@
 
 -- 
--- Copyright 2012-2024 University of Southern California
+-- Copyright 2012-2026 University of Southern California
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -316,6 +316,118 @@ BEGIN
     IF oldj ? 'RMT' THEN NEW."RMT" := now(); END IF;
   END IF;
   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- use as an AFTER trigger
+CREATE OR REPLACE FUNCTION _ermrest.table_audit() RETURNS TRIGGER AS $$
+DECLARE
+  trid text;
+  cfg jsonb;
+  ckey text;
+  showcols text[];
+  hidecols text[];
+BEGIN
+
+  trid := TG_ARGV[0];
+
+  SELECT
+    '{"insert_hide_columns": ["RMT"], "update_hide_columns": ["RMT"]}'::jsonb || COALESCE(
+      (SELECT annotation_value
+       FROM _ermrest.known_catalog_annotations
+       WHERE annotation_uri = 'tag:isrd.isi.edu,2026:auditing-configuration'),
+      '{}'::jsonb
+    ) || COALESCE(
+      (SELECT s.annotation_value
+       FROM _ermrest.known_schema_annotations s
+       JOIN _ermrest.known_tables t ON (s.schema_rid = t.schema_rid)
+       WHERE annotation_uri = 'tag:isrd.isi.edu,2026:auditing-configuration'
+         AND t."RID" = trid),
+      '{}'::jsonb
+    ) || COALESCE(
+      (SELECT annotation_value
+       FROM _ermrest.known_table_annotations t
+       WHERE annotation_uri = 'tag:isrd.isi.edu,2026:auditing-configuration'
+         AND t."RID" = trid),
+      '{}'::jsonb
+    ) INTO cfg;
+
+  IF cfg->'log_row_writes' = 'false'::jsonb THEN
+    -- early return if trigger is provisioned but extra logging was disabled??
+    RETURN NULL;
+  END IF;
+
+  CREATE TEMPORARY TABLE IF NOT EXISTS ermrest_audit_log (
+    id serial PRIMARY KEY,
+    ts timestamptz NOT NULL,
+    table_rid text NOT NULL,
+    op text NOT NULL,
+    detail jsonb
+  ) ON COMMIT DELETE ROWS;
+
+  ckey := LOWER(TG_OP) || '_show_columns';
+  SELECT
+    CASE
+      WHEN jsonb_typeof(cfg->ckey) = 'array' THEN (SELECT array_agg(v) FROM jsonb_array_elements_text(cfg->ckey) a(v))
+      ELSE NULL::text[]
+    END
+  INTO showcols;
+
+  ckey := LOWER(TG_OP) || '_hide_columns';
+  SELECT
+    CASE
+      WHEN jsonb_typeof(cfg->ckey) = 'array' THEN (SELECT array_agg(v) FROM jsonb_array_elements_text(cfg->ckey) a(v))
+      ELSE NULL::text[]
+    END
+  INTO hidecols;
+
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO ermrest_audit_log (ts, table_rid, op, detail)
+    SELECT
+      now(),
+      trid,
+      'insert',
+      (SELECT
+         jsonb_object_agg(nj.k, nj.v)
+       FROM jsonb_each(to_jsonb(n)) nj (k, v)
+       WHERE (showcols IS NULL OR nj.k = ANY (showcols))
+         AND (hidecols IS NULL OR NOT nj.k = ANY (hidecols))
+      )
+    FROM ermrest_audit_newtuples n;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    INSERT INTO ermrest_audit_log (ts, table_rid, op, detail)
+    SELECT
+      now(),
+      trid,
+      'update',
+      (SELECT
+         jsonb_object_agg(nj.k, nj.v)
+       FROM jsonb_each(to_jsonb(n)) nj (k, v)
+       WHERE (showcols IS NULL OR nj.k = ANY (showcols))
+         AND (hidecols IS NULL OR NOT nj.k = ANY (hidecols))
+      )
+    FROM ermrest_audit_newtuples n;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO ermrest_audit_log (ts, table_rid, op, detail)
+    SELECT
+      now(),
+      trid,
+      'delete',
+      (SELECT
+         jsonb_object_agg(oj.k, oj.v)
+       FROM jsonb_each(to_jsonb(o)) oj (k, v)
+       WHERE (showcols IS NULL OR oj.k = ANY (showcols))
+         AND (hidecols IS NULL OR NOT oj.k = ANY (hidecols))
+      )
+    FROM ermrest_audit_oldtuples o;
+  END IF;
+
+  RETURN NULL;
+
 END;
 $$ LANGUAGE plpgsql;
 

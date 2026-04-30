@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import sys
 import traceback
 import datetime
 import math
-from webauthn2.util import deriva_debug
+from webauthn2.util import deriva_debug, deriva_ctx
 
 class connection (psycopg2.extensions.connection):
     """Customized psycopg2 connection factory with per-execution() cursor support.
@@ -54,6 +54,19 @@ class connection (psycopg2.extensions.connection):
     def __init__(self, dsn):
         psycopg2.extensions.connection.__init__(self, dsn)
         self._curnumber  = 1
+        cur = self.cursor()
+        cur.execute("""
+CREATE TEMPORARY TABLE IF NOT EXISTS ermrest_audit_log (
+    id serial PRIMARY KEY,
+    ts timestamptz NOT NULL,
+    table_rid text NOT NULL,
+    op text NOT NULL,
+    detail jsonb
+)
+ON COMMIT DELETE ROWS;
+""")
+        self.commit()
+        del cur
 
     def execute(self, stmt, vars=None):
         """Name and create a server-side cursor with withhold=True and run statement in it.
@@ -140,7 +153,7 @@ class PooledConnection (object):
             self.conn = self.used_pool.getconn()
         else:
             self.used_pool = None
-            self.conn = psycopg2.extensions.connection(dsn)
+            self.conn = connection(dsn)
         self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
         self.cur = self.conn.cursor()
 
@@ -152,6 +165,29 @@ class PooledConnection (object):
         assert self.conn is not None
         try:
             result = bodyfunc(self.conn, self.cur)
+            cur = self.conn.cursor()
+            cur.execute("""
+SELECT
+  l.id,
+  l.ts::text,
+  l.table_rid,
+  s.schema_name,
+  t.table_name,
+  l.op,
+  l.detail
+FROM ermrest_audit_log l
+JOIN _ermrest.known_tables t ON (l.table_rid = t."RID")
+JOIN _ermrest.known_schemas s ON (t.schema_rid = s."RID")
+""")
+            for ser, ts, trid, sname, tname, op, detail in cur:
+                deriva_ctx.ermrest_request_trace({
+                    "audit_ts": ts,
+                    "audit_op": op,
+                    "catalog": deriva_ctx.ermrest_catalog_id,
+                    "table": [trid, sname, tname],
+                    "detail": detail,
+                })
+            del cur
             self.conn.commit()
             return finalfunc(result)
         except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
