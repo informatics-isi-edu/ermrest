@@ -55,6 +55,15 @@ BEGIN
     IN SELECT sequence_name
     FROM information_schema.sequences
     WHERE sequence_schema = srow.nspname
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_depend d ON d.objid = c.oid
+        WHERE c.relkind = 'S'
+          AND c.relname = sequence_name
+          AND c.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = srow.nspname)
+          AND d.deptype = 'i'
+          AND current_setting('server_version_num')::integer >= 160000
+      )
     LOOP
       EXECUTE 'ALTER SEQUENCE ' || quote_ident(srow.nspname) || '.' || quote_ident(seqrow.sequence_name) || ' OWNER TO ermrest;';
     END LOOP;
