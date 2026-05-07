@@ -29,7 +29,7 @@ BEGIN
   IN SELECT nspname
      FROM pg_namespace
      WHERE nspname NOT IN ('pg_toast', 'pg_catalog', 'information_schema')
-       AND NOT pg_is_other_temp_schema(oid)
+       AND nspname !~ '^pg_(toast_)?temp_'
   LOOP
     EXECUTE 'ALTER SCHEMA ' || quote_ident(srow.nspname) || ' OWNER TO ermrest;';
 
