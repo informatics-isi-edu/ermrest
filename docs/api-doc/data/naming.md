@@ -526,6 +526,17 @@ If the set denoted by the resource name (without the limit modifier) has _k_ ele
 
 The `limit` query parameter is only meaningful on retrieval requests using the `GET` method described in [Data Operations](#data-operations).
 
+## Arrays Query Parameter
+
+An optional `arrays` query parameter can select an alternate encoding for array typed columns in `text/csv` query results:
+
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/entity/` _path_ ` ... ?arrays=` _encoding_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attribute/` _path_ `/` _projection_ `,` ... `?arrays=` _encoding_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/attributegroup/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `?arrays=` _encoding_
+- _service_ `/catalog/` _cid_ [ `@` _revision_ ] `/agreggate/` _path_ `/` _group key_ `,` ... `;` _projection_ `,` ... `?arrays=` _encoding_
+
+At time of writing, the only alternate _encoding_ is `json` to select JSON array syntax. The backwards-compatible default encoding, in the absence of this parameter is the PostgreSQL array syntax.
+
 ## Data Paging
 
 The [sort modifier](#sort-modifier), [limit parameter](#limit-query-parameter), and [paging modifiers](#paging-modifiers) can be combined to express paged access to set-based data resources:

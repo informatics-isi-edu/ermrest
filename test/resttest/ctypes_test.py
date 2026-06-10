@@ -272,7 +272,17 @@ class CtypeText (common.ErmrestTest):
             ),
             200
         )
-        self.assertHttp(self.session.put(self._entity_url(), json=self._data()), 200)
+        self.assertHttp(self.session.delete(self._entity_url()), 204)
+        self.assertHttp(
+            self.session.post(
+                self._entity_url(),
+                data=common.array_to_csv(self._data(), json_array=True),
+                headers={"content-type": "text/csv"}
+            ),
+            200
+        )
+        self.assertHttp(self.session.delete(self._entity_url()), 204)
+        self.assertHttp(self.session.post(self._entity_url(), json=self._data()), 200)
 
     def _pattern_check(self, colname, expected_count, op=None, rval=None):
         r = self.session.get(self._pattern_url(colname, op=op, rval=rval))
