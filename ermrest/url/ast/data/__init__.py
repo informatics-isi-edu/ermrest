@@ -71,7 +71,7 @@ def _preprocess_attributes(epath, attributes):
             
     return results
 
-def _GET(handler, uri, dresource, vresource):
+def _GET(handler, uri, dresource, vresource, skip_body=False):
     """Perform HTTP GET of generic data resources.
     """
     content_type = handler.negotiated_content_type()
@@ -91,7 +91,7 @@ def _GET(handler, uri, dresource, vresource):
             handler.http_check_preconditions()
             dresource.add_sort(handler.sort)
             dresource.add_paging(handler.after, handler.before)
-            return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit, arrays_to_json=arrays_to_json)
+            return dresource.get(conn, cur, content_type=content_type, output_file=results, limit=limit, arrays_to_json=arrays_to_json, skip_body=skip_body)
         finally:
             try:
                 conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
@@ -100,9 +100,13 @@ def _GET(handler, uri, dresource, vresource):
 
     def post_commit(lines):
         handler.emit_headers()
-        if lines is None:
-            return
+        #if lines is None:
+        #    return
         deriva_ctx.deriva_response.content_type = content_type
+
+        if skip_body:
+            return deriva_ctx.deriva_response
+
         if 'download' in handler.queryopts and handler.queryopts['download']:
             fname = handler.queryopts['download']
             fname += {
@@ -122,6 +126,7 @@ def _GET(handler, uri, dresource, vresource):
             deriva_ctx.deriva_response.direct_passthrough = True
         else:
             deriva_ctx.deriva_response.response = lines
+
         return deriva_ctx.deriva_response
 
     return handler.perform(body, post_commit)
@@ -248,11 +253,14 @@ class Entity (Api):
             keyref, refop, lalias = elem.resolve_link(deriva_ctx.ermrest_catalog_model, self.epath)
             outer_type = elem.outer_type if hasattr(elem, 'outer_type') else None
             self.epath.add_link(keyref, refop, elem.alias, lalias, outer_type=outer_type)
-            
-    def GET(self, uri):
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
         """Perform HTTP GET of entities.
         """
-        return _GET(self, uri, self.epath, self.epath)
+        return _GET(self, uri, self.epath, self.epath, skip_body=skip_body)
 
     def PUT(self, uri):
         """Perform HTTP PUT of entities.
@@ -302,10 +310,13 @@ class Attribute (Api):
     def set_projection(self, attributes):
         self.apath = ermpath.AttributePath(self.Entity.epath, _preprocess_attributes(self.Entity.epath, attributes))
         
-    def GET(self, uri):
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
         """Perform HTTP GET of attributes.
         """
-        return _GET(self, uri, self.apath, self.apath.epath)
+        return _GET(self, uri, self.apath, self.apath.epath, skip_body=skip_body)
 
     def DELETE(self, uri):
         """Perform HTTP DELETE of entity attribute.
@@ -333,10 +344,13 @@ class AttributeGroup (Api):
             _preprocess_attributes(self.Entity.epath, attributes)
         )
     
-    def GET(self, uri):
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
         """Perform HTTP GET of attribute groups.
         """
-        return _GET(self, uri, self.agpath, self.agpath.epath)
+        return _GET(self, uri, self.agpath, self.agpath.epath, skip_body=skip_body)
 
     def PUT(self, uri, post_method=False):
         """Perform HTTP PUT of attribute groups.
@@ -360,7 +374,10 @@ class Aggregate (Api):
     def set_projection(self, attributes):
         self.agpath = ermpath.AggregatePath(self.Entity.epath, _preprocess_attributes(self.Entity.epath, attributes))
     
-    def GET(self, uri):
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
         """Perform HTTP GET of attribute groups.
         """
-        return _GET(self, uri, self.agpath, self.agpath.epath)
+        return _GET(self, uri, self.agpath, self.agpath.epath, skip_body=skip_body)

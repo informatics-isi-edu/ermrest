@@ -1719,7 +1719,7 @@ class AnyPath (object):
 
         return aggregates, extras, output_type_overrides
 
-    def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None, arrays_to_json=False):
+    def get(self, conn, cur, content_type='text/csv', output_file=None, limit=None, arrays_to_json=False, skip_body=False):
         """Fetch resources.
 
            conn: sanepg2 database connection to catalog
@@ -1755,6 +1755,8 @@ class AnyPath (object):
         sql = self.sql_get(row_content_type=content_type, limit=limit, dynauthz=True, arrays_to_json=arrays_to_json)
 
         #deriva_debug(sql)
+        if skip_body:
+            return False
 
         if output_file:
             # efficiently send results to file
