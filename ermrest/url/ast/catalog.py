@@ -41,7 +41,10 @@ class Service (object):
     default_content_type = _application_json
     supported_types = [default_content_type,]
 
-    def GET(self, uri=''):
+    def HEAD(self, uri=''):
+        return self.GET(uri=uri, skip_body=True)
+
+    def GET(self, uri='', skip_body=False):
         """Perform HTTP GET of service advertisement
         """
         # content negotiation
@@ -61,7 +64,10 @@ class Service (object):
         deriva_ctx.deriva_response.status_code = 200
 
         assert content_type == _application_json
-        deriva_ctx.deriva_response.response = [ json.dumps(response) + '\n', ]
+
+        if not skip_body:
+            deriva_ctx.deriva_response.response = [ json.dumps(response) + '\n', ]
+
         return deriva_ctx.deriva_response
 
     def with_queryopts(self, qopt):
@@ -297,7 +303,10 @@ class Catalog (Api):
             self.catalog_amendver = None
         return _model
 
-    def GET(self, uri):
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
         """Perform HTTP GET of catalog.
         """
         # content negotiation
@@ -308,18 +317,20 @@ class Catalog (Api):
             # note that the 'descriptor' includes private system information such 
             # as the dbname (and potentially connection credentials) which should
             # not ever be shared.
-            resource = _model.prejson(brief=True, snaptime=self.catalog_snaptime)
-            resource["id"] = self.catalog_id
-            if self.manager.alias_target is not None:
-                resource["alias_target"] = self.manager.alias_target
-            if self.manager.name is not None:
-                resource["name"] = self.manager.name
-            if self.manager.description is not None:
-                resource["description"] = self.manager.description
-            if self.manager.is_persistent is not None:
-                resource["is_persistent"] = self.manager.is_persistent
-            if self.manager.clone_source is not None:
-                resource["clone_source"] = self.manager.clone_source
+            if not skip_body:
+                resource = _model.prejson(brief=True, snaptime=self.catalog_snaptime)
+                resource["id"] = self.catalog_id
+                if self.manager.alias_target is not None:
+                    resource["alias_target"] = self.manager.alias_target
+                if self.manager.name is not None:
+                    resource["name"] = self.manager.name
+                if self.manager.description is not None:
+                    resource["description"] = self.manager.description
+                if self.manager.is_persistent is not None:
+                    resource["is_persistent"] = self.manager.is_persistent
+                if self.manager.clone_source is not None:
+                    resource["clone_source"] = self.manager.clone_source
+
             if self.catalog_amendver:
                 self.set_http_etag( '%s-%s' % (self.catalog_snaptime, self.catalog_amendver) )
             else:
@@ -327,7 +338,10 @@ class Catalog (Api):
             self.http_check_preconditions()
             self.emit_headers()
             deriva_ctx.deriva_response.content_type = content_type
-            deriva_ctx.deriva_response.response = [ json.dumps(resource) + '\n', ]
+
+            if not skip_body:
+                deriva_ctx.deriva_response.response = [ json.dumps(resource) + '\n', ]
+
             return deriva_ctx.deriva_response
 
         return self.perform(self.GET_body, post_commit)
@@ -444,7 +458,10 @@ class CatalogAlias (ApiBase):
             'alias_target': self.entry['alias_target'],
         }
 
-    def GET(self, catalog_id):
+    def HEAD(self, catalog_id):
+        return self.GET(catalog_id, skip_body=True)
+
+    def GET(self, catalog_id, skip_body=False):
         """Perform HTTP retrieval of catalog alias registry entry
         """
         self._prepare(catalog_id)
@@ -456,7 +473,10 @@ class CatalogAlias (ApiBase):
         self.http_check_preconditions()
         self.emit_headers()
         deriva_ctx.deriva_response.content_type = content_type
-        deriva_ctx.deriva_response.response = json.dumps(resource) + '\n'
+
+        if not skip_body:
+            deriva_ctx.deriva_response.response = json.dumps(resource) + '\n'
+
         return deriva_ctx.deriva_response
 
     def PUT(self, catalog_id):
@@ -523,49 +543,3 @@ class CatalogAlias (ApiBase):
         deriva_ctx.deriva_response.status_code = 204
         deriva_ctx.deriva_response.response = []
         return deriva_ctx.deriva_response
-
-class Meta (Api):
-    """A metadata set of the catalog.
-
-       This is a temporary map of ACLs to old meta API for introspection by older clients.
-
-       DEPRECATED.
-    """
-
-    default_content_type = _application_json
-    supported_types = [default_content_type]
-
-    def __init__(self, catalog, key=None, value=None):
-        Api.__init__(self, catalog)
-        self.key = key
-        self.value = value
-
-    def GET(self, uri):
-        """Perform HTTP GET of catalog metadata.
-        """
-        content_type = negotiated_content_type(flask.request.environ, self.supported_types, self.default_content_type)
-        def body(conn, cur):
-            self.enforce_right('enumerate', uri)
-            return deriva_ctx.ermrest_catalog_model.acls
-
-        def post_commit(acls):
-            self.set_http_etag( deriva_ctx.ermrest_catalog_model.etag() )
-            self.http_check_preconditions()
-            self.emit_headers()
-            deriva_ctx.deriva_response.content_type = content_type
-            deriva_ctx.ermrest_request_content_type = content_type
-
-            meta = _acls_to_meta(acls)
-
-            if self.key is not None:
-                # project out single ACL from ACL set
-                try:
-                    meta = meta[self.key]
-                except KeyError:
-                    raise exception.rest.NotFound(uri)
-
-            deriva_ctx.deriva_response.response = [ json.dumps(meta) + '\n', ]
-            return deriva_ctx.deriva_response
-
-        return self.perform(body, post_commit)
-

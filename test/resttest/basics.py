@@ -193,7 +193,7 @@ class BasicColumn (common.ErmrestTest):
 class ServiceAdvertisement (common.ErmrestTest):
 
     def test_service_ad(self):
-        r = self.session.get('/ermrest')
+        r = self.session.get('/ermrest/')
         self.assertHttp(r, 200, 'application/json')
         ad = r.json()
         self.assertIn('version', ad)
@@ -431,12 +431,14 @@ def add_url_parse_tests(klass):
             def make_goodproj(api, fk):
                 def goodproj(self):
                     url = '%s%s%s%s' % (api, self.base, filters[fk], good_projections[api])
+                    self.assertHttp(self.session.head(url), 200 if self.base else 400)
                     self.assertHttp(self.session.get(url), 200 if self.base else 400)
                 return goodproj
 
             def make_badproj(api, fk):
                 def badproj(self):
                     url = '%s%s%s%s' % (api, self.base, filters[fk], bad_projections[api])
+                    self.assertHttp(self.session.head(url), 400)
                     self.assertHttp(self.session.get(url), 400)
                 return badproj
 
@@ -535,6 +537,48 @@ class ColumnRemoval (common.ErmrestTest):
 
     def test_remove_keycol(self):
         self._delete_col(_Tr1, 'id2')
+
+class ModelHead (common.ErmrestTest):
+
+    def test_head_service(self):
+        self.assertHttp(self.session.head('/ermrest/'), 200, 'application/json')
+
+    def test_head_catalog(self):
+        self.assertHttp(self.session.head(''), 200, 'application/json')
+
+    def test_head_schemas(self):
+        self.assertHttp(self.session.head('schema'), 200, 'application/json')
+
+    def test_head_schema(self):
+        self.assertHttp(self.session.head('schema/%s' % _S), 200, 'application/json')
+
+    def test_head_tables(self):
+        self.assertHttp(self.session.head('schema/%s/table' % _S), 200, 'application/json')
+
+    def test_head_table(self):
+        self.assertHttp(self.session.head('schema/%s/table/%s' % (_S, _T1)), 200, 'application/json')
+
+    def test_head_columns(self):
+        self.assertHttp(self.session.head('schema/%s/table/%s/column' % (_S, _T1)), 200, 'application/json')
+
+    def test_head_column(self):
+        self.assertHttp(self.session.head('schema/%s/table/%s/column/id' % (_S, _T1)), 200, 'application/json')
+
+    def test_head_keys(self):
+        self.assertHttp(self.session.head('schema/%s/table/%s/key' % (_S, _T1)), 200, 'application/json')
+
+    def test_head_key(self):
+        self.assertHttp(self.session.head('schema/%s/table/%s/key/id' % (_S, _T1)), 200, 'application/json')
+
+    def test_head_foreignkeys(self):
+        self.assertHttp(self.session.head('schema/%s/table/%s/foreignkey' % (_S, _T1)), 200, 'application/json')
+
+    def test_head_foreignkey(self):
+        self.assertHttp(self.session.head('schema/%s/table/%s/foreignkey/level1_id' % (_S, _T2)), 200, 'application/json')
+        self.assertHttp(self.session.head('schema/%s/table/%s/foreignkey/level1_id/reference' % (_S, _T2)), 200, 'application/json')
+        self.assertHttp(self.session.head('schema/%s/table/%s/foreignkey/level1_id/reference/%s:%s' % (_S, _T2, _S, _T1)), 200, 'application/json')
+        self.assertHttp(self.session.head('schema/%s/table/%s/foreignkey/level1_id/reference/%s:%s/id' % (_S, _T2, _S, _T1)), 200, 'application/json')
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -28,29 +28,35 @@ from ... import model
 from .api import Api
 from ...util import OrderedFrozenSet
 
-def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
+def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v, skip_body=False):
     handler.emit_headers()
     response = transform(resource)
     if (response is None or response == '') and deriva_ctx.deriva_response.status_code == 200:
         deriva_ctx.deriva_response.status_code = 204
         return deriva_ctx.deriva_response
+
     deriva_ctx.deriva_response.content_type = content_type
-    deriva_ctx.deriva_response.response = [ response, ]
+
+    if not skip_body:
+        deriva_ctx.deriva_response.response = [ response, ]
+
     return deriva_ctx.deriva_response
 
-def _post_commit_json(handler, resource):
+def _post_commit_json(handler, resource, skip_body=False):
     def prejson(v):
         if hasattr(v, 'prejson'):
             return v.prejson()
         else:
             return v
+
     def to_json(resource):
         if isinstance(resource, list):
             resource = [ prejson(v) for v in resource ]
         else:
             resource = prejson(resource)
         return json.dumps(resource, indent=None, separators=(',', ':')) + '\n'
-    return _post_commit(handler, resource, 'application/json', to_json)
+
+    return _post_commit(handler, resource, 'application/json', to_json, skip_body=skip_body)
 
 def _GET(handler, thunk, _post_commit):
     def body(conn, cur):
@@ -91,13 +97,16 @@ class Schemas (Api):
 
     def GET_body(self, conn, cur):
         return deriva_ctx.ermrest_catalog_model
-        
-    def GET(self, uri):
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
         def _post_commit(handler, model):
             doc = model.prejson()
             if self.catalog.manager.alias_target is not None:
                 doc['alias_target'] = self.catalog.manager.alias_target
-            return _post_commit_json(handler, doc)
+            return _post_commit_json(handler, doc, skip_body=skip_body)
         return _GET(self, self.GET_body, _post_commit)
 
     def POST_body(self, conn, cur, doc):
@@ -254,8 +263,13 @@ class Schema (Api):
                 raise exception.NotFound(u'schema %s' % self.name)
             raise
 
-    def GET(self, uri):
-        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), post_commit)
 
     def POST_body(self, conn, cur):
         return deriva_ctx.ermrest_catalog_model.create_schema(conn, cur, self.name.one_str())
@@ -303,8 +317,13 @@ class Tables (Api):
         """A specific table for this schema."""
         return self.schema.table(name)
 
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
     
     def GET_body(self, conn, cur):
         return [ t for t in self.schema.GET_body(conn, cur).tables.values() if t.has_right('enumerate') ]
@@ -345,8 +364,13 @@ class AclCommon (Api):
         else:
             return container
 
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
 
     def DELETE_body(self, cur, subject, key=None):
         raise NotImplementedError()
@@ -523,8 +547,13 @@ class Comment (Api):
             raise exception.rest.NotFound('comment on "%s"' % subject)
         return subject.comment + '\n'
 
-    def GET(self, uri):
-        return _GET(self, self.GET_body, lambda self, response: _post_commit(self, response, 'text/plain'))
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit(handler, resource, 'text/plain', skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
 
     def SET_body(self, conn, cur, getresults, comment):
         subject = self.GET_subject(conn, cur)
@@ -593,8 +622,13 @@ class Annotations (Api):
         else:
             return subject.annotations[self.key]
 
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
 
     def _after_modify_body(self, conn, cur):
         pass
@@ -723,8 +757,13 @@ class Table (Api):
         """A specific foreign key for this table."""
         return Foreignkey(self, column_set, catalog=self.catalog)
 
-    def GET(self, uri):
-        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), post_commit)
     
     def GET_body(self, conn, cur, final=False):
         if self.schema is not None:
@@ -783,8 +822,13 @@ class Columns (Api):
     def GET_body(self, conn, cur):
         return self.table.GET_body(conn, cur).columns_in_order()
 
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
     
     def POST_body(self, conn, cur, columndoc):
         table = self.table.GET_body(conn, cur)
@@ -823,9 +867,14 @@ class Column (Api):
             return table.columns.get_enumerable(self.name)
         except exception.ConflictModel as e:
             raise exception.NotFound(u"column %s in table %s" % (self.name, table.name))
-    
-    def GET(self, uri):
-        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), post_commit)
     
     def DELETE_body(self, conn, cur):
         column = self.GET_body(conn, cur, True)
@@ -863,9 +912,14 @@ class Keys (Api):
     def GET_body(self, conn, cur):
         return [ u for u in self.table.GET_body(conn, cur).uniques.values() if u.has_right('enumerate') ]
 
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
-        
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
+
     def POST_body(self, conn, cur, keydoc):
         table = self.table.GET_body(conn, cur)
         return list(table.add_unique(conn, cur, keydoc))
@@ -898,9 +952,14 @@ class Key (Api):
             else:
                 raise exception.rest.NotFound(u'key (%s)' % (u','.join([ str(c.name) for c in cols])))
         return table.uniques[cols]
-        
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
 
     def DELETE_body(self, conn, cur):
         key = self.GET_body(conn, cur)
@@ -933,9 +992,14 @@ class Foreignkeys (Api):
 
     def GET_body(self, conn, cur):
         return [ fk for fk in self.table.GET_body(conn, cur).fkeys.values() if fk.has_right('enumerate') ]
-        
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
 
     def POST_body(self, conn, cur, keydoc):
         table = self.table.GET_body(conn, cur)
@@ -969,10 +1033,15 @@ class Foreignkey (Api):
             if final:
                 raise exception.NotFound(u'foreign key %s in table %s' % (u",".join([ str(c) for c in cols]), table.name))
             raise
-    
-    def GET(self, uri):
-        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), _post_commit_json)
-    
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, lambda conn, cur: self.GET_body(conn, cur, True), post_commit)
+
 class ForeignkeyReferences (Api):
     """A set of foreign key references."""
     def __init__(self, catalog):
@@ -1099,8 +1168,13 @@ class ForeignkeyReferences (Api):
 
         return fkrs
 
-    def GET(self, uri):
-        return _GET(self, self.GET_body, _post_commit_json)
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
 
     def DELETE_body(self, conn, cur):
         fkrs = self.GET_body(conn, cur)

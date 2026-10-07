@@ -274,12 +274,14 @@ class Authz (common.ErmrestTest):
     get_S_status = 200
     delete_S_status = 403
     def test_S(self):
+        self._json_check(self.session.head('schema/%s' % _S), self.get_S_status)
         self._json_check(self.session.get('schema/%s' % _S), self.get_S_status)
         self._json_check(self.session.delete('schema/%s' % _S), self.delete_S_status)
 
     get_T1_status = 200
     delete_T1_status = 403
     def test_T1(self):
+        self._json_check(self.session.head('schema/%s/table/T1' % _S), self.get_T1_status)
         self._json_check(self.session.get('schema/%s/table/T1' % _S), self.get_T1_status)
         self._json_check(self.session.delete('schema/%s/table/T1' % _S), self.delete_T1_status)
 
@@ -288,20 +290,24 @@ class Authz (common.ErmrestTest):
     get_T1name_status = 200
     delete_T1name_status = 403
     def test_T1id(self):
+        self._json_check(self.session.head('schema/%s/table/T1/column/id' % _S), self.get_T1id_status)
         self._json_check(self.session.get('schema/%s/table/T1/column/id' % _S), self.get_T1id_status)
         self._json_check(self.session.delete('schema/%s/table/T1/column/id' % _S), self.delete_T1id_status)
 
     def test_T1name(self):
+        self._json_check(self.session.head('schema/%s/table/T1/column/name' % _S), self.get_T1name_status)
         self._json_check(self.session.get('schema/%s/table/T1/column/name' % _S), self.get_T1name_status)
         self._json_check(self.session.delete('schema/%s/table/T1/column/name' % _S), self.delete_T1name_status)
 
     get_T2_status = 200
     delete_T2_status = 403
     def test_T2(self):
+        self._json_check(self.session.head('schema/%s/table/T2' % _S), self.get_T2_status)
         self._json_check(self.session.get('schema/%s/table/T2' % _S), self.get_T2_status)
         self._json_check(self.session.delete('schema/%s/table/T2' % _S), self.delete_T2_status)
 
     def test_T3(self):
+        self._json_check(self.session.head('schema/%s/table/T3' % _S2), 200)
         self._json_check(self.session.get('schema/%s/table/T3' % _S2), 200)
         self._json_check(self.session.delete('schema/%s/table/T3' % _S2), 403)
 
@@ -316,10 +322,13 @@ class Authz (common.ErmrestTest):
             self.assertEqual(len(r.json()), self.get_T2_fkeys_count)
 
     def test_T2_fkey(self):
+        self._json_check(self.session.head('schema/%s/table/T2/foreignkey/t1id' % _S), self.get_T2_fkey_status)
         self._json_check(self.session.get('schema/%s/table/T2/foreignkey/t1id' % _S), self.get_T2_fkey_status)
 
     def test_T2_fkeyref(self):
+        self._json_check(self.session.head('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1' % (_S, _S)), self.get_T2_fkeyref_status)
         self._json_check(self.session.get('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1' % (_S, _S)), self.get_T2_fkeyref_status)
+        self._json_check(self.session.head('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_S, _S)), self.get_T2_fkeyref_status)
         self._json_check(self.session.get('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_S, _S)), self.get_T2_fkeyref_status)
         self._json_check(self.session.delete('schema/%s/table/T2/foreignkey/t1id/reference/%s:T1/id' % (_S, _S)), self.delete_T2_fkeyref_status)
 
@@ -334,10 +343,13 @@ class Authz (common.ErmrestTest):
             self.assertEqual(len(r.json()), self.get_T3_fkeys_count)
 
     def test_T3_fkey(self):
+        self._json_check(self.session.head('schema/%s/table/T3/foreignkey/t1id' % _S2), self.get_T3_fkey_status)
         self._json_check(self.session.get('schema/%s/table/T3/foreignkey/t1id' % _S2), self.get_T3_fkey_status)
 
     def test_T3_fkeyref(self):
+        self._json_check(self.session.head('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1' % (_S2, _S)), self.get_T3_fkeyref_status)
         self._json_check(self.session.get('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1' % (_S2, _S)), self.get_T3_fkeyref_status)
+        self._json_check(self.session.head('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id' % (_S2, _S)), self.get_T3_fkeyref_status)
         self._json_check(self.session.get('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id' % (_S2, _S)), self.get_T3_fkeyref_status)
         self._json_check(self.session.delete('schema/%s/table/T3/foreignkey/t1id/reference/%s:T1/id' % (_S2, _S)), self.delete_T3_fkeyref_status)
 
@@ -367,6 +379,7 @@ class Authz (common.ErmrestTest):
                 'attributegroup/%s:T1/name;value' % _S,
                 'aggregate/%s:T1/c:=cnt(*)' % _S,
         ]:
+            self._json_check(self.session.head(url), self.get_data_T1_status)
             self._json_check(self.session.get(url), self.get_data_T1_status)
 
     def test_get_data_T1T3(self):
@@ -375,6 +388,7 @@ class Authz (common.ErmrestTest):
                 'attributegroup/A:=%s:T1/(name)=(%s:T3:name)/$A/name;value' % (_S, _S2),
                 'aggregate/A:=%s:T1/(name)=(%s:T3:name)/$A/c:=cnt(*)' % (_S, _S2),
         ]:
+            self._json_check(self.session.head(url), self.get_data_T1T3_status)
             self._json_check(self.session.get(url), self.get_data_T1T3_status)
 
     def test_put_data_T1(self):
@@ -391,27 +405,35 @@ class Authz (common.ErmrestTest):
     get_data_T1T3_id_status = 200
     get_data_T1_id_ctype = 'application/json'
     def test_get_data_T1_id_filter(self):
+        self._json_check(self.session.head('entity/%s:T1/id=1' % _S), self.get_data_T1_id_status)
         self._json_check(self.session.get('entity/%s:T1/id=1' % _S), self.get_data_T1_id_status)
 
     def test_get_data_T1_id_attr(self):
+        self._json_check(self.session.head('attribute/%s:T1/id,name,value' % _S), self.get_data_T1_id_status)
         self._json_check(self.session.get('attribute/%s:T1/id,name,value' % _S), self.get_data_T1_id_status)
 
     def test_get_data_T1_id_attrgrp(self):
+        self._json_check(self.session.head('attributegroup/%s:T1/id,name;value' % _S), self.get_data_T1_id_status)
         self._json_check(self.session.get('attributegroup/%s:T1/id,name;value' % _S), self.get_data_T1_id_status)
 
     def test_get_data_T1_id_attrgrp_cnt(self):
+        self._json_check(self.session.head('attributegroup/%s:T1/name;c:=cnt(id)' % _S), self.get_data_T1_id_status)
         self._json_check(self.session.get('attributegroup/%s:T1/name;c:=cnt(id)' % _S), self.get_data_T1_id_status)
 
     def test_get_data_T1_id_attrgrp_array(self):
+        self._json_check(self.session.head('attributegroup/%s:T1/name;c:=array(id)' % _S), self.get_data_T1_id_status)
         self._json_check(self.session.get('attributegroup/%s:T1/name;c:=array(id)' % _S), self.get_data_T1_id_status)
 
     def test_get_data_T1_id_agg_cnt(self):
+        self._json_check(self.session.head('aggregate/%s:T1/c:=cnt(id)' % _S), self.get_data_T1_id_status)
         self._json_check(self.session.get('aggregate/%s:T1/c:=cnt(id)' % _S), self.get_data_T1_id_status)
 
     def test_get_data_T1_id_agg_array(self):
+        self._json_check(self.session.head('aggregate/%s:T1/c:=array(id)' % _S), self.get_data_T1_id_status)
         self._json_check(self.session.get('aggregate/%s:T1/c:=array(id)' % _S), self.get_data_T1_id_status)
 
     def test_wildcard_query(self):
+        self.assertHttp(self.session.head('entity/%s:T1/*::regexp::foo' % _S), self.get_data_T1_status)
         self.assertHttp(self.session.get('entity/%s:T1/*::regexp::foo' % _S), self.get_data_T1_status)
 
     def test_get_data_T1T3_id(self):
@@ -420,6 +442,7 @@ class Authz (common.ErmrestTest):
                 'attributegroup/A:=%s:T1/%s:T3/id;name' % (_S, _S2),
                 'aggregate/A:=%s:T1/%s:T3/c:=cnt(*)' % (_S, _S2),
         ]:
+            self._json_check(self.session.head(url), self.get_data_T1T3_id_status)
             self._json_check(self.session.get(url), self.get_data_T1T3_id_status)
 
     put_data_T1_id_status = 403
@@ -446,6 +469,7 @@ class Authz (common.ErmrestTest):
                 'attributegroup/%s:T2/id,name;value' % _S,
                 'aggregate/%s:T2/c:=cnt(*)' % _S,
         ]:
+            self._json_check(self.session.head(url), self.get_data_T2_status)
             self._json_check(self.session.get(url), self.get_data_T2_status)
 
     def test_put_data_T2(self):
@@ -472,9 +496,13 @@ class Authz (common.ErmrestTest):
     write_data_T3_fkey_status = 403
 
     def test_get_data_T3(self):
+        self._json_check(self.session.head('entity/%s:T3' % _S2), self.get_data_T3_status)
         self._json_check(self.session.get('entity/%s:T3' % _S2), self.get_data_T3_status)
+        self._json_check(self.session.head('attribute/%s:T3/id,name' % _S2), self.get_data_T3_status)
         self._json_check(self.session.get('attribute/%s:T3/id,name' % _S2), self.get_data_T3_status)
+        self._json_check(self.session.head('attributegroup/%s:T3/id;name' % _S2), self.get_data_T3_status)
         self._json_check(self.session.get('attributegroup/%s:T3/id;name' % _S2), self.get_data_T3_status)
+        self._json_check(self.session.head('aggregate/%s:T3/c:=cnt(*)' % _S2), self.get_data_T3_status)
         self._json_check(self.session.get('aggregate/%s:T3/c:=cnt(*)' % _S2), self.get_data_T3_status)
 
     basic_data_T3 = [
@@ -541,6 +569,7 @@ class AuthzHideT1id (Authz):
         self._hidden_in_model(lambda schema: schema['schemas'][_S2]['tables']['T3'].get('foreign_keys', []), 0)
 
     def test_hidden_in_entity_data(self):
+        self.assertHttp(self.session.head('entity/%s:T1' % _S), self.get_data_T1_ent_status)
         r = self.session.get('entity/%s:T1' % _S)
         self.assertHttp(r, self.get_data_T1_ent_status)
         if r.status_code == 200:
@@ -603,10 +632,11 @@ class AuthzBlockT1id (AuthzHideT1id):
         self._hidden_in_model(lambda schema: schema['schemas'][_S2]['tables']['T3'].get('foreign_keys', []), 0)
 
     def test_hidden_in_entity_data(self):
-        r = self.session.get('entity/%s:T1' % _S)
-        self.assertHttp(r, 403)
+        self.assertHttp(self.session.head('entity/%s:T1' % _S), 403)
+        self.assertHttp(self.session.get('entity/%s:T1' % _S), 403)
 
     def test_wildcard_query(self):
+        self.assertHttp(self.session.head('entity/%s:T1/*::regexp::foo' % _S), 403)
         self.assertHttp(self.session.get('entity/%s:T1/*::regexp::foo' % _S), 403)
 
     get_T1id_status = 200
