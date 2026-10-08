@@ -83,6 +83,39 @@ WHERE table_schema = %(schema)s
     exists = cur.rowcount > 0
     return exists
 
+def enumerate_indexes(cur, schemaname, tablename, indexname=None):
+    nameclause = f"  AND ci.relname = {sql_literal(indexname)}" if indexname else ""
+    cur.execute(f"""
+SELECT
+  nt.nspname AS schema_name,
+  ct.relname AS table_name,
+  ci.relname AS index_name,
+  i.indisprimary AS primary,
+  i.indisunique AS unique,
+  i.indisexclusion AS exclusion,
+  pg_get_indexdef(ci.oid) AS indexdef_sql
+FROM pg_catalog.pg_index i
+JOIN pg_catalog.pg_class ci ON (i.indexrelid = ci.oid)
+JOIN pg_catalog.pg_class ct ON (i.indrelid = ct.oid)
+JOIN pg_catalog.pg_namespace nt on (ct.relnamespace = nt.oid)
+WHERE nt.nspname = {sql_literal(schemaname)}
+  AND ct.relname = {sql_literal(tablename)}
+{nameclause}
+""")
+    for row in cur:
+        yield row
+
+def index_exists_on_table(cur, schemaname, tablename, indexname):
+    for row in enumerate_indexes(cur, schemaname, tablename, indexname):
+        return row
+
+def drop_index(cur, schemaname, indexname):
+    # manually bump version to force ETag to change!
+    cur.execute(f"""
+DROP INDEX {sql_identifier(schemaname)}.{sql_identifier(indexname)};
+SELECT _ermrest.model_version_bump();
+""")
+
 def constraint_exists(cur, constraintname):
     cur.execute("SELECT * FROM pg_catalog.pg_constraint WHERE conname = %s" % sql_literal(constraintname))
     return cur.rowcount > 0
