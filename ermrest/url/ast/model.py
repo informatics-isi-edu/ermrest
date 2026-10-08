@@ -26,7 +26,7 @@ from webauthn2.util import deriva_ctx, deriva_debug
 from ... import exception
 from ... import model
 from .api import Api
-from ...util import OrderedFrozenSet
+from ...util import OrderedFrozenSet, enumerate_indexes, index_exists_on_table, drop_index
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v, skip_body=False):
     handler.emit_headers()
@@ -757,6 +757,14 @@ class Table (Api):
         """A specific foreign key for this table."""
         return Foreignkey(self, column_set, catalog=self.catalog)
 
+    def indexes(self):
+        """The index set for this table."""
+        return Indexes(self)
+
+    def index(self, indexname):
+        """A specific index for this table."""
+        return Index(self, indexname)
+
     def HEAD(self, uri):
         return self.GET(uri, skip_body=True)
 
@@ -1206,3 +1214,135 @@ class ForeignkeyReferences (Api):
             return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
         else:
             raise exception.rest.NoMethod()
+
+class Indexes (Api):
+    """An index set (on a specific table)."""
+    def __init__(self, table):
+        Api.__init__(self, table.schema.catalog)
+        self.table = table
+
+    def index(self, name):
+        """A specific index for this table."""
+        return self.table.index(name)
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        table.enforce_right('owner')
+        return list(enumerate_indexes(cur, table.schema.name, table.name))
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            resource = [ Index.row_to_dict(row) for row in resource ]
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
+
+class Index (Api):
+    """An index (on a specific table)."""
+    def __init__(self, table, indexname):
+        Api.__init__(self, table.schema.catalog)
+        self.table = table
+        self.indexname = indexname
+
+    @classmethod
+    def row_to_dict(cls, row):
+        schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+        return {
+            "schemaname": schemaname,
+            "indexname": indexname,
+            "primary": primary,
+            "unique": unique,
+            "exclusion": exclusion,
+            "sqldef": sqldef,
+        }
+
+    def GET_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        table.enforce_right('owner')
+        row = index_exists_on_table(cur, table.schema.name, table.name, self.indexname)
+
+        if row is None:
+            raise exception.NotFound(f'index {self.indexname} on table {table}')
+
+        return row
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, resource):
+            resource = self.row_to_dict(resource)
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
+
+    def DELETE_body(self, conn, cur):
+        row = self.GET_body(conn, cur)
+        resource = self.row_to_dict(row)
+        conflicts = { k for k in {"primary", "unique", "exclusion"} if resource[k] }
+        if conflicts:
+            raise exception.Forbidden(f'deletion of {"+".join(conflicts)} index {self.indexname}')
+        drop_index(cur, self.table.schema.name.one_str(), self.indexname.one_str())
+        return ''
+
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, idxdoc):
+        table = self.table.GET_body(conn, cur)
+        table.enforce_right('owner')
+
+        if not isinstance(idxdoc, dict):
+            raise exception.BadData('index creation input must be a JSON object')
+
+        require_mutual_exclusive = {'btree', 'trgm', 'gin_array'}
+        index_types = set(idxdoc.keys()).intersection(require_mutual_exclusive)
+        if len(index_types) != 1:
+            raise exception.BadData(f'index creation input must specify exactly one of {"/".join(require_mutual_exclusive)}')
+
+        index_type = index_types.pop()
+        index_want = idxdoc[index_type]
+
+        if isinstance(index_want, list):
+            if not all([ isinstance(e, str) for e in index_want ]):
+                raise exception.BadData(f"index creation field not understood {index_type}={index_want}")
+
+            for cname in index_want[1:]:
+                if cname not in table.columns:
+                    raise exception.Conflict(f"index creation field {index_type} references unknown column {sql_identifier(cname)}")
+
+            base_cname = index_want[0]
+        else:
+            if not isinstance(index_want, str):
+                raise exception.BadData(f"index creation field not understood {index_type}={index_want}")
+            base_cname = index_want
+
+        if base_cname not in table.columns:
+            raise exception.Conflict(f"index creation field {index_type} references unknown column {sql_identifier(base_cname)}")
+
+        base_column = table.columns[base_cname]
+        indexname = self.indexname.one_str()
+
+        if index_type == 'btree':
+            sql = base_column.btree_index_sql(index_want, indexname)
+        elif index_type == 'trgm':
+            sql = base_column.pg_trgm_index_sql(index_want, indexname)
+        elif index_type == 'gin_array':
+            sql = base_column.pg_gin_array_index_sql(index_want, indexname)
+        else:
+            raise exception.BadData(f"unknown indexing preference field {index_type}")
+
+        if sql is None:
+            raise exception.BadData("desired input cannot be determined from input")
+
+        cur.execute(sql)
+        cur.execute("SELECT _ermrest.model_version_bump();") # for caching/etag safety
+        # return representation of the newly created index
+        return index_exists_on_table(cur, table.schema.name, table.name, indexname)
+
+    def PUT(self, uri):
+        def post_commit(self, newrow):
+            resource = Index.row_to_dict(newrow)
+            return _post_commit_json(self, resource)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
