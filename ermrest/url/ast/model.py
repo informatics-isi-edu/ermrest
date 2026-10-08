@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1277,12 +1277,15 @@ class Index (Api):
             return _post_commit_json(handler, resource, skip_body=skip_body)
         return _GET(self, self.GET_body, post_commit)
 
+    def _check_conflicts(self, resource, op):
+        conflicts = { k for k in {"primary", "unique", "exclusion"} if resource[k] }
+        if conflicts:
+            raise exception.Forbidden(f'{op} of {"+".join(conflicts)} index {self.indexname.one_str()!r}')
+
     def DELETE_body(self, conn, cur):
         row = self.GET_body(conn, cur)
         resource = self.row_to_dict(row)
-        conflicts = { k for k in {"primary", "unique", "exclusion"} if resource[k] }
-        if conflicts:
-            raise exception.Forbidden(f'deletion of {"+".join(conflicts)} index {self.indexname}')
+        self._check_conflicts(resource, "deletion")
         drop_index(cur, self.table.schema.name.one_str(), self.indexname.one_str())
         return ''
 
@@ -1292,6 +1295,15 @@ class Index (Api):
     def PUT_body(self, conn, cur, idxdoc):
         table = self.table.GET_body(conn, cur)
         table.enforce_right('owner')
+
+        # check for conflicting use of indexname
+        for row in enumerate_indexes(cur, table.schema.name, None, self.indexname.one_str()):
+            schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+            if tablename != table.name:
+                raise exception.ConflictModel(f"index name {indexname!r} in use on table {schemaname!r}.{tablename!r}")
+            else:
+                resource = self.row_to_dict(row)
+                self._check_conflicts(resource, "replacement")
 
         if not isinstance(idxdoc, dict):
             raise exception.BadData('index creation input must be a JSON object')

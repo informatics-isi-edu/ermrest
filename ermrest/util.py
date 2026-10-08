@@ -83,7 +83,8 @@ WHERE table_schema = %(schema)s
     exists = cur.rowcount > 0
     return exists
 
-def enumerate_indexes(cur, schemaname, tablename, indexname=None):
+def enumerate_indexes(cur, schemaname, tablename=None, indexname=None):
+    tableclause = f"  AND ct.relname = {sql_literal(tablename)}" if tablename else ""
     nameclause = f"  AND ci.relname = {sql_literal(indexname)}" if indexname else ""
     cur.execute(f"""
 SELECT
@@ -99,7 +100,7 @@ JOIN pg_catalog.pg_class ci ON (i.indexrelid = ci.oid)
 JOIN pg_catalog.pg_class ct ON (i.indrelid = ct.oid)
 JOIN pg_catalog.pg_namespace nt on (ct.relnamespace = nt.oid)
 WHERE nt.nspname = {sql_literal(schemaname)}
-  AND ct.relname = {sql_literal(tablename)}
+{tableclause}
 {nameclause}
 """)
     for row in cur:
