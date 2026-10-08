@@ -171,7 +171,7 @@ SELECT _ermrest.model_version_bump();
         # default handling
         return want
 
-    def btree_index_sql(self):
+    def btree_index_sql(self, want=None, indexname=None):
         """Return SQL to construct a single-column btree index or None if not necessary.
 
            An index is not necessary if the column forms a
@@ -179,7 +179,7 @@ SELECT _ermrest.model_version_bump();
            created index.
 
         """
-        want = self.want_index('btree')
+        want = self.want_index('btree') if want is None else want
 
         if not self.is_indexable():
             return None
@@ -194,6 +194,9 @@ SELECT _ermrest.model_version_bump();
             except KeyError:
                 deriva_debug('WARNING: using default column index for %s due to invalid custom btree index spec %r' % (self, want))
 
+        index1 = indexname if indexname is not None else make_id(self.table.name, self.name, 'idx')
+        index2 = indexname if indexname is not None else make_id(self.table.name, [ c.name for c in cols ], 'idx')
+
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 DROP INDEX IF EXISTS %(schema)s.%(index2)s ;
@@ -202,11 +205,11 @@ CREATE INDEX %(index2)s ON %(schema)s.%(table)s ( %(columns)s ) ;
     "schema": sql_identifier(self.table.schema.name),
     "table": sql_identifier(self.table.name),
     "columns": ', '.join([ sql_identifier(c.name) for c in cols ]),
-    "index": sql_identifier(make_id(self.table.name, self.name, 'idx')),
-    "index2": sql_identifier(make_id(self.table.name, [ c.name for c in cols ], 'idx')),
+    "index": sql_identifier(index1),
+    "index2": sql_identifier(index2),
 }
 
-    def pg_gin_opclass_index_sql(self, opclass, val_template=None):
+    def pg_gin_opclass_index_sql(self, opclass, val_template=None, indexname=None):
         """Return SQL to construct GIN index w/ opclass or None if not necessary.
 
         """
@@ -218,34 +221,39 @@ CREATE INDEX %(index2)s ON %(schema)s.%(table)s ( %(columns)s ) ;
             'gin_trgm_ops': 'pgtrgm',
             'array_ops': 'arr',
         }.get(opclass, opclass)
+
+        index1 = indexname if indexname is not None else make_id(self.table.name, self.name, idx_name_part, 'idx')
+
         return """
 DROP INDEX IF EXISTS %(schema)s.%(index)s ;
 CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s %(opclass)s ) ;
 """ % dict(schema=sql_identifier(self.table.schema.name),
            table=sql_identifier(self.table.name),
            index_val=idx_val,
-           index=sql_identifier(make_id(self.table.name, self.name, idx_name_part, 'idx')),
+           index=sql_identifier(index1),
            opclass=opclass,
        )
 
-    def pg_trgm_index_sql(self):
+    def pg_trgm_index_sql(self, want=None, indexname=None):
         """Return SQL to construct single-column tri-gram index or None if not necessary.
 
            An index is not necessary if the column is not a textual
            column.
 
         """
-        if self.istext() and self.want_index('trgm'):
-            return self.pg_gin_opclass_index_sql('gin_trgm_ops', '_ermrest.astext(%s)')
+        want = self.want_index('trgm') if want is None else want
+        if self.istext() and want:
+            return self.pg_gin_opclass_index_sql('gin_trgm_ops', '_ermrest.astext(%s)', indexname)
         else:
             return None
 
-    def pg_gin_array_index_sql(self):
+    def pg_gin_array_index_sql(self, want=None, indexname=None):
         """Return SQL to construct single-column GIN array index or None if not necessary.
 
         """
-        if self.is_array() and self.want_index('gin_array', default=False):
-            return self.pg_gin_opclass_index_sql('array_ops')
+        want = self.want_index('gin_array', default=False) if want is None else want
+        if self.is_array() and want:
+            return self.pg_gin_opclass_index_sql('array_ops', indexname=indexname)
         else:
             return None
 

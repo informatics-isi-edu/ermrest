@@ -78,6 +78,10 @@ def p_apis(p):
              | foreignkeyreftableslash
              | foreignkeyref
              | foreignkeyrefslash
+             | indexes
+             | indexesslash
+             | index
+             | indexslash
              | textfacet
              | resolve_entity_rid
              | catalog_range
@@ -700,6 +704,24 @@ def p_table(p):
 
 def p_table2(p):
     """tableslash : table '/' """
+    p[0] = p[1]
+
+def p_indexes(p):
+    """indexes : tableslash INDEX """
+    p[0] = p[1].indexes()
+
+def p_indexes2(p):
+    """indexesslash : indexes '/' """
+    p[0] = p[1]
+
+def p_index(p):
+    """index : indexesslash sname """
+    if len(p[2]) > 1:
+        raise ParseError(p[2], 'Qualified index name not allowed: ')
+    p[0] = p[1].index(p[2])
+
+def p_index2(p):
+    """indexslash : index '/' """
     p[0] = p[1]
 
 def p_columns(p):
