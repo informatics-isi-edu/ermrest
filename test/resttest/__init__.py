@@ -17,4 +17,4 @@ from history import *
 from joins import *
 from paging import *
 from preconditions import *
-
+from indexing import *
