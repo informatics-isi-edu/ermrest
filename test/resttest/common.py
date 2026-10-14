@@ -188,7 +188,7 @@ class TestSession (requests.Session):
     
         if cookiefilename:
             cj = cookiejar.MozillaCookieJar(cookiefilename)
-            cj.load(ignore_expires=True)
+            cj.load(ignore_expires=True, ignore_discard=True)
             for cookie in cj:
                 kwargs={
                     "domain": cookie.domain,
