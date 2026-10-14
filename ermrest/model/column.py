@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2024 University of Southern California
+# Copyright 2013-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -134,7 +134,10 @@ SELECT _ermrest.model_version_bump();
         return self.type.is_array
 
     def is_indexable(self):
-        return str(self.type) != 'json'
+        typ = self.type
+        while (typ.is_array or typ.is_domain):
+            typ = typ.base_type
+        return typ.name != 'json'
 
     def want_index(self, index_type, default=True):
         """Return True if we prefer to have index, False if not."""
@@ -252,7 +255,7 @@ CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s %(opcla
 
         """
         want = self.want_index('gin_array', default=False) if want is None else want
-        if self.is_array() and want:
+        if self.is_array() and self.is_indexable() and want:
             return self.pg_gin_opclass_index_sql('array_ops', indexname=indexname)
         else:
             return None
