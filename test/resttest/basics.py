@@ -12,10 +12,11 @@ _T2 = 'basictable2'
 _T2b = 'ambiguous2'
 _Tc1 = 'composite1'
 _Tc2 = 'composite2'
+_Tc3 = 'composite3'
 _Tr1 = 'column_removal_a'
 _Tr2 = 'column_removal_b'
 
-from common import Int8, Text, Timestamptz, TextArray, Int4Array, \
+from common import Int8, Serial8, Text, Timestamptz, TextArray, Int4Array, \
     RID, RCT, RMT, RCB, RMB, RidKey, \
     ModelDoc, SchemaDoc, TableDoc, ColumnDoc, KeyDoc, FkeyDoc
 
@@ -98,6 +99,15 @@ def defs(S):
                         [
                             FkeyDoc(S, _Tc2, ['id', 'site'], S, _Tc1, ['id', 'site'])
                         ]
+                    ),
+                    TableDoc(
+                        _Tc3,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('id', Serial8, nullok=False),
+                            ColumnDoc('name', Text, nullok=False),
+                        ],
+                        [ RidKey, KeyDoc(['id', 'name']) ],
                     ),
                     TableDoc(
                         _Tr1,
