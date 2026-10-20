@@ -13,6 +13,7 @@ _T2 = basics._T2
 _T2b = basics._T2b
 _Tc1 = basics._Tc1
 _Tc2 = basics._Tc2
+_Tc3 = basics._Tc3
 _defs = basics.defs(_S)
 _table_defs = _defs['schemas'][_S]['tables']
 
@@ -183,6 +184,45 @@ class CompositeKey (BasicKey):
     def test_data_5_set_RID(self): pass
     def test_data_5_set_RID_allocated(self): pass
     def test_data_5_set_RID_forbidden(self): pass
+
+class CompoundKeyDefault (common.ErmrestTest):
+    table = _Tc3
+
+    def test_insert_collides(self):
+        self.assertHttp(
+            self.session.post(
+                'entity/%s:%s' % (_S, self.table),
+                json=[
+                    {"id": 1000, "name": "foo"},
+                    {"id": 1000, "name": "foo"},
+                ],
+            ),
+            (400, 409)
+        )
+
+    def test_insert_nocollides1(self):
+        self.assertHttp(
+            self.session.post(
+                'entity/%s:%s' % (_S, self.table),
+                json=[
+                    {"id": 1000, "name": "foo"},
+                    {"id": 1001, "name": "foo"},
+                ],
+            ),
+            200
+        )
+
+    def test_insert_nocollides2(self):
+        self.assertHttp(
+            self.session.post(
+                'entity/%s:%s?defaults=id' % (_S, self.table),
+                json=[
+                    {"name": "foo"},
+                    {"name": "foo"},
+                ],
+            ),
+            200
+        )
 
 class DataLoad (common.ErmrestTest):
     table = _T2b

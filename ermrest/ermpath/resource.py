@@ -1440,8 +1440,8 @@ class EntityElem (object):
         inputcols = self.table.columns_in_order()
         mkcols = set()
         for unique in self.table.uniques:
-            for c in unique:
-                if c not in use_defaults:
+            if all([ c not in use_defaults for c in unique ]):
+                for c in unique:
                     mkcols.add(c)
         nmkcols = [
             c
