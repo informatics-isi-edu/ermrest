@@ -87,6 +87,9 @@ def p_apis(p):
              | catalog_range
              | data_range
              | config_range
+             | history_table_indexing
+             | history_table_indexingslash
+             | history_table_index
              | meta
              | data
              | datasort"""
@@ -148,9 +151,37 @@ def p_catalog_range3(p):
     """catalog_range : cataloghistoryslash string ',' """
     p[0] = ast.history.CatalogHistory(p[1].history_range(p[2], ''))
 
+def p_catalog_history_table(p):
+    """catalog_history_table : cataloghistoryslash TABLE """
+    p[0] = ast.history.HistoryTables(p[1])
+
+def p_catalog_history_tablesslash(p):
+    """catalog_history_tablesslash : catalog_history_table '/'"""
+    p[0] = p[1]
+
 def p_catalog_rangeslash(p):
     """catalog_rangeslash : catalog_range '/'"""
     p[0] = p[1]
+
+def p_history_table(p):
+    """history_table : catalog_history_tablesslash string"""
+    p[0] = p[1].with_trid(p[2])
+
+def p_history_tableslash(p):
+    """history_tableslash : history_table '/'"""
+    p[0] = p[1]
+
+def p_history_table_indexing(p):
+    """history_table_indexing : history_tableslash INDEX"""
+    p[0] = p[1].indexing()
+
+def p_history_table_indexingslash(p):
+    """history_table_indexingslash : history_table_indexing '/'"""
+    p[0] = p[1]
+
+def p_history_table_index_name(p):
+    """history_table_index : history_table_indexingslash string"""
+    p[0] = p[1].with_name(p[2])
 
 def p_data_range(p):
     """data_range : catalog_rangeslash ATTRIBUTE '/' string """
