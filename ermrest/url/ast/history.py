@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2017-2025 University of Southern California
+# Copyright 2017-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -672,3 +672,91 @@ class ConfigHistory (Api):
 
     def PUT(self, uri):
         return _MODIFY_with_json_input(self, self.PUT_body, _post_commit)
+
+class HistoryTables:
+    """Represents set of history tables
+
+       URL: /ermrest/catalog/N/history/table/
+
+    """
+    def __init__(self, catalog):
+        assert deriva_ctx.ermrest_history_snaprange is None
+        self.catalog = catalog
+
+    def with_trid(self, table_rid):
+        return HistoryTable(self.catalog, table_rid)
+
+class HistoryTable:
+    """Represents one history table
+
+       URL: /ermrest/catalog/N/history/table/
+
+    """
+    def __init__(self, catalog, table_rid):
+        self.catalog = catalog
+        self.table_rid = table_rid
+
+    def indexing(self):
+        return HistoryTableIndexing(self.catalog, self.table_rid)
+
+class HistoryTableIndexing (Api):
+    """Represents data history resources.
+
+       URL1: /ermrest/catalog/N/history/table/TRID/index/
+       URL2: /ermrest/catalog/N/history/table/TRID/index/INAME
+
+    """
+    def __init__(self, catalog, table_rid):
+        Api.__init__(self, catalog)
+        assert deriva_ctx.ermrest_history_snaprange is None
+        self.table_rid = table_rid
+        self.index_name = None
+        if deriva_ctx.ermrest_history_snaptime is not None:
+            raise exception.rest.NotFound('History table index management on a versioned catalog snapshot.')
+
+    @classmethod
+    def row_to_dict(cls, row):
+        schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+        return {
+            "indexname": indexname,
+            "primary": primary,
+            "unique": unique,
+            "exclusion": exclusion,
+            "sqldef": sqldef,
+        }
+
+    def with_name(self, index_name):
+        assert self.index_name is None
+        self.index_name = index_name
+        return self
+
+    def GET_body(self, conn, cur):
+        self.enforce_right('owner')
+        # should return dict for index_name or list-of-dicts without
+        raise NotImplementedError()
+
+    def GET(self, uri):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, [resource, resource])
+        return _GET(self, self.GET_body, post_commit)
+
+    def PUT_body(self, conn, cur, idxdoc):
+        self.enforce_right('owner')
+        raise NotImplementedError()
+
+    def PUT(self, uri):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, [resource, resource])
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+
+    def DELETE_body(self, conn, cur):
+        if self.index_name is None:
+            raise exception.rest.NoMethod('DELETE requires a specific index-name')
+
+        resource = self.GET_body(conn, cur)
+        self._check_conflicts(resource, "deletion")
+        drop_index(cur, '_ermrest_history', self.index_name)
+        return ''
+
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
