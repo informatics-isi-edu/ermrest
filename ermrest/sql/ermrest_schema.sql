@@ -44,6 +44,75 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION _ermrest.history_timestamptz(text) RETURNS timestamptz IMMUTABLE AS $$
+  -- this is safe because we know our history timestamps are ISO strings with numeric offset
+  SELECT $1::timestamptz;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_timestamptz_arr(jsonb) RETURNS timestamptz[] IMMUTABLE AS $$
+  -- this is safe because we know our history timestamps are ISO strings with numeric offset
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::timestamptz) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_text_arr(jsonb) RETURNS text[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_json_arr(jsonb) RETURNS json[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::json) FROM jsonb_array_elements($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_jsonb_arr(jsonb) RETURNS jsonb[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x) FROM jsonb_array_elements($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_int2_arr(jsonb) RETURNS int2[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int2) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_int4_arr(jsonb) RETURNS int4[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int4) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_int8_arr(jsonb) RETURNS int8[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int8) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_float4_arr(jsonb) RETURNS float4[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int4) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_float8_arr(jsonb) RETURNS float8[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int8) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
 $$ LANGUAGE SQL;
