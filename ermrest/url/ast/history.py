@@ -25,7 +25,7 @@ from ...model.table import Table
 from ...model.column import Column
 from ...model.key import KeyReference, PseudoKeyReference
 from ... import exception
-from ...util import sql_literal, sql_identifier, table_exists
+from ...util import sql_literal, sql_identifier, table_exists, enumerate_indexes, drop_index, index_exists_on_table
 from .api import Api
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
@@ -108,7 +108,8 @@ SELECT GREATEST(
 
 def _etag(cur):
     """Get current history ETag during request processing."""
-    h_from, h_until = deriva_ctx.ermrest_history_snaprange
+    h_from, h_until = deriva_ctx.ermrest_history_snaprange if deriva_ctx.ermrest_history_snaprange else (None, None)
+
     cur.execute(("SELECT _ermrest.tstzencode( GREATEST( %(h_until)s::timestamptz, (" + _RANGE_AMENDVER_SQL + ")) );") % {
         'h_from': sql_literal(h_from),
         'h_until': sql_literal(h_until),
@@ -129,7 +130,7 @@ def _GET(handler, thunk, _post_commit):
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
         handler.enforce_right('owner')
-        h_from, h_until = deriva_ctx.ermrest_history_snaprange
+        h_from, h_until = deriva_ctx.ermrest_history_snaprange if deriva_ctx.ermrest_history_snaprange else (None, None)
         amendver = deriva_ctx.ermrest_history_amendver
         # this is the ETag at start of request processing
         handler.set_http_etag(_etag(cur))
@@ -725,15 +726,127 @@ class HistoryTableIndexing (Api):
             "sqldef": sqldef,
         }
 
+    def _check_conflicts(self, resource, op):
+        conflicts = { k for k in {"primary", "unique", "exclusion"} if resource[k] }
+        if conflicts:
+            raise exception.Forbidden(f'{op} of {"+".join(conflicts)} index {self.index_name!r}')
+
     def with_name(self, index_name):
         assert self.index_name is None
         self.index_name = index_name
         return self
 
+    # HACK: the following must be kept in sync with
+    # ermrest.model.types OOP methods which are written in terms of a
+    # catalog (or snapshot) model, rather than the longitudinal
+    # perspective we have to take here.  potential hazards:
+    #
+    # 1. a column that is altered to change type over time
+    # 2. a type RID that changes meaning over time (?)
+    #
+
+    def _check_trid(self, cur):
+        # find first occurrence of table_rid and its schema name
+        # ignoring internal _ermrest schema
+        cur.execute(f"""
+SELECT
+  t."RID"
+FROM _ermrest_history.known_tables t
+WHERE t."RID" = {sql_literal(self.table_rid)}
+  AND EXISTS (
+    SELECT true
+    FROM _ermrest_history.known_schemas s
+    WHERE s."RID" = t.rowdata->>'schema_rid'
+      AND lower(t.during) <@ s.during
+      AND s.rowdata->>'schema_name' != '_ermrest'
+)
+LIMIT 1
+""")
+        found_table_rid = False
+        for row in cur:
+            found_table_rid = True
+
+        # make sure table is known in model history
+        if not found_table_rid:
+            raise exception.rest.NotFound(f'History table with RID={self.table_rid}')
+
+        # and we actually have a backing history table
+        tname = f"t{self.table_rid}"
+        if not table_exists(cur, '_ermrest_history', tname):
+            raise exception.rest.NotFound(f'History table with RID={self.table_rid}')
+
+        return tname
+
+    def _check_crid(self, cur, crid, require_single_type=True):
+        # find column rid for table (we've already validated table rid)
+        # and get longitudinal typing info
+        cur.execute(f"""
+SELECT DISTINCT
+  c.rowdata->>'column_name' AS column_name,
+  t1.type_name,
+  t2.type_name AS base_type_name
+FROM _ermrest_history.known_columns c
+JOIN LATERAL (
+  -- t0 is the original type which may be a domain/array/base type
+  SELECT
+    t0."RID",
+    t0.during,
+    t0.rowdata->>'domain_element_type_rid' AS domain_element_type_rid
+  FROM _ermrest_history.known_types t0
+  WHERE t0."RID" = c.rowdata->>'type_rid'
+    AND t0.during && c.during
+) t0 ON true
+JOIN LATERAL (
+  -- t1 strips the t0 domain type wrapper (if any)
+  SELECT
+    t1."RID",
+    t1.during,
+    t1.rowdata->>'type_name' AS type_name,
+    t1.rowdata->>'domain_element_type_rid' AS domain_element_type_rid,
+    t1.rowdata->>'array_element_type_rid' AS array_element_type_rid
+  FROM _ermrest_history.known_types t1
+  WHERE t1."RID" = COALESCE(t0.domain_element_type_rid, t0."RID")
+    AND t1.during && t0.during
+) t1 ON true
+LEFT JOIN LATERAL (
+  -- t2 is the base type of t1 iff t1 is an array type
+  SELECT
+    t2."RID",
+    t2.during,
+    t2.rowdata->>'type_name' AS type_name,
+    t2.rowdata->>'domain_element_type_rid' AS domain_element_type_rid,
+    t2.rowdata->>'array_element_type_rid' AS array_element_type_rid
+  FROM _ermrest_history.known_types t2
+  WHERE t2."RID" = t1.array_element_type_rid
+    AND t2.during && t1.during
+) t2 ON true
+WHERE c."RID" = {sql_literal(crid)}
+  AND c.rowdata->>'table_rid' = {sql_literal(self.table_rid)}
+""")
+        type_info = list(cur)
+
+        if not type_info:
+            raise exception.rest.Conflict(f'Unknown column RID={crid} on history table RID={self.table_rid}')
+
+        if require_single_type:
+            if len(type_info) > 1:
+                raise exception.rest.Conflict(f'Ambiguous type for column RID={crid} on history table RID={self.table_rid}')
+            return type_info[0]
+        else:
+            return type_info
+
     def GET_body(self, conn, cur):
         self.enforce_right('owner')
-        # should return dict for index_name or list-of-dicts without
-        raise NotImplementedError()
+        tname = self._check_trid(cur)
+        results = list(enumerate_indexes(cur, '_ermrest_history', tname, self.index_name))
+
+        if self.index_name is not None:
+            if not results:
+                raise exception.rest.NotFound(f'Index {sql_identifier(self.index_name)} on history table with RID={self.table_rid}.')
+            assert len(results) == 1, f"oops: len({results}) != 1 for {self.index_name}"
+            return self.row_to_dict(results[0])
+        else:
+            return [ self.row_to_dict(row) for row in results ]
 
     def GET(self, uri):
         def post_commit(handler, resource):
@@ -741,8 +854,150 @@ class HistoryTableIndexing (Api):
         return _GET(self, self.GET_body, post_commit)
 
     def PUT_body(self, conn, cur, idxdoc):
-        self.enforce_right('owner')
-        raise NotImplementedError()
+        assert self.index_name is not None
+        self.enforce_right("owner")
+        tname = self._check_trid(cur)
+
+        # check for conflicting use of index_name
+        for row in enumerate_indexes(cur, '_ermrest_history', None, self.index_name):
+            schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+            if tablename != tname:
+                raise exception.rest.Conflict(f"Index name {self.index_name} in use on a different history table.")
+            else:
+                resource = self.row_to_dict(row)
+                self._check_conflicts(resource, "replacement")
+
+        # validate input idxdoc...
+        if not isinstance(idxdoc, dict):
+            raise exception.BadData('index creation input must be a JSON object')
+
+        require_mutual_exclusive = {'btree', 'trgm', 'gin_array'}
+        index_types = set(idxdoc.keys()).intersection(require_mutual_exclusive)
+        if len(index_types) != 1:
+            raise exception.BadData(f'index creation input must specify exactly one of {"/".join(require_mutual_exclusive)}')
+
+        index_type = index_types.pop()
+        index_want = idxdoc[index_type]
+
+        crid_typeinfo = {}
+
+        if isinstance(index_want, list):
+            if not len(index_want) > 0:
+                raise exception.BadData(f'index creation field not understood {index_type}={index_want}')
+
+            if not all([ isinstance(e, str) for e in index_want ]):
+                raise exception.BadData(f'index creation field not understood {index_type}={index_want}')
+
+            for crid in index_want[1:]:
+                crid_typeinfo[crid] = self._check_crid(cur, crid, require_single_type=True)
+
+            base_crid = index_want[0]
+        elif isinstance(index_want, str):
+            base_crid = index_want
+        else:
+            raise exception.BadData(f"index creation field not understood {index_type}={index_want}")
+
+        crid_typeinfo[base_crid] = self._check_crid(cur, base_crid, require_single_type=True)
+
+        def basic_store_type(type_name):
+            return {
+                'serial2': 'int2',
+                'serial4': 'int4',
+                'serial8': 'int8',
+            }.get(type_name, type_name)
+
+        def is_array(crid):
+            column_name, type_name, elem_type_name = crid_typeinfo[crid]
+            return elem_type_name is not None
+
+        def is_indexable(crid):
+            column_name, type_name, elem_type_name = crid_typeinfo[crid]
+            if elem_type_name is not None:
+                elem_type_name = basic_store_type(type_name)
+                return elem_type_name != 'json'
+            else:
+                type_name = basic_store_type(type_name)
+                return type_name != 'json'
+
+        def history_projection(crid, cast=True):
+            # this type info already collapses domain types to underlying types
+            column_name, type_name, elem_type_name = crid_typeinfo[crid]
+            type_name = basic_store_type(type_name)
+
+            if elem_type_name is not None:
+                # use type-specific IMMUTABLE wrapper functions
+                elem_type_name = basic_store_type(elem_type_name)
+                target = {
+                    'text': 'text',
+                    'int2': 'int2',
+                    'smallint': 'int2',
+                    'int4': 'int4',
+                    'integer': 'int4',
+                    'int8': 'int8',
+                    'bigint': 'int8',
+                    'float4': 'float4',
+                    'real': 'float4',
+                    'float8': 'float8',
+                    'double precision': 'float8',
+                    'jsonb': 'jsonb',
+                    'json': 'json',
+                    'timestamp with time zone': 'timestamptz',
+                }.get(elem_type_name)
+                if target is None:
+                    raise exception.rest.Conflict(f"History column {crid} has unsupported type: array of {elem_type_name}")
+                return f"_ermrest.history_{target}_arr(rowdata->{sql_literal(crid)})"
+            else:
+                # scalar column
+                if column_name in {'RID', 'RMB'}:
+                    return sql_identifier(column_name)
+                elif column_name == 'RMT':
+                    return f"(lower(during))"
+                else:
+                    op = '->' if type_name == 'jsonb' else '->>'
+                    expr = f"rowdata{op}{sql_literal(crid)}"
+                    if not cast:
+                        return f"({expr})"
+                    elif type_name in {'timestamptz', 'timestamp with time zone'}:
+                        return f"(_ermrest.history_timestamptz({expr}))"
+                    else:
+                        return f"(({expr})::{type_name})"
+
+        sql_parts = [
+            f"DROP INDEX IF EXISTS _ermrest_history.{sql_identifier(self.index_name)};",
+            f"CREATE INDEX {sql_identifier(self.index_name)} ON _ermrest_history.{sql_identifier(tname)}",
+            "USING btree (" if index_type == 'btree' else "USING GIN ("
+        ]
+
+        if index_type == 'trgm':
+            if not isinstance(index_want, str):
+                raise exception.BadData(f"Invalid compound index {index_type}={index_want}")
+            # everything gets cast to text
+            sql_parts.append(f"_ermrest.astext({history_projection(base_crid, cast=False)}) gin_trgm_ops")
+        elif index_type == 'gin_array':
+            if not isinstance(index_want, str):
+                raise exception.BadData(f"Invalid compound index {index_type}={index_want}")
+            if not is_array(base_crid) or not is_indexable(base_crid):
+                raise exception.rest.Conflict(f"Conflicting column type for index {index_type}={index_want}")
+            sql_parts.append(f"{history_projection(base_crid)} array_ops")
+        elif index_type == 'btree':
+            if base_crid == index_want:
+                index_want = [ base_crid ]
+
+            def btree_col(crid):
+                if not is_indexable(crid):
+                    raise exception.rest.Conflict(f"Conflicting column type for index {index_type}=...{crid}...")
+                return history_projection(crid)
+
+            sql_parts.append(', '.join([ btree_col(crid) for crid in index_want]))
+        else:
+            raise exception.BadData(f"Invalid index {index_type}={index_want}")
+
+        sql_parts.append(");")
+        sql_parts.append("SELECT _ermrest.model_version_bump();")
+
+        sql = "\n".join(sql_parts)
+        cur.execute(sql)
+        return self.row_to_dict(index_exists_on_table(cur, '_ermrest_history', tname, self.index_name))
 
     def PUT(self, uri):
         def post_commit(handler, resource):
