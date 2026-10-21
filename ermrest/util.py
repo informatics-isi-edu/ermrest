@@ -94,6 +94,9 @@ SELECT
   i.indisprimary AS primary,
   i.indisunique AS unique,
   i.indisexclusion AS exclusion,
+  i.indisvalid AS valid,
+  i.indisready AS ready,
+  i.indislive AS live,
   pg_get_indexdef(ci.oid) AS indexdef_sql
 FROM pg_catalog.pg_index i
 JOIN pg_catalog.pg_class ci ON (i.indexrelid = ci.oid)
