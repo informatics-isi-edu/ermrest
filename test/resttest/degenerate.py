@@ -346,6 +346,81 @@ class LacksSystemColumns (common.ErmrestTest):
 
     def test_12_rid_wrongtype(self): self._wrongtype_test(4, Text)
 
+class WideKey (common.ErmrestTest):
+    _schema = 'widekey'
+    _table = 'widekey40'
+    _entity_url = 'entity/%s:%s' % (_schema, _table)
+
+    _table_doc = TableDoc(
+        _table,
+        [
+            RID, RCT, RMT, RCB, RMB
+        ] + [
+            ColumnDoc('c%d' % i, Int8)
+            for i in range(40)
+        ],
+        [
+            RidKey,
+            KeyDoc([ 'c%d' % i for i in range(0,40,2) ]),
+            KeyDoc([ 'c%d' % i for i in range(1,40,2) ]),
+        ],
+        schema_name=_schema,
+    )
+
+    def test_1_create(self):
+        self.assertHttp(self.session.post('schema/%s' % self._schema), 201)
+        self.assertHttp(self.session.post('schema/%s/table' % self._schema, json=self._table_doc), 201)
+
+    def test_2_load_collide(self):
+        self.assertHttp(
+            self.session.post(
+                self._entity_url,
+                json=[
+                    {
+                        "c%d" % i: 10
+                        for i in range(40)
+                    }
+                    for j in range(2)
+                ]
+            ),
+            (400, 409)
+        )
+
+    def test_3_load_collide(self):
+        self.assertHttp(
+            self.session.post(
+                self._entity_url,
+                json=[
+                    {
+                        "c%d" % i: 10
+                        for i in range(40)
+                    } | {
+                        "c39": j,
+                    }
+                    for j in range(2)
+                ]
+            ),
+            (400, 409)
+        )
+
+    def test_4_load_nocollide(self):
+        self.assertHttp(
+            self.session.post(
+                self._entity_url,
+                json=[
+                    {
+                        "c%d" % i: 10
+                        for i in range(40)
+                    } | {
+                        "c38": j,
+                        "c39": j,
+                    }
+                    for j in range(2)
+                ]
+            ),
+            200
+        )
+
 class KeysOnly (common.ErmrestTest):
     _schema = 'keysonly_schema'
     _table = 'keysonly_table'

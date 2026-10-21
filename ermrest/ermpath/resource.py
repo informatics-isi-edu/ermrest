@@ -661,12 +661,17 @@ def _analyze_input_table(cur, input_table, mkcols, mkcol_aliases):
     """Index and analyze input_table ensuring mkcols uniqueness."""
     parts = {
         'input_table': sql_identifier(input_table),
-        'mkcols_idx': ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ][0:32]),
+        # if mkcols is too wide, truncate and build a regular index instead of unique index
+        # this may still help with query plan since it does joins?
+        'mkcols_idx': ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols[0:32] ]),
+        "unique": "UNIQUE" if len(mkcols) <= 32 else "",
+        # keep original form for brute-force check
+        'mkcols_all': ','.join([ c.sql_name(mkcol_aliases.get(c)) for c in mkcols ]),
     }
     if len(mkcols) > 0:
         try:
             _set_statement_timeout(cur)
-            cur.execute("CREATE UNIQUE INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
+            cur.execute("CREATE %(unique)s INDEX ON %(input_table)s (%(mkcols_idx)s);" % parts)
         except psycopg2.IntegrityError as e:
             raise BadData(u'Multiple input rows share the same unique key information.')
 
@@ -674,12 +679,14 @@ def _analyze_input_table(cur, input_table, mkcols, mkcol_aliases):
     cur.execute("ANALYZE %s;" % parts['input_table'])
 
     if len(mkcols) > 32:
-        # index is truncated, so check for collisions via brute-force
+        # uniqueness was not checked above, so check for collisions via brute-force
+        # (note, this is for update sanity checking of correlation key, not for
+        # insert correctness, which is enforce separately by each key constraint)
         _set_statement_timeout(cur)
         cur.execute("""
 SELECT True AS is_duplicate
 FROM %(input_table)s
-GROUP BY %(mkcols_idx)s
+GROUP BY %(mkcols_all)s
 HAVING count(*) > 1
 LIMIT 1;
 """ % parts
