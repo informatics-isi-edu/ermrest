@@ -1248,13 +1248,16 @@ class Index (Api):
 
     @classmethod
     def row_to_dict(cls, row):
-        schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+        schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef = row
         return {
             "schemaname": schemaname,
             "indexname": indexname,
             "primary": primary,
             "unique": unique,
             "exclusion": exclusion,
+            "valid": valid,
+            "ready": ready,
+            "live": live,
             "sqldef": sqldef,
         }
 
@@ -1298,7 +1301,7 @@ class Index (Api):
 
         # check for conflicting use of indexname
         for row in enumerate_indexes(cur, table.schema.name, None, self.indexname.one_str()):
-            schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+            schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef = row
             if tablename != table.name:
                 raise exception.ConflictModel(f"index name {indexname!r} in use on table {schemaname!r}.{tablename!r}")
             else:

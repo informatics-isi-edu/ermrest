@@ -717,12 +717,15 @@ class HistoryTableIndexing (Api):
 
     @classmethod
     def row_to_dict(cls, row):
-        schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+        schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef = row
         return {
             "indexname": indexname,
             "primary": primary,
             "unique": unique,
             "exclusion": exclusion,
+            "valid": valid,
+            "ready": ready,
+            "live": live,
             "sqldef": sqldef,
         }
 
@@ -860,7 +863,7 @@ WHERE c."RID" = {sql_literal(crid)}
 
         # check for conflicting use of index_name
         for row in enumerate_indexes(cur, '_ermrest_history', None, self.index_name):
-            schemaname, tablename, indexname, primary, unique, exclusion, sqldef = row
+            schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef = row
             if tablename != tname:
                 raise exception.rest.Conflict(f"Index name {self.index_name} in use on a different history table.")
             else:

@@ -64,6 +64,9 @@ The _live index representation_ is a JSON object with several fields:
 - `"unique"`: A boolean `true` when the index is a unique index.
 - `"exclusion"`: A boolean `true` when the index is an exclusion index.
 - `"sqldef"`: A string containing a SQL DDL definition for the index.
+- `"valid"`: The PostgreSQL "is valid" index property.
+- `"ready"`: The PostgreSQL "is ready" index property.
+- `"live"`: The PostgreSQL "is live" index property.
 
 ## Live Index Creation
 
@@ -190,6 +193,9 @@ The _history index representation_ is a JSON object with several fields:
 - `"unique"`: A boolean `true` when the index is a unique index.
 - `"exclusion"`: A boolean `true` when the index is an exclusion index.
 - `"sqldef"`: A string containing a SQL DDL definition for the index.
+- `"valid"`: The PostgreSQL "is valid" index property.
+- `"ready"`: The PostgreSQL "is ready" index property.
+- `"live"`: The PostgreSQL "is live" index property.
 
 **NOTE**: while live index names are schema-qualified by the same
   schema as their target table, history index names all exist in a

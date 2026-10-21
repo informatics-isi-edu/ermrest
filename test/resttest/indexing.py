@@ -190,7 +190,7 @@ class AsProvisioned (common.ErmrestTest):
 
         with self.subTest(scenario="structure_check"):
             self.assertGreaterEqual(len(d), 1)
-            for field in ["schemaname", "indexname", "primary", "unique", "exclusion", "sqldef"]:
+            for field in ["schemaname", "indexname", "primary", "unique", "exclusion", "sqldef", "valid", "ready", "live"]:
                 with self.subTest(field=field):
                     for doc in d:
                         self.assertIn(field, doc)
@@ -213,6 +213,12 @@ class AsProvisioned (common.ErmrestTest):
             d = r.json()
             self.assertIsInstance(d, list)
         if d:
+            with self.subTest(scenario="structure_check"):
+                for field in ["indexname", "primary", "unique", "exclusion", "sqldef", "valid", "ready", "live"]:
+                    with self.subTest(field=field):
+                        for doc in d:
+                            self.assertIn(field, doc)
+
             with self.subTest(scenario="history index retrieval"):
                 iname = d[0]["indexname"]
                 r = self.session.get(f"history/table/{t0_rid}/index/{iname}")
