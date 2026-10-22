@@ -189,6 +189,12 @@ def service_features():
         "rid_lease": True,
         "registry_catalog": True,
         "csv_array_json": True,
+        "index_management": {
+            "btree": True,
+            "btree_column_list": True,
+            "trgm": True,
+            "gin_array": True,
+        },
     }
 
 class OrderedFrozenSet (collections.abc.Set):
