@@ -294,6 +294,8 @@ class Type (object):
             return '(h.rowdata->%s)::json AS %s' % (sql_literal(c.rid), c.sql_name())
         elif self.name in {'timestamptz', 'timestamp with time zone'}:
             return '(_ermrest.history_timestamptz(h.rowdata->>%s)) AS %s' % (sql_literal(c.rid), c.sql_name())
+        elif self.name in {'date'}:
+          return '(_ermrest.history_date(h.rowdata->>%s)) AS %s' % (sql_literal(c.rid), c.sql_name())
         else:
             return '(h.rowdata->>%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
 
@@ -349,6 +351,8 @@ class ArrayType(Type):
             'jsonb': 'jsonb',
             'json': 'json',
             'timestamp with time zone': 'timestamptz',
+            'date': 'date',
+            'boolean': 'boolean',
         }.get(base_type, 'text')
         return f"_ermrest.history_{target}_arr({jfield}) AS {fname}"
 

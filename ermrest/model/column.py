@@ -184,9 +184,6 @@ SELECT _ermrest.model_version_bump();
         """
         want = self.want_index('btree') if want is None else want
 
-        if not self.is_indexable():
-            return None
-
         if not want:
             return None
 
@@ -196,6 +193,10 @@ SELECT _ermrest.model_version_bump();
                 cols = [ self.table.columns[cname] for cname in want ]
             except KeyError:
                 deriva_debug('WARNING: using default column index for %s due to invalid custom btree index spec %r' % (self, want))
+
+        for col in cols:
+            if not col.is_indexable():
+                return None
 
         index1 = indexname if indexname is not None else make_id(self.table.name, self.name, 'idx')
         index2 = indexname if indexname is not None else make_id(self.table.name, [ c.name for c in cols ], 'idx')

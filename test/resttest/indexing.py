@@ -43,12 +43,18 @@ def defs(S):
                                     common.Ermrest_uri,
                                     common.Int8,
                                     common.Serial8,
+                                    common.Boolean,
+                                    common.Date,
                                     common.Timestamptz,
+                                    common.Timestamp,
                                     common.Json,
                                     common.Jsonb,
                                     common.Int4Array,
                                     common.TextArray,
+                                    common.BooleanArray,
+                                    common.DateArray,
                                     common.TimestamptzArray,
+                                    common.TimestampArray,
                                     common.JsonArray,
                                     common.JsonbArray,
                             ]
@@ -59,12 +65,18 @@ def defs(S):
                                     common.Ermrest_uri,
                                     common.Int8,
                                     common.Serial8,
+                                    common.Boolean,
+                                    common.Date,
                                     common.Timestamptz,
+                                    common.Timestamp,
                                     common.Json,
                                     common.Jsonb,
                                     common.Int4Array,
                                     common.TextArray,
+                                    common.BooleanArray,
+                                    common.DateArray,
                                     common.TimestamptzArray,
+                                    common.TimestampArray,
                                     common.JsonArray,
                                     common.JsonbArray,
                             ]
@@ -101,12 +113,18 @@ _data_T1 = [
         "c_ermrest_uri": f"https://example.com/id/{i}",
         "c_int8": f"{i}",
         # skip c_serial8
+        "c_boolean": True,
+        "c_date": f"2021011{i}",
         "c_timestamptz": f"20210102T0304.0{i}+0000",
+        "c_timestamp": f"20210102T0304.0{i}",
         "c_json": {"i": i},
         "c_jsonb": {"ib": i, "it": f"{i}"},
         "c_int4[]": [ i+c for c in range(10,100,10) ],
         "c_text[]": [ f"value {i+c}" for c in range(10,100,10) ],
+        "c_boolean[]": [ True, False ],
+        "c_date[]": [ f"20210{c}1{i}" for c in range(1,13) ],
         "c_timestamptz[]": [ f"20210102T0304.{c}{i}+0000" for c in range(10,60,10) ],
+        "c_timestamp[]": [ f"20210102T0304.{c}{i}" for c in range(10,60,10) ],
         "c_json[]": [ {"i": i+c} for c in range(10,100,10) ],
         "c_jsonb[]": [ {"ib": i+c, "it": f"{i+c}"} for c in range(10,100,10) ],
         #
@@ -114,12 +132,18 @@ _data_T1 = [
         "was_ermrest_uri": f"https://example.com/id/{i}",
         "was_int8": f"{i}",
         # skip was_serial8
+        "was_boolean": True,
+        "was_date": f"2021011{i}",
         "was_timestamptz": f"20210102T0304.0{i}+0000",
+        "was_timestamp": f"20210102T0304.0{i}",
         "was_json": {"i": i},
         "was_jsonb": {"ib": i, "it": f"{i}"},
         "was_int4[]": [ i+c for c in range(10,100,10) ],
         "was_text[]": [ f"value {i+c}" for c in range(10,100,10) ],
+        "was_boolean[]": [ True, False ],
+        "was_date[]": [ f"20210{c}1{i}" for c in range(1,13) ],
         "was_timestamptz[]": [ f"20210102T0304.{c}{i}+0000" for c in range(10,60,10) ],
+        "was_timestamp[]": [ f"20210102T0304.{c}{i}" for c in range(10,60,10) ],
         "was_json[]": [ {"i": i+c} for c in range(10,100,10) ],
         "was_jsonb[]": [ {"ib": i+c, "it": f"{i+c}"} for c in range(10,100,10) ],
     }
@@ -148,7 +172,10 @@ def setUpModule():
         # idempotent because unittest can re-enter module several times...
         common.primary_session.post('schema', json=_defs).raise_for_status()
         common.primary_session.post(f"entity/{_S}:{_T0}", json=_data_T0).raise_for_status()
-        common.primary_session.post(f"entity/{_S}:{_T1}?defaults=c_serial8,was_serial8", json=_data_T1).raise_for_status()
+        try:
+            common.primary_session.post(f"entity/{_S}:{_T1}?defaults=c_serial8,was_serial8", json=_data_T1).raise_for_status()
+        except requests.HTTPError as e:
+            raise ValueError(f'loading {_T1}, got error {e}, {e.response.text}')
 
         # alter columns was_* -> to type text/text[]
         for cdef in _T1_column_defs:
@@ -384,7 +411,7 @@ class ExplicitHistory (common.ErmrestTest):
             for cdef in _model_T1_column_defs
             if (
                     cdef['name'].startswith('c_')
-                    and cdef['name'] not in ['c_json', 'c_json[]']
+                    and cdef['name'] not in {'c_json', 'c_json[]', 'c_timestamp', 'c_timestamp[]'}
             )
         } |{
             f"t{_model_T1_RID}_btree_{cdef['name']}_idx": {"btree": cdef['RID']}
@@ -402,14 +429,17 @@ class ExplicitHistory (common.ErmrestTest):
         } | {
             f"t{_model_T1_RID}_trgm_{cdef['name']}_idx": {"trgm": cdef['RID']}
             for cdef in _model_T1_column_defs
-            if cdef['name'].startswith('c_')
+            if (
+                    cdef['name'].startswith('c_')
+                    and not cdef['name'] not in {'timestamp', 'timestamp[]'}
+            )
         } | {
             f"t{_model_T1_RID}_array_{cdef['name']}_idx": {"gin_array": cdef['RID']}
             for cdef in _model_T1_column_defs
             if (
                     cdef['name'].startswith('c_')
                     and cdef['name'].endswith('[]')
-                    and cdef['name'] != 'c_json[]'
+                    and cdef['name'] not in {'c_json[]', 'c_timestamp[]'}
             )
         }
 
@@ -467,15 +497,20 @@ class ExplicitHistory (common.ErmrestTest):
             "multi_index_type": {"btree": _model_T1_col_RID, "trgm": _model_T1_col_RID},
             "btree_json": {"btree": _model_T1_column_defs_byname["c_json"]["RID"]},
             "btree_json[]": {"btree": _model_T1_column_defs_byname["c_json[]"]["RID"]},
+            "btree_timestamp": {"btree": _model_T1_column_defs_byname["c_timestamp"]["RID"]},
+            "btree_timestamp[]": {"btree": _model_T1_column_defs_byname["c_timestamp[]"]["RID"]},
             "btree_unknown": {"btree": "NOT-A-COL-RID"},
             "btree_compound_unknown": {"btree": [_model_T1_col_RID, "NOT-A-COL-RID"]},
             "btree_empty_compound": {"btree": []},
             "trgm_compound": {"trgm": [_model_T1_col_RID]},
+            "trgm_timestamp": {"trgm": _model_T1_column_defs_byname["c_timestamp"]["RID"]},
+            "trgm_timestamp[]": {"trgm": _model_T1_column_defs_byname["c_timestamp[]"]["RID"]},
             "array_nonarray": {"gin_array": _model_T1_col_RID},
             "array_compound": {"gin_array": [
                 _model_T1_column_defs_byname["c_text[]"]["RID"],
                 _model_T1_column_defs_byname["c_int4[]"]["RID"],
             ]},
+            "array_timestamp[]": {"gin_array": _model_T1_column_defs_byname["c_timestamp[]"]["RID"]},
             "array_json[]": {"gin_array": _model_T1_column_defs_byname["c_json[]"]["RID"]},
         } | {
             f"btree_{cdef['name']}_idx": {"btree": cdef["RID"]}

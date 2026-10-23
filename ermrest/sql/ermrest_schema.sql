@@ -49,11 +49,23 @@ CREATE OR REPLACE FUNCTION _ermrest.history_timestamptz(text) RETURNS timestampt
   SELECT $1::timestamptz;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.history_date(text) RETURNS date IMMUTABLE AS $$
+  -- this is safe because we know our history dates are ISO digit strings
+  SELECT $1::date;
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION _ermrest.history_timestamptz_arr(jsonb) RETURNS timestamptz[] IMMUTABLE AS $$
   -- this is safe because we know our history timestamps are ISO strings with numeric offset
   SELECT CASE
     WHEN jsonb_typeof($1) = 'null' THEN NULL
     ELSE (SELECT array_agg(e.x::timestamptz) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_date_arr(jsonb) RETURNS date[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::date) FROM jsonb_array_elements_text($1) e(x))
   END;
 $$ LANGUAGE SQL;
 
@@ -75,6 +87,13 @@ CREATE OR REPLACE FUNCTION _ermrest.history_jsonb_arr(jsonb) RETURNS jsonb[] IMM
   SELECT CASE
     WHEN jsonb_typeof($1) = 'null' THEN NULL
     ELSE (SELECT array_agg(e.x) FROM jsonb_array_elements($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_boolean_arr(jsonb) RETURNS boolean[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::boolean) FROM jsonb_array_elements_text($1) e(x))
   END;
 $$ LANGUAGE SQL;
 
