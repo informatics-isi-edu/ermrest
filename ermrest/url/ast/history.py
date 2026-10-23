@@ -944,6 +944,8 @@ WHERE c."RID" = {sql_literal(crid)}
                     'double precision': 'float8',
                     'jsonb': 'jsonb',
                     'json': 'json',
+                    'date': 'date',
+                    'boolean': 'boolean',
                     'timestamp with time zone': 'timestamptz',
                 }.get(elem_type_name)
                 if target is None:
@@ -962,6 +964,10 @@ WHERE c."RID" = {sql_literal(crid)}
                         return f"({expr})"
                     elif type_name in {'timestamptz', 'timestamp with time zone'}:
                         return f"(_ermrest.history_timestamptz({expr}))"
+                    elif type_name in {'date'}:
+                        return f"(_ermrest.history_date({expr}))"
+                    elif type_name in {'timestamp', 'timestamp without time zone'}:
+                        raise exception.rest.Conflict(f"History column {crid} has unsupported type: {type_name}")
                     else:
                         return f"(({expr})::{type_name})"
 
