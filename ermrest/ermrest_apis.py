@@ -103,6 +103,10 @@ def alias_dispatch(catalog_id):
 @app.route('/catalog/<cid>/history/<when>/annotation', methods=['GET', 'PUT'])
 @app.route('/catalog/<cid>/history/<when>/annotation/', methods=['GET', 'PUT'])
 @app.route('/catalog/<cid>/history/<when>/annotation/<rest>', methods=['GET', 'PUT'])
+@app.route('/catalog/<cid>/history/table/<trid>/index', methods=['GET'])
+@app.route('/catalog/<cid>/history/table/<trid>/index/', methods=['GET'])
+@app.route('/catalog/<cid>/history/table/<trid>/index/<name>', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/catalog/<cid>/history/table/<trid>/index/<name>/', methods=['GET', 'PUT', 'DELETE'])
 @app.route('/catalog/<cid>/entity', methods=['GET', 'PUT', 'POST', 'DELETE'])
 @app.route('/catalog/<cid>/entity/', methods=['GET', 'PUT', 'POST', 'DELETE'])
 @app.route('/catalog/<cid>/entity/<path:rest>', methods=['GET', 'PUT', 'POST', 'DELETE'])
@@ -184,6 +188,10 @@ def alias_dispatch(catalog_id):
 @app.route('/catalog/<cid>/schema/<sname>/table/<tname>/foreignkey/<cnames>/reference/<tname2>/<cnames2>/annotation/', methods=['GET', 'PUT', 'DELETE'])
 @app.route('/catalog/<cid>/schema/<sname>/table/<tname>/foreignkey/<cnames>/reference/<tname2>/<cnames2>/annotation/<name>', methods=['GET', 'PUT', 'DELETE'])
 @app.route('/catalog/<cid>/schema/<sname>/table/<tname>/foreignkey/<cnames>/reference/<tname2>/<cnames2>/comment', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/catalog/<cid>/schema/<sname>/table/<tname>/index', methods=['GET'])
+@app.route('/catalog/<cid>/schema/<sname>/table/<tname>/index/', methods=['GET'])
+@app.route('/catalog/<cid>/schema/<sname>/table/<tname>/index/<name>', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/catalog/<cid>/schema/<sname>/table/<tname>/index/<name>/', methods=['GET', 'PUT', 'DELETE'])
 def ermrest_parsed_request(*args, **kwargs):
     # our existing codebase from web.py app used the WSGI REQUEST_URI /ermrest/...
     uri = flask.request.environ['REQUEST_URI']
