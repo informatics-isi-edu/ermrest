@@ -97,7 +97,9 @@ SELECT
   i.indisvalid AS valid,
   i.indisready AS ready,
   i.indislive AS live,
-  pg_get_indexdef(ci.oid) AS indexdef_sql
+  pg_get_indexdef(ci.oid) AS indexdef_sql,
+  (SELECT array_agg(pg_get_indexdef(ci.oid, ne.n, true) ORDER BY ne.n)
+   FROM generate_series(1, i.indnatts, 1) ne (n)) AS expr_sqls
 FROM pg_catalog.pg_index i
 JOIN pg_catalog.pg_class ci ON (i.indexrelid = ci.oid)
 JOIN pg_catalog.pg_class ct ON (i.indrelid = ct.oid)

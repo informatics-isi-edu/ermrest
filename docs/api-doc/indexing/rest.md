@@ -60,6 +60,7 @@ The _live index representation_ is a JSON object with several fields:
 
 - `"schemaname"`: The same _schema name_ as in the URL.
 - `"indexname"`: The same _index name_ as in the URL.
+- `"definition"`: A best-effort guess at an input representation corresponding to this existing index. May be `null` if the `sqldef` field does not fit the recognition heuristics.
 - `"primary"`: A boolean `true` when the index is a primary key index.
 - `"unique"`: A boolean `true` when the index is a unique index.
 - `"exclusion"`: A boolean `true` when the index is an exclusion index.
@@ -189,6 +190,7 @@ At time of writing, catalog ownership is required to retrieve history indexes.
 The _history index representation_ is a JSON object with several fields:
 
 - `"indexname"`: The same _index name_ as in the URL.
+- `"definition"`: A best-effort guess at an input representation corresponding to this existing index. May be `null` if the `sqldef` field does not fit the recognition heuristics.
 - `"primary"`: A boolean `true` when the index is a primary key index.
 - `"unique"`: A boolean `true` when the index is a unique index.
 - `"exclusion"`: A boolean `true` when the index is an exclusion index.
