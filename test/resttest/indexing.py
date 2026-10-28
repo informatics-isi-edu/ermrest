@@ -381,6 +381,13 @@ class Explicit (common.ErmrestTest):
                 r = self.session.delete(f"schema/{_S}/table/{_T1}/index/{iname}")
                 self.assertHttp(r, 204)
 
+    def test_recreate_good(self):
+        # leave example indexes for post-mortem inspection
+        for iname in self.good_defs.keys():
+            with self.subTest(iname=iname):
+                r = self.session.put(f"schema/{_S}/table/{_T1}/index/{iname}", json=self.good_defs[iname])
+                self.assertHttp(r, 200, "application/json")
+
     bad_defs = {
         "nonobject_string": "foo",
         "nonobject_list": ["foo"],
@@ -431,7 +438,7 @@ class ExplicitHistory (common.ErmrestTest):
             for cdef in _model_T1_column_defs
             if (
                     cdef['name'].startswith('c_')
-                    and not cdef['name'] not in {'timestamp', 'timestamp[]'}
+                    and cdef['name'] not in {'c_timestamp', 'c_timestamp[]'}
             )
         } | {
             f"t{_model_T1_RID}_array_{cdef['name']}_idx": {"gin_array": cdef['RID']}
@@ -540,6 +547,14 @@ class ExplicitHistory (common.ErmrestTest):
             with self.subTest(iname=iname):
                 r = self.session.put(f"history/table/{_model_T1_RID}/index/{iname}")
                 self.assertHttp(r, (400, 409))
+
+    def test_recreate_good(self):
+        # leave example indexes for post-mortem inspection
+        good_defs = self.good_defs()
+        for iname, idef in good_defs.items():
+            with self.subTest(iname=iname):
+                r = self.session.put(f"history/table/{_model_T1_RID}/index/{iname}", json=idef)
+                self.assertHttp(r, 200, "application/json")
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
