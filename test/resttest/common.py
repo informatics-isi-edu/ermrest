@@ -135,9 +135,20 @@ Int8 = TypeDoc('int8')
 Int4 = TypeDoc('int4')
 Serial8 = TypeDoc('serial8')
 Text = TypeDoc('text')
+Boolean = TypeDoc('boolean')
+Date = TypeDoc('date')
 Timestamptz = TypeDoc('timestamptz')
+Timestamp = TypeDoc('timestamp')
+Json = TypeDoc('json')
+Jsonb = TypeDoc('jsonb')
 TextArray = ArrayDoc('text[]', Text)
 Int4Array = ArrayDoc('int4[]', Int4)
+BooleanArray = ArrayDoc('boolean[]', Boolean)
+DateArray = ArrayDoc('date[]', Date)
+TimestamptzArray = ArrayDoc('timestamptz[]', Timestamptz)
+TimestampArray = ArrayDoc('timestamp[]', Timestamp)
+JsonArray = ArrayDoc('json[]', Json)
+JsonbArray = ArrayDoc('jsonb[]', Jsonb)
 
 Ermrest_rid = DomainDoc('ermrest_rid', Text)
 Ermrest_rct = DomainDoc('ermrest_rct', Timestamptz)
@@ -188,7 +199,7 @@ class TestSession (requests.Session):
     
         if cookiefilename:
             cj = cookiejar.MozillaCookieJar(cookiefilename)
-            cj.load(ignore_expires=True)
+            cj.load(ignore_expires=True, ignore_discard=True)
             for cookie in cj:
                 kwargs={
                     "domain": cookie.domain,
