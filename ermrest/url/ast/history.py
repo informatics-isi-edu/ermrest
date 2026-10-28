@@ -832,7 +832,6 @@ class HistoryTableIndexing (Api):
             "ready": ready,
             "live": live,
             "sqldef": sqldef,
-            "sqlexprs": sqlexprs,
         }
 
     def _check_conflicts(self, resource, op):
