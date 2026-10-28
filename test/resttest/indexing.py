@@ -350,8 +350,18 @@ class Explicit (common.ErmrestTest):
     def test_create_good(self):
         for iname in self.good_defs.keys():
             with self.subTest(iname=iname):
-                r = self.session.put(f"schema/{_S}/table/{_T1}/index/{iname}", json=self.good_defs[iname])
+                idx_in = self.good_defs[iname]
+                r = self.session.put(f"schema/{_S}/table/{_T1}/index/{iname}", json=idx_in)
                 self.assertHttp(r, 200, "application/json")
+                idx_out = r.json().get("definition")
+                if idx_out:
+                    with self.subTest(iname=iname, scenario='check output definition'):
+                        indextype = list(idx_in.keys())[0]
+                        self.assertIn(indextype, idx_out)
+                        if isinstance(idx_in[indextype], list):
+                            self.assertEqual(idx_in[indextype], idx_out[indextype])
+                        else:
+                            self.assertEqual([idx_in[indextype]], idx_out[indextype])
 
     def test_create_key_overwrite_forbidden(self):
         # cannot use index name already active with a key constraint
@@ -463,6 +473,15 @@ class ExplicitHistory (common.ErmrestTest):
             with self.subTest(iname=iname):
                 r = self.session.put(f"history/table/{_model_T1_RID}/index/{iname}", json=idef)
                 self.assertHttp(r, 200, "application/json")
+                idx_out = r.json().get("definition")
+                if idx_out:
+                    with self.subTest(iname=iname, scenario='check output definition'):
+                        indextype = list(idef.keys())[0]
+                        self.assertIn(indextype, idx_out)
+                        if isinstance(idef[indextype], list):
+                            self.assertEqual(idef[indextype], idx_out[indextype])
+                        else:
+                            self.assertEqual([idef[indextype]], idx_out[indextype])
 
     def test_create_key_overwrite_forbidden(self):
         # cannot use index name already active with a key constraint

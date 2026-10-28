@@ -19,6 +19,7 @@
 
 """
 
+import re
 import json
 import flask
 from webauthn2.util import deriva_ctx, deriva_debug
@@ -1231,11 +1232,12 @@ class Indexes (Api):
     def GET_body(self, conn, cur):
         table = self.table.GET_body(conn, cur)
         table.enforce_right('owner')
-        return list(enumerate_indexes(cur, table.schema.name, table.name))
+        return table, list(enumerate_indexes(cur, table.schema.name, table.name))
 
     def GET(self, uri, skip_body=False):
-        def post_commit(handler, resource):
-            resource = [ Index.row_to_dict(row) for row in resource ]
+        def post_commit(handler, result):
+            table, resource = result
+            resource = [ Index.row_to_dict(row, table) for row in resource ]
             return _post_commit_json(handler, resource, skip_body=skip_body)
         return _GET(self, self.GET_body, post_commit)
 
@@ -1247,11 +1249,109 @@ class Index (Api):
         self.indexname = indexname
 
     @classmethod
-    def row_to_dict(cls, row):
-        schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef = row
+    def sql_to_defn(cls, table, sqldef, sqlexprs):
+        """Return pre-JSON (dict) definition of index if we can infer it from SQL DDL, or None
+
+        :param table: Table instance or None to bypass this heuristic.
+        """
+        if table is None:
+            return None
+
+        s1 = sqldef
+
+        # prefix: CREATE (UNIQUE|PRIMARY KEY) INDEX
+        m = re.match('CREATE( [A-Z]+)* INDEX ', s1)
+        if not m:
+            return None
+        s1 = s1[m.end():]
+
+        # quoted or unquoted SQL identifier
+        pat_ident = '([^" (),:.]+|"([^"]|"")+")'
+
+        # prefix: indexname ON schema.table
+        m = re.match(f'{pat_ident} ON {pat_ident}[.]{pat_ident} ', s1)
+        if not m:
+            return None
+        s1 = s1[m.end():]
+
+        # prefix: USING indextype
+        m = re.match(f'USING ({pat_ident}) [(]', s1)
+        if not m:
+            return None
+        indextype = m.group(1).lower()
+        s1 = s1[m.end():]
+
+        def sql_ident_unquote(s):
+            if s.startswith('"') and s.endswith('"'):
+                s = s[1:-1]
+                s = s.replace('""', '"')
+            return s
+
+        if indextype == 'gin':
+            if len(sqlexprs) > 1:
+                # we don't create composite GIN indexes!
+                return None
+
+            # ignore sqlexprs because it may have different parens than sqldef
+            # which we need to analyze for ops class :-(
+            if s1.startswith('_ermrest.astext(') and s1.find('gin_trgm_ops)') > 0:
+                # looks like our trgm indexing pattern...
+
+                m = re.match(f'_ermrest.astext[(]({pat_ident})(::[^,():]+)?[)] gin_trgm_ops', s1)
+                if not m:
+                    m = re.match(f'_ermrest.astext[(]([(]{pat_ident}[)])(::[^,():]+)?[)] gin_trgm_ops', s1)
+                if not m:
+                    return None
+
+                cname = sql_ident_unquote(m.group(1))
+                if cname not in table.columns:
+                    return None
+
+                return {'trgm': [cname]}
+
+            # looks like our gin-array pattern...?
+            m = re.match(pat_ident, s1)
+            if not m:
+                return None
+
+            cname = sql_ident_unquote(m.group(0))
+            if cname not in table.columns:
+                return None
+
+            if not table.columns[cname].is_array():
+                return None
+
+            return {'gin_array': [cname]}
+
+        elif indextype == 'btree':
+            cnames = []
+
+            for s2 in sqlexprs:
+                m = re.fullmatch(pat_ident, s2)
+                if not m:
+                    return None
+
+                s1 = s1[len(s2)+1:]
+                cname = sql_ident_unquote(m.group(0))
+                if cname not in table.columns:
+                    return None
+
+                cnames.append(cname)
+
+            return {'btree': cnames}
+        else:
+            # not one we allow clients to make!
+            return None
+
+        return None
+
+    @classmethod
+    def row_to_dict(cls, row, table=None):
+        schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef, sqlexprs = row
         return {
             "schemaname": schemaname,
             "indexname": indexname,
+            "definition": cls.sql_to_defn(table, sqldef, sqlexprs),
             "primary": primary,
             "unique": unique,
             "exclusion": exclusion,
@@ -1269,14 +1369,15 @@ class Index (Api):
         if row is None:
             raise exception.NotFound(f'index {self.indexname} on table {table}')
 
-        return row
+        return table, row
 
     def HEAD(self, uri):
         return self.GET(uri, skip_body=True)
 
     def GET(self, uri, skip_body=False):
-        def post_commit(handler, resource):
-            resource = self.row_to_dict(resource)
+        def post_commit(handler, result):
+            table, resource = result
+            resource = self.row_to_dict(resource, table)
             return _post_commit_json(handler, resource, skip_body=skip_body)
         return _GET(self, self.GET_body, post_commit)
 
@@ -1286,8 +1387,8 @@ class Index (Api):
             raise exception.Forbidden(f'{op} of {"+".join(conflicts)} index {self.indexname.one_str()!r}')
 
     def DELETE_body(self, conn, cur):
-        row = self.GET_body(conn, cur)
-        resource = self.row_to_dict(row)
+        table, row = self.GET_body(conn, cur)
+        resource = self.row_to_dict(row, None)
         self._check_conflicts(resource, "deletion")
         drop_index(cur, self.table.schema.name.one_str(), self.indexname.one_str())
         return ''
@@ -1301,11 +1402,11 @@ class Index (Api):
 
         # check for conflicting use of indexname
         for row in enumerate_indexes(cur, table.schema.name, None, self.indexname.one_str()):
-            schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef = row
+            schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef, sqlexprs = row
             if tablename != table.name:
                 raise exception.ConflictModel(f"index name {indexname!r} in use on table {schemaname!r}.{tablename!r}")
             else:
-                resource = self.row_to_dict(row)
+                resource = self.row_to_dict(row, None)
                 self._check_conflicts(resource, "replacement")
 
         if not isinstance(idxdoc, dict):
@@ -1354,10 +1455,11 @@ class Index (Api):
         cur.execute(sql)
         cur.execute("SELECT _ermrest.model_version_bump();") # for caching/etag safety
         # return representation of the newly created index
-        return index_exists_on_table(cur, table.schema.name, table.name, indexname)
+        return table, index_exists_on_table(cur, table.schema.name, table.name, indexname)
 
     def PUT(self, uri):
-        def post_commit(self, newrow):
-            resource = Index.row_to_dict(newrow)
+        def post_commit(self, result):
+            table, newrow = result
+            resource = Index.row_to_dict(newrow, table)
             return _post_commit_json(self, resource)
         return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
