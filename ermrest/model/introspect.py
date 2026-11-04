@@ -28,8 +28,8 @@ needed by other modules of the ermrest project.
 from webauthn2.util import deriva_ctx, deriva_debug
 
 from .. import exception
-from ..util import table_exists, view_exists, column_exists, sql_literal, sql_identifier, OrderedFrozenSet
-from .misc import frozendict, annotatable_classes, hasacls_classes, hasdynacls_classes, AclBinding, current_model_snaptime
+from ..util import table_exists, view_exists, column_exists, sql_literal, sql_identifier, OrderedFrozenSet, OrderedFrozenDict
+from .misc import annotatable_classes, hasacls_classes, hasdynacls_classes, AclBinding, current_model_snaptime
 from .schema import Model, Schema
 from .type import TypesEngine
 from .column import Column
@@ -219,9 +219,9 @@ SELECT _ermrest.model_version_bump();
         if len(fk_column_rids) != len(pk_column_rids):
             raise ValueError('Foreign key constraint %s has mismatched column list lengths.' % constraint_name)
 
-        fk_colset = frozenset(fk_cols)
-        pk_colset = frozenset(pk_cols)
-        fk_ref_map = frozendict({
+        fk_colset = OrderedFrozenSet(fk_cols)
+        pk_colset = OrderedFrozenSet(pk_cols)
+        fk_ref_map = OrderedFrozenDict({
             fk_col: pk_col
             for fk_col, pk_col in zip(fk_cols, pk_cols)
         })

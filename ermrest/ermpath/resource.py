@@ -847,7 +847,7 @@ def _enforce_table_insert_dynamic(cur, table, input_table, mkcols, nmkcols, mkco
                 if fc in nmkcols or fc in mkcols
                 else (u't.%s' % fc.sql_name())
             )
-            for fc, uc in fkr.reference_map_frozen
+            for fc, uc in fkr.reference_map_frozen.items()
         ]
         _set_statement_timeout(cur)
         cur.execute(("""
@@ -865,7 +865,7 @@ LIMIT 1""") % {
     'fkr_cols': ','.join(fkr_cols),
     'icols': icols,
     'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='insert', alias='d', dynauthz_testfkr=fkr),
-    'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen ]),
+    'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen.items() ]),
     }
         )
         if cur.rowcount > 0:
@@ -969,7 +969,7 @@ LIMIT 1""") % {
                 if fc in nmkcols
                 else (u't.%s' % fc.sql_name())
             )
-            for fc, uc in fkr.reference_map_frozen
+            for fc, uc in fkr.reference_map_frozen.items()
         ]
         _set_statement_timeout(cur)
         cur.execute(("""
@@ -990,7 +990,7 @@ LIMIT 1""") % {
     'fkr_cols': ','.join(fkr_cols),
     'icols': icols,
     'domain_table': fkr.unique.table.sql_name(dynauthz=True, access_type='update', alias='d', dynauthz_testfkr=fkr),
-    'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen ]),
+    'domain_key_cols': ','.join([ u'd.%s' % uc.sql_name() for fc, uc in fkr.reference_map_frozen.items() ]),
     }
         )
         if cur.rowcount > 0:

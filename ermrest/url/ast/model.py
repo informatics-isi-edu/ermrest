@@ -1026,7 +1026,7 @@ class Foreignkey (Api):
 
     def GET_body(self, conn, cur, final=False):
         table = self.table.GET_body(conn, cur)
-        cols = frozenset([ table.columns.get_enumerable(str(c)) for c in self.columns ])
+        cols = OrderedFrozenSet([ table.columns.get_enumerable(str(c)) for c in self.columns ])
         try:
             return table.fkeys.get_enumerable(cols)
         except exception.ConflictModel as e:
