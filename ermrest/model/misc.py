@@ -31,10 +31,6 @@ from ..ermpath.resource import get_dynacl_clauses
 # these are in ermpath to avoid recursive imports
 from ..ermpath import current_request_snaptime, current_catalog_snaptime, current_model_snaptime, normalized_history_snaptime, current_history_amendver
 
-def frozendict (d):
-    """Convert a dictionary to a canonical and immutable form."""
-    return frozenset(d.items())
-
 def _get_ermrest_config():
     """Helper method to return the ERMrest config.
     """

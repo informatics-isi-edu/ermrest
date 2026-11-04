@@ -751,8 +751,15 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     fkey_rid text NOT NULL REFERENCES _ermrest.known_fkeys("RID") ON DELETE CASCADE,
     fk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     pk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    "ordinality" int4 NOT NULL,
+    UNIQUE(fkey_rid, "ordinality") DEFERRABLE,
     UNIQUE(fkey_rid, fk_column_rid)
   );
+ELSIF (SELECT True FROM information_schema.columns WHERE table_schema = '_ermrest' AND table_name = 'known_fkey_columns' AND column_name = 'ordinality') IS NULL THEN
+  -- new column will be initially nullable/sparse during upgrade
+  ALTER TABLE _ermrest.known_fkey_columns
+    ADD COLUMN "ordinality" int4,
+    ADD CONSTRAINT "known_fkey_columns_fkey_rid_ordinality_key" UNIQUE (fkey_rid, "ordinality") DEFERRABLE;
 END IF;
 
 IF COALESCE(
@@ -799,8 +806,15 @@ IF (SELECT True FROM information_schema.tables WHERE table_schema = '_ermrest' A
     fkey_rid text NOT NULL REFERENCES _ermrest.known_pseudo_fkeys("RID") ON DELETE CASCADE,
     fk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
     pk_column_rid text NOT NULL REFERENCES _ermrest.known_columns("RID") ON DELETE CASCADE,
+    "ordinality" int4 NOT NULL,
+    UNIQUE(fkey_rid, "ordinality") DEFERRABLE,
     UNIQUE(fkey_rid, fk_column_rid)
   );
+ELSIF (SELECT True FROM information_schema.columns WHERE table_schema = '_ermrest' AND table_name = 'known_pseudo_fkey_columns' AND column_name = 'ordinality') IS NULL THEN
+  -- new column will be initially nullable/sparse during upgrade
+  ALTER TABLE _ermrest.known_pseudo_fkey_columns
+    ADD COLUMN "ordinality" int4,
+    ADD CONSTRAINT "known_pseudo_fkey_columns_fkey_rid_ordinality_key" UNIQUE (fkey_rid, "ordinality") DEFERRABLE;
 END IF;
 
 IF COALESCE(
@@ -1026,14 +1040,17 @@ CREATE OR REPLACE VIEW _ermrest.introspect_fkey_columns AS
   SELECT
     fk."RID" AS fkey_rid,
     fk_kc."RID" AS fk_column_rid,
-    pk_kc."RID" AS pk_column_rid
+    pk_kc."RID" AS pk_column_rid,
+    ca.fk_attord AS "ordinality"
   FROM _ermrest.known_fkeys fk
   JOIN (
     SELECT
       con.oid,
-      unnest(con.conkey) AS fk_attnum,
-      unnest(con.confkey) AS pk_attnum
+      fk_a.attnum AS fk_attnum,
+      con.confkey[fk_a.attord] AS pk_attnum,
+      fk_a.attord AS fk_attord
     FROM pg_constraint con
+    JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS fk_a(attnum, attord) ON (True)
   ) ca ON (fk.oid = ca.oid)
   JOIN _ermrest.known_columns fk_kc ON (fk.fk_table_rid = fk_kc.table_rid AND ca.fk_attnum = fk_kc.column_num)
   JOIN _ermrest.known_columns pk_kc ON (fk.pk_table_rid = pk_kc.table_rid AND ca.pk_attnum = pk_kc.column_num)
@@ -1621,6 +1638,7 @@ BEGIN
       AND k."ordinality" IS DISTINCT FROM i."ordinality"
     RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
     INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
@@ -1689,10 +1707,21 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
+  WITH updated AS (
+    UPDATE _ermrest.known_fkey_columns k
+    SET "ordinality" = i."ordinality"
+    FROM _ermrest.introspect_fkey_columns i
+    WHERE k.fkey_rid = i.fkey_rid AND k.fk_column_rid = i.fk_column_rid AND k.pk_column_rid = i.pk_column_rid
+      AND k."ordinality" IS DISTINCT FROM i."ordinality"
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
   WITH inserted AS (
-    INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
-    SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.introspect_fkey_columns
-    EXCEPT SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.known_fkey_columns
+    INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid, "ordinality")
+    SELECT i.fkey_rid, i.fk_column_rid, i.pk_column_rid, i."ordinality" FROM _ermrest.introspect_fkey_columns i
+    LEFT JOIN _ermrest.known_fkey_columns k USING (fkey_rid, fk_column_rid, pk_column_rid)
+    WHERE k."RID" IS NULL
     RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
@@ -1959,6 +1988,7 @@ BEGIN
       AND k."ordinality" IS DISTINCT FROM i."ordinality"
     RETURNING k."RID"
   ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
 
   WITH inserted AS (
     INSERT INTO _ermrest.known_key_columns (key_rid, column_rid, "ordinality")
@@ -2026,10 +2056,21 @@ BEGIN
   ) SELECT count(*) INTO had_changes FROM deleted;
   model_changed := model_changed OR had_changes > 0;
 
+  WITH updated AS (
+    UPDATE _ermrest.known_fkey_columns k
+    SET "ordinality" = i."ordinality"
+    FROM _ermrest.introspect_fkey_columns i
+    WHERE k.fkey_rid = i.fkey_rid AND k.fk_column_rid = i.fk_column_rid AND k.pk_column_rid = i.pk_column_rid
+      AND k."ordinality" IS DISTINCT FROM i."ordinality"
+    RETURNING k."RID"
+  ) SELECT count(*) INTO had_changes FROM updated;
+  model_changed := model_changed OR had_changes > 0;
+
   WITH inserted AS (
-    INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
-    SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.introspect_fkey_columns
-    EXCEPT SELECT fkey_rid, fk_column_rid, pk_column_rid FROM _ermrest.known_fkey_columns
+    INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid, "ordinality")
+    SELECT i.fkey_rid, i.fk_column_rid, i.pk_column_rid, i."ordinality" FROM _ermrest.introspect_fkey_columns i
+    LEFT JOIN _ermrest.known_fkey_columns k USING (fkey_rid, fk_column_rid, pk_column_rid)
+    WHERE k."RID" IS NULL
     RETURNING "RID"
   ) SELECT count(*) INTO had_changes FROM inserted;
   model_changed := model_changed OR had_changes > 0;
@@ -2312,7 +2353,7 @@ THEN
     FROM _ermrest.known_pseudo_key_columns
   ) s
   WHERE s."RID" = k."RID";
-  
+
   ALTER TABLE _ermrest.known_key_columns ALTER COLUMN "ordinality" SET NOT NULL;
   ALTER TABLE _ermrest.known_pseudo_key_columns ALTER COLUMN "ordinality" SET NOT NULL;
 
@@ -2322,6 +2363,41 @@ THEN
   -- drop these so we can redefine w/ different output type
   DROP FUNCTION IF EXISTS _ermrest.known_key_columns(timestamptz);
   DROP FUNCTION IF EXISTS _ermrest.known_pseudo_key_columns(timestamptz);
+
+END IF;
+
+-- handle incremental schema upgrade started above
+IF (SELECT NOT c.not_null
+    FROM _ermrest.known_schemas s
+    JOIN _ermrest.known_tables t ON (t.schema_rid = s."RID")
+    JOIN _ermrest.known_columns c ON (c.table_rid = t."RID")
+    WHERE s.schema_name = '_ermrest'
+      AND t.table_name = 'known_fkey_columns'
+      AND c.column_name = 'ordinality')
+THEN
+  SET CONSTRAINTS ALL DEFERRED;
+
+  -- known_key_columns.ordinality is already populated by earlier model sync above...
+
+  UPDATE _ermrest.known_pseudo_fkey_columns k
+  SET "ordinality" = s.ord
+  FROM (
+    SELECT
+      "RID",
+      row_number() OVER (PARTITION BY fkey_rid ORDER BY "RID") AS ord
+    FROM _ermrest.known_pseudo_fkey_columns
+  ) s
+  WHERE s."RID" = k."RID";
+
+  ALTER TABLE _ermrest.known_fkey_columns ALTER COLUMN "ordinality" SET NOT NULL;
+  ALTER TABLE _ermrest.known_pseudo_fkey_columns ALTER COLUMN "ordinality" SET NOT NULL;
+
+  PERFORM _ermrest.model_change_event();
+  SET CONSTRAINTS ALL IMMEDIATE;
+
+  -- drop these so we can redefine w/ different output type
+  DROP FUNCTION IF EXISTS _ermrest.known_fkey_columns(timestamptz);
+  DROP FUNCTION IF EXISTS _ermrest.known_pseudo_fkey_columns(timestamptz);
 
 END IF;
 
@@ -2780,23 +2856,25 @@ RETURNS TABLE ("RID" text, constraint_name text, fk_table_rid text, pk_table_rid
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_fkey_columns(ts timestamptz)
-RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
+RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text, "ordinality" int4) AS $$
   SELECT
     s."RID",
     (s.rowdata->>'fkey_rid')::text "fkey_rid",
     (s.rowdata->>'fk_column_rid')::text "fk_column_rid",
-    (s.rowdata->>'pk_column_rid')::text "pk_column_rid"
+    (s.rowdata->>'pk_column_rid')::text "pk_column_rid",
+    (s.rowdata->>'ordinality')::int4 "ordinality" -- this will be NULL for pre-upgrade snapshots
   FROM _ermrest_history.known_fkey_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkey_columns(ts timestamptz)
-RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text) AS $$
+RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text, "ordinality" int4) AS $$
   SELECT
     s."RID",
     (s.rowdata->>'fkey_rid')::text "fkey_rid",
     (s.rowdata->>'fk_column_rid')::text "fk_column_rid",
-    (s.rowdata->>'pk_column_rid')::text "pk_column_rid"
+    (s.rowdata->>'pk_column_rid')::text "pk_column_rid",
+    (s.rowdata->>'ordinality')::int4 "ordinality" -- this will be NULL for pre-upgrade snapshots
   FROM _ermrest_history.known_pseudo_fkey_columns s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
@@ -2820,8 +2898,8 @@ FROM _ermrest.known_fkeys($1) fk
 LEFT OUTER JOIN (
   SELECT
     fkey_rid,
-    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS fk_column_rids,
-    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS pk_column_rids
+    array_agg(fk_column_rid ORDER BY fkcp."ordinality", fkcp.fk_column_rid)::text[] AS fk_column_rids,
+    array_agg(pk_column_rid ORDER BY fkcp."ordinality", fkcp.fk_column_rid)::text[] AS pk_column_rids
   FROM _ermrest.known_fkey_columns($1) fkcp
   GROUP BY fkcp.fkey_rid
 ) fkcp ON (fk."RID" = fkcp.fkey_rid)
@@ -2857,8 +2935,8 @@ FROM _ermrest.known_pseudo_fkeys($1) fk
 LEFT OUTER JOIN (
   SELECT
     fkey_rid,
-    array_agg(fk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS fk_column_rids,
-    array_agg(pk_column_rid ORDER BY fkcp.fk_column_rid)::text[] AS pk_column_rids
+    array_agg(fk_column_rid ORDER BY fkcp."ordinality", fkcp.fk_column_rid)::text[] AS fk_column_rids,
+    array_agg(pk_column_rid ORDER BY fkcp."ordinality", fkcp.fk_column_rid)::text[] AS pk_column_rids
   FROM _ermrest.known_pseudo_fkey_columns($1) fkcp
   GROUP BY fkcp.fkey_rid
 ) fkcp ON (fk."RID" = fkcp.fkey_rid)

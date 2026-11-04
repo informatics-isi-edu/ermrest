@@ -169,3 +169,17 @@ class OrderedFrozenSet (collections.abc.Set):
     def __ge__(self, other): return self._members_set >= other
     def __hash__(self): return hash(self._members_set)
     def __repr__(self): return '<%s(%r)>' % (type(self).__name__, self._members)
+
+class OrderedFrozenDict (collections.abc.Mapping):
+    """Analogous to OrderedFrozenSet, hashable but with preserved ordered dict content.
+    """
+    def __init__(self, mapping):
+        super(OrderedFrozenDict, self).__init__()
+        self._mapping = dict(mapping)
+        self._frozen = frozenset(self._mapping.items())
+
+    def __iter__(self): return iter(self._mapping)
+    def __len__(self): return len(self._mapping)
+    def __getitem__(self, k): return self._mapping[k]
+    def __hash__(self): return hash(self._frozen)
+    def __repr__(self): return '<%s(%r)>' % (type(self).__name__, self._mapping)

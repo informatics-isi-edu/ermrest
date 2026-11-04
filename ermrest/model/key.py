@@ -19,8 +19,8 @@ import json
 from webauthn2.util import deriva_ctx
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet
-from .misc import frozendict, AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, make_id, make_constraint_name
+from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet, OrderedFrozenDict
+from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, make_id, make_constraint_name
 from .name import _keyref_join_str, _keyref_join_sql
 
 @annotatable
@@ -617,7 +617,7 @@ class KeyReference (object):
         self.rid = rid
         self.reference_map_frozen = fk_ref_map
         self.reference_map = dict(fk_ref_map)
-        self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
+        self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map.items() ])
         self.on_delete = on_delete
         self.on_update = on_update
         # Link into foreign key's key reference list, by table ref
@@ -710,8 +710,8 @@ FROM _ermrest.introspect_fkeys
 WHERE fk_table_rid = %(table_rid)s
   AND constraint_name = %(constraint_name)s;
 
-INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
-SELECT fkey_rid, fk_column_rid, pk_column_rid
+INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid, "ordinality")
+SELECT fkey_rid, fk_column_rid, pk_column_rid, "ordinality"
 FROM _ermrest.introspect_fkey_columns fkc
 WHERE fkey_rid = (
   SELECT "RID"
@@ -719,6 +719,7 @@ WHERE fkey_rid = (
   WHERE fk_table_rid = %(table_rid)s
     AND constraint_name = %(constraint_name)s
 )
+ORDER BY fkc."ordinality"
 RETURNING fkey_rid;
 """ % {
     'table_rid': sql_literal(self.foreign_key.table.rid),
@@ -939,7 +940,7 @@ WHERE i.fk_table_rid = %(table_rid)s
 
         fk_colset, fkey, fktable = get_colset_key_table(fk_columns, True, fkey, fktable)
         pk_colset, pkey, pktable = get_colset_key_table(pk_columns, False, pkey, pktable)
-        fk_ref_map = frozendict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
+        fk_ref_map = OrderedFrozenDict(dict([ (fk_columns[i], pk_columns[i]) for i in range(0, len(fk_columns)) ]))
         fk_name = fk_names[0] if fk_names else None
             
         if fk_ref_map not in fkey.references or not reject_duplicates:
@@ -957,7 +958,7 @@ WHERE i.fk_table_rid = %(table_rid)s
                 pktable.name,
                 ",".join([
                     "%s->%s" % (c1.name, c2.name)
-                    for c1, c2 in fk_ref_map # frozendict is a sequence of items already...
+                    for c1, c2 in fk_ref_map.items() # OrderedFrozenDict is a sequence of items already...
                 ])
             ))
         yield fkey.references[fk_ref_map]
@@ -991,7 +992,7 @@ class PseudoKeyReference (object):
         self.unique = unique
         self.reference_map_frozen = fk_ref_map
         self.reference_map = dict(fk_ref_map)
-        self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map ])
+        self.referenceby_map = dict([ (p, f) for f, p in fk_ref_map.items() ])
         self.on_delete = None
         self.on_update = None
         self.constraint_name = constraint_name
