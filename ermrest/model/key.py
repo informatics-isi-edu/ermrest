@@ -710,8 +710,8 @@ FROM _ermrest.introspect_fkeys
 WHERE fk_table_rid = %(table_rid)s
   AND constraint_name = %(constraint_name)s;
 
-INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid)
-SELECT fkey_rid, fk_column_rid, pk_column_rid
+INSERT INTO _ermrest.known_fkey_columns (fkey_rid, fk_column_rid, pk_column_rid, "ordinality")
+SELECT fkey_rid, fk_column_rid, pk_column_rid, "ordinality"
 FROM _ermrest.introspect_fkey_columns fkc
 WHERE fkey_rid = (
   SELECT "RID"
@@ -719,6 +719,7 @@ WHERE fkey_rid = (
   WHERE fk_table_rid = %(table_rid)s
     AND constraint_name = %(constraint_name)s
 )
+ORDER BY fkc."ordinality"
 RETURNING fkey_rid;
 """ % {
     'table_rid': sql_literal(self.foreign_key.table.rid),

@@ -15,6 +15,7 @@ _Tc2 = 'composite2'
 _Tc3 = 'composite3'
 _Tr1 = 'column_removal_a'
 _Tr2 = 'column_removal_b'
+_Trc1c2c3 = 'composite_ref_order'
 
 from common import Int8, Serial8, Text, Timestamptz, TextArray, Int4Array, \
     RID, RCT, RMT, RCB, RMB, RidKey, \
@@ -95,7 +96,7 @@ def defs(S):
                             ColumnDoc('name', Text),
                             ColumnDoc('site', Int8, nullok=False),
                         ],
-                        [ RidKey, KeyDoc(['id', 'site']) ],
+                        [ RidKey, KeyDoc(['site', 'id']) ],
                         [
                             FkeyDoc(S, _Tc2, ['id', 'site'], S, _Tc1, ['id', 'site'])
                         ]
@@ -135,6 +136,23 @@ def defs(S):
                         ],
                         schema_name=S
                     ),
+                    TableDoc(
+                        _Trc1c2c3,
+                        [
+                            RID, RCT, RMT, RCB, RMB,
+                            ColumnDoc('name', Text),
+                            ColumnDoc('id', Int8, nullok=False),
+                            ColumnDoc('x_id', Int8, nullok=False),
+                        ],
+                        [ RidKey, KeyDoc(['id']) ],
+                        [
+                            FkeyDoc(S, _Trc1c2c3, ['x_id', 'id'], S, _Tc1, ['id', 'site']),
+                            FkeyDoc(S, _Trc1c2c3, ['id', 'x_id'], S, _Tc2, ['id', 'site']),
+                            FkeyDoc(S, _Trc1c2c3, ['id', 'name'], S, _Tc3, ['id', 'name']),
+                            FkeyDoc(S, _Trc1c2c3, ['name', 'x_id'], S, _Tc3, ['name', 'id']),
+                        ],
+                        schema_name=S
+                    ),
                 ],
                 {"tag:misd.isi.edu,2015:test0": "value 0"}
             )
@@ -167,13 +185,17 @@ def expand_table_resources(S, table_defs, table):
         )
     return resources
 
+_test_schema_as_provisioned = None
+
 def setUpModule():
     # this setup covers a bunch of basic table-creation feature tests
     # but we put them here so they are shared fixtures for the rest of the detailed feature tests below...
+    global _test_schema_as_provisioned
     r = common.primary_session.get('schema/%s' % _S)
     if r.status_code == 404:
         # idempotent because unittest can re-enter module several times...
         common.primary_session.post('schema', json=_defs).raise_for_status()
+    _test_schema_as_provisioned = common.primary_session.get('schema/%s' % _S).json()
 
 class BasicColumn (common.ErmrestTest):
     table = _T2b
@@ -334,6 +356,30 @@ class BasicKey (common.ErmrestTest):
 class CompositeKey (BasicKey):
     table = _Tc1
     key = 'id,site'
+
+class CompositeForeignKeyOrder (common.ErmrestTest):
+    fk_tname = _Trc1c2c3
+
+    def test_fkey_order(self):
+        fk_table_doc = _test_schema_as_provisioned['tables'][self.fk_tname]
+        for fkdoc in fk_table_doc['foreign_keys']:
+            if fkdoc['foreign_key_columns'][0]['schema_name'] != _S:
+                # ignore any fkey ref to other schemas for this test
+                continue
+            fk_name = fkdoc['names'][0][1]
+            with self.subTest(fk_name=fk_name):
+                # prepare pk table key info for comparisons
+                pk_tname = fkdoc['referenced_columns'][0]['table_name']
+                pk_table_doc = _test_schema_as_provisioned['tables'][pk_tname]
+                pk_table_kdocs = {
+                    frozenset({ cname for cname in kdoc['unique_columns'] }): kdoc
+                    for kdoc in pk_table_doc['keys']
+                }
+                # extract reference target
+                ref_cnames = [ crdoc['column_name'] for crdoc in fkdoc['referenced_columns'] ]
+                # check constituent order
+                pk_cnames_order = pk_table_kdocs[frozenset(ref_cnames)]['unique_columns']
+                self.assertEqual(ref_cnames, pk_cnames_order)
 
 def add_fkey_gets(klass):
     # generate tests for each level of foreignkey rest path hierarchy
