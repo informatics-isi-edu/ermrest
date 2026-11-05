@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import re
 import json
 import flask
 from webauthn2.util import deriva_ctx, deriva_debug
@@ -26,7 +25,7 @@ from ...model.table import Table
 from ...model.column import Column
 from ...model.key import KeyReference, PseudoKeyReference
 from ... import exception
-from ...util import sql_literal, sql_identifier, table_exists, enumerate_indexes, drop_index, index_exists_on_table
+from ...util import sql_literal, sql_identifier, table_exists, drop_index, IndexHistorical, history_trid_syscol_rids, history_trid_crid_typeinfo
 from .api import Api
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
@@ -716,129 +715,6 @@ class HistoryTableIndexing (Api):
         if deriva_ctx.ermrest_history_snaptime is not None:
             raise exception.rest.NotFound('History table index management on a versioned catalog snapshot.')
 
-    @classmethod
-    def sql_to_defn(cls, rids, sqldef, sqlexprs):
-        """Return pre-JSON (dict) definition of index if we can infer it from SQL DDL, or None
-
-        """
-        s1 = sqldef
-
-        # prefix: CREATE (UNIQUE|PRIMARY KEY) INDEX
-        m = re.match('CREATE( [A-Z]+)* INDEX ', s1)
-        if not m:
-            return None
-        s1 = s1[m.end():]
-
-        # quoted or unquoted SQL identifier
-        pat_ident = '([^" (),:.]+|"([^"]|"")+")'
-
-        # prefix: indexname ON schema.table
-        m = re.match(f'{pat_ident} ON {pat_ident}[.]{pat_ident} ', s1)
-        if not m:
-            return None
-        s1 = s1[m.end():]
-
-        # prefix: USING indextype
-        m = re.match(f'USING ({pat_ident}) [(]', s1)
-        if not m:
-            return None
-        indextype = m.group(1).lower()
-        s1 = s1[m.end():]
-
-        def sql_ident_unquote(s):
-            if s.startswith('"') and s.endswith('"'):
-                s = s[1:-1]
-                s = s.replace('""', '"')
-            return s
-
-        pat_ridproj = "[(]rowdata *->>? *'([-0-9A-Z]+)'::text[)]"
-
-        if indextype == 'gin':
-            if len(sqlexprs) > 1:
-                # we don't create composite GIN indexes!
-                return None
-
-            # ignore sqlexprs because it may have different parens than sqldef
-            # which we need to analyze for ops class :-(
-
-            if s1.startswith('_ermrest.astext(') and s1.find('gin_trgm_ops)') > 0:
-                # looks like our trgm indexing pattern...
-                m = re.match(f'_ermrest.astext[(]{pat_ridproj}[)] gin_trgm_ops', s1)
-                if not m:
-                    m = re.match(f'_ermrest.astext[(]_ermrest.history_[^()]+[(]{pat_ridproj}[)][)] gin_trgm_ops', s1)
-                if m:
-                    crid = m.group(1)
-                else:
-                    # these special cases do not embed a column RID in the index def
-                    m = re.match(f'_ermrest.astext[(]("RID"|"RMB"|lower[(]during[)])[)] gin_trgm_ops', s1)
-                    if not m:
-                        return None
-                    cname = sql_ident_unquote(m.group(1))
-                    if cname == 'lower(during)':
-                        cname = 'RMT'
-                    crid = rids.get(cname)
-
-                return {'trgm': [crid]}
-
-            # looks like our gin-array pattern...?
-            m = re.match(f'_ermrest.history_[^()_]+_arr[(]{pat_ridproj}[)]', s1)
-            if not m:
-                return None
-
-            crid = m.group(1)
-
-            return {'gin_array': [crid]}
-
-        elif indextype == 'btree':
-            crids = []
-
-            for s2 in sqlexprs:
-                m = re.fullmatch(f'{pat_ridproj}', s2)
-                if not m:
-                    m = re.fullmatch(f'[(]{pat_ridproj}(::[^:()]+)?[)]', s2)
-                if not m:
-                    # pat_ridproj is already surrounded by literal parens so this is func call
-                    m = re.fullmatch(f'_ermrest.history_[^()]+{pat_ridproj}', s2)
-                if m:
-                    crid = m.group(1)
-                else:
-                    # special cases again...
-                    m = re.fullmatch(f'("RID"|"RMB"|lower[(]during[)])', s2)
-                    if not m:
-                        return None
-                    cname = sql_ident_unquote(m.group(1))
-                    if cname == 'lower(during)':
-                        cname = 'RMT'
-                    crid = rids.get(cname)
-
-                crids.append(crid)
-
-            return {'btree': crids}
-        else:
-            return None
-
-        return None
-
-    @classmethod
-    def row_to_dict(cls, row, rids={}):
-        schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef, sqlexprs = row
-        return {
-            "indexname": indexname,
-            "definition": cls.sql_to_defn(rids, sqldef, sqlexprs),
-            "primary": primary,
-            "unique": unique,
-            "exclusion": exclusion,
-            "valid": valid,
-            "ready": ready,
-            "live": live,
-            "sqldef": sqldef,
-        }
-
-    def _check_conflicts(self, resource, op):
-        conflicts = { k for k in {"primary", "unique", "exclusion"} if resource[k] }
-        if conflicts:
-            raise exception.Forbidden(f'{op} of {"+".join(conflicts)} index {self.index_name!r}')
-
     def with_name(self, index_name):
         assert self.index_name is None
         self.index_name = index_name
@@ -852,162 +728,49 @@ class HistoryTableIndexing (Api):
     # 1. a column that is altered to change type over time
     # 2. a type RID that changes meaning over time (?)
     #
-
     def _check_trid(self, cur):
-        # find first occurrence of table_rid and its schema name
-        # ignoring internal _ermrest schema
-        cur.execute(f"""
-SELECT
-  t."RID",
-  c_rid.rid,
-  c_rmb.rid,
-  c_rmt.rid
-FROM _ermrest_history.known_tables t
-JOIN LATERAL (
-  SELECT c_rid."RID"
-  FROM _ermrest_history.known_columns c_rid
-  WHERE c_rid.rowdata->>'table_rid' = t."RID"
-    AND c_rid.rowdata->>'column_name' = 'RID'
-    AND lower(c_rid.during) <@ t.during
-  LIMIT 1
-) c_rid(rid) ON (True)
-JOIN LATERAL (
-  SELECT c_rmb."RID"
-  FROM _ermrest_history.known_columns c_rmb
-  WHERE c_rmb.rowdata->>'table_rid' = t."RID"
-    AND c_rmb.rowdata->>'column_name' = 'RMB'
-    AND lower(c_rmb.during) <@ t.during
-  LIMIT 1
-) c_rmb(rid) ON (True)
-JOIN LATERAL (
-  SELECT c_rmt."RID"
-  FROM _ermrest_history.known_columns c_rmt
-  WHERE c_rmt.rowdata->>'table_rid' = t."RID"
-    AND c_rmt.rowdata->>'column_name' = 'RMT'
-    AND lower(c_rmt.during) <@ t.during
-  LIMIT 1
-) c_rmt(rid) ON (True)
-WHERE t."RID" = {sql_literal(self.table_rid)}
-  AND EXISTS (
-    SELECT true
-    FROM _ermrest_history.known_schemas s
-    WHERE s."RID" = t.rowdata->>'schema_rid'
-      AND lower(t.during) <@ s.during
-      AND s.rowdata->>'schema_name' != '_ermrest'
-)
-LIMIT 1
-""")
-        found_table_row = None
-        for row in cur:
-            found_table_row = row
+        return history_trid_syscol_rids(cur, self.table_rid, exception.rest.NotFound)
 
-        # make sure table is known in model history
-        if not found_table_row:
-            raise exception.rest.NotFound(f'History table with RID={self.table_rid}')
-
-        # and we actually have a backing history table
-        tname = f"t{self.table_rid}"
-        if not table_exists(cur, '_ermrest_history', tname):
-            raise exception.rest.NotFound(f'History table with RID={self.table_rid}')
-
-        trid, rid_rid, rmb_rid, rmt_rid = found_table_row
-        rids = {
-            'RID': rid_rid,
-            'RMB': rmb_rid,
-            'RMT': rmt_rid,
-        }
-
-        return tname, rids
-
-    def _check_crid(self, cur, crid, require_single_type=True):
-        # find column rid for table (we've already validated table rid)
-        # and get longitudinal typing info
-        cur.execute(f"""
-SELECT DISTINCT
-  c.rowdata->>'column_name' AS column_name,
-  t1.type_name,
-  t2.type_name AS base_type_name
-FROM _ermrest_history.known_columns c
-JOIN LATERAL (
-  -- t0 is the original type which may be a domain/array/base type
-  SELECT
-    t0."RID",
-    t0.during,
-    t0.rowdata->>'domain_element_type_rid' AS domain_element_type_rid
-  FROM _ermrest_history.known_types t0
-  WHERE t0."RID" = c.rowdata->>'type_rid'
-    AND t0.during && c.during
-) t0 ON true
-JOIN LATERAL (
-  -- t1 strips the t0 domain type wrapper (if any)
-  SELECT
-    t1."RID",
-    t1.during,
-    t1.rowdata->>'type_name' AS type_name,
-    t1.rowdata->>'domain_element_type_rid' AS domain_element_type_rid,
-    t1.rowdata->>'array_element_type_rid' AS array_element_type_rid
-  FROM _ermrest_history.known_types t1
-  WHERE t1."RID" = COALESCE(t0.domain_element_type_rid, t0."RID")
-    AND t1.during && t0.during
-) t1 ON true
-LEFT JOIN LATERAL (
-  -- t2 is the base type of t1 iff t1 is an array type
-  SELECT
-    t2."RID",
-    t2.during,
-    t2.rowdata->>'type_name' AS type_name,
-    t2.rowdata->>'domain_element_type_rid' AS domain_element_type_rid,
-    t2.rowdata->>'array_element_type_rid' AS array_element_type_rid
-  FROM _ermrest_history.known_types t2
-  WHERE t2."RID" = t1.array_element_type_rid
-    AND t2.during && t1.during
-) t2 ON true
-WHERE c."RID" = {sql_literal(crid)}
-  AND c.rowdata->>'table_rid' = {sql_literal(self.table_rid)}
-""")
-        type_info = list(cur)
-
-        if not type_info:
-            raise exception.rest.Conflict(f'Unknown column RID={crid} on history table RID={self.table_rid}')
-
-        if require_single_type:
-            if len(type_info) > 1:
-                raise exception.rest.Conflict(f'Ambiguous type for column RID={crid} on history table RID={self.table_rid}')
-            return type_info[0]
-        else:
-            return type_info
+    def _check_crid(self, cur, column_rid, require_single_type=True):
+        return history_trid_crid_typeinfo(cur, self.table_rid, column_rid, exception.rest.Conflict, require_single_type=require_single_type)
 
     def GET_body(self, conn, cur):
         self.enforce_right('owner')
-        tname, rids = self._check_trid(cur)
-        results = list(enumerate_indexes(cur, '_ermrest_history', tname, self.index_name))
+        tname, syscol_rids = self._check_trid(cur)
+        idxlist = IndexHistorical.from_db_table(cur, self.table_rid, tname, syscol_rids, self.index_name)
 
         if self.index_name is not None:
-            if not results:
+            if not idxlist:
                 raise exception.rest.NotFound(f'Index {sql_identifier(self.index_name)} on history table with RID={self.table_rid}.')
-            assert len(results) == 1, f"oops: len({results}) != 1 for {self.index_name}"
-            return self.row_to_dict(results[0], rids)
+            assert len(idxlist) == 1, f"oops: len({idxlist}) != 1 for {self.index_name}"
+            return idxlist[0]
         else:
-            return [ self.row_to_dict(row, rids) for row in results ]
+            return idxlist
 
     def GET(self, uri):
-        def post_commit(handler, resource):
+        def post_commit(handler, result):
+            if isinstance(result, list):
+                resource = [ idx.to_dict() for idx in result ]
+            else:
+                resource = result.to_dict()
             return _post_commit_json(handler, [resource, resource])
         return _GET(self, self.GET_body, post_commit)
 
     def PUT_body(self, conn, cur, idxdoc):
         assert self.index_name is not None
         self.enforce_right("owner")
-        tname, rids = self._check_trid(cur)
+        tname, syscol_rids = self._check_trid(cur)
+        syscol_rids_invert = {
+            rid: cname
+            for cname, rid in syscol_rids.items()
+        }
 
         # check for conflicting use of index_name
-        for row in enumerate_indexes(cur, '_ermrest_history', None, self.index_name):
-            schemaname, tablename, indexname, primary, unique, exclusion, valid, ready, live, sqldef, sqlexprs = row
-            if tablename != tname:
+        for idx in IndexHistorical.from_db_schema(cur, self.index_name):
+            if idx.tname != tname:
                 raise exception.rest.Conflict(f"Index name {self.index_name} in use on a different history table.")
             else:
-                resource = self.row_to_dict(row, rids)
-                self._check_conflicts(resource, "replacement")
+                idx.check_conflicts("replacement", exception.Forbidden)
 
         # validate input idxdoc...
         if not isinstance(idxdoc, dict):
@@ -1049,11 +812,11 @@ WHERE c."RID" = {sql_literal(crid)}
             }.get(type_name, type_name)
 
         def is_array(crid):
-            column_name, type_name, elem_type_name = crid_typeinfo[crid]
+            type_name, elem_type_name = crid_typeinfo[crid]
             return elem_type_name is not None
 
         def is_indexable(crid):
-            column_name, type_name, elem_type_name = crid_typeinfo[crid]
+            type_name, elem_type_name = crid_typeinfo[crid]
             if elem_type_name is not None:
                 elem_type_name = basic_store_type(type_name)
                 return elem_type_name != 'json'
@@ -1063,7 +826,7 @@ WHERE c."RID" = {sql_literal(crid)}
 
         def history_projection(crid, cast=True):
             # this type info already collapses domain types to underlying types
-            column_name, type_name, elem_type_name = crid_typeinfo[crid]
+            type_name, elem_type_name = crid_typeinfo[crid]
             type_name = basic_store_type(type_name)
 
             if elem_type_name is not None:
@@ -1092,6 +855,7 @@ WHERE c."RID" = {sql_literal(crid)}
                 return f"_ermrest.history_{target}_arr(rowdata->{sql_literal(crid)})"
             else:
                 # scalar column
+                column_name = syscol_rids_invert.get(crid)
                 if column_name in {'RID', 'RMB'}:
                     return sql_identifier(column_name)
                 elif column_name == 'RMT':
@@ -1145,7 +909,7 @@ WHERE c."RID" = {sql_literal(crid)}
 
         sql = "\n".join(sql_parts)
         cur.execute(sql)
-        return self.row_to_dict(index_exists_on_table(cur, '_ermrest_history', tname, self.index_name), rids)
+        return IndexHistorical.from_db_single(cur, self.table_rid, tname, syscol_rids, self.index_name).to_dict()
 
     def PUT(self, uri):
         def post_commit(handler, resource):
@@ -1156,8 +920,8 @@ WHERE c."RID" = {sql_literal(crid)}
         if self.index_name is None:
             raise exception.rest.NoMethod('DELETE requires a specific index-name')
 
-        resource = self.GET_body(conn, cur)
-        self._check_conflicts(resource, "deletion")
+        idx = self.GET_body(conn, cur)
+        idx.check_conflicts("deletion", exception.Forbidden)
         drop_index(cur, '_ermrest_history', self.index_name)
         return ''
 
