@@ -128,6 +128,68 @@ class IndexABC:
 class IndexLive (IndexABC):
     """Represent an index on a current live table in the model"""
     @classmethod
+    def check_available(cls, cur, table, indexname, conflict_factory, forbidden_factory):
+        for idx in cls.from_db_schema(cur, table.schema.name, indexname):
+            if idx.tname != table.name:
+                raise conflict_factory(f"index name {idx.indexname!r} in use on table {table.schema.name!r}.{table.name!r}")
+            else:
+                idx.check_conflicts("replacement", forbidden_factory)
+
+    @classmethod
+    def idxdoc_to_sql(cls, cur, idxdoc, table, indexname, baddata_factory, conflict_factory, forbidden_factory):
+        cls.check_available(
+            cur,
+            table,
+            indexname,
+            conflict_factory,
+            forbidden_factory,
+        )
+
+        if not isinstance(idxdoc, dict):
+            raise baddata_factory('index creation input must be a JSON object')
+
+        require_mutual_exclusive = {'btree', 'trgm', 'gin_array'}
+        index_types = set(idxdoc.keys()).intersection(require_mutual_exclusive)
+        if len(index_types) != 1:
+            raise baddata_factory(f'index creation input must specify exactly one of {"/".join(require_mutual_exclusive)}')
+
+        index_type = index_types.pop()
+        index_want = idxdoc[index_type]
+
+        if isinstance(index_want, list):
+            if not all([ isinstance(e, str) for e in index_want ]):
+                raise baddata_factory(f"index creation field not understood {index_type}={index_want}")
+
+            for cname in index_want[1:]:
+                if cname not in table.columns:
+                    raise conflict_factory(f"index creation field {index_type} references unknown column {sql_identifier(cname)}")
+
+            base_cname = index_want[0]
+        else:
+            if not isinstance(index_want, str):
+                raise baddata_factory(f"index creation field not understood {index_type}={index_want}")
+            base_cname = index_want
+
+        if base_cname not in table.columns:
+            raise conflict_factory(f"index creation field {index_type} references unknown column {sql_identifier(base_cname)}")
+
+        base_column = table.columns[base_cname]
+
+        if index_type == 'btree':
+            sql = base_column.btree_index_sql(index_want, indexname)
+        elif index_type == 'trgm':
+            sql = base_column.pg_trgm_index_sql(index_want, indexname)
+        elif index_type == 'gin_array':
+            sql = base_column.pg_gin_array_index_sql(index_want, indexname)
+        else:
+            raise baddata_factory(f"unknown indexing preference field {index_type}")
+
+        if sql is None:
+            raise baddata_factory("desired index cannot be determined from input")
+
+        return sql
+
+    @classmethod
     def from_row(cls, table, row):
         sname, tname, iname, prim, uniq, excl, valid, ready, live, sqldef, sqlexprs = row
         return cls(
@@ -392,6 +454,179 @@ WHERE c."RID" = {sql_literal(column_rid)}
 
 class IndexHistorical (IndexABC):
     """Represent an index on a history table"""
+    @classmethod
+    def check_available(cls, cur, tname, indexname, conflict_factory, forbidden_factory):
+        for idx in cls.from_db_schema(cur, indexname):
+            if idx.tname != tname:
+                raise conflict_factory(f"Index name {indexname} in use on a different history table.")
+            else:
+                idx.check_conflicts("replacement", forbidden_factory)
+
+    # HACK: the following must be kept in sync with
+    # ermrest.model.types OOP methods which are written in terms of a
+    # catalog (or snapshot) model, rather than the longitudinal
+    # perspective we have to take here.  potential hazards:
+    #
+    # 1. a column that is altered to change type over time
+    # 2. a type RID that changes meaning over time (?)
+    #
+    @classmethod
+    def idxdoc_to_sql(cls, cur, idxdoc, table_rid, tname, syscol_rids, indexname, baddata_factory, conflict_factory, forbidden_factory):
+        syscol_rids_invert = {
+            rid: cname
+            for cname, rid in syscol_rids.items()
+        }
+        cls.check_available(cur, tname, indexname, conflict_factory, forbidden_factory)
+
+        # validate input idxdoc...
+        if not isinstance(idxdoc, dict):
+            raise baddata_factory('index creation input must be a JSON object')
+
+        require_mutual_exclusive = {'btree', 'trgm', 'gin_array'}
+        index_types = set(idxdoc.keys()).intersection(require_mutual_exclusive)
+        if len(index_types) != 1:
+            raise baddata_factory(f'index creation input must specify exactly one of {"/".join(require_mutual_exclusive)}')
+
+        index_type = index_types.pop()
+        index_want = idxdoc[index_type]
+
+        crid_typeinfo = {}
+
+        if isinstance(index_want, list):
+            if not len(index_want) > 0:
+                raise baddata_factory(f'index creation field not understood {index_type}={index_want}')
+
+            if not all([ isinstance(e, str) for e in index_want ]):
+                raise baddata_factory(f'index creation field not understood {index_type}={index_want}')
+
+            for crid in index_want[1:]:
+                crid_typeinfo[crid] = history_trid_crid_typeinfo(
+                    cur,
+                    table_rid,
+                    crid,
+                    conflict_factory,
+                    require_single_type=True,
+                )
+
+            base_crid = index_want[0]
+        elif isinstance(index_want, str):
+            base_crid = index_want
+        else:
+            raise baddata_factory(f"index creation field not understood {index_type}={index_want}")
+
+        crid_typeinfo[base_crid] = history_trid_crid_typeinfo(
+            cur,
+            table_rid,
+            base_crid,
+            conflict_factory,
+            require_single_type=True,
+        )
+
+        def basic_store_type(type_name):
+            return {
+                'serial2': 'int2',
+                'serial4': 'int4',
+                'serial8': 'int8',
+            }.get(type_name, type_name)
+
+        def is_array(crid):
+            type_name, elem_type_name = crid_typeinfo[crid]
+            return elem_type_name is not None
+
+        def is_indexable(crid):
+            type_name, elem_type_name = crid_typeinfo[crid]
+            if elem_type_name is not None:
+                elem_type_name = basic_store_type(type_name)
+                return elem_type_name != 'json'
+            else:
+                type_name = basic_store_type(type_name)
+                return type_name != 'json'
+
+        def history_projection(crid, cast=True):
+            # this type info already collapses domain types to underlying types
+            type_name, elem_type_name = crid_typeinfo[crid]
+            type_name = basic_store_type(type_name)
+
+            if elem_type_name is not None:
+                # use type-specific IMMUTABLE wrapper functions
+                elem_type_name = basic_store_type(elem_type_name)
+                target = {
+                    'text': 'text',
+                    'int2': 'int2',
+                    'smallint': 'int2',
+                    'int4': 'int4',
+                    'integer': 'int4',
+                    'int8': 'int8',
+                    'bigint': 'int8',
+                    'float4': 'float4',
+                    'real': 'float4',
+                    'float8': 'float8',
+                    'double precision': 'float8',
+                    'jsonb': 'jsonb',
+                    'json': 'json',
+                    'date': 'date',
+                    'boolean': 'boolean',
+                    'timestamp with time zone': 'timestamptz',
+                }.get(elem_type_name)
+                if target is None:
+                    raise conflict_factory(f"History column {crid} has unsupported type: array of {elem_type_name}")
+                return f"_ermrest.history_{target}_arr(rowdata->{sql_literal(crid)})"
+            else:
+                # scalar column
+                column_name = syscol_rids_invert.get(crid)
+                if column_name in {'RID', 'RMB'}:
+                    return sql_identifier(column_name)
+                elif column_name == 'RMT':
+                    return f"(lower(during))"
+                else:
+                    op = '->' if type_name == 'jsonb' else '->>'
+                    expr = f"rowdata{op}{sql_literal(crid)}"
+                    if not cast:
+                        return f"({expr})"
+                    elif type_name in {'timestamptz', 'timestamp with time zone'}:
+                        return f"(_ermrest.history_timestamptz({expr}))"
+                    elif type_name in {'date'}:
+                        return f"(_ermrest.history_date({expr}))"
+                    elif type_name in {'timestamp', 'timestamp without time zone'}:
+                        raise conflict_factory(f"History column {crid} has unsupported type: {type_name}")
+                    else:
+                        return f"(({expr})::{type_name})"
+
+        sql_parts = [
+            f"DROP INDEX IF EXISTS _ermrest_history.{sql_identifier(indexname)};",
+            f"CREATE INDEX {sql_identifier(indexname)} ON _ermrest_history.{sql_identifier(tname)}",
+            "USING btree (" if index_type == 'btree' else "USING GIN ("
+        ]
+
+        if index_type == 'trgm':
+            if not isinstance(index_want, str):
+                raise baddata_factory(f"Invalid compound index {index_type}={index_want}")
+            # everything gets cast to text
+            sql_parts.append(f"_ermrest.astext({history_projection(base_crid, cast=False)}) gin_trgm_ops")
+        elif index_type == 'gin_array':
+            if not isinstance(index_want, str):
+                raise baddata_factory(f"Invalid compound index {index_type}={index_want}")
+            if not is_array(base_crid) or not is_indexable(base_crid):
+                raise conflict_factory(f"Conflicting column type for index {index_type}={index_want}")
+            sql_parts.append(f"{history_projection(base_crid)} array_ops")
+        elif index_type == 'btree':
+            if base_crid == index_want:
+                index_want = [ base_crid ]
+
+            def btree_col(crid):
+                if not is_indexable(crid):
+                    raise conflict_factory(f"Conflicting column type for index {index_type}=...{crid}...")
+                return history_projection(crid)
+
+            sql_parts.append(', '.join([ btree_col(crid) for crid in index_want]))
+        else:
+            raise baddata_factory(f"Invalid index {index_type}={index_want}")
+
+        sql_parts.append(");")
+        sql_parts.append("SELECT _ermrest.model_version_bump();")
+        sql = "\n".join(sql_parts)
+        return sql
+
     @classmethod
     def from_row(cls, table_rid, syscol_rids, row):
         sname, tname, iname, prim, uniq, excl, valid, ready, live, sqldef, sqlexprs = row

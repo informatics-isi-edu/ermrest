@@ -1278,61 +1278,19 @@ class Index (Api):
     def PUT_body(self, conn, cur, idxdoc):
         table = self.table.GET_body(conn, cur)
         table.enforce_right('owner')
-
-        # check for conflicting use of indexname
-        for idx in IndexLive.from_db_schema(cur, table.schema.name,  self.indexname.one_str()):
-            if idx.tname != table.name:
-                raise exception.ConflictModel(f"index name {idx.indexname!r} in use on table {table.schema.name!r}.{table.name!r}")
-            else:
-                idx.check_conflicts("replacement", exception.Forbidden)
-
-        if not isinstance(idxdoc, dict):
-            raise exception.BadData('index creation input must be a JSON object')
-
-        require_mutual_exclusive = {'btree', 'trgm', 'gin_array'}
-        index_types = set(idxdoc.keys()).intersection(require_mutual_exclusive)
-        if len(index_types) != 1:
-            raise exception.BadData(f'index creation input must specify exactly one of {"/".join(require_mutual_exclusive)}')
-
-        index_type = index_types.pop()
-        index_want = idxdoc[index_type]
-
-        if isinstance(index_want, list):
-            if not all([ isinstance(e, str) for e in index_want ]):
-                raise exception.BadData(f"index creation field not understood {index_type}={index_want}")
-
-            for cname in index_want[1:]:
-                if cname not in table.columns:
-                    raise exception.Conflict(f"index creation field {index_type} references unknown column {sql_identifier(cname)}")
-
-            base_cname = index_want[0]
-        else:
-            if not isinstance(index_want, str):
-                raise exception.BadData(f"index creation field not understood {index_type}={index_want}")
-            base_cname = index_want
-
-        if base_cname not in table.columns:
-            raise exception.Conflict(f"index creation field {index_type} references unknown column {sql_identifier(base_cname)}")
-
-        base_column = table.columns[base_cname]
-        indexname = self.indexname.one_str()
-
-        if index_type == 'btree':
-            sql = base_column.btree_index_sql(index_want, indexname)
-        elif index_type == 'trgm':
-            sql = base_column.pg_trgm_index_sql(index_want, indexname)
-        elif index_type == 'gin_array':
-            sql = base_column.pg_gin_array_index_sql(index_want, indexname)
-        else:
-            raise exception.BadData(f"unknown indexing preference field {index_type}")
-
-        if sql is None:
-            raise exception.BadData("desired input cannot be determined from input")
-
+        sql = IndexLive.idxdoc_to_sql(
+            cur,
+            idxdoc,
+            table,
+            self.indexname.one_str(),
+            exception.BadData,
+            exception.ConflictModel,
+            exception.Forbidden,
+        )
         cur.execute(sql)
         cur.execute("SELECT _ermrest.model_version_bump();") # for caching/etag safety
         # return representation of the newly created index
-        return IndexLive.from_db_single(cur, table, indexname)
+        return IndexLive.from_db_single(cur, table, self.indexname.one_str())
 
     def PUT(self, uri):
         def post_commit(self, idx):
