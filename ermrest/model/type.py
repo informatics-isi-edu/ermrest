@@ -283,12 +283,19 @@ class Type (object):
             return raw
 
     def history_projection(self, c):
+        # be careful to use IMMUTABLE expressions
         if c.name in {'RID','RMB'}:
-            return 'h.%s::%s' % (sql_identifier(c.name), self.sql(basic_storage=True))
+            return 'h.%s' % (sql_identifier(c.name),)
         elif c.name == 'RMT':
-            return 'lower(h.during)::%s AS "RMT"' % self.sql(basic_storage=True)
-        elif self.name in {'json','jsonb'}:
-            return '(h.rowdata->%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
+            return 'lower(h.during) AS "RMT"'
+        elif self.name == 'jsonb':
+            return '(h.rowdata->%s) AS %s' % (sql_literal(c.rid), c.sql_name())
+        elif self.name == 'json':
+            return '(h.rowdata->%s)::json AS %s' % (sql_literal(c.rid), c.sql_name())
+        elif self.name in {'timestamptz', 'timestamp with time zone'}:
+            return '(_ermrest.history_timestamptz(h.rowdata->>%s)) AS %s' % (sql_literal(c.rid), c.sql_name())
+        elif self.name in {'date'}:
+          return '(_ermrest.history_date(h.rowdata->>%s)) AS %s' % (sql_literal(c.rid), c.sql_name())
         else:
             return '(h.rowdata->>%s)::%s AS %s' % (sql_literal(c.rid), self.sql(basic_storage=True), c.sql_name())
 
@@ -325,18 +332,29 @@ class ArrayType(Type):
             return self.base_type.default_value(raw)
 
     def history_projection(self, c):
-        # json storage can be `null` or `[...]` for this type
-        return (
-            "CASE"
-            " WHEN jsonb_typeof(%(jfield)s) = 'null' THEN NULL"
-            " ELSE (SELECT array_agg(e.x::%(base_type)s) FROM jsonb_array_elements_text(%(jfield)s) e(x))"
-            " END AS %(fname)s"
-        ) % {
-            'jfield': "(h.rowdata->'%s')" % c.rid,
-            'array_type': self.sql(basic_storage=True),
-            'base_type': self.base_type.sql(basic_storage=True),
-            'fname': c.sql_name(),
-        }
+        jfield = "(h.rowdata->'%s')" % c.rid
+        base_type = self.base_type.sql(basic_storage=True)
+        fname = c.sql_name()
+        # use IMMUTABLE wrapper funcs to convert JSONB value to array type
+        target = {
+            'text': 'text',
+            'int2': 'int2',
+            'smallint': 'int2',
+            'int4': 'int4',
+            'integer': 'int4',
+            'int8': 'int8',
+            'bigint': 'int8',
+            'float4': 'float4',
+            'real': 'float4',
+            'float8': 'float8',
+            'double precision': 'float8',
+            'jsonb': 'jsonb',
+            'json': 'json',
+            'timestamp with time zone': 'timestamptz',
+            'date': 'date',
+            'boolean': 'boolean',
+        }.get(base_type, 'text')
+        return f"_ermrest.history_{target}_arr({jfield}) AS {fname}"
 
 class DomainType(Type):
     """Represents a domain type."""

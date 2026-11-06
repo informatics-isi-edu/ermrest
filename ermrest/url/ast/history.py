@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2017-2025 University of Southern California
+# Copyright 2017-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ from ...model.table import Table
 from ...model.column import Column
 from ...model.key import KeyReference, PseudoKeyReference
 from ... import exception
-from ...util import sql_literal, sql_identifier, table_exists
+from ...util import sql_literal, sql_identifier, table_exists, drop_index, IndexHistorical, history_trid_syscol_rids, history_trid_crid_typeinfo
 from .api import Api
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v):
@@ -108,7 +108,8 @@ SELECT GREATEST(
 
 def _etag(cur):
     """Get current history ETag during request processing."""
-    h_from, h_until = deriva_ctx.ermrest_history_snaprange
+    h_from, h_until = deriva_ctx.ermrest_history_snaprange if deriva_ctx.ermrest_history_snaprange else (None, None)
+
     cur.execute(("SELECT _ermrest.tstzencode( GREATEST( %(h_until)s::timestamptz, (" + _RANGE_AMENDVER_SQL + ")) );") % {
         'h_from': sql_literal(h_from),
         'h_until': sql_literal(h_until),
@@ -129,7 +130,7 @@ def _GET(handler, thunk, _post_commit):
 def _MODIFY(handler, thunk, _post_commit):
     def body(conn, cur):
         handler.enforce_right('owner')
-        h_from, h_until = deriva_ctx.ermrest_history_snaprange
+        h_from, h_until = deriva_ctx.ermrest_history_snaprange if deriva_ctx.ermrest_history_snaprange else (None, None)
         amendver = deriva_ctx.ermrest_history_amendver
         # this is the ETag at start of request processing
         handler.set_http_etag(_etag(cur))
@@ -672,3 +673,109 @@ class ConfigHistory (Api):
 
     def PUT(self, uri):
         return _MODIFY_with_json_input(self, self.PUT_body, _post_commit)
+
+class HistoryTables:
+    """Represents set of history tables
+
+       URL: /ermrest/catalog/N/history/table/
+
+    """
+    def __init__(self, catalog):
+        assert deriva_ctx.ermrest_history_snaprange is None
+        self.catalog = catalog
+
+    def with_trid(self, table_rid):
+        return HistoryTable(self.catalog, table_rid)
+
+class HistoryTable:
+    """Represents one history table
+
+       URL: /ermrest/catalog/N/history/table/
+
+    """
+    def __init__(self, catalog, table_rid):
+        self.catalog = catalog
+        self.table_rid = table_rid
+
+    def indexing(self):
+        return HistoryTableIndexing(self.catalog, self.table_rid)
+
+class HistoryTableIndexing (Api):
+    """Represents data history resources.
+
+       URL1: /ermrest/catalog/N/history/table/TRID/index/
+       URL2: /ermrest/catalog/N/history/table/TRID/index/INAME
+
+    """
+    def __init__(self, catalog, table_rid):
+        Api.__init__(self, catalog)
+        assert deriva_ctx.ermrest_history_snaprange is None
+        self.table_rid = table_rid
+        self.index_name = None
+        if deriva_ctx.ermrest_history_snaptime is not None:
+            raise exception.rest.NotFound('History table index management on a versioned catalog snapshot.')
+
+    def with_name(self, index_name):
+        assert self.index_name is None
+        self.index_name = index_name
+        return self
+
+    def _check_trid(self, cur):
+        return history_trid_syscol_rids(cur, self.table_rid, exception.rest.NotFound)
+
+    def GET_body(self, conn, cur):
+        self.enforce_right('owner')
+        tname, syscol_rids = self._check_trid(cur)
+        idxlist = IndexHistorical.from_db_table(cur, self.table_rid, tname, syscol_rids, self.index_name)
+
+        if self.index_name is not None:
+            if not idxlist:
+                raise exception.rest.NotFound(f'Index {sql_identifier(self.index_name)} on history table with RID={self.table_rid}.')
+            assert len(idxlist) == 1, f"oops: len({idxlist}) != 1 for {self.index_name}"
+            return idxlist[0]
+        else:
+            return idxlist
+
+    def GET(self, uri):
+        def post_commit(handler, result):
+            if isinstance(result, list):
+                resource = [ idx.to_dict() for idx in result ]
+            else:
+                resource = result.to_dict()
+            return _post_commit_json(handler, [resource, resource])
+        return _GET(self, self.GET_body, post_commit)
+
+    def PUT_body(self, conn, cur, idxdoc):
+        assert self.index_name is not None
+        self.enforce_right("owner")
+        tname, syscol_rids = self._check_trid(cur)
+        sql = IndexHistorical.idxdoc_to_sql(
+            cur,
+            idxdoc,
+            self.table_rid,
+            tname,
+            syscol_rids,
+            self.index_name,
+            exception.BadData,
+            exception.ConflictModel,
+            exception.Forbidden,
+        )
+        cur.execute(sql)
+        return IndexHistorical.from_db_single(cur, self.table_rid, tname, syscol_rids, self.index_name).to_dict()
+
+    def PUT(self, uri):
+        def post_commit(handler, resource):
+            return _post_commit_json(handler, [resource, resource])
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
+
+    def DELETE_body(self, conn, cur):
+        if self.index_name is None:
+            raise exception.rest.NoMethod('DELETE requires a specific index-name')
+
+        idx = self.GET_body(conn, cur)
+        idx.check_conflicts("deletion", exception.Forbidden)
+        drop_index(cur, '_ermrest_history', self.index_name)
+        return ''
+
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)

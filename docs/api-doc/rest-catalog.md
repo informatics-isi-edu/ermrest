@@ -44,6 +44,7 @@ Known feature flags at time of writing of this document:
 - `catalog_post_input`: The POST `/ermrest/catalog` method accepts JSON input to customize the catalog ID or initial owner ACL.
 - `catalog_alias`: The `/ermrest/alias` resource space and related catalog aliasing features are available.
 - `indexing_preferences`: Service supports `tag:isrd.isi.edu:2018,indexing-preferences` annotations to influence index construction during table or model provisioning requests.
+- `index_management`: Service supports `/index/` sub-apis on live tables and history tables. Supported index-types are listed in the `index_management` document.
 - `quantified_value_lists`: Service supports `all(...)` and `any(...)` URL syntax for lists of values as query predicate right-hand side values.
 - `quantified_rid_lists`: Service supports `RID=all(...)` and `RID=any(...)`, a bug-fix to the `quantified_value_lists` feature.
 - `rid_lease`: Service supports `?nondefaults=RID` for POST operations on the `/entity/` API by clients who are not catalog owners. Such use is limited to the rules described for [Entity Creation with Defaults](data/rest.md#entity-creation-with-defaults).

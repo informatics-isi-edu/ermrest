@@ -1,6 +1,6 @@
 
 # 
-# Copyright 2013-2023 University of Southern California
+# Copyright 2013-2026 University of Southern California
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ from webauthn2.util import deriva_ctx, deriva_debug
 from ... import exception
 from ... import model
 from .api import Api
-from ...util import OrderedFrozenSet
+from ...util import OrderedFrozenSet, drop_index, IndexLive
 
 def _post_commit(handler, resource, content_type='text/plain', transform=lambda v: v, skip_body=False):
     handler.emit_headers()
@@ -757,6 +757,14 @@ class Table (Api):
         """A specific foreign key for this table."""
         return Foreignkey(self, column_set, catalog=self.catalog)
 
+    def indexes(self):
+        """The index set for this table."""
+        return Indexes(self)
+
+    def index(self, indexname):
+        """A specific index for this table."""
+        return Index(self, indexname)
+
     def HEAD(self, uri):
         return self.GET(uri, skip_body=True)
 
@@ -1206,3 +1214,86 @@ class ForeignkeyReferences (Api):
             return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
         else:
             raise exception.rest.NoMethod()
+
+class Indexes (Api):
+    """An index set (on a specific table)."""
+    def __init__(self, table):
+        Api.__init__(self, table.schema.catalog)
+        self.table = table
+
+    def index(self, name):
+        """A specific index for this table."""
+        return self.table.index(name)
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        table.enforce_right('owner')
+        return IndexLive.from_db_table(cur, table)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, idxlist):
+            resource = [ idx.to_dict() for idx in idxlist ]
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
+
+class Index (Api):
+    """An index (on a specific table)."""
+    def __init__(self, table, indexname):
+        Api.__init__(self, table.schema.catalog)
+        self.table = table
+        self.indexname = indexname
+
+    def GET_body(self, conn, cur):
+        table = self.table.GET_body(conn, cur)
+        table.enforce_right('owner')
+        idx = IndexLive.from_db_single(cur, table, self.indexname.one_str())
+
+        if idx is None:
+            raise exception.NotFound(f'index {self.indexname} on table {table}')
+
+        return idx
+
+    def HEAD(self, uri):
+        return self.GET(uri, skip_body=True)
+
+    def GET(self, uri, skip_body=False):
+        def post_commit(handler, idx):
+            resource = idx.to_dict()
+            return _post_commit_json(handler, resource, skip_body=skip_body)
+        return _GET(self, self.GET_body, post_commit)
+
+    def DELETE_body(self, conn, cur):
+        idx = self.GET_body(conn, cur)
+        idx.check_conflicts("deletion", exception.Forbidden)
+        resource = idx.to_dict()
+        drop_index(cur, self.table.schema.name.one_str(), self.indexname.one_str())
+        return ''
+
+    def DELETE(self, uri):
+        return _MODIFY(self, self.DELETE_body, _post_commit)
+
+    def PUT_body(self, conn, cur, idxdoc):
+        table = self.table.GET_body(conn, cur)
+        table.enforce_right('owner')
+        sql = IndexLive.idxdoc_to_sql(
+            cur,
+            idxdoc,
+            table,
+            self.indexname.one_str(),
+            exception.BadData,
+            exception.ConflictModel,
+            exception.Forbidden,
+        )
+        cur.execute(sql)
+        cur.execute("SELECT _ermrest.model_version_bump();") # for caching/etag safety
+        # return representation of the newly created index
+        return IndexLive.from_db_single(cur, table, self.indexname.one_str())
+
+    def PUT(self, uri):
+        def post_commit(self, idx):
+            resource = idx.to_dict()
+            return _post_commit_json(self, resource)
+        return _MODIFY_with_json_input(self, self.PUT_body, post_commit)
