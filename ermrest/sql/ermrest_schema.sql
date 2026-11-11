@@ -132,6 +132,20 @@ CREATE OR REPLACE FUNCTION _ermrest.history_float8_arr(jsonb) RETURNS float8[] I
   END;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION _ermrest.history_uuid_arr(jsonb) RETURNS uuid[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::uuid) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_interval_arr(jsonb) RETURNS interval[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::interval) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
 $$ LANGUAGE SQL;

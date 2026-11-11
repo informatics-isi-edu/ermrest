@@ -21,9 +21,9 @@ import re
 from webauthn2.util import deriva_ctx, deriva_debug
 
 from .. import exception
-from ..util import sql_identifier, sql_literal
+from ..util import sql_identifier, sql_literal, is_indexable, is_history_indexable
 from .type import tsvector_type, Type
-from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, make_id, sufficient_rights, get_dynacl_clauses
+from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, sufficient_rights, get_dynacl_clauses
 
 @annotatable
 @hasdynacls({ "owner", "update", "delete", "select" })
@@ -134,13 +134,13 @@ SELECT _ermrest.model_version_bump();
         return self.type.is_array
 
     def is_indexable(self):
-        typ = self.type
-        while (typ.is_array or typ.is_domain):
-            typ = typ.base_type
-        return typ.name != 'json'
+        return is_indexable(self.type)
+
+    def is_history_indexable(self):
+        return is_history_indexable(self.type)
 
     def want_index(self, index_type, default=True):
-        """Return True if we prefer to have index, False if not."""
+        """Return cname list if we prefer to have index, False if not."""
         def get_prefs(*subjects):
             preferences = dict()
             for subject in subjects:
@@ -152,114 +152,33 @@ SELECT _ermrest.model_version_bump();
 
         preferences = get_prefs(self.table.schema.model, self.table.schema, self.table, self)
         want = preferences.get(index_type, default)
+        if want is False:
+            return False
 
-        if isinstance(want, list):
-            # always build custom index spec
-            return want
-        elif index_type == 'btree':
-            for unique in self.table.uniques.values():
-                if self not in unique.columns:
-                    continue
-                if next(iter(unique.columns)) is self:
-                    # can use UNIQUE btree(self, ...)
-                    return False
-            for colset, fk in self.table.fkeys.items():
-                if self not in colset:
-                    continue
-                for fkr in fk.references.values():
-                    fk_cols, pk_cols = fkr._fk_pk_cols_ordered()
-                    if fk_cols[0] is self:
-                        # as lead column for fkey, build fkey index
-                        return [ c.name for c in fk_cols ]
-        # default handling
+        if want is True:
+            want = [ self.name ]
+
+        if isinstance(want, str):
+            want = [ want ]
+
+        if not isinstance(want, list):
+            raise ValueError(want)
+
+        condition = {
+            'btree': lambda col: col.is_indexable(),
+            'trgm': lambda col: col.istext(),
+            'gin_array': lambda col: (col.is_array() and col.is_indexable()),
+        }[index_type]
+
+        for cname in want:
+            if not isinstance(cname, str) \
+               or not cname in self.table.columns:
+                raise ValueError(want)
+
+            if not all([ condition(self.table.columns[cname]) for cname in want ]):
+                raise ValueError(want)
+
         return want
-
-    def btree_index_sql(self, want=None, indexname=None):
-        """Return SQL to construct a single-column btree index or None if not necessary.
-
-           An index is not necessary if the column forms a
-           single-column key already and therefore has an implicitly
-           created index.
-
-        """
-        want = self.want_index('btree') if want is None else want
-
-        if not want:
-            return None
-
-        cols = [ self ]
-        if isinstance(want, list):
-            try:
-                cols = [ self.table.columns[cname] for cname in want ]
-            except KeyError:
-                deriva_debug('WARNING: using default column index for %s due to invalid custom btree index spec %r' % (self, want))
-
-        for col in cols:
-            if not col.is_indexable():
-                return None
-
-        index1 = indexname if indexname is not None else make_id(self.table.name, self.name, 'idx')
-        index2 = indexname if indexname is not None else make_id(self.table.name, [ c.name for c in cols ], 'idx')
-
-        return """
-DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-DROP INDEX IF EXISTS %(schema)s.%(index2)s ;
-CREATE INDEX %(index2)s ON %(schema)s.%(table)s ( %(columns)s ) ;
-""" % {
-    "schema": sql_identifier(self.table.schema.name),
-    "table": sql_identifier(self.table.name),
-    "columns": ', '.join([ sql_identifier(c.name) for c in cols ]),
-    "index": sql_identifier(index1),
-    "index2": sql_identifier(index2),
-}
-
-    def pg_gin_opclass_index_sql(self, opclass, val_template=None, indexname=None):
-        """Return SQL to construct GIN index w/ opclass or None if not necessary.
-
-        """
-        idx_val = self.sql_name()
-        if val_template:
-            idx_val = val_template % (idx_val,)
-
-        idx_name_part = {
-            'gin_trgm_ops': 'pgtrgm',
-            'array_ops': 'arr',
-        }.get(opclass, opclass)
-
-        index1 = indexname if indexname is not None else make_id(self.table.name, self.name, idx_name_part, 'idx')
-
-        return """
-DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-CREATE INDEX %(index)s ON %(schema)s.%(table)s USING gin ( %(index_val)s %(opclass)s ) ;
-""" % dict(schema=sql_identifier(self.table.schema.name),
-           table=sql_identifier(self.table.name),
-           index_val=idx_val,
-           index=sql_identifier(index1),
-           opclass=opclass,
-       )
-
-    def pg_trgm_index_sql(self, want=None, indexname=None):
-        """Return SQL to construct single-column tri-gram index or None if not necessary.
-
-           An index is not necessary if the column is not a textual
-           column.
-
-        """
-        want = self.want_index('trgm') if want is None else want
-        if self.istext() and want:
-            return self.pg_gin_opclass_index_sql('gin_trgm_ops', '_ermrest.astext(%s)', indexname)
-        else:
-            return None
-
-    def pg_gin_array_index_sql(self, want=None, indexname=None):
-        """Return SQL to construct single-column GIN array index or None if not necessary.
-
-        """
-        want = self.want_index('gin_array', default=False) if want is None else want
-        if self.is_array() and self.is_indexable() and want:
-            return self.pg_gin_opclass_index_sql('array_ops', indexname=indexname)
-        else:
-            return None
 
     def sql_def(self):
         """Render SQL column clause for managed table DDL."""
@@ -613,22 +532,3 @@ class FreetextColumn (Column):
 
     def is_star_column(self):
         return True
-
-    def textsearch_index_sql(self):
-        # drop legacy index
-        return """
-DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-""" % dict(
-    schema=sql_identifier(self.table.schema.name),
-    index=sql_identifier(make_id(self.table.name, '_tsvector', 'idx')),
-)
-
-    def pg_trgm_index_sql(self):
-        # drop legacy index
-        return """
-DROP INDEX IF EXISTS %(schema)s.%(index)s ;
-""" % dict(
-    schema=sql_identifier(self.table.schema.name),
-    index=sql_identifier(make_id(self.table.name, '_pgtrgm', 'idx')),
-)
-

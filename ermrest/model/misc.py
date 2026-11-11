@@ -16,12 +16,10 @@
 #
 
 import json
-import hashlib
-import base64
 from webauthn2.util import deriva_ctx
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, table_exists, constraint_exists
+from ..util import sql_identifier, sql_literal, table_exists
 from .. import ermpath
 from .type import _default_config
 from .name import Name
@@ -46,98 +44,6 @@ def enforce_63byte_id(s, prefix="Identifier"):
         raise exception.BadData(u'%s "%s" "%s" is unsupported and should be unicode string.' % (prefix, s, type(s)))
     if len(s.encode('utf8')) > 63:
         raise exception.BadData(u'%s "%s" exceeded 63-byte limit when encoded as UTF-8.' % (prefix, s))
-
-def make_id(*components):
-    """Build an identifier that will be OK for ERMrest and Postgres.
-
-    Naively, append as '_'.join(components).
-
-    Fallback to heuristics mixing truncation with short hashes.
-    """
-    # accept lists at top-level for convenience (compound keys, etc.)
-    expanded = []
-    for e in components:
-        if isinstance(e, (list, tuple)):
-            expanded.extend(e)
-        else:
-            expanded.append(e)
-
-    # prefer to use naive name as requested
-    naive_result = '_'.join(expanded)
-    naive_len = len(naive_result.encode('utf8'))
-    if naive_len <= 63:
-        return naive_result
-
-    # we'll need to truncate and hash in some way...
-    def hash(s, nbytes):
-        return base64.urlsafe_b64encode(hashlib.md5(s.encode('utf8')).digest()).decode()[0:nbytes]
-
-    def truncate(s, maxlen):
-        encoded_len = len(s.encode('utf8'))
-        # we need to chop whole (unicode) chars but test encoded byte lengths!
-        for i in range(max(1, len(s) - maxlen), len(s) - 1):
-            result = s[0:-1 * i].rstrip()
-            if len(result.encode('utf8')) <= (maxlen - 2):
-                return result + '..'
-        return s
-
-    naive_hash = hash(naive_result, 5)
-    parts = [
-        (i, expanded[i])
-        for i in range(len(expanded))
-    ]
-
-    # try to find a solution truncating individual fields
-    for maxlen in [15, 12, 9]:
-        parts.sort(key=lambda p: (len(p[1].encode('utf8')), p[0]), reverse=True)
-        for i in range(len(parts)):
-            idx, part = parts[i]
-            if len(part.encode('utf8')) > maxlen:
-                parts[i] = (idx, truncate(part, maxlen))
-            candidate_result = '_'.join([
-                p[1]
-                for p in sorted(parts, key=lambda p: p[0])
-            ] + [naive_hash])
-            if len(candidate_result.encode('utf8')) < 63:
-                return candidate_result
-
-    # fallback to truncating original naive name
-    # try to preserve suffix and trim in middle
-    result = ''.join([
-        truncate(naive_result, len(naive_result)//3),
-        naive_result[-len(naive_result)//3:],
-        '_',
-        naive_hash
-    ])
-    if len(result.encode('utf8')) <= 63:
-        return result
-
-    # last-ditch (e.g. multibyte unicode suffix worst case)
-    return truncate(naive_result, 55) + naive_hash
-
-def make_constraint_name(cur, *parts, probefunc=constraint_exists):
-    """Build an identifier that won't collide with any existing constraint names
-
-    :param cur: Cursor to database to probe for name collisions
-    :param parts: Ordered list of strings or lists of strings to join with '_' to form name
-    :param probefunc: Function to probe the database cursor for an existing name
-
-    The final element parts[-1] must be of type str.
-    
-    The probefunc signature is probefunc(cursor, namestr) -> bool.
-    """
-    n = None
-    while True:
-        suffix = parts[-1]
-        if not isinstance(suffix, str):
-            raise NotImplementedError('make_constraint_name expects string suffix as final argument')
-        name = make_id(*parts[:-1], ('%s%d' % (suffix, n) if n else suffix))
-        if not probefunc(cur, name):
-            return name
-        if n is None:
-            n = 1
-        else:
-            n += 1
 
 sufficient_rights = {
     "owner": set(),

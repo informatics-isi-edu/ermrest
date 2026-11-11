@@ -18,7 +18,7 @@
 import re
 import json
 
-from ..util import sql_identifier, sql_literal
+from ..util import sql_identifier, sql_literal, array_type_helper_name
 from .. import exception
 
 # only to allow module to be used outside normal service context
@@ -336,25 +336,8 @@ class ArrayType(Type):
         base_type = self.base_type.sql(basic_storage=True)
         fname = c.sql_name()
         # use IMMUTABLE wrapper funcs to convert JSONB value to array type
-        target = {
-            'text': 'text',
-            'int2': 'int2',
-            'smallint': 'int2',
-            'int4': 'int4',
-            'integer': 'int4',
-            'int8': 'int8',
-            'bigint': 'int8',
-            'float4': 'float4',
-            'real': 'float4',
-            'float8': 'float8',
-            'double precision': 'float8',
-            'jsonb': 'jsonb',
-            'json': 'json',
-            'timestamp with time zone': 'timestamptz',
-            'date': 'date',
-            'boolean': 'boolean',
-        }.get(base_type, 'text')
-        return f"_ermrest.history_{target}_arr({jfield}) AS {fname}"
+        helper = array_type_helper_name(base_type, default='text')
+        return f"{helper}({jfield}) AS {fname}"
 
 class DomainType(Type):
     """Represents a domain type."""

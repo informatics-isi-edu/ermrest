@@ -18,14 +18,13 @@
 General utilities for ERMREST.
 """
 
-# Right now these are all DB related utilities. We should keep it that way.
-
 import re
+import hashlib
 import urllib
 import uuid
 import base64
 import collections
-from webauthn2.util import urlquote
+from webauthn2.util import urlquote, deriva_debug
 
 __version__ = '0.5.0'
 
@@ -61,7 +60,7 @@ def table_exists(cur, schemaname, tablename):
     cur.execute("""
 SELECT * FROM information_schema.tables
 WHERE table_schema = %(schema)s
-AND table_name = %(table)s
+    AND table_name = %(table)s
 """
                      % dict(schema=sql_literal(schemaname),
                             table=sql_literal(tablename))
@@ -83,6 +82,395 @@ WHERE table_schema = %(schema)s
     )
     exists = cur.rowcount > 0
     return exists
+
+def index_exists(cur, schemaname, indexname):
+    for row in enumerate_indexes(cur, schemaname, None, indexname):
+        return True
+    return False
+
+def constraint_exists(cur, constraintname):
+    cur.execute("SELECT * FROM pg_catalog.pg_constraint WHERE conname = %s" % sql_literal(constraintname))
+    return cur.rowcount > 0
+
+def make_id(*components):
+    """Build an identifier that will be OK for ERMrest and Postgres.
+
+    Naively, append as '_'.join(components).
+
+    Fallback to heuristics mixing truncation with short hashes.
+    """
+    # accept lists at top-level for convenience (compound keys, etc.)
+    expanded = []
+    for e in components:
+        if isinstance(e, (list, tuple)):
+            expanded.extend(e)
+        else:
+            expanded.append(e)
+
+    # prefer to use naive name as requested
+    naive_result = '_'.join(expanded)
+    naive_len = len(naive_result.encode('utf8'))
+    if naive_len <= 63:
+        return naive_result
+
+    # we'll need to truncate and hash in some way...
+    def hash(s, nbytes):
+        return base64.urlsafe_b64encode(hashlib.md5(s.encode('utf8')).digest()).decode()[0:nbytes]
+
+    def truncate(s, maxlen):
+        encoded_len = len(s.encode('utf8'))
+        # we need to chop whole (unicode) chars but test encoded byte lengths!
+        for i in range(max(1, len(s) - maxlen), len(s) - 1):
+            result = s[0:-1 * i].rstrip()
+            if len(result.encode('utf8')) <= (maxlen - 2):
+                return result + '..'
+        return s
+
+    naive_hash = hash(naive_result, 5)
+    parts = [
+        (i, expanded[i])
+        for i in range(len(expanded))
+    ]
+
+    # try to find a solution truncating individual fields
+    for maxlen in [15, 12, 9]:
+        parts.sort(key=lambda p: (len(p[1].encode('utf8')), p[0]), reverse=True)
+        for i in range(len(parts)):
+            idx, part = parts[i]
+            if len(part.encode('utf8')) > maxlen:
+                parts[i] = (idx, truncate(part, maxlen))
+            candidate_result = '_'.join([
+                p[1]
+                for p in sorted(parts, key=lambda p: p[0])
+            ] + [naive_hash])
+            if len(candidate_result.encode('utf8')) < 63:
+                return candidate_result
+
+    # fallback to truncating original naive name
+    # try to preserve suffix and trim in middle
+    result = ''.join([
+        truncate(naive_result, len(naive_result)//3),
+        naive_result[-len(naive_result)//3:],
+        '_',
+        naive_hash
+    ])
+    if len(result.encode('utf8')) <= 63:
+        return result
+
+    # last-ditch (e.g. multibyte unicode suffix worst case)
+    return truncate(naive_result, 55) + naive_hash
+
+def make_unique_name(cur, *parts, probefunc=constraint_exists):
+    """Build an identifier that won't collide with any existing names
+
+    :param cur: Cursor to database to probe for name collisions
+    :param parts: Ordered list of strings or lists of strings to join with '_' to form name
+    :param probefunc: Function to probe the database cursor for an existing name
+
+    The final element parts[-1] must be of type str.
+
+    The probefunc signature is probefunc(cursor, namestr) -> bool.
+    """
+    n = None
+    while True:
+        suffix = parts[-1]
+        if not isinstance(suffix, str):
+            raise NotImplementedError('make_unique_name expects string suffix as final argument')
+        name = make_id(*parts[:-1], ('%s%d' % (suffix, n) if n else suffix))
+        if not probefunc(cur, name):
+            return name
+        if n is None:
+            n = 1
+        else:
+            n += 1
+
+def make_index_name(cur, *parts, schemaname=None):
+    assert schemaname is not None
+    return make_unique_name(
+        cur,
+        *parts,
+        probefunc=lambda cur, namestr: index_exists(cur, schemaname, namestr),
+    )
+
+class IndexStructureMatcher:
+    """Utility for best-effort index creation structural idempotence checks
+
+    it is the caller's responsibility to supply index info from only
+    one table.
+
+    """
+    def __init__(self, existing):
+        self.by_type = {}
+        for idx in existing:
+            if idx.definition:
+                # should only be one, but this is an easy way to unpack
+                for index_type, index_want in idx.definition.items():
+                    index_want = tuple(index_want) if isinstance(index_want, list) else (index_want,)
+                    self.by_type.setdefault(index_type, set()).add(index_want)
+
+    def exists(self, idxdoc):
+        # should only be one, but this is an easy way to unpack
+        for index_type, index_want1 in idxdoc.items():
+            for index_want2 in self.by_type.get(index_type, set()):
+                if index_want1 == index_want2[:len(index_want1)]:
+                    return True
+        return False
+
+    def add(self, idxdoc):
+        # should only be one, but this is an easy way to unpack
+        for index_type, index_want in idxdoc.items():
+            index_want = tuple(index_want) if isinstance(index_want, list) else (index_want,)
+            self.by_type.setdefault(index_type, set()).add(index_want)
+
+def reduce_typed_target(target):
+    if hasattr(target, 'table') and hasattr(target, 'type'):
+        # duck-type test for model.column.Column class!
+        target = target.type
+    if hasattr(target, 'is_array') and hasattr(target, 'is_domain') and hasattr(target, 'name'):
+        # duck-type test for model.type.Type class!
+        while (target.is_array or target.is_domain):
+            target = target.base_type
+        target = target.name
+    if isinstance(target, str):
+        return {
+            'serial2': 'int2',
+            'serial4': 'int4',
+            'serial8': 'int8',
+        }.get(target, target)
+    else:
+        raise ValueError(f'unexpected typed target {target=}')
+
+def array_type_helper_name(target, unknown_factory=KeyError, default=None):
+    targetbase = reduce_typed_target(target)
+    mapper = {
+        'text': 'text',
+        'int2': 'int2',
+        'smallint': 'int2',
+        'int4': 'int4',
+        'integer': 'int4',
+        'int8': 'int8',
+        'bigint': 'int8',
+        'float4': 'float4',
+        'real': 'float4',
+        'float8': 'float8',
+        'double precision': 'float8',
+        'uuid': 'uuid',
+        'json': 'json',
+        'jsonb': 'jsonb',
+        'date': 'date',
+        'boolean': 'boolean',
+        'timestamp with time zone': 'timestamptz',
+    }
+    helper = mapper.get(targetbase, default)
+    if helper is None:
+        raise unknown_factory(f"unsupported type: array of {target}")
+    return f"_ermrest.history_{helper}_arr"
+
+def is_indexable(target):
+    target = reduce_typed_target(target)
+    return target not in {'json',}
+
+def is_history_indexable(target):
+    target = reduce_typed_target(target)
+    return target not in {
+        'json',
+        'timestamp',
+        'timestamp without time zone',
+        'time',
+        'time without time zone',
+        'timetz',
+        'time with time zone',
+        'interval',
+    }
+
+class IndexPlanner:
+    """Utility to plan indexes for a table"""
+    def __init__(self, cur, table):
+        self.table = table
+        self.existing_live = IndexLive.matcher_from_db_table(cur, table)
+        try:
+            self.hist_tname = history_table_existing(cur, table.rid, KeyError)
+            self.syscol_rids = {
+                'RID': table.columns['RID'].rid,
+                'RMB': table.columns['RMB'].rid,
+                'RMT': table.columns['RMT'].rid,
+            }
+            self.existing_hist = IndexHistorical.matcher_from_db_table(
+                cur,
+                self.table.rid,
+                self.hist_tname,
+                self.syscol_rids
+            )
+        except KeyError:
+            # history disabled
+            self.existing_hist = False
+            self.hist_tname = None
+
+    def create_column_indexes(self, cur, column):
+        assert column.table == self.table
+        for index_type, suffix in [
+                ('btree', None),
+                ('trgm', 'trgm'),
+                ('gin_array', 'arr'),
+        ]:
+            try:
+                want = column.want_index(index_type, [column.name])
+            except ValueError as e:
+                # skip if configured preference is malformed
+                continue
+
+            if not want:
+                # skip if configured preference is falsish
+                continue
+
+            if index_type in {'btree', 'gin_array'}:
+                if not all([ self.table.columns[cname].is_indexable() for cname in want ]):
+                    # skip history-incompatible indexes
+                    continue
+
+            # first, conditionally create live index
+            idxdoc = {index_type: want}
+            if not self.existing_live.exists(idxdoc):
+                indexname = make_index_name(
+                    cur,
+                    self.table.name,
+                    [ cname for cname in want ],
+                    f'{suffix}_idx' if suffix else 'idx',
+                    schemaname=self.table.schema.name,
+                )
+
+                sql = IndexLive.idxdoc_to_sql(
+                    cur,
+                    idxdoc,
+                    self.table,
+                    indexname,
+                    # if we throw these here, the service logic is buggy... let it break
+                    ValueError,
+                    ValueError,
+                    ValueError,
+                    drop_existing=False
+                )
+                try:
+                    cur.execute(sql)
+                except Exception as e:
+                    deriva_debug(self.table, column, idxdoc, indexname, e)
+                    raise
+                else:
+                    # update planner incrementally
+                    self.existing_live.add(idxdoc)
+
+            if not self.existing_hist:
+                # skip history if disabled
+                continue
+
+            if not all([ self.table.columns[cname].is_history_indexable() for cname in want ]):
+                # skip history-incompatible indexes
+                continue
+
+            # conditionally create history index
+            idxdoc = {index_type: [ self.table.columns[cname].rid for cname in want ]}
+            if not self.existing_hist.exists(idxdoc):
+                indexname = make_index_name(
+                    cur,
+                    self.hist_tname,
+                    [ crid for crid in want ],
+                    f'{suffix}_idx' if suffix else 'idx',
+                    schemaname='_ermrest_history',
+                )
+
+                sql = IndexHistorical.idxdoc_to_sql(
+                    cur,
+                    idxdoc,
+                    self.table.rid,
+                    self.hist_tname,
+                    self.syscol_rids,
+                    indexname,
+                    # if we throw these here, the service logic is buggy... let it break
+                    ValueError,
+                    ValueError,
+                    ValueError,
+                )
+                try:
+                    cur.execute(sql)
+                except Exception as e:
+                    deriva_debug(self.table, column, idxdoc, indexname, e, sql)
+                    raise
+                else:
+                    # update planner incrementally
+                    self.existing_hist.add(idxdoc)
+
+    def create_fkeyref_indexes(self, cur, fkeyref):
+        assert fkeyref.foreign_key.table == self.table
+        fk_cols, pk_cols = fkeyref._fk_pk_cols_ordered()
+
+        # first, conditionally create live index
+        idxdoc = {'btree': [ col.name for col in fk_cols ]}
+        if not self.existing_live.exists(idxdoc):
+            indexname = make_index_name(
+                cur,
+                self.table.name,
+                [ col.name for col in fk_cols ],
+                'idx',
+                schemaname=self.table.schema.name,
+            )
+            sql = IndexLive.idxdoc_to_sql(
+                cur,
+                idxdoc,
+                self.table,
+                indexname,
+                # if we throw these here, the service logic is buggy... let it break
+                ValueError,
+                ValueError,
+                ValueError,
+                drop_existing=False
+            )
+            try:
+                cur.execute(sql)
+            except Exception as e:
+                deriva_debug(self.table, fkeyref, idxdoc, indexname, e, sql)
+                raise
+            else:
+                # update planner incrementally
+                self.existing_live.add(idxdoc)
+
+        if not self.existing_hist:
+            # skip history if disabled
+            return
+
+        if not all([ col.is_history_indexable() for col in fk_cols ]):
+            # skip for history-incompatible columns (bizarre scenario?)
+            return
+
+        # conditionally create history index
+        idxdoc = {'btree': [ col.rid for col in fk_cols ]}
+        if not self.existing_hist.exists(idxdoc):
+            indexname = make_index_name(
+                cur,
+                self.hist_tname,
+                [ col.rid for col in fk_cols ],
+                'idx',
+                schemaname='_ermrest_history',
+            )
+            sql = IndexHistorical.idxdoc_to_sql(
+                cur,
+                idxdoc,
+                self.table.rid,
+                self.hist_tname,
+                self.syscol_rids,
+                indexname,
+                # if we throw these here, the service logic is buggy... let it break
+                ValueError,
+                ValueError,
+                ValueError,
+            )
+            try:
+                cur.execute(sql)
+            except Exception as e:
+                deriva_debug(self.table, fkeyref, idxdoc, indexname, e)
+                raise
+            else:
+                # update planner incrementally
+                self.existing_hist.add(idxdoc)
 
 class IndexABC:
     """Abstract base to represent an index"""
@@ -136,7 +524,7 @@ class IndexLive (IndexABC):
                 idx.check_conflicts("replacement", forbidden_factory)
 
     @classmethod
-    def idxdoc_to_sql(cls, cur, idxdoc, table, indexname, baddata_factory, conflict_factory, forbidden_factory):
+    def idxdoc_to_sql(cls, cur, idxdoc, table, indexname, baddata_factory, conflict_factory, forbidden_factory, drop_existing=True):
         cls.check_available(
             cur,
             table,
@@ -156,37 +544,57 @@ class IndexLive (IndexABC):
         index_type = index_types.pop()
         index_want = idxdoc[index_type]
 
-        if isinstance(index_want, list):
-            if not all([ isinstance(e, str) for e in index_want ]):
-                raise baddata_factory(f"index creation field not understood {index_type}={index_want}")
+        if isinstance(index_want, str):
+            # normalize to list
+            index_want = [ index_want ]
 
-            for cname in index_want[1:]:
-                if cname not in table.columns:
-                    raise conflict_factory(f"index creation field {index_type} references unknown column {sql_identifier(cname)}")
+        if not all([ isinstance(e, str) for e in index_want ]):
+            raise baddata_factory(f"index creation field not understood {index_type}={index_want}")
 
-            base_cname = index_want[0]
-        else:
-            if not isinstance(index_want, str):
-                raise baddata_factory(f"index creation field not understood {index_type}={index_want}")
-            base_cname = index_want
+        def indexable(column):
+            if index_type == 'btree':
+                return column.is_indexable()
+            elif index_type == 'trgm':
+                return column.istext()
+            elif index_type == 'gin_array':
+                return column.is_array() and column.is_indexable()
+            else:
+                raise baddata_factory(f"unknown {index_type=}")
 
-        if base_cname not in table.columns:
-            raise conflict_factory(f"index creation field {index_type} references unknown column {sql_identifier(base_cname)}")
+        columns_sql = []
 
-        base_column = table.columns[base_cname]
+        for cname in index_want:
+            if cname not in table.columns:
+                raise conflict_factory(f"index creation field {index_type} references unknown column {sql_identifier(cname)}")
+            if not indexable(table.columns[cname]):
+                raise conflict_factory(f"column {sql_identifier(cname)} not indexable for btree")
 
-        if index_type == 'btree':
-            sql = base_column.btree_index_sql(index_want, indexname)
-        elif index_type == 'trgm':
-            sql = base_column.pg_trgm_index_sql(index_want, indexname)
-        elif index_type == 'gin_array':
-            sql = base_column.pg_gin_array_index_sql(index_want, indexname)
-        else:
-            raise baddata_factory(f"unknown indexing preference field {index_type}")
+            col_sql = sql_identifier(cname)
 
-        if sql is None:
-            raise baddata_factory("desired index cannot be determined from input")
+            if index_type == 'trgm':
+                col_sql = f"(_ermrest.astext({col_sql})) gin_trgm_ops"
+            elif index_type == 'gin_array':
+                col_sql = f"({col_sql}) array_ops"
+            elif index_type == 'btree':
+                col_sql = f"({col_sql})"
 
+            columns_sql.append(col_sql)
+
+        sql_parts = []
+        if drop_existing:
+            sql_parts.append(
+                f"DROP INDEX IF EXISTS {sql_identifier(table.schema.name)}.{sql_identifier(indexname)};"
+            )
+
+        sql_parts.extend([
+            f"CREATE INDEX {sql_identifier(indexname)} ON {sql_identifier(table.schema.name)}.{sql_identifier(table.name)}",
+            "USING btree (" if index_type == 'btree' else "USING GIN (",
+        ])
+
+        sql_parts.append(", ".join(columns_sql))
+        sql_parts.append(");")
+        sql_parts.append("SELECT _ermrest.model_version_bump();")
+        sql = "\n".join(sql_parts)
         return sql
 
     @classmethod
@@ -221,6 +629,10 @@ class IndexLive (IndexABC):
             cls.from_row(table, row)
             for row in enumerate_indexes(cur, table.schema.name, table.name, None)
         ]
+
+    @classmethod
+    def matcher_from_db_table(cls, cur, table):
+        return IndexStructureMatcher(cls.from_db_table(cur, table))
 
     def __init__(self, table, *, schemaname, tname, indexname, primary, unique, exclusion, valid, ready, live, sqldef, sqlexprs):
         kwargs = { k: v for k, v in locals().items() if k != 'self' }
@@ -328,6 +740,12 @@ class IndexLive (IndexABC):
 
         return None
 
+def history_table_existing(cur, table_rid, notfound_factory):
+    tname = f"t{table_rid}"
+    if not table_exists(cur, '_ermrest_history', tname):
+        raise notfound_factory(f'History table with RID={table_rid}')
+    return tname
+
 def history_trid_syscol_rids(cur, table_rid, notfound_factory):
     """Probe for table RID and return (history_tname, syscol_rids_d) pair"""
     # find first occurrence of table_rid and its schema name
@@ -382,9 +800,7 @@ LIMIT 1
         raise notfound_factory(f'History table with RID={table_rid}')
 
     # and we actually have a backing history table
-    tname = f"t{table_rid}"
-    if not table_exists(cur, '_ermrest_history', tname):
-        raise exception.rest.NotFound(f'History table with RID={table_rid}')
+    tname = history_table_existing(cur, table_rid, notfound_factory)
 
     trid, rid_rid, rmb_rid, rmt_rid = found_table_row
     rids = {
@@ -522,55 +938,31 @@ class IndexHistorical (IndexABC):
             require_single_type=True,
         )
 
-        def basic_store_type(type_name):
-            return {
-                'serial2': 'int2',
-                'serial4': 'int4',
-                'serial8': 'int8',
-            }.get(type_name, type_name)
-
         def is_array(crid):
             type_name, elem_type_name = crid_typeinfo[crid]
             return elem_type_name is not None
 
-        def is_indexable(crid):
+        def indexable(crid):
             type_name, elem_type_name = crid_typeinfo[crid]
             if elem_type_name is not None:
-                elem_type_name = basic_store_type(type_name)
-                return elem_type_name != 'json'
+                elem_type_name = reduce_typed_target(type_name)
+                return is_history_indexable(elem_type_name)
             else:
-                type_name = basic_store_type(type_name)
-                return type_name != 'json'
+                type_name = reduce_typed_target(type_name)
+                return is_history_indexable(type_name)
 
         def history_projection(crid, cast=True):
             # this type info already collapses domain types to underlying types
             type_name, elem_type_name = crid_typeinfo[crid]
-            type_name = basic_store_type(type_name)
+            type_name = reduce_typed_target(type_name)
 
             if elem_type_name is not None:
                 # use type-specific IMMUTABLE wrapper functions
-                elem_type_name = basic_store_type(elem_type_name)
-                target = {
-                    'text': 'text',
-                    'int2': 'int2',
-                    'smallint': 'int2',
-                    'int4': 'int4',
-                    'integer': 'int4',
-                    'int8': 'int8',
-                    'bigint': 'int8',
-                    'float4': 'float4',
-                    'real': 'float4',
-                    'float8': 'float8',
-                    'double precision': 'float8',
-                    'jsonb': 'jsonb',
-                    'json': 'json',
-                    'date': 'date',
-                    'boolean': 'boolean',
-                    'timestamp with time zone': 'timestamptz',
-                }.get(elem_type_name)
-                if target is None:
-                    raise conflict_factory(f"History column {crid} has unsupported type: array of {elem_type_name}")
-                return f"_ermrest.history_{target}_arr(rowdata->{sql_literal(crid)})"
+                helper_name = array_type_helper_name(
+                    elem_type_name,
+                    lambda es: conflict_factory(f"History column {crid}: {es}"),
+                )
+                return f"{helper_name}(rowdata->{sql_literal(crid)})"
             else:
                 # scalar column
                 column_name = syscol_rids_invert.get(crid)
@@ -598,13 +990,14 @@ class IndexHistorical (IndexABC):
             "USING btree (" if index_type == 'btree' else "USING GIN ("
         ]
 
+        index_want = [ index_want ] if isinstance(index_want, str) else index_want
         if index_type == 'trgm':
-            if not isinstance(index_want, str):
+            if not len(index_want) == 1:
                 raise baddata_factory(f"Invalid compound index {index_type}={index_want}")
             # everything gets cast to text
             sql_parts.append(f"_ermrest.astext({history_projection(base_crid, cast=False)}) gin_trgm_ops")
         elif index_type == 'gin_array':
-            if not isinstance(index_want, str):
+            if not len(index_want) == 1:
                 raise baddata_factory(f"Invalid compound index {index_type}={index_want}")
             if not is_array(base_crid) or not is_indexable(base_crid):
                 raise conflict_factory(f"Conflicting column type for index {index_type}={index_want}")
@@ -652,6 +1045,11 @@ class IndexHistorical (IndexABC):
             cls.from_row(table_rid, syscol_rids, row)
             for row in enumerate_indexes(cur, '_ermrest_history', tname, iname)
         ]
+
+    @classmethod
+    def matcher_from_db_table(cls, cur, table_rid, tname, syscol_rids):
+        """Get matcher or raise KeyError if there is no history table for table_rid"""
+        return IndexStructureMatcher(cls.from_db_table(cur, table_rid, tname, syscol_rids))
 
     @classmethod
     def from_db_single(cls, cur, table_rid, tname, syscol_rids, iname):
@@ -725,7 +1123,7 @@ class IndexHistorical (IndexABC):
                     cname = sql_ident_unquote(m.group(1))
                     if cname == 'lower(during)':
                         cname = 'RMT'
-                    crid = rids.get(cname)
+                    crid = self.syscol_rids.get(cname)
 
                 return {'trgm': [crid]}
 
@@ -806,10 +1204,6 @@ def drop_index(cur, schemaname, indexname):
 DROP INDEX {sql_identifier(schemaname)}.{sql_identifier(indexname)};
 SELECT _ermrest.model_version_bump();
 """)
-
-def constraint_exists(cur, constraintname):
-    cur.execute("SELECT * FROM pg_catalog.pg_constraint WHERE conname = %s" % sql_literal(constraintname))
-    return cur.rowcount > 0
 
 def view_exists(cur, schemaname, tablename):
     """Return True or False depending on whether (schema.)tablename view exists in our database."""

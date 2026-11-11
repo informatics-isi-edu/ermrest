@@ -19,9 +19,45 @@ import json
 from webauthn2.util import deriva_ctx
 
 from .. import exception
-from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet, OrderedFrozenDict
-from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, make_id, make_constraint_name
+from ..util import sql_identifier, sql_literal, constraint_exists, OrderedFrozenSet, OrderedFrozenDict, make_unique_name, constraint_exists
+from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id
 from .name import _keyref_join_str, _keyref_join_sql
+
+def _pseudo_key_exists(cur, name):
+    cur.execute("""
+SELECT True
+FROM _ermrest.known_pseudo_keys
+WHERE constraint_name = %(constraint_name)s;
+""" % {
+    'constraint_name': sql_literal(name),
+})
+    for row in cur:
+        return True
+    return False
+
+def _pseudo_fkey_exists(cur, name):
+    cur.execute("""
+SELECT True
+FROM _ermrest.known_pseudo_fkeys
+WHERE constraint_name = %(constraint_name)s;
+""" % {
+    'constraint_name': sql_literal(name),
+})
+    for row in cur:
+        return True
+    return False
+
+def make_key_name(cur, *parts):
+    return make_unique_name(cur, *parts, probefunc=constraint_exists)
+
+def make_pseudo_key_name(cur, *parts):
+    return make_unique_name(cur, *parts, probefunc=_pseudo_key_exists)
+
+def make_fkey_name(cur, *parts):
+    return make_unique_name(cur, *parts, probefunc=constraint_exists)
+
+def make_pseudo_fkey_name(cur, *parts):
+    return make_unique_name(cur, *parts, probefunc=_pseudo_fkey_exists)
 
 @annotatable
 @keying('key', {"key_rid": ('text', lambda self: self.rid)})
@@ -205,7 +241,7 @@ WHERE e."RID" = %(rid)s;
         if not self.constraint_name:
             self.constraint_name = (
                 self.table.schema.name,
-                make_constraint_name(
+                make_key_name(
                     cur,
                     self.table.name,
                     [c.name for c in self.columns],
@@ -382,30 +418,16 @@ SELECT _ermrest.model_version_bump();
             'names': [ self.constraint_name ],
         }
 
-    @staticmethod
-    def _pseudo_key_exists(cur, name):
-        cur.execute("""
-SELECT True
-FROM _ermrest.known_pseudo_keys
-WHERE constraint_name = %(constraint_name)s;
-""" % {
-    'constraint_name': sql_literal(name),
-})
-        for row in cur:
-            return row[0]
-        return False
-
     def add(self, conn, cur):
         self.table.enforce_right('owner') # since we don't use alter_table which enforces for real keys
         if not self.constraint_name:
             self.constraint_name = (
                 "",
-                make_constraint_name(
+                make_pseudo_fkey_name(
                     cur,
                     self.table.name,
                     [c.name for c in self.columns],
                     'key',
-                    probefunc=self._pseudo_key_exists,
                 )
             )
         cur.execute("""
@@ -669,7 +691,7 @@ SELECT _ermrest.model_version_bump();
 
     def _fk_pk_cols_ordered(self):
         return _keyref_fk_pk_cols_ordered(self)
-    
+
     def sql_def(self):
         """Render SQL table constraint clause for DDL."""
         # sort out column ordering to obey referenced key's stable column order
@@ -690,7 +712,7 @@ SELECT _ermrest.model_version_bump();
         if not self.constraint_name:
             self.constraint_name = (
                 self.foreign_key.table.schema.name,
-                make_constraint_name(
+                make_fkey_name(
                     cur,
                     self.foreign_key.table.name,
                     [c.name for c in self.foreign_key.columns],
@@ -703,7 +725,6 @@ SELECT _ermrest.model_version_bump();
             conn, cur,
             'ADD %s' % self.sql_def(),
             """
--- CREATE INDEX IF NOT EXISTS %(idx_name)s ON %(schema_name)s.%(table_name)s (%(idx_cols)s);
 INSERT INTO _ermrest.known_fkeys (oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule)
 SELECT oid, schema_rid, constraint_name, fk_table_rid, pk_table_rid, delete_rule, update_rule
 FROM _ermrest.introspect_fkeys
@@ -727,7 +748,6 @@ RETURNING fkey_rid;
     'idx_name': sql_identifier(idx_name),
     'schema_name': sql_identifier(self.foreign_key.table.schema.name),
     'table_name': sql_identifier(self.foreign_key.table.name),
-    'idx_cols': ', '.join([ sql_identifier(c.name) for c in fk_cols ]),
 })
         self.rid = cur.fetchone()[0]
         self.set_comment(conn, cur, self.comment)
@@ -1120,30 +1140,16 @@ WHERE e."RID" = %(rid)s;
 
         return newfkr
 
-    @staticmethod
-    def _pseudo_fkey_exists(cur, name):
-        cur.execute("""
-SELECT True
-FROM _ermrest.known_pseudo_fkeys
-WHERE constraint_name = %(constraint_name)s;
-""" % {
-    'constraint_name': sql_literal(name),
-})
-        for row in cur:
-            return row[0]
-        return False
-
     def add(self, conn, cur):
         self.foreign_key.table.enforce_right('owner') # since we don't use alter_table which enforces for real keyrefs
         if not self.constraint_name:
             self.constraint_name = (
                 self.foreign_key.table.schema.name,
-                make_constraint_name(
+                make_pseudo_fkey_name(
                     cur,
                     self.foreign_key.table.name,
                     [c.name for c in self.foreign_key.columns],
                     'fkey',
-                    probefunc=self._pseudo_fkey_exists,
                 )
             )
         fk_cols = list(self.foreign_key.columns)

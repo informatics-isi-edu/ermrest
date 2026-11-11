@@ -31,7 +31,7 @@ from functools import reduce
 from webauthn2.util import deriva_ctx, deriva_debug
 
 from .. import exception, ermpath
-from ..util import sql_identifier, sql_literal, table_exists, OrderedFrozenSet
+from ..util import sql_identifier, sql_literal, table_exists, OrderedFrozenSet, IndexPlanner
 from .misc import AltDict, AclDict, DynaclDict, keying, annotatable, cache_rights, hasacls, hasdynacls, enforce_63byte_id, sufficient_rights, get_dynacl_clauses
 from .column import Column, FreetextColumn
 from .key import Unique, ForeignKey, KeyReference
@@ -358,19 +358,15 @@ ORDER BY column_num;
                 # need to drain this generating function
                 pass
 
+        index_planner = IndexPlanner(cur, table)
+
         for fkeydoc in tabledoc.get('foreign_keys', []):
-            for fkr in table.add_fkeyref(conn, cur, fkeydoc):
+            for fkr in table.add_fkeyref(conn, cur, fkeydoc, index_planner):
                 # need to drain this generating function
                 pass
 
         for column in columns:
-            try:
-                _execute_if(cur, column.btree_index_sql())
-                _execute_if(cur, column.pg_trgm_index_sql())
-                _execute_if(cur, column.pg_gin_array_index_sql())
-            except Exception as e:
-                deriva_debug(table, column, e)
-                raise
+            index_planner.create_column_indexes(cur, column)
 
         try:
             table.check_primary_keys(ermrest_config.get('require_primary_keys', True), ermrest_config.get('warn_missing_system_columns', True))
@@ -429,7 +425,7 @@ SELECT _ermrest.model_version_bump();
         )
         self.comment = comment
 
-    def add_column(self, conn, cur, columndoc, ermrest_config):
+    def add_column(self, conn, cur, columndoc, ermrest_config, index_planner=None):
         """Add column to table."""
         self.enforce_right('owner')
         # new column always goes on rightmost position
@@ -468,13 +464,9 @@ UPDATE %(sname)s.%(tname)s SET %(cname)s = %(default)s;
     "default": column.type.sql_literal(column.default_value),
 }
             )
-        try:
-            _execute_if(cur, column.btree_index_sql())
-            _execute_if(cur, column.pg_trgm_index_sql())
-            _execute_if(cur, column.pg_gin_array_index_sql())
-        except Exception as e:
-            deriva_debug(table, column, e)
-            raise
+        if index_planner is None:
+            index_planner = IndexPlanner(cur, self)
+        index_planner.create_column_indexes(cur, column)
         return column
 
     def delete_column(self, conn, cur, cname):
@@ -508,24 +500,18 @@ WHERE "RID" = %s;
             key.set_annotations(conn, cur, key.annotations)
             yield key
 
-    def add_fkeyref(self, conn, cur, fkrdoc):
+    def add_fkeyref(self, conn, cur, fkrdoc, index_planner=None):
         """Add foreign-key reference constraint to table."""
         self.enforce_right('owner')
+        if index_planner is None:
+            index_planner = IndexPlanner(cur, self)
         for fkr in KeyReference.fromjson(self.schema.model, fkrdoc, None, self, None, None, None):
             # new foreign key constraint must be added to table
             fkr.add(conn, cur)
-
             fkr.set_annotations(conn, cur, fkr.annotations)
             fkr.set_acls(cur, fkr.acls, anon_mutation_ok=True)
             fkr.set_dynacls(cur, fkr.dynacls)
-
-            fk_cols, pk_cols = fkr._fk_pk_cols_ordered()
-            try:
-                _execute_if(cur, fk_cols[0].btree_index_sql())
-            except Exception as e:
-                deriva_debug(self, fk_cols[0], e)
-                raise
-
+            index_planner.create_fkeyref_indexes(cur, fkr)
             yield fkr
 
     def prejson(self):
