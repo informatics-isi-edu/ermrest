@@ -696,7 +696,7 @@ class IndexLive (IndexABC):
 
                 m = re.match(f'_ermrest.astext[(]({pat_ident})(::[^,():]+)?[)] gin_trgm_ops', s1)
                 if not m:
-                    m = re.match(f'_ermrest.astext[(]([(]{pat_ident}[)])(::[^,():]+)?[)] gin_trgm_ops', s1)
+                    m = re.match(f'_ermrest.astext[(][(]({pat_ident})[)](::[^,():]+)?[)] gin_trgm_ops', s1)
                 if not m:
                     return None
 
