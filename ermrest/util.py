@@ -270,10 +270,11 @@ def is_indexable(target):
     target = reduce_typed_target(target)
     return target not in {'json',}
 
-def is_history_indexable(target):
+def is_history_indexable(target, index_type='btree'):
     target = reduce_typed_target(target)
+    if target == 'json':
+        return index_type == 'trgm'
     return target not in {
-        'json',
         'timestamp',
         'timestamp without time zone',
         'time',
@@ -363,7 +364,7 @@ class IndexPlanner:
                 # skip history if disabled
                 continue
 
-            if not all([ self.table.columns[cname].is_history_indexable() for cname in want ]):
+            if not all([ self.table.columns[cname].is_history_indexable(index_type) for cname in want ]):
                 # skip history-incompatible indexes
                 continue
 
@@ -942,15 +943,6 @@ class IndexHistorical (IndexABC):
             type_name, elem_type_name = crid_typeinfo[crid]
             return elem_type_name is not None
 
-        def indexable(crid):
-            type_name, elem_type_name = crid_typeinfo[crid]
-            if elem_type_name is not None:
-                elem_type_name = reduce_typed_target(type_name)
-                return is_history_indexable(elem_type_name)
-            else:
-                type_name = reduce_typed_target(type_name)
-                return is_history_indexable(type_name)
-
         def history_projection(crid, cast=True):
             # this type info already collapses domain types to underlying types
             type_name, elem_type_name = crid_typeinfo[crid]
@@ -999,7 +991,7 @@ class IndexHistorical (IndexABC):
         elif index_type == 'gin_array':
             if not len(index_want) == 1:
                 raise baddata_factory(f"Invalid compound index {index_type}={index_want}")
-            if not is_array(base_crid) or not is_indexable(base_crid):
+            if not is_array(base_crid) or not is_history_indexable(base_crid, index_type):
                 raise conflict_factory(f"Conflicting column type for index {index_type}={index_want}")
             sql_parts.append(f"{history_projection(base_crid)} array_ops")
         elif index_type == 'btree':
@@ -1007,7 +999,7 @@ class IndexHistorical (IndexABC):
                 index_want = [ base_crid ]
 
             def btree_col(crid):
-                if not is_indexable(crid):
+                if not is_history_indexable(crid, index_type):
                     raise conflict_factory(f"Conflicting column type for index {index_type}=...{crid}...")
                 return history_projection(crid)
 

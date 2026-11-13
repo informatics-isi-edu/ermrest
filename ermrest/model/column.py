@@ -136,8 +136,8 @@ SELECT _ermrest.model_version_bump();
     def is_indexable(self):
         return is_indexable(self.type)
 
-    def is_history_indexable(self):
-        return is_history_indexable(self.type)
+    def is_history_indexable(self, index_type='btree'):
+        return is_history_indexable(self.type, index_type)
 
     def want_index(self, index_type, default=True):
         """Return cname list if we prefer to have index, False if not."""
