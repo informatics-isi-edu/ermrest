@@ -745,6 +745,12 @@ class HistoryTableIndexing (Api):
             return _post_commit_json(handler, [resource, resource])
         return _GET(self, self.GET_body, post_commit)
 
+    def _bump_amended(self, conn, cur):
+        cur.execute("""
+INSERT INTO _ermrest.catalog_amended (ts, during)
+VALUES (now(), tstzrange(NULL::timestamptz, NULL::timestamptz, '[)'));
+""")
+
     def PUT_body(self, conn, cur, idxdoc):
         assert self.index_name is not None
         self.enforce_right("owner")
@@ -761,6 +767,7 @@ class HistoryTableIndexing (Api):
             exception.Forbidden,
         )
         cur.execute(sql)
+        self._bump_amended(conn, cur)
         return IndexHistorical.from_db_single(cur, self.table_rid, tname, syscol_rids, self.index_name).to_dict()
 
     def PUT(self, uri):
@@ -775,6 +782,7 @@ class HistoryTableIndexing (Api):
         idx = self.GET_body(conn, cur)
         idx.check_conflicts("deletion", exception.Forbidden)
         drop_index(cur, '_ermrest_history', self.index_name)
+        self._bump_amended(conn, cur)
         return ''
 
     def DELETE(self, uri):
