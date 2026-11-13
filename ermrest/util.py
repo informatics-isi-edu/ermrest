@@ -205,13 +205,14 @@ class IndexStructureMatcher:
             if idx.definition:
                 # should only be one, but this is an easy way to unpack
                 for index_type, index_want in idx.definition.items():
-                    index_want = tuple(index_want) if isinstance(index_want, list) else (index_want,)
+                    index_want = (index_want,) if isinstance(index_want, str) else tuple(index_want)
                     self.by_type.setdefault(index_type, set()).add(index_want)
 
     def exists(self, idxdoc):
         # should only be one, but this is an easy way to unpack
         for index_type, index_want1 in idxdoc.items():
             for index_want2 in self.by_type.get(index_type, set()):
+                index_want1 = (index_want1,) if isinstance(index_want1, str) else tuple(index_want1)
                 if index_want1 == index_want2[:len(index_want1)]:
                     return True
         return False
@@ -219,7 +220,7 @@ class IndexStructureMatcher:
     def add(self, idxdoc):
         # should only be one, but this is an easy way to unpack
         for index_type, index_want in idxdoc.items():
-            index_want = tuple(index_want) if isinstance(index_want, list) else (index_want,)
+            index_want = (index_want,) if isinstance(index_want, str) else tuple(index_want)
             self.by_type.setdefault(index_type, set()).add(index_want)
 
 def reduce_typed_target(target):
