@@ -375,7 +375,7 @@ class IndexPlanner:
                 indexname = make_index_name(
                     cur,
                     self.hist_tname,
-                    [ crid for crid in want ],
+                    [ cname for cname in want ],
                     f'{suffix}_idx' if suffix else 'idx',
                     schemaname='_ermrest_history',
                 )
@@ -401,6 +401,51 @@ class IndexPlanner:
                     # update planner incrementally
                     self.existing_hist.add(idxdoc)
 
+    def create_key_indexes(self, cur, key):
+        assert key.table == self.table
+        cols = key.columns
+
+        # NOTE: live table indexes are created implicitly by unique constraint
+        # but history tables do not have these constraints
+
+        if not self.existing_hist:
+            # skip history if disabled
+            return
+
+        if not all([ col.is_history_indexable() for col in cols ]):
+            # skip for history-incompatible columns (bizarre scenario?)
+            return
+
+        idxdoc = {'btree': [ col.rid for col in cols ]}
+        if not self.existing_hist.exists(idxdoc):
+            indexname = make_index_name(
+                cur,
+                self.hist_tname,
+                [ col.name for col in cols ],
+                'key_idx',
+                schemaname='_ermrest_history',
+            )
+            sql = IndexHistorical.idxdoc_to_sql(
+                cur,
+                idxdoc,
+                self.table.rid,
+                self.hist_tname,
+                self.syscol_rids,
+                indexname,
+                # if we throw these here, the service logic is buggy... let it break
+                ValueError,
+                ValueError,
+                ValueError,
+            )
+            try:
+                cur.execute(sql)
+            except Exception as e:
+                deriva_debug(self.table, key, idxdoc, indexname, e)
+                raise
+            else:
+                # update planner incrementally
+                self.existing_hist.add(idxdoc)
+
     def create_fkeyref_indexes(self, cur, fkeyref):
         assert fkeyref.foreign_key.table == self.table
         fk_cols, pk_cols = fkeyref._fk_pk_cols_ordered()
@@ -412,7 +457,7 @@ class IndexPlanner:
                 cur,
                 self.table.name,
                 [ col.name for col in fk_cols ],
-                'idx',
+                'fkey_idx',
                 schemaname=self.table.schema.name,
             )
             sql = IndexLive.idxdoc_to_sql(
@@ -449,8 +494,8 @@ class IndexPlanner:
             indexname = make_index_name(
                 cur,
                 self.hist_tname,
-                [ col.rid for col in fk_cols ],
-                'idx',
+                [ col.name for col in fk_cols ],
+                'fkey_idx',
                 schemaname='_ermrest_history',
             )
             sql = IndexHistorical.idxdoc_to_sql(

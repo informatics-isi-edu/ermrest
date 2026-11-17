@@ -353,12 +353,12 @@ ORDER BY column_num;
             column.set_acls(cur, column.acls)
             column.set_dynacls(cur, column.dynacls)
 
+        index_planner = IndexPlanner(cur, table)
+
         for keydoc in tabledoc.get('keys', []):
-            for key in table.add_unique(conn, cur, keydoc):
+            for key in table.add_unique(conn, cur, keydoc, index_planner):
                 # need to drain this generating function
                 pass
-
-        index_planner = IndexPlanner(cur, table)
 
         for fkeydoc in tabledoc.get('foreign_keys', []):
             for fkr in table.add_fkeyref(conn, cur, fkeydoc, index_planner):
@@ -492,12 +492,15 @@ WHERE "RID" = %s;
         )
         del self.columns[cname]
                     
-    def add_unique(self, conn, cur, udoc):
+    def add_unique(self, conn, cur, udoc, index_planner=None):
         """Add a unique constraint to table."""
         self.enforce_right('owner')
+        if index_planner is None:
+            index_planner = IndexPlanner(cur, self)
         for key in Unique.fromjson_single(self, udoc):
             key.add(conn, cur)
             key.set_annotations(conn, cur, key.annotations)
+            index_planner.create_key_indexes(cur, key)
             yield key
 
     def add_fkeyref(self, conn, cur, fkrdoc, index_planner=None):
