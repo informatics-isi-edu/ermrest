@@ -83,6 +83,7 @@ keywords = [
     'geq',
     'gt',
     'history',
+    'index',
     'key',
     'leq',
     'left',

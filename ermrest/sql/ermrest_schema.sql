@@ -44,6 +44,108 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION _ermrest.history_timestamptz(text) RETURNS timestamptz IMMUTABLE AS $$
+  -- this is safe because we know our history timestamps are ISO strings with numeric offset
+  SELECT $1::timestamptz;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_date(text) RETURNS date IMMUTABLE AS $$
+  -- this is safe because we know our history dates are ISO digit strings
+  SELECT $1::date;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_timestamptz_arr(jsonb) RETURNS timestamptz[] IMMUTABLE AS $$
+  -- this is safe because we know our history timestamps are ISO strings with numeric offset
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::timestamptz) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_date_arr(jsonb) RETURNS date[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::date) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_text_arr(jsonb) RETURNS text[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_json_arr(jsonb) RETURNS json[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::json) FROM jsonb_array_elements($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_jsonb_arr(jsonb) RETURNS jsonb[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x) FROM jsonb_array_elements($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_boolean_arr(jsonb) RETURNS boolean[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::boolean) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_int2_arr(jsonb) RETURNS int2[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int2) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_int4_arr(jsonb) RETURNS int4[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int4) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_int8_arr(jsonb) RETURNS int8[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int8) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_float4_arr(jsonb) RETURNS float4[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int4) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_float8_arr(jsonb) RETURNS float8[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::int8) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_uuid_arr(jsonb) RETURNS uuid[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::uuid) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION _ermrest.history_interval_arr(jsonb) RETURNS interval[] IMMUTABLE AS $$
+  SELECT CASE
+    WHEN jsonb_typeof($1) = 'null' THEN NULL
+    ELSE (SELECT array_agg(e.x::interval) FROM jsonb_array_elements_text($1) e(x))
+  END;
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION _ermrest.astext(timestamptz) RETURNS text IMMUTABLE AS $$
   SELECT to_char($1 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
 $$ LANGUAGE SQL;
@@ -2479,6 +2581,16 @@ RETURNS TABLE ("RID" text, schema_name text, comment text) AS $$
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_schema_annotations_schema_rid_idx') IS NULL THEN
+  CREATE INDEX known_schema_annotations_schema_rid_idx
+  ON _ermrest_history.known_schema_annotations ( ((rowdata->>'schema_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_schema_acls_schema_rid_idx') IS NULL THEN
+  CREATE INDEX known_schema_acls_schema_rid_idx
+  ON _ermrest_history.known_schema_acls ( ((rowdata->>'schema_rid')::text) );
+END IF;
+
 CREATE OR REPLACE FUNCTION _ermrest.known_schemas_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_name text, comment text, annotations jsonb, acls jsonb) AS $$
 SELECT
@@ -2543,6 +2655,31 @@ RETURNS TABLE ("RID" text, column_rid text) AS $$
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_pseudo_notnulls_column_rid_idx') IS NULL THEN
+  CREATE INDEX known_pseudo_notnulls_column_rid_idx
+  ON _ermrest_history.known_pseudo_notnulls ( ((rowdata->>'column_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_columns_table_rid_idx') IS NULL THEN
+  CREATE INDEX known_columns_table_rid_idx
+  ON _ermrest_history.known_columns ( ((rowdata->>'table_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_column_annotations_column_rid_idx') IS NULL THEN
+  CREATE INDEX known_column_annotations_column_rid_idx
+  ON _ermrest_history.known_column_annotations ( ((rowdata->>'column_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_column_acls_column_rid_idx') IS NULL THEN
+  CREATE INDEX known_column_acls_column_rid_idx
+  ON _ermrest_history.known_column_acls ( ((rowdata->>'column_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_column_dynacls_column_rid_idx') IS NULL THEN
+  CREATE INDEX known_column_dynacls_column_rid_idx
+  ON _ermrest_history.known_column_dynacls ( ((rowdata->>'column_rid')::text) );
+END IF;
+
 CREATE OR REPLACE FUNCTION _ermrest.known_columns_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, table_rid text, column_num int, column_name text, type_rid text, not_null boolean, column_default text, comment text, annotations jsonb, acls jsonb) AS $$
 SELECT
@@ -2585,6 +2722,21 @@ RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, co
   FROM _ermrest_history.known_tables s
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_table_annotations_table_rid_idx') IS NULL THEN
+  CREATE INDEX known_table_annotations_table_rid_idx
+  ON _ermrest_history.known_table_annotations ( ((rowdata->>'table_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_table_acls_table_rid_idx') IS NULL THEN
+  CREATE INDEX known_table_acls_table_rid_idx
+  ON _ermrest_history.known_table_acls ( ((rowdata->>'table_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_table_dynacls_table_rid_idx') IS NULL THEN
+  CREATE INDEX known_table_dynacls_table_rid_idx
+  ON _ermrest_history.known_table_dynacls ( ((rowdata->>'table_rid')::text) );
+END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_tables_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, table_name text, table_kind text, comment text, annotations jsonb, acls jsonb, columns jsonb[]) AS $$
@@ -2775,6 +2927,16 @@ RETURNS TABLE ("RID" text, key_rid text, column_rid text, "ordinality" int4) AS 
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_key_columns_key_rid_idx') IS NULL THEN
+  CREATE INDEX known_key_columns_key_rid_idx
+  ON _ermrest_history.known_key_columns ( ((rowdata->>'key_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_key_annotations_key_rid_idx') IS NULL THEN
+  CREATE INDEX known_key_annotations_key_rid_idx
+  ON _ermrest_history.known_key_annotations ( ((rowdata->>'key_rid')::text) );
+END IF;
+
 CREATE OR REPLACE FUNCTION _ermrest.known_keys_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, table_rid text, column_rids text[], comment text, annotations jsonb) AS $$
 SELECT
@@ -2801,6 +2963,16 @@ LEFT OUTER JOIN (
   GROUP BY key_rid
 ) anno ON (k."RID" = anno.key_rid)
 $$ LANGUAGE SQL;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_pseudo_key_columns_key_rid_idx') IS NULL THEN
+  CREATE INDEX known_pseudo_key_columns_key_rid_idx
+  ON _ermrest_history.known_pseudo_key_columns ( ((rowdata->>'key_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_pseudo_key_annotations_key_rid_idx') IS NULL THEN
+  CREATE INDEX known_pseudo_key_annotations_key_rid_idx
+  ON _ermrest_history.known_pseudo_key_annotations ( ((rowdata->>'key_rid')::text) );
+END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_keys_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, constraint_name text, table_rid text, column_rids text[], comment text, annotations jsonb) AS $$
@@ -2879,6 +3051,26 @@ RETURNS TABLE ("RID" text, fkey_rid text, fk_column_rid text, pk_column_rid text
   WHERE s.during @> COALESCE($1, now());
 $$ LANGUAGE SQL;
 
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_fkey_columns_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_fkey_columns_fkey_rid_idx
+  ON _ermrest_history.known_fkey_columns ( ((rowdata->>'fkey_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_fkey_annotations_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_fkey_annotations_fkey_rid_idx
+  ON _ermrest_history.known_fkey_annotations ( ((rowdata->>'fkey_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_fkey_acls_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_fkey_acls_fkey_rid_idx
+  ON _ermrest_history.known_fkey_acls ( ((rowdata->>'fkey_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_fkey_dynacls_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_fkey_dynacls_fkey_rid_idx
+  ON _ermrest_history.known_fkey_dynacls ( ((rowdata->>'fkey_rid')::text) );
+END IF;
+
 CREATE OR REPLACE FUNCTION _ermrest.known_fkeys_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, schema_rid text, constraint_name text, fk_table_rid text, fk_column_rids text[], pk_table_rid text, pk_column_rids text[], delete_rule text, update_rule text, comment text, annotations jsonb, acls jsonb) AS $$
 SELECT
@@ -2918,6 +3110,26 @@ LEFT OUTER JOIN (
   GROUP BY fkey_rid
 ) acl ON (fk."RID" = acl.fkey_rid)
 $$ LANGUAGE SQL;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_pseudo_fkey_columns_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_pseudo_fkey_columns_fkey_rid_idx
+  ON _ermrest_history.known_pseudo_fkey_columns ( ((rowdata->>'fkey_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_pseudo_fkey_annotations_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_pseudo_fkey_annotations_fkey_rid_idx
+  ON _ermrest_history.known_pseudo_fkey_annotations ( ((rowdata->>'fkey_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_pseudo_fkey_acls_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_pseudo_fkey_acls_fkey_rid_idx
+  ON _ermrest_history.known_pseudo_fkey_acls ( ((rowdata->>'fkey_rid')::text) );
+END IF;
+
+IF (SELECT True FROM pg_catalog.pg_indexes WHERE schemaname = '_ermrest_history' AND indexname = 'known_pseudo_fkey_dynacls_fkey_rid_idx') IS NULL THEN
+  CREATE INDEX known_pseudo_fkey_dynacls_fkey_rid_idx
+  ON _ermrest_history.known_pseudo_fkey_dynacls ( ((rowdata->>'fkey_rid')::text) );
+END IF;
 
 CREATE OR REPLACE FUNCTION _ermrest.known_pseudo_fkeys_denorm(ts timestamptz)
 RETURNS TABLE ("RID" text, constraint_name text, fk_table_rid text, fk_column_rids text[], pk_table_rid text, pk_column_rids text[], comment text, annotations jsonb, acls jsonb) AS $$
