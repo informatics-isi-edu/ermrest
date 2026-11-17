@@ -420,7 +420,8 @@ class Explicit (common.ErmrestTest):
                 r = self.session.put(f"schema/{_S}/table/{_T1}/index/{iname}")
                 self.assertHttp(r, 400)
 
-class ExplicitHistory (common.ErmrestTest):
+# prefixed ZZ to run after history.ZHistory in full (flattened) test run
+class ZZExplicitHistory (common.ErmrestTest):
 
     def good_defs(self):
         return {
